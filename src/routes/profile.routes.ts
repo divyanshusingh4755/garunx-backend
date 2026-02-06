@@ -15,6 +15,13 @@ const profileValidation = [
         .notEmpty().withMessage('Full name is required')
         .isString().trim().isLength({ min: 2 }),
 
+    body('password')
+        .isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
+
+    body('profileImage')
+        .optional()
+        .isURL().withMessage("Image must be a valid URL"),
+
     body('email')
         .optional()
         .isEmail().withMessage('Please enter a valid email address')

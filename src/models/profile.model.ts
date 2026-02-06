@@ -10,6 +10,8 @@ export interface IProfile extends Document {
     referralCode?: string;
     isComplete: boolean;
     referredBy?: Types.ObjectId;
+    profileImage?: string;
+
 }
 
 const profileSchema = new Schema<IProfile>({
@@ -28,6 +30,7 @@ const profileSchema = new Schema<IProfile>({
     email: { type: String, unique: true, sparse: true, lowercase: true, index: true },
     phoneNumber: { type: String, unique: true, sparse: true, index: true },
     dob: { type: Date },
+    profileImage: { type: String, default: null },
     gender: { type: String, enum: ['Male', 'Female', 'Other'] },
     referralCode: { type: String, unique: true, sparse: true },
     isComplete: { type: Boolean, default: false },

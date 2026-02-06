@@ -3,10 +3,10 @@ import ProfileService from "../services/profile.service.js"
 
 export const completeProfile = async (req: Request, res: Response) => {
     try {
-        const { userId, fullName, phoneNumber, email, dob, gender, referralCode } = req.body
+        const { userId, fullName, phoneNumber, email, dob, gender, referralCode, password, profileImage } = req.body
 
         // Call service to handle logic
-        const profile = await ProfileService.completeProfile(userId, fullName, phoneNumber, email, dob, gender, referralCode)
+        const profile = await ProfileService.completeProfile(userId, fullName, phoneNumber, email, dob, gender, referralCode, password, profileImage)
 
         res.status(200).send({
             success: true,

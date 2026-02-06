@@ -1,3 +1,4 @@
+import bcrypt from 'bcrypt';
 import type { Types } from "mongoose"
 import { Profile } from "../models/profile.model.js"
 import mongoose from "mongoose"
@@ -12,57 +13,86 @@ class ProfileService {
         email?: string,
         dob?: Date,
         gender?: 'Male' | 'Female' | 'Other',
-        referralCode?: string
+        referralCode?: string,
+        password?: string,
+        profileImage?: string
     ) {
+        const session = await mongoose.startSession();
+        session.startTransaction();
 
-        // Fetch current profile to check if referredBy is already set
-        const currentProfile = await Profile.findOne({ userId })
-        if (!currentProfile) throw new Error("Profile not found")
+        try {
+            // Fetch current profile to check if referredBy is already set
+            const currentProfile = await Profile.findOne({ userId }).session(session);
+            if (!currentProfile) throw new Error("Profile not found")
 
-        let referredById: Types.ObjectId | null = null
+            let referredById: Types.ObjectId | null = null
 
-        // Validate Referral Code if provided
-        if (referralCode && !currentProfile.referredBy) {
-            const referrer = await Profile.findOne({
-                referralCode: referralCode.trim().toUpperCase()
-            }).lean()
+            // Validate Referral Code if provided
+            if (referralCode && !currentProfile.referredBy) {
+                const referrer = await Profile.findOne({
+                    referralCode: referralCode.trim().toUpperCase()
+                }).session(session);
 
-            if (referrer) {
-                // Prevent self referral logic
-                if (referrer.userId.toString() === userId.toString()) {
-                    throw new Error("You cannot use your own referral code")
+                if (referrer) {
+                    // Prevent self referral logic
+                    if (referrer.userId.toString() === userId.toString()) {
+                        throw new Error("You cannot use your own referral code")
+                    }
+                    referredById = referrer.userId
                 }
-                referredById = referrer.userId
             }
-        }
 
-        // Atomic Update of the Profile
-        const updateProfile = await Profile.findOneAndUpdate(
-            { userId },
-            {
-                $set: {
-                    fullName,
-                    gender,
-                    dob,
-                    isComplete: true,
-                    // Only update email/phone if they are provided
-                    ...(email && { email }),
-                    ...(phoneNumber && { phoneNumber }),
-                    // set referrer only if a valid one was found
-                    ...(referredById && { referredBy: referredById })
+            let hashedPassword
+            if (password) {
+                const salt = await bcrypt.genSalt(10)
+                hashedPassword = await bcrypt.hash(password, salt)
+                await User.findByIdAndUpdate(
+                    userId,
+                    {
+                        $set: {
+                            hashedPassword
+                        }
+                    }
+                ).session(session)
+            }
+
+            // Atomic Update of the Profile
+            const updateProfile = await Profile.findOneAndUpdate(
+                { userId },
+                {
+                    $set: {
+                        fullName,
+                        gender,
+                        dob,
+                        isComplete: true,
+                        profileImage,
+                        // Only update email/phone if they are provided
+                        ...(email && { email }),
+                        ...(phoneNumber && { phoneNumber }),
+                        // set referrer only if a valid one was found
+                        ...(referredById && { referredBy: referredById })
+                    }
+                },
+                {
+                    new: true,
+                    runValidators: true,
+                    upsert: false,
+                    session
                 }
-            },
-            {
-                new: true,
-                runValidators: true,
-                upsert: false
-            }
-        )
+            )
 
-        if (!updateProfile) {
-            throw new Error('Profile not found. Please register first')
+            if (!updateProfile) {
+                throw new Error('Profile not found. Please register first')
+            }
+
+            await session.commitTransaction();
+            return updateProfile
+        } catch (error) {
+            await session.abortTransaction();
+            throw error
+        } finally {
+            session.endSession()
         }
-        return updateProfile
     }
 
     static async getGetAllProfile(page: number = 1, limit: number = 40) {
