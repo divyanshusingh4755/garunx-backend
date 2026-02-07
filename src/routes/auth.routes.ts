@@ -9,9 +9,25 @@ const router = Router()
 
 // Validation Middleware
 const registerValidation = [
-    body('phoneNumber').isMobilePhone('en-IN').withMessage('Enter valid Indian Phone Number'),
-    body('role').isIn(Object.values(Role)).withMessage('Invalid user type'),
-    body('password').optional().isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
+    body('email')
+        .optional()
+        .isEmail().withMessage('Please enter a valid email address')
+        .normalizeEmail(),
+
+    body('phoneNumber')
+        .optional()
+        .isMobilePhone('en-IN')
+        .withMessage('Enter valid Indian Phone Number'),
+
+    body('role')
+        .isIn(Object.values(Role))
+        .withMessage('Invalid user type'),
+
+    body('password')
+        .optional()
+        .isLength({ min: 6 })
+        .withMessage('Password must be at least 6 characters'),
+
     (req: Request, res: Response, next: NextFunction) => {
         const errors = validationResult(req);
         if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() })

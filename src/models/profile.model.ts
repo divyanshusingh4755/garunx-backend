@@ -36,6 +36,4 @@ const profileSchema = new Schema<IProfile>({
     isComplete: { type: Boolean, default: false },
 }, { timestamps: true });
 
-profileSchema.index({ referralCode: 1 })
-
 export const Profile = model<IProfile>('Profile', profileSchema)

@@ -13,14 +13,26 @@ import { auth } from '../config/firebase.js';
 import { generateUniqueCode } from '../utils/generateUniqueCode.js';
 
 class AuthService {
-    static async registerUser(role: Role, idToken: string, password?: string) {
+    static async registerUser(role: Role, idToken?: string, password?: string, userEmail?: string) {
         const session = await mongoose.startSession();
         session.startTransaction()
 
         try {
-            // Verify the Firebase Token
-            const decodedToken = await auth.verifyIdToken(idToken)
-            const { uid, phone_number, email } = decodedToken
+            let uid: string;
+            let finalEmail: string | undefined = userEmail;
+            let phoneNumber: string | undefined
+
+            if (userEmail && password) {
+                const existingUser = await User.findOne({ email: userEmail });
+                uid = existingUser?.firebaseUid || `custom-id-${Date.now()}`;
+            } else if (idToken) {
+                const decodedToken = await auth.verifyIdToken(idToken);
+                uid = decodedToken.uid;
+                finalEmail = finalEmail || decodedToken.email;
+                phoneNumber = decodedToken.phone_number;
+            } else {
+                throw new Error("Missing required credentials. Please provide email/password or token")
+            }
 
             // Hash Password
             let hashedPassword
@@ -36,8 +48,8 @@ class AuthService {
                     firebaseUid: uid,
                     role,
                     isVerified: true,
-                    ...(phone_number && { phoneNumber: phone_number }),
-                    ...(email && { email }),
+                    ...(phoneNumber && { phoneNumber }),
+                    ...(finalEmail && { email: finalEmail }),
                     ...(hashedPassword && { password: hashedPassword })
                 }, { session, upsert: true, new: true, runValidators: true }) as HydratedDocument<IUser>;
 
@@ -46,8 +58,8 @@ class AuthService {
                 { userId: newUser._id },
                 {
                     $setOnInsert: {
-                        ...(phone_number && { phoneNumber: phone_number }),
-                        ...(email && { email }),
+                        ...(phoneNumber && { phoneNumber }),
+                        ...(finalEmail && { email: finalEmail }),
                         isComplete: false,
                         referralCode: `REF-${generateUniqueCode()}`
                     }
@@ -116,6 +128,10 @@ class AuthService {
 
     static async loginUser(identifier: string, userAgent?: string, password?: string, idToken?: string, ip?: string): Promise<{ user: IUser, accessToken: string, refreshToken: string }> {
         let user: HydratedDocument<IUser> | null = null;
+
+        const salt = await bcrypt.genSalt(10)
+        const hashedPassword = await bcrypt.hash("admin123", salt)
+        console.log(hashedPassword)
 
         // Social login via Firebase
         if (idToken) {
