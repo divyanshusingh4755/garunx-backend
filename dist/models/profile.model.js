@@ -15,10 +15,10 @@ const profileSchema = new Schema({
     email: { type: String, unique: true, sparse: true, lowercase: true, index: true },
     phoneNumber: { type: String, unique: true, sparse: true, index: true },
     dob: { type: Date },
+    profileImage: { type: String, default: null },
     gender: { type: String, enum: ['Male', 'Female', 'Other'] },
     referralCode: { type: String, unique: true, sparse: true },
     isComplete: { type: Boolean, default: false },
 }, { timestamps: true });
-profileSchema.index({ referralCode: 1 });
 export const Profile = model('Profile', profileSchema);
 //# sourceMappingURL=profile.model.js.map

@@ -1,7 +1,7 @@
 import type { Types } from "mongoose";
 import mongoose from "mongoose";
 declare class ProfileService {
-    static completeProfile(userId: Types.ObjectId | string, fullName: string, phoneNumber?: string, email?: string, dob?: Date, gender?: 'Male' | 'Female' | 'Other', referralCode?: string): Promise<mongoose.Document<unknown, {}, import("../models/profile.model.js").IProfile, {}, mongoose.DefaultSchemaOptions> & import("../models/profile.model.js").IProfile & Required<{
+    static completeProfile(userId: Types.ObjectId | string, fullName: string, phoneNumber?: string, email?: string, dob?: Date, gender?: 'Male' | 'Female' | 'Other', referralCode?: string, password?: string, profileImage?: string): Promise<mongoose.Document<unknown, {}, import("../models/profile.model.js").IProfile, {}, mongoose.DefaultSchemaOptions> & import("../models/profile.model.js").IProfile & Required<{
         _id: Types.ObjectId;
     }> & {
         __v: number;

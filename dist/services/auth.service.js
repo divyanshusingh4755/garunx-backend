@@ -10,13 +10,26 @@ import nodemailer from "nodemailer";
 import { auth } from '../config/firebase.js';
 import { generateUniqueCode } from '../utils/generateUniqueCode.js';
 class AuthService {
-    static async registerUser(role, idToken, password) {
+    static async registerUser(role, idToken, password, userEmail) {
         const session = await mongoose.startSession();
         session.startTransaction();
         try {
-            // Verify the Firebase Token
-            const decodedToken = await auth.verifyIdToken(idToken);
-            const { uid, phone_number, email } = decodedToken;
+            let uid;
+            let finalEmail = userEmail;
+            let phoneNumber;
+            if (userEmail && password) {
+                const existingUser = await User.findOne({ email: userEmail });
+                uid = existingUser?.firebaseUid || `custom-id-${Date.now()}`;
+            }
+            else if (idToken) {
+                const decodedToken = await auth.verifyIdToken(idToken);
+                uid = decodedToken.uid;
+                finalEmail = finalEmail || decodedToken.email;
+                phoneNumber = decodedToken.phone_number;
+            }
+            else {
+                throw new Error("Missing required credentials. Please provide email/password or token");
+            }
             // Hash Password
             let hashedPassword;
             if (password) {
@@ -28,15 +41,15 @@ class AuthService {
                 firebaseUid: uid,
                 role,
                 isVerified: true,
-                ...(phone_number && { phoneNumber: phone_number }),
-                ...(email && { email }),
+                ...(phoneNumber && { phoneNumber }),
+                ...(finalEmail && { email: finalEmail }),
                 ...(hashedPassword && { password: hashedPassword })
             }, { session, upsert: true, new: true, runValidators: true });
             // Create Profile
             await Profile.findOneAndUpdate({ userId: newUser._id }, {
                 $setOnInsert: {
-                    ...(phone_number && { phoneNumber: phone_number }),
-                    ...(email && { email }),
+                    ...(phoneNumber && { phoneNumber }),
+                    ...(finalEmail && { email: finalEmail }),
                     isComplete: false,
                     referralCode: `REF-${generateUniqueCode()}`
                 }
@@ -99,6 +112,9 @@ class AuthService {
     }
     static async loginUser(identifier, userAgent, password, idToken, ip) {
         let user = null;
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash("admin123", salt);
+        console.log(hashedPassword);
         // Social login via Firebase
         if (idToken) {
             try {

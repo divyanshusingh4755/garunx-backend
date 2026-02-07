@@ -9,6 +9,7 @@ export interface IProfile extends Document {
     referralCode?: string;
     isComplete: boolean;
     referredBy?: Types.ObjectId;
+    profileImage?: string;
 }
 export declare const Profile: import("mongoose").Model<IProfile, {}, {}, {}, Document<unknown, {}, IProfile, {}, import("mongoose").DefaultSchemaOptions> & IProfile & Required<{
     _id: Types.ObjectId;
