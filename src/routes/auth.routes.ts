@@ -103,6 +103,6 @@ router.get('/get-all-user', authenticate, getGetAllUser);
 router.delete('/deactivate-user/:id', authenticate, deactivateUser);
 
 // --- MEDIA UPLOADS ---
-router.post('/upload-single', authenticate, upload.single('image'), uploadSingle);
-router.post('/upload-multiple', authenticate, upload.array('images', 5), uploadMutliple);
+router.post('/upload-single', upload.single('image'), uploadSingle);
+router.post('/upload-multiple', upload.array('images', 5), uploadMutliple);
 export default router;
