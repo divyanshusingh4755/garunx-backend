@@ -2,7 +2,7 @@ import { type IUser } from "../models/user.model.js";
 import type { Role } from "../types/rbac.js";
 import mongoose from 'mongoose';
 declare class AuthService {
-    static registerUser(role: Role, idToken?: string, password?: string, userEmail?: string): Promise<mongoose.Document<unknown, {}, IUser, {}, mongoose.DefaultSchemaOptions> & IUser & Required<{
+    static registerUser(role: Role, idToken?: string, password?: string, userEmail?: string, phoneNumber?: string): Promise<mongoose.Document<unknown, {}, IUser, {}, mongoose.DefaultSchemaOptions> & IUser & Required<{
         _id: mongoose.Types.ObjectId;
     }> & {
         __v: number;

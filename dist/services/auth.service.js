@@ -10,22 +10,28 @@ import nodemailer from "nodemailer";
 import { auth } from '../config/firebase.js';
 import { generateUniqueCode } from '../utils/generateUniqueCode.js';
 class AuthService {
-    static async registerUser(role, idToken, password, userEmail) {
+    static async registerUser(role, idToken, password, userEmail, phoneNumber) {
         const session = await mongoose.startSession();
         session.startTransaction();
         try {
             let uid;
-            let finalEmail = userEmail;
-            let phoneNumber;
-            if (userEmail && password) {
-                const existingUser = await User.findOne({ email: userEmail });
-                uid = existingUser?.firebaseUid || `custom-id-${Date.now()}`;
-            }
-            else if (idToken) {
+            let finalEmail = userEmail?.toLowerCase();
+            let finalNumber = phoneNumber;
+            if (idToken) {
                 const decodedToken = await auth.verifyIdToken(idToken);
                 uid = decodedToken.uid;
                 finalEmail = finalEmail || decodedToken.email;
-                phoneNumber = decodedToken.phone_number;
+                finalNumber = decodedToken.phone_number;
+            }
+            else if ((finalEmail || finalNumber) && password) {
+                const existingUser = await User.findOne({
+                    $or: [{ email: finalEmail }, { phoneNumber: finalNumber }]
+                });
+                if (existingUser && existingUser.password) {
+                    throw new Error("User already exists. Please login instead.");
+                }
+                // Use existing UID if they previously social-logged, otherwise generate one
+                uid = existingUser?.firebaseUid || `internal-${new mongoose.Types.ObjectId()}`;
             }
             else {
                 throw new Error("Missing required credentials. Please provide email/password or token");
@@ -41,24 +47,27 @@ class AuthService {
                 firebaseUid: uid,
                 role,
                 isVerified: true,
-                ...(phoneNumber && { phoneNumber }),
+                ...(finalNumber && { phoneNumber: finalNumber }),
                 ...(finalEmail && { email: finalEmail }),
                 ...(hashedPassword && { password: hashedPassword })
             }, { session, upsert: true, new: true, runValidators: true });
             // Create Profile
             await Profile.findOneAndUpdate({ userId: newUser._id }, {
                 $setOnInsert: {
-                    ...(phoneNumber && { phoneNumber }),
+                    ...(finalNumber && { phoneNumber: finalNumber }),
                     ...(finalEmail && { email: finalEmail }),
                     isComplete: false,
                     referralCode: `REF-${generateUniqueCode()}`
                 }
             }, { session, upsert: true });
-            // // Generate 6-digit OTP
-            // const generatedOtp = Math.floor(100000 + Math.random() * 900000).toString();
-            // // Save OTP to DB
-            // await Otp.create([{ phoneNumber, otp: generatedOtp }], { session });
-            // // Call SMS provider
+            if (finalNumber) {
+                // Generate 6-digit OTP
+                const generatedOtp = Math.floor(100000 + Math.random() * 900000).toString();
+                // Save OTP to DB
+                await Otp.create([{ phoneNumber: finalNumber, otp: generatedOtp }], { session });
+                // // Call SMS provider
+                newUser.otp = generatedOtp;
+            }
             await session.commitTransaction();
             return newUser;
         }
@@ -68,7 +77,7 @@ class AuthService {
                 throw new Error("Session expired, please try again");
             }
             if (error.code === 11000) {
-                throw new Error("A verified user this number already exists.");
+                throw new Error("A verified user this phone number or email is already exists.");
             }
             throw error;
         }
@@ -228,22 +237,19 @@ class AuthService {
                 throw new Error("Account doesn't exists");
             }
             // Generate random token
-            const resetToken = crypto.randomBytes(32).toString('hex');
+            const otp = crypto.randomInt(100_000, 1_000_000).toString();
             // Save to user document with 15 minute expiry
-            const hashedToken = crypto.createHash('sha256').update(resetToken).digest('hex');
+            const hashedToken = crypto.createHash('sha256').update(otp).digest('hex');
             // Save to user document with 15 minute expiry
             user.resetPasswordToken = hashedToken;
             user.resetPasswordExpires = new Date(Date.now() + 15 * 60 * 1000);
             await user.save();
             // send email
-            const resetUrl = `${process.env.CLIENT_URL}/reset-password/${resetToken}`;
             const mailOptions = {
-                from: process.env.EMAIL_USER,
-                to: user.email,
-                subject: 'Password Reset Request',
+                subject: 'Your Password Reset Code',
                 html: `<h3>Reset Password</h3>
-               <p>Click the link below to reset your password. It expires in 15 minutes.</p>
-               <a href="${resetUrl}">${resetUrl}</a>`
+           <p>Your 6-digit verification code is: <b>${otp}</b></p>
+           <p>This code expires in 15 minutes.</p>`
             };
             const transporter = nodemailer.createTransport({
                 service: "gmail",

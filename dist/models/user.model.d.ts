@@ -10,6 +10,7 @@ export interface IUser extends Document {
     isVerified: boolean;
     resetPasswordToken?: string | null;
     resetPasswordExpires?: Date | null;
+    otp?: string | null;
 }
 export declare const User: import("mongoose").Model<IUser, {}, {}, {}, Document<unknown, {}, IUser, {}, import("mongoose").DefaultSchemaOptions> & IUser & Required<{
     _id: import("mongoose").Types.ObjectId;
