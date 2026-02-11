@@ -111,8 +111,8 @@ export const login = async (req: Request, res: Response) => {
 
         res.cookie('refreshToken', refreshToken, {
             httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: 'strict',
+            secure: false,
+            sameSite: 'lax',
             maxAge: 30 * 24 * 60 * 60 * 1000 // 30 days
         });
 
@@ -159,10 +159,10 @@ export const refreshToken = async (req: Request, res: Response) => {
             ip
         );
 
-        res.cookie('refreshToken', newRefreshToken, {
+        res.cookie('refreshToken', refreshToken, {
             httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: 'strict',
+            secure: false,
+            sameSite: 'lax',
             maxAge: 30 * 24 * 60 * 60 * 1000 // 30 days
         });
 
@@ -171,8 +171,9 @@ export const refreshToken = async (req: Request, res: Response) => {
     } catch (error: any) {
         res.clearCookie('refreshToken', {
             httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: 'strict'
+            secure: false,
+            sameSite: 'lax',
+            path: '/'
         });
 
         res.status(403).json({
@@ -193,8 +194,9 @@ export const logout = async (req: Request, res: Response) => {
 
         res.clearCookie('refreshToken', {
             httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: 'strict',
+            secure: false,
+            sameSite: 'lax',
+            path: '/'
         });
 
         res.status(200).json({
@@ -205,7 +207,12 @@ export const logout = async (req: Request, res: Response) => {
         });
 
     } catch (error: any) {
-        res.clearCookie('refreshToken');
+        res.clearCookie('refreshToken', {
+            httpOnly: true,
+            secure: false,
+            sameSite: 'lax',
+            path: '/'
+        });
         res.status(200).json({ success: true, message: "Logged out" });
     }
 };
@@ -258,8 +265,9 @@ export const resetPassword = async (req: Request, res: Response) => {
 
         res.clearCookie('refreshToken', {
             httpOnly: true,
-            secure: process.env.NODE_ENV === "production",
-            sameSite: 'strict'
+            secure: false,
+            sameSite: 'lax',
+            path: '/'
         });
 
         res.status(200).json({
@@ -421,8 +429,8 @@ export const completeProfile = async (req: Request, res: Response) => {
 
         res.cookie('refreshToken', refreshToken, {
             httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: 'strict',
+            secure: false,
+            sameSite: 'lax',
             maxAge: 30 * 24 * 60 * 60 * 1000 // 30 days
         });
 

@@ -85,8 +85,8 @@ export const login = async (req, res) => {
         const { user, accessToken, refreshToken } = await AuthService.loginUser(identifier, role, password, idToken, userAgent, ip);
         res.cookie('refreshToken', refreshToken, {
             httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: 'strict',
+            secure: false,
+            sameSite: 'lax',
             maxAge: 30 * 24 * 60 * 60 * 1000 // 30 days
         });
         res.status(200).json({
@@ -123,10 +123,10 @@ export const refreshToken = async (req, res) => {
             ? forwarded.split(',')[0]
             : req.headers['x-real-ip'] || req.socket.remoteAddress || '0.0.0.0';
         const { accessToken, refreshToken: newRefreshToken } = await AuthService.refreshAccesToken(oldToken, userAgent, ip);
-        res.cookie('refreshToken', newRefreshToken, {
+        res.cookie('refreshToken', refreshToken, {
             httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: 'strict',
+            secure: false,
+            sameSite: 'lax',
             maxAge: 30 * 24 * 60 * 60 * 1000 // 30 days
         });
         res.json({ success: true, accessToken });
@@ -134,8 +134,9 @@ export const refreshToken = async (req, res) => {
     catch (error) {
         res.clearCookie('refreshToken', {
             httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: 'strict'
+            secure: false,
+            sameSite: 'lax',
+            path: '/'
         });
         res.status(403).json({
             success: false,
@@ -152,8 +153,9 @@ export const logout = async (req, res) => {
         }
         res.clearCookie('refreshToken', {
             httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: 'strict',
+            secure: false,
+            sameSite: 'lax',
+            path: '/'
         });
         res.status(200).json({
             success: true,
@@ -163,7 +165,12 @@ export const logout = async (req, res) => {
         });
     }
     catch (error) {
-        res.clearCookie('refreshToken');
+        res.clearCookie('refreshToken', {
+            httpOnly: true,
+            secure: false,
+            sameSite: 'lax',
+            path: '/'
+        });
         res.status(200).json({ success: true, message: "Logged out" });
     }
 };
@@ -206,8 +213,9 @@ export const resetPassword = async (req, res) => {
         await AuthService.resetPassword(otp, newPassword);
         res.clearCookie('refreshToken', {
             httpOnly: true,
-            secure: process.env.NODE_ENV === "production",
-            sameSite: 'strict'
+            secure: false,
+            sameSite: 'lax',
+            path: '/'
         });
         res.status(200).json({
             success: true,
@@ -326,8 +334,8 @@ export const completeProfile = async (req, res) => {
         const { user, accessToken, refreshToken } = await AuthService.completeProfile(userId, fullName, dob, gender, referralCode, password, profileImage, userAgent, ip);
         res.cookie('refreshToken', refreshToken, {
             httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: 'strict',
+            secure: false,
+            sameSite: 'lax',
             maxAge: 30 * 24 * 60 * 60 * 1000 // 30 days
         });
         res.status(200).json({

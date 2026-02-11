@@ -23,7 +23,7 @@ const userSchema = new Schema({
     referralCode: { type: String, sparse: true },
     referredBy: { type: Schema.Types.ObjectId, ref: 'User', default: null },
     resetPasswordToken: { type: String, default: null },
-    resetPasswordExpires: { type: Date, default: null }
+    resetPasswordExpires: { type: Date, default: null },
 }, { timestamps: true });
 // Allow same phone/email across DIFFERENT roles
 userSchema.index({ email: 1, role: 1 }, {
