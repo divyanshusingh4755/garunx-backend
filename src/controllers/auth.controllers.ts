@@ -117,11 +117,11 @@ export const refreshToken = async (req: Request, res: Response) => {
 
 export const logout = async (req: Request, res: Response) => {
     try {
-        const refreshToken = req.cookies.refreshToken
+        const refreshToken = req.cookies?.refreshToken
         const { allDevices } = req.body
 
         if (refreshToken) {
-            await AuthService.loginUser(refreshToken, allDevices)
+            await AuthService.logoutUser(refreshToken, allDevices)
         }
 
         res.clearCookie('refreshToken', {
