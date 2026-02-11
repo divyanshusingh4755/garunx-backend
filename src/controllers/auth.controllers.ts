@@ -3,10 +3,10 @@ import AuthService from '../services/auth.service.js';
 
 export const register = async (req: Request, res: Response) => {
     try {
-        const { role, password, idToken, userEmail } = req.body
+        const { role, password, idToken, userEmail, phoneNumber } = req.body
 
         // Call service to handle logic
-        const user = await AuthService.registerUser(role, idToken, password, userEmail)
+        const user = await AuthService.registerUser(role, idToken, password, userEmail, phoneNumber)
 
         res.status(201).send({
             success: true,

@@ -9,6 +9,7 @@ export interface IUser extends Document {
     role: Role;
     isActive: boolean;
     isVerified: boolean;
+    isDocumentVerified: boolean;
     resetPasswordToken?: string | null;
     resetPasswordExpires?: Date | null;
     otp?: string | null;
@@ -27,6 +28,7 @@ const userSchema = new Schema<IUser>({
     },
     isActive: { type: Boolean, default: true },
     isVerified: { type: Boolean, default: false },
+    isDocumentVerified: { type: Boolean, default: false },
     resetPasswordToken: { type: String, default: null },
     resetPasswordExpires: { type: Date, default: null }
 }, { timestamps: true });
