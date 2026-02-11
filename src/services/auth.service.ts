@@ -55,7 +55,7 @@ class AuthService {
                 {
                     firebaseUid: uid,
                     role,
-                    isVerified: true,
+                    isVerified: false,
                     ...(finalNumber && { phoneNumber: finalNumber }),
                     ...(finalEmail && { email: finalEmail }),
                     ...(hashedPassword && { password: hashedPassword })

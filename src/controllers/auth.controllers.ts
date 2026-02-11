@@ -116,23 +116,28 @@ export const refreshToken = async (req: Request, res: Response) => {
 }
 
 export const logout = async (req: Request, res: Response) => {
-    const refreshToken = req.cookies.refreshToken
-    const { allDevices } = req.body
+    try {
+        const refreshToken = req.cookies.refreshToken
+        const { allDevices } = req.body
 
-    if (refreshToken) {
-        await AuthService.loginUser(refreshToken, allDevices)
+        if (refreshToken) {
+            await AuthService.loginUser(refreshToken, allDevices)
+        }
+
+        res.clearCookie('refreshToken', {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'strict',
+        })
+
+        res.status(200).json({
+            success: true,
+            messages: allDevices ? "Logged out from all devices" : "Logged out successfully"
+        })
+    } catch (error: any) {
+        console.log("err", error)
+        res.status(500).json({ success: false, message: error.message })
     }
-
-    res.clearCookie('refreshToken', {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'strict',
-    })
-
-    res.status(200).json({
-        success: true,
-        messages: allDevices ? "Logged out from all devices" : "Logged out successfully"
-    })
 }
 
 export const forgotPassword = async (req: Request, res: Response) => {
