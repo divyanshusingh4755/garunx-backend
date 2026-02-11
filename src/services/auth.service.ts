@@ -27,17 +27,17 @@ class AuthService {
                 uid = decodedToken.uid;
                 finalEmail = finalEmail || decodedToken.email;
                 finalNumber = decodedToken.phone_number;
-            } else if ((finalEmail || finalNumber) && password) {
+            } else if (finalEmail || finalNumber) {
                 const existingUser = await User.findOne({
                     $or: [{ email: finalEmail }, { phoneNumber: finalNumber }]
                 } as any);
 
-                if (existingUser && existingUser.password) {
+                if (existingUser) {
                     throw new Error("User already exists. Please login instead.");
                 }
 
                 // Use existing UID if they previously social-logged, otherwise generate one
-                uid = existingUser?.firebaseUid || `internal-${new mongoose.Types.ObjectId()}`;
+                uid = `internal-${new mongoose.Types.ObjectId()}`;
             } else {
                 throw new Error("Missing required credentials. Please provide email/password or token")
             }
