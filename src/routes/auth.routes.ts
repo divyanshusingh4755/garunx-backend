@@ -1,7 +1,7 @@
 import { Router, type Request, type Response, type NextFunction } from 'express';
 import { body, validationResult } from 'express-validator';
 import { Role } from '../types/rbac.js';
-import { login, register, resendOtp, verifyOtp, refreshToken, logout, forgotPassword, resetPassword, GetUserById, getGetAllUser, deactivateUser, completeProfile, updateProfile, uploadSingle, uploadMutliple, getUserByEmailOrPhone } from '../controllers/auth.controllers.js';
+import { login, register, resendOtp, verifyOtp, refreshToken, logout, forgotPassword, resetPassword, GetUserById, getGetAllUser, deactivateUser, completeProfile, updateProfile, uploadSingle, uploadMutliple, getUserByEmailOrPhone, verifyDocuments, approveOrRejectDocs } from '../controllers/auth.controllers.js';
 import { passwordRateLimiter } from '../utils/passwordRateLimiter.js';
 import { authenticate } from '../middleware/authenticate.js';
 import { upload } from '../middleware/upload.js';
@@ -108,8 +108,10 @@ router.get('/get-user-by-email-or-phone/:identifier', authenticate, getUserByEma
 // --- ADMIN / MANAGEMENT ROUTES ---
 router.get('/get-all-user', authenticate, getGetAllUser);
 router.delete('/deactivate-user/:id', authenticate, deactivateUser);
+router.patch('/verify-user', authenticate, approveOrRejectDocs)
 
 // --- MEDIA UPLOADS ---
 router.post('/upload-single', upload.single('image'), uploadSingle);
 router.post('/upload-multiple', upload.array('images', 5), uploadMutliple);
+router.patch('/verify-documents', authenticate, verifyDocuments)
 export default router;

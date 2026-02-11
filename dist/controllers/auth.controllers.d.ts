@@ -15,4 +15,6 @@ export declare const completeProfile: (req: Request, res: Response) => Promise<R
 export declare const updateProfile: (req: Request, res: Response) => Promise<void>;
 export declare const uploadSingle: (req: Request, res: Response) => Promise<void>;
 export declare const uploadMutliple: (req: Request, res: Response) => Promise<void>;
+export declare const verifyDocuments: (req: Request, res: Response) => Promise<Response<any, Record<string, any>> | undefined>;
+export declare const approveOrRejectDocs: (req: Request, res: Response) => Promise<Response<any, Record<string, any>> | undefined>;
 //# sourceMappingURL=auth.controllers.d.ts.map

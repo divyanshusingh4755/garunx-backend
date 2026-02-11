@@ -85,6 +85,24 @@ declare class AuthService {
     } & {
         id: string;
     }>;
+    static uploadVerificationDocuments(userId: string, docs: {
+        aadharCard?: string;
+        panCard?: string;
+        bankPassbook?: string;
+    }): Promise<mongoose.Document<unknown, {}, IUser, {}, mongoose.DefaultSchemaOptions> & IUser & Required<{
+        _id: Types.ObjectId;
+    }> & {
+        __v: number;
+    } & {
+        id: string;
+    }>;
+    static updateVerificationStatus(userId: string, status: 'APPROVED' | 'REJECTED', rejectionReason?: string): Promise<mongoose.Document<unknown, {}, IUser, {}, mongoose.DefaultSchemaOptions> & IUser & Required<{
+        _id: Types.ObjectId;
+    }> & {
+        __v: number;
+    } & {
+        id: string;
+    }>;
 }
 export default AuthService;
 //# sourceMappingURL=auth.service.d.ts.map

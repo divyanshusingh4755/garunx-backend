@@ -396,4 +396,51 @@ export const uploadMutliple = async (req, res) => {
         });
     }
 };
+export const verifyDocuments = async (req, res) => {
+    try {
+        const userId = req.user?.userId;
+        const { aadharCard, panCard, bankPassbook } = req.body;
+        if (!aadharCard && !panCard && !bankPassbook) {
+            return res.status(400).json({ success: false, message: "Aadhar Card, Pan Card, Passbook is required" });
+        }
+        const docs = {
+            aadharCard,
+            panCard,
+            bankPassbook
+        };
+        const updatedUser = await AuthService.uploadVerificationDocuments(userId, docs);
+        res.status(200).json({
+            success: true,
+            message: "Documents submitted successfully. Verification is now PENDING.",
+            data: updatedUser.documentVerification
+        });
+    }
+    catch (error) {
+        res.status(400).json({ success: false, message: error.message });
+    }
+};
+export const approveOrRejectDocs = async (req, res) => {
+    try {
+        const { userId, status, rejectionReason } = req.body;
+        if (!['APPROVED', 'REJECTED'].includes(status)) {
+            return res.status(400).json({ success: false, message: "Invalid status" });
+        }
+        if (status === "REJECTED" && !rejectionReason) {
+            return res.status(400).json({ success: false, message: "Reason is required for rejection" });
+        }
+        const updatedUser = await AuthService.updateVerificationStatus(userId, status, rejectionReason);
+        res.status(200).json({
+            success: true,
+            message: `User documents ${status.toLowerCase()} successfully`,
+            data: {
+                userId: updatedUser._id,
+                status: updatedUser.documentVerification.status,
+                isDocumentVerified: updatedUser.isDocumentVerified
+            }
+        });
+    }
+    catch (error) {
+        res.status(400).json({ success: false, message: error.message });
+    }
+};
 //# sourceMappingURL=auth.controllers.js.map

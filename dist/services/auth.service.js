@@ -468,6 +468,31 @@ class AuthService {
             throw new Error("User not found");
         return user;
     }
+    static async uploadVerificationDocuments(userId, docs) {
+        const user = await User.findByIdAndUpdate(userId, {
+            $set: {
+                "documentVerification.aadharCard": docs.aadharCard,
+                "documentVerification.panCard": docs.panCard,
+                "documentVerification.bankPassbook": docs.bankPassbook,
+                "documentVerification.status": "PENDING"
+            }
+        }, { new: true, runValidators: true }).select('-password -otp');
+        if (!user)
+            throw new Error('User not found');
+        return user;
+    }
+    static async updateVerificationStatus(userId, status, rejectionReason) {
+        const update = {
+            "documentVerification.status": status,
+            "documentVerification.rejectionReason": status === 'REJECTED' ? rejectionReason : null,
+            // Mark as fully verified only if approved
+            isDocumentVerified: status === 'APPROVED'
+        };
+        const user = await User.findByIdAndUpdate(userId, { $set: update }, { new: true }).select('-password -otp');
+        if (!user)
+            throw new Error("User not found");
+        return user;
+    }
 }
 export default AuthService;
 //# sourceMappingURL=auth.service.js.map

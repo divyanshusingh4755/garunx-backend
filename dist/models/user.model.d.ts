@@ -19,6 +19,17 @@ export interface IUser extends Document {
     referredBy?: Types.ObjectId;
     resetPasswordToken?: string | null;
     resetPasswordExpires?: Date | null;
+    documentVerification: {
+        aadharCard?: string;
+        panCard?: string;
+        bankPassbook: string;
+        status: 'PENDING';
+        rejectionReason?: string;
+    };
+    isDocumentVerified: {
+        type: Boolean;
+        default: false;
+    };
 }
 export declare const User: import("mongoose").Model<IUser, {}, {}, {}, Document<unknown, {}, IUser, {}, import("mongoose").DefaultSchemaOptions> & IUser & Required<{
     _id: Types.ObjectId;

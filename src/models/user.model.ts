@@ -30,6 +30,16 @@ export interface IUser extends Document {
     resetPasswordToken?: string | null;
     resetPasswordExpires?: Date | null;
 
+    // Document Verification
+    documentVerification: {
+        aadharCard?: string,
+        panCard?: string,
+        bankPassbook: string,
+        status: 'PENDING',
+        rejectionReason?: string;
+    };
+    isDocumentVerified: { type: Boolean, default: false }
+
 }
 
 const userSchema = new Schema<IUser>({
