@@ -492,7 +492,9 @@ class AuthService {
         gender?: 'Male' | 'Female' | 'Other',
         referralCode?: string,
         password?: string,
-        profileImage?: string
+        profileImage?: string,
+        userAgent?: string,
+        ip?: string
     ) {
         const session = await mongoose.startSession();
         session.startTransaction();
@@ -540,10 +542,43 @@ class AuthService {
                     }
                 },
                 { new: true, runValidators: true, session }
+            ).lean();
+
+            if (!updatedUser) throw new Error("Update failed.");
+
+            // Session & Token Generation
+            const familyId = crypto.randomUUID();
+
+            const accessToken = jwt.sign(
+                { userId: updatedUser._id, role: updatedUser.role },
+                process.env.JWT_ACCESS_SECRET as string,
+                { expiresIn: '15m' }
             );
 
+            const refreshToken = jwt.sign(
+                { userId: updatedUser._id, familyId: familyId },
+                process.env.JWT_REFRESH_SECRET as string,
+                { expiresIn: '30d' }
+            );
+
+            const expiresAt = new Date();
+            expiresAt.setDate(expiresAt.getDate() + 30);
+
+            await Session.create([
+                {
+                    userId: updatedUser._id,
+                    refreshToken,
+                    deviceInfo: userAgent || 'unknown',
+                    familyId: familyId,
+                    expiresAt,
+                    ...(ip && { ipAddress: ip })
+                }
+            ], { session });
+
+            const { password: _, ...userWithoutPassword } = updatedUser;
+
             await session.commitTransaction();
-            return updatedUser;
+            return { user: (userWithoutPassword as unknown) as IUser, accessToken, refreshToken };
 
         } catch (error: any) {
             await session.abortTransaction();

@@ -318,7 +318,18 @@ export const completeProfile = async (req, res) => {
                 message: "User ID and Full Name are required."
             });
         }
-        const user = await AuthService.completeProfile(userId, fullName, dob, gender, referralCode, password, profileImage);
+        const userAgent = req.get('User-Agent') || 'unknown';
+        const forwarded = req.headers['x-forwarded-for'];
+        const ip = typeof forwarded === 'string'
+            ? forwarded.split(',')[0]
+            : req.headers['x-real-ip'] || req.socket.remoteAddress || '0.0.0.0';
+        const { user, accessToken, refreshToken } = await AuthService.completeProfile(userId, fullName, dob, gender, referralCode, password, profileImage, userAgent, ip);
+        res.cookie('refreshToken', refreshToken, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'strict',
+            maxAge: 30 * 24 * 60 * 60 * 1000 // 30 days
+        });
         res.status(200).json({
             success: true,
             message: "Profile completed successfully. You are now fully registered.",
@@ -328,7 +339,8 @@ export const completeProfile = async (req, res) => {
                 role: user?.role,
                 isComplete: user?.isComplete,
                 referralCode: user?.referralCode
-            }
+            },
+            accessToken
         });
     }
     catch (error) {

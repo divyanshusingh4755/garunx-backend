@@ -68,13 +68,11 @@ declare class AuthService {
         __v: number;
     }>;
     static deactivateUser(userId: String): Promise<void>;
-    static completeProfile(userId: string, fullName: string, dob?: Date, gender?: 'Male' | 'Female' | 'Other', referralCode?: string, password?: string, profileImage?: string): Promise<(mongoose.Document<unknown, {}, IUser, {}, mongoose.DefaultSchemaOptions> & IUser & Required<{
-        _id: Types.ObjectId;
-    }> & {
-        __v: number;
-    } & {
-        id: string;
-    }) | null>;
+    static completeProfile(userId: string, fullName: string, dob?: Date, gender?: 'Male' | 'Female' | 'Other', referralCode?: string, password?: string, profileImage?: string, userAgent?: string, ip?: string): Promise<{
+        user: IUser;
+        accessToken: string;
+        refreshToken: string;
+    }>;
     static updateProfile(userId: string, updateData: {
         fullName?: string;
         dob?: Date;
