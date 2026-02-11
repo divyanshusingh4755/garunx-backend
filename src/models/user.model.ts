@@ -1,24 +1,41 @@
-import { Schema, model, type Document } from 'mongoose';
+import { Schema, Types, model, type Document } from 'mongoose';
 import { Role } from '../types/rbac.js'
 
 export interface IUser extends Document {
+    // Auth & Identity
     firebaseUid?: string;
     phoneNumber?: string;
     email?: string;
     password?: string;
     role: Role;
+
+    // Otp and Verification
+    otp?: string | null;
+    otpExpiresAt?: Date | null;
+    isOtpVerified: boolean;
     isActive: boolean;
-    isVerified: boolean;
-    isDocumentVerified: boolean;
+
+    // Profile Fields
+    fullName?: string;
+    dob?: Date;
+    gender?: 'Male' | 'Female' | 'Other',
+    profileImage?: string;
+    isComplete: boolean;
+
+    // Referral System
+    referralCode?: string;
+    referredBy?: Types.ObjectId;
+
+    // Security
     resetPasswordToken?: string | null;
     resetPasswordExpires?: Date | null;
-    otp?: string | null;
+
 }
 
 const userSchema = new Schema<IUser>({
     firebaseUid: { type: String, unique: true, sparse: true, index: true },
-    phoneNumber: { type: String, unique: true, sparse: true, index: true },
-    email: { type: String, unique: true, sparse: true, lowercase: true, index: true },
+    phoneNumber: { type: String, trim: true },
+    email: { type: String, lowercase: true, trim: true },
     password: { type: String, select: false },
     role: {
         type: String,
@@ -26,20 +43,30 @@ const userSchema = new Schema<IUser>({
         required: true,
         default: Role.USER
     },
+    otp: { type: String, default: null },
+    otpExpiresAt: { type: Date, default: null },
+    isOtpVerified: { type: Boolean, default: false },
     isActive: { type: Boolean, default: true },
-    isVerified: { type: Boolean, default: false },
-    isDocumentVerified: { type: Boolean, default: false },
+    fullName: { type: String, lowercase: true, trim: true },
+    dob: { type: Date },
+    gender: { type: String, enum: ['Male', 'Female', 'Other'] },
+    profileImage: { type: String, default: null },
+    isComplete: { type: Boolean, default: false },
+    referralCode: { type: String, sparse: true },
+    referredBy: { type: Schema.Types.ObjectId, ref: 'User', default: null },
     resetPasswordToken: { type: String, default: null },
     resetPasswordExpires: { type: Date, default: null }
 }, { timestamps: true });
 
-// TTL Index for cleanup (Deletes unverified users after 24 hours)
+// Allow same phone/email across DIFFERENT roles
+userSchema.index({ phoneNumber: 1, role: 1 }, { unique: true, sparse: true });
+userSchema.index({ email: 1, role: 1 }, { unique: true, sparse: true });
+userSchema.index({ referralCode: 1 }, { unique: true, sparse: true });
+
+// Cleanup unverified users after 24 hours
 userSchema.index(
     { createdAt: 1 },
-    {
-        expireAfterSeconds: 86400,
-        partialFilterExpression: { isVerified: false }
-    }
+    { expireAfterSeconds: 86400, partialFilterExpression: { isOtpVerified: false } }
 );
 
 export const User = model<IUser>('User', userSchema);

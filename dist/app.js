@@ -4,7 +4,6 @@ import helmet from "helmet";
 import cors from "cors";
 import authRoutes from './routes/auth.routes.js';
 import brandingRoutes from './routes/branding.routes.js';
-import profileRoutes from './routes/profile.routes.js';
 import locationRoutes from './routes/location.routes.js';
 const app = express();
 // Connect DB
@@ -23,7 +22,6 @@ app.set('trust proxy', false);
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/branding', brandingRoutes);
-app.use('/api/profile', profileRoutes);
 app.use('/api/location', locationRoutes);
 // Routes
 app.get('/health', (req, res) => {

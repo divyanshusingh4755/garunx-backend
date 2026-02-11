@@ -1,9 +1,10 @@
 import { Router } from 'express';
 import { body, validationResult } from 'express-validator';
 import { Role } from '../types/rbac.js';
-import { login, register, resendOtp, verifyOtp, refreshToken, logout, forgotPassword, resetPassword, GetUserByEmailorPhone, GetUserById, getGetAllUser, deactivateUser } from '../controllers/auth.controllers.js';
+import { login, register, resendOtp, verifyOtp, refreshToken, logout, forgotPassword, resetPassword, GetUserById, getGetAllUser, deactivateUser, completeProfile, updateProfile, uploadSingle, uploadMutliple, getUserByEmailOrPhone } from '../controllers/auth.controllers.js';
 import { passwordRateLimiter } from '../utils/passwordRateLimiter.js';
 import { authenticate } from '../middleware/authenticate.js';
+import { upload } from '../middleware/upload.js';
 const router = Router();
 // Validation Middleware
 const registerValidation = [
@@ -29,17 +30,62 @@ const registerValidation = [
         next();
     }
 ];
+// Validation Middleware
+const profileValidation = [
+    body('userId')
+        .notEmpty().withMessage('User Id is required')
+        .isMongoId().withMessage('Invalid User ID format'),
+    body('fullName')
+        .notEmpty().withMessage('Full name is required')
+        .isString().trim().isLength({ min: 2 }),
+    body('password')
+        .optional()
+        .isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
+    body('dob')
+        .optional()
+        .isISO8601()
+        .withMessage('DOB must be a valid date (YYYY-MM-DD)'),
+    body('gender')
+        .optional()
+        .isIn(['Male', 'Female', 'Other'])
+        .withMessage('Invalid gender value'),
+    body('referralCode')
+        .optional()
+        .isString().trim().toUpperCase(),
+    (req, res, next) => {
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+            const firstError = errors.array()[0];
+            return res.status(400).json({
+                success: false,
+                message: firstError?.msg,
+                error: firstError
+            });
+        }
+        next();
+    }
+];
+// --- PUBLIC ROUTES (Registration & Auth) ---
 router.post('/register', registerValidation, register);
 router.post('/verify-otp', verifyOtp);
 router.post('/resend-otp', resendOtp);
 router.post('/login', login);
 router.post('/refresh-token', refreshToken);
 router.post('/logout', logout);
+// --- PASSWORD RECOVERY ---
 router.post('/forgot-password', passwordRateLimiter, forgotPassword);
-router.post('/reset-password/:token', passwordRateLimiter, resetPassword);
-router.get('/get-user-by-email-or-phone/:identifier', authenticate, GetUserByEmailorPhone);
+router.post('/reset-password', passwordRateLimiter, resetPassword);
+// --- PROFILE COMPLETION ---
+router.patch('/complete-profile', profileValidation, completeProfile);
+// --- PROTECTED ROUTES ---
+router.patch('/update-profile', authenticate, updateProfile);
 router.get('/get-user-by-id/:id', authenticate, GetUserById);
-router.delete('/deactivate-user/:id', authenticate, deactivateUser);
+router.get('/get-user-by-email-or-phone/:identifier', authenticate, getUserByEmailOrPhone);
+// --- ADMIN / MANAGEMENT ROUTES ---
 router.get('/get-all-user', authenticate, getGetAllUser);
+router.delete('/deactivate-user/:id', authenticate, deactivateUser);
+// --- MEDIA UPLOADS ---
+router.post('/upload-single', authenticate, upload.single('image'), uploadSingle);
+router.post('/upload-multiple', authenticate, upload.array('images', 5), uploadMutliple);
 export default router;
 //# sourceMappingURL=auth.routes.js.map

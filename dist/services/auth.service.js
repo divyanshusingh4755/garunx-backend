@@ -1,7 +1,5 @@
 import bcrypt from 'bcrypt';
 import { User } from "../models/user.model.js";
-import { Profile } from '../models/profile.model.js';
-import { Otp } from '../models/otp.model.js';
 import mongoose from 'mongoose';
 import jwt from "jsonwebtoken";
 import { Session } from '../models/session.model.js';
@@ -14,27 +12,28 @@ class AuthService {
         const session = await mongoose.startSession();
         session.startTransaction();
         try {
-            let uid;
             let finalEmail = userEmail?.toLowerCase();
             let finalNumber = phoneNumber;
+            let firebaseUid;
+            let isSocialLogin = false;
             if (idToken) {
                 const decodedToken = await auth.verifyIdToken(idToken);
-                uid = decodedToken.uid;
+                firebaseUid = decodedToken.uid;
                 finalEmail = finalEmail || decodedToken.email;
-                finalNumber = decodedToken.phone_number;
+                finalNumber = finalNumber || decodedToken.phone_number;
+                isSocialLogin = true;
             }
-            else if (finalEmail || finalNumber) {
-                const existingUser = await User.findOne({
-                    $or: [{ email: finalEmail }, { phoneNumber: finalNumber }]
-                });
-                if (existingUser) {
-                    throw new Error("User already exists. Please login instead.");
+            const query = [];
+            if (finalEmail)
+                query.push({ email: finalEmail, role: role });
+            if (finalNumber)
+                query.push({ phoneNumber: finalNumber, role: role });
+            if (query.length > 0) {
+                const existingUser = await User.findOne({ $or: query }).session(session);
+                // Block only if the registration journey is 100% finished
+                if (existingUser && existingUser.isComplete) {
+                    throw new Error(`You are already a registered ${role}. Please login instead.`);
                 }
-                // Use existing UID if they previously social-logged, otherwise generate one
-                uid = `internal-${new mongoose.Types.ObjectId()}`;
-            }
-            else {
-                throw new Error("Missing required credentials. Please provide email/password or token");
             }
             // Hash Password
             let hashedPassword;
@@ -42,34 +41,34 @@ class AuthService {
                 const salt = await bcrypt.genSalt(10);
                 hashedPassword = await bcrypt.hash(password, salt);
             }
-            // Create User
-            const newUser = await User.findOneAndUpdate({ firebaseUid: uid }, {
-                firebaseUid: uid,
+            // Generate OTP only if NOT a social login
+            let generatedOtp = null;
+            let otpExpiresAt = null;
+            if (!isSocialLogin) {
+                generatedOtp = Math.floor(100000 + Math.random() * 900000).toString();
+                otpExpiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 mins
+            }
+            // Upsert User (Update unverified or create new)
+            const user = await User.findOneAndUpdate({
+                $or: query.length > 0 ? query : [{ _id: new mongoose.Types.ObjectId() }]
+            }, {
                 role,
-                isVerified: false,
+                otp: generatedOtp,
+                otpExpiresAt,
+                // Social logins are pre-verified; Phone logins need OTP verification
+                isOtpVerified: isSocialLogin,
                 ...(finalNumber && { phoneNumber: finalNumber }),
                 ...(finalEmail && { email: finalEmail }),
-                ...(hashedPassword && { password: hashedPassword })
-            }, { session, upsert: true, new: true, runValidators: true });
-            // Create Profile
-            await Profile.findOneAndUpdate({ userId: newUser._id }, {
+                ...(hashedPassword && { password: hashedPassword }),
+                ...(firebaseUid && { firebaseUid }),
                 $setOnInsert: {
-                    ...(finalNumber && { phoneNumber: finalNumber }),
-                    ...(finalEmail && { email: finalEmail }),
+                    referralCode: `REF-${generateUniqueCode()}`,
                     isComplete: false,
-                    referralCode: `REF-${generateUniqueCode()}`
+                    ...(!firebaseUid && { firebaseUid: `internal-${new mongoose.Types.ObjectId()}` })
                 }
-            }, { session, upsert: true });
-            if (finalNumber) {
-                // Generate 6-digit OTP
-                const generatedOtp = Math.floor(100000 + Math.random() * 900000).toString();
-                // Save OTP to DB
-                await Otp.create([{ phoneNumber: finalNumber, otp: generatedOtp }], { session });
-                // // Call SMS provider
-                newUser.otp = generatedOtp;
-            }
+            }, { session, upsert: true, new: true, runValidators: true });
             await session.commitTransaction();
-            return newUser;
+            return user;
         }
         catch (error) {
             await session.abortTransaction();
@@ -85,56 +84,60 @@ class AuthService {
             session.endSession();
         }
     }
-    static async verifyOtp(phoneNumber, otp) {
+    static async verifyOtp(userId, otp) {
         // Find OTP in DB
-        const otpRecord = await Otp.findOne({ phoneNumber, otp });
-        if (!otpRecord) {
-            throw new Error('Invalid or expired otp');
-        }
-        // Update User Status
-        await User.findOneAndUpdate({ phoneNumber }, { isVerified: true }, { new: true });
-        // Delete OTP record manually
-        await Otp.deleteOne({ _id: otpRecord._id });
-    }
-    static async resendOtp(phoneNumber) {
-        // Check if user exists and is not yet verified
-        const user = await User.findOne({ phoneNumber });
+        const user = await User.findById(userId);
         if (!user)
-            throw new Error('User not found');
-        if (user.isVerified)
-            throw new Error('Account already verified. Please login.');
-        // Rate limiting check
-        const exisitingOtp = await Otp.findOne({ phoneNumber });
-        if (exisitingOtp) {
-            const timeDiff = (Date.now() - exisitingOtp.createdAt.getTime()) / 1000;
-            if (timeDiff < 60) {
-                throw new Error(`Please wait ${Math.round(60 - timeDiff)}s before resending a new OTP`);
-            }
-            // Delete the OLD OTP to replace it
-            await Otp.deleteOne({ _id: exisitingOtp._id });
+            throw new Error("User not found.");
+        if (!user.otp)
+            throw new Error("No OTP was requested for this account.");
+        // Check Expiry
+        if (user.otpExpiresAt && new Date() > user.otpExpiresAt) {
+            // Clear expired OTP to keep DB clean
+            user.otp = null;
+            user.otpExpiresAt = null;
+            await user.save();
+            throw new Error("OTP has expired. Please request a new one.");
         }
-        // Generate a new OTP
-        const newOtp = Math.floor(100000 + Math.random() * 900000).toString();
-        await Otp.create({ phoneNumber, otp: newOtp });
-        // Trigger SMS Provider
-        return true;
+        if (user.otp !== otp) {
+            throw new Error("Invalid OTP.");
+        }
+        // Success
+        user.isOtpVerified = true;
+        user.otp = null; // Clear it
+        user.otpExpiresAt = null;
+        await user.save();
+        return user;
     }
-    static async loginUser(identifier, userAgent, password, idToken, ip) {
+    static async resendOtp(userId) {
+        // Find the specific document by ID
+        const user = await User.findById(userId);
+        if (!user)
+            throw new Error('User not found. Please restart registration.');
+        // Safety check: Don't resend if they already finished everything
+        if (user.isComplete) {
+            throw new Error('Account is already fully registered. Please login instead.');
+        }
+        // Update the existing document with new OTP
+        const newOtp = Math.floor(100000 + Math.random() * 900000).toString();
+        user.otp = newOtp;
+        user.otpExpiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 mins expiry
+        user.isOtpVerified = false;
+        await user.save();
+        // Trigger your SMS provider here (using user.phoneNumber)
+        console.log(`Resending OTP ${newOtp} to ${user.phoneNumber}`);
+        return { message: "OTP resent successfully" };
+    }
+    static async loginUser(identifier, role, password, idToken, userAgent, ip) {
         let user = null;
-        const salt = await bcrypt.genSalt(10);
-        const hashedPassword = await bcrypt.hash("admin123", salt);
-        console.log(hashedPassword);
-        // Social login via Firebase
+        // Social Login via Firebase
         if (idToken) {
             try {
                 const decodedToken = await auth.verifyIdToken(idToken);
                 const { uid } = decodedToken;
-                user = await User.findOne({ firebaseUid: uid });
-                if (!user) {
-                    throw new Error("User not found. Please register first.");
-                }
-                if (!user.isActive)
-                    throw new Error("Account is deactivated.");
+                user = await User.findOne({ firebaseUid: uid, role });
+                if (!user)
+                    throw new Error(`Account not found for the ${role} role. Please register.`);
             }
             catch (error) {
                 if (error.code?.startsWith('auth/'))
@@ -142,30 +145,31 @@ class AuthService {
                 throw error;
             }
         }
+        // Password Login
         else if (password) {
             user = await User.findOne({
-                $or: [{ email: identifier }, { phoneNumber: identifier }]
+                $or: [
+                    { email: identifier, role },
+                    { phoneNumber: identifier, role }
+                ]
             }).select('+password');
-            if (!user || !user.password) {
+            if (!user || !user.password)
                 throw new Error('Invalid Credentials');
-            }
-            // Compare password
             const isMatch = await bcrypt.compare(password, user.password);
-            if (!isMatch) {
+            if (!isMatch)
                 throw new Error("Invalid credentials");
-            }
         }
         else {
             throw new Error("Login method not supported");
         }
-        // Post auth checks
+        // Status & Completeness Checks
         if (!user.isActive)
             throw new Error('Account is deactivated');
+        if (!user.isComplete)
+            throw new Error('Registration incomplete. Please finish setting up your profile.');
+        // Session & Token Generation
         const familyId = crypto.randomUUID();
-        // Generate Token
-        // Access Token
         const accessToken = jwt.sign({ userId: user._id, role: user.role }, process.env.JWT_ACCESS_SECRET, { expiresIn: '15m' });
-        // Refresh Token
         const refreshToken = jwt.sign({ userId: user._id, familyId: familyId }, process.env.JWT_REFRESH_SECRET, { expiresIn: '30d' });
         const expiresAt = new Date();
         expiresAt.setDate(expiresAt.getDate() + 30);
@@ -177,7 +181,6 @@ class AuthService {
             expiresAt,
             ...(ip && { ipAddress: ip })
         });
-        // Remove password from object before returning
         const userObject = user.toObject();
         delete userObject.password;
         return { user: userObject, accessToken, refreshToken };
@@ -218,6 +221,10 @@ class AuthService {
         try {
             // Decode the token
             const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
+            if (!decoded || !decoded.userId) {
+                await Session.deleteOne({ refreshToken });
+                return { success: true };
+            }
             if (allDevices) {
                 await Session.deleteMany({ userId: decoded.userId });
             }
@@ -230,27 +237,21 @@ class AuthService {
             return { sucess: true };
         }
     }
-    static async forgotPassword(email) {
+    static async forgotPassword(email, role) {
         try {
-            const user = await User.findOne({ email });
+            //Find specific user for this email AND role
+            const user = await User.findOne({ email: email.toLowerCase(), role });
             if (!user) {
-                throw new Error("Account doesn't exists");
+                throw new Error(`No ${role} account found with this email.`);
             }
-            // Generate random token
-            const otp = crypto.randomInt(100_000, 1_000_000).toString();
-            // Save to user document with 15 minute expiry
-            const hashedToken = crypto.createHash('sha256').update(otp).digest('hex');
-            // Save to user document with 15 minute expiry
-            user.resetPasswordToken = hashedToken;
-            user.resetPasswordExpires = new Date(Date.now() + 15 * 60 * 1000);
+            // Generate 6-digit OTP
+            const otp = crypto.randomInt(100000, 1000000).toString();
+            // Save to user document (using your existing 15-min expiry logic)
+            const hashedOtp = crypto.createHash('sha256').update(otp).digest('hex');
+            user.resetPasswordToken = hashedOtp;
+            user.resetPasswordExpires = new Date(Date.now() + 15 * 60 * 1000); // 15 mins
             await user.save();
-            // send email
-            const mailOptions = {
-                subject: 'Your Password Reset Code',
-                html: `<h3>Reset Password</h3>
-           <p>Your 6-digit verification code is: <b>${otp}</b></p>
-           <p>This code expires in 15 minutes.</p>`
-            };
+            // Configure Mailer
             const transporter = nodemailer.createTransport({
                 service: "gmail",
                 auth: {
@@ -258,11 +259,25 @@ class AuthService {
                     pass: process.env.EMAIL_PASS
                 }
             });
+            const mailOptions = {
+                from: process.env.EMAIL_USER,
+                to: email,
+                subject: `Reset Password Code for ${role}`,
+                html: `
+                <div style="font-family: sans-serif; padding: 20px;">
+                    <h3>Password Reset Request</h3>
+                    <p>You requested to reset your password for your <b>${role}</b> account.</p>
+                    <p>Your 6-digit verification code is: <h2 style="color: #007bff;">${otp}</h2></p>
+                    <p>This code will expire in 15 minutes.</p>
+                    <p>If you didn't request this, please ignore this email.</p>
+                </div>
+            `
+            };
             await transporter.sendMail(mailOptions);
-            return { success: true, message: 'Reset link sent to email' };
+            return { success: true, message: 'Reset code sent to your email' };
         }
         catch (error) {
-            throw error;
+            throw new Error(error.message || "Failed to send reset email");
         }
     }
     static async resetPassword(token, newPassword) {
@@ -285,51 +300,72 @@ class AuthService {
         await Session.deleteMany({ userId: user._id });
         return { success: true, message: "Password updated sucessfully" };
     }
-    static async GetAllUser(page = 1, limit = 40) {
+    static async GetAllUsers(page = 1, limit = 40, role, isComplete) {
         try {
             const skip = (page - 1) * limit;
-            const users = await User.find()
-                .limit(limit)
-                .skip(skip)
-                .sort({ createdAt: -1 });
-            const total = await User.countDocuments();
+            // Build a dynamic filter object
+            const filter = {};
+            if (role)
+                filter.role = role;
+            if (typeof isComplete === 'boolean')
+                filter.isComplete = isComplete;
+            // Fetch data and count in parallel for better performance
+            const [users, total] = await Promise.all([
+                User.find(filter)
+                    .sort({ createdAt: -1 })
+                    .skip(skip)
+                    .limit(limit)
+                    .lean(), // Use lean() for faster read-only queries
+                User.countDocuments(filter)
+            ]);
             return {
                 users,
                 pagination: {
                     total,
                     page,
+                    limit,
                     pages: Math.ceil(total / limit)
                 }
             };
         }
         catch (error) {
-            throw error;
+            throw new Error(error.message || "Failed to fetch users");
         }
     }
     static async GetUserById(userId) {
         try {
-            const user = await User.findById(userId);
+            const user = await User.findById(userId)
+                .select('-password -otp -otpExpiresAt -resetPasswordToken -resetPasswordExpires')
+                .lean();
             if (!user) {
-                throw new Error("User not found with these credentials");
+                throw new Error("User not found with the provided ID");
             }
             return user;
         }
         catch (error) {
+            if (error.name === 'CastError') {
+                throw new Error("Invalid User ID format");
+            }
             throw error;
         }
     }
-    static async GetUserByEmailorPhone(identifier) {
+    static async GetUserByEmailOrPhone(identifier, role) {
         try {
             const user = await User.findOne({
-                $or: [{ email: identifier }, { phoneNumber: identifier }]
-            });
+                $or: [
+                    { email: identifier, role },
+                    { phoneNumber: identifier, role }
+                ]
+            })
+                .select('-password -otp -resetPasswordToken -resetPasswordExpires')
+                .lean();
             if (!user) {
-                throw new Error("User not found with these credentials");
+                throw new Error(`No ${role} account found with these credentials.`);
             }
             return user;
         }
         catch (error) {
-            throw error;
+            throw new Error(error.message || "Failed to fetch user");
         }
     }
     static async deactivateUser(userId) {
@@ -350,6 +386,64 @@ class AuthService {
         finally {
             session.endSession();
         }
+    }
+    static async completeProfile(userId, fullName, dob, gender, referralCode, password, profileImage) {
+        const session = await mongoose.startSession();
+        session.startTransaction();
+        try {
+            const user = await User.findById(userId).session(session);
+            if (!user)
+                throw new Error("User not found. Please register first.");
+            if (user.isComplete)
+                throw new Error("Profile is already complete.");
+            let referredById = null;
+            if (referralCode && !user.referredBy) {
+                const referrer = await User.findOne({
+                    referralCode: referralCode.trim().toUpperCase()
+                }).session(session);
+                if (referrer) {
+                    // Prevent self-referral
+                    if (referrer._id.toString() === userId.toString()) {
+                        throw new Error("You cannot use your own referral code.");
+                    }
+                    referredById = referrer._id;
+                }
+                else {
+                    throw new Error("Invalid referral code.");
+                }
+            }
+            let hashedPassword;
+            if (password) {
+                const salt = await bcrypt.genSalt(10);
+                hashedPassword = await bcrypt.hash(password, salt);
+            }
+            const updatedUser = await User.findByIdAndUpdate(userId, {
+                $set: {
+                    fullName,
+                    gender,
+                    dob,
+                    profileImage,
+                    isComplete: true, // This locks the registration
+                    ...(hashedPassword && { password: hashedPassword }),
+                    ...(referredById && { referredBy: referredById })
+                }
+            }, { new: true, runValidators: true, session });
+            await session.commitTransaction();
+            return updatedUser;
+        }
+        catch (error) {
+            await session.abortTransaction();
+            throw error;
+        }
+        finally {
+            session.endSession();
+        }
+    }
+    static async updateProfile(userId, updateData) {
+        const user = await User.findByIdAndUpdate(userId, { $set: updateData }, { new: true, runValidators: true }).select('-password -otp');
+        if (!user)
+            throw new Error("User not found");
+        return user;
     }
 }
 export default AuthService;
