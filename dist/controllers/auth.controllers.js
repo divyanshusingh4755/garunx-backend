@@ -1,9 +1,9 @@
 import AuthService from '../services/auth.service.js';
 export const register = async (req, res) => {
     try {
-        const { role, password, idToken, userEmail } = req.body;
+        const { role, password, idToken, userEmail, phoneNumber } = req.body;
         // Call service to handle logic
-        const user = await AuthService.registerUser(role, idToken, password, userEmail);
+        const user = await AuthService.registerUser(role, idToken, password, userEmail, phoneNumber);
         res.status(201).send({
             success: true,
             message: "User registered successfully",
@@ -101,20 +101,26 @@ export const refreshToken = async (req, res) => {
     }
 };
 export const logout = async (req, res) => {
-    const refreshToken = req.cookies.refreshToken;
-    const { allDevices } = req.body;
-    if (refreshToken) {
-        await AuthService.loginUser(refreshToken, allDevices);
+    try {
+        const refreshToken = req.cookies.refreshToken;
+        const { allDevices } = req.body;
+        if (refreshToken) {
+            await AuthService.loginUser(refreshToken, allDevices);
+        }
+        res.clearCookie('refreshToken', {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'strict',
+        });
+        res.status(200).json({
+            success: true,
+            messages: allDevices ? "Logged out from all devices" : "Logged out successfully"
+        });
     }
-    res.clearCookie('refreshToken', {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'strict',
-    });
-    res.status(200).json({
-        success: true,
-        messages: allDevices ? "Logged out from all devices" : "Logged out successfully"
-    });
+    catch (error) {
+        console.log("err", error);
+        res.status(500).json({ success: false, message: error.message });
+    }
 };
 export const forgotPassword = async (req, res) => {
     try {

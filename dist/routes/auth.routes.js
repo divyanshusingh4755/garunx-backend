@@ -22,12 +22,6 @@ const registerValidation = [
         .optional()
         .isLength({ min: 6 })
         .withMessage('Password must be at least 6 characters'),
-    body().custom((value, { req }) => {
-        if (!req.body.idToken && !req.body.password) {
-            throw new Error('Either Social Token or Password is required');
-        }
-        return true;
-    }),
     (req, res, next) => {
         const errors = validationResult(req);
         if (!errors.isEmpty())

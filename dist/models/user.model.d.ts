@@ -8,6 +8,7 @@ export interface IUser extends Document {
     role: Role;
     isActive: boolean;
     isVerified: boolean;
+    isDocumentVerified: boolean;
     resetPasswordToken?: string | null;
     resetPasswordExpires?: Date | null;
     otp?: string | null;

@@ -13,6 +13,7 @@ const userSchema = new Schema({
     },
     isActive: { type: Boolean, default: true },
     isVerified: { type: Boolean, default: false },
+    isDocumentVerified: { type: Boolean, default: false },
     resetPasswordToken: { type: String, default: null },
     resetPasswordExpires: { type: Date, default: null }
 }, { timestamps: true });
