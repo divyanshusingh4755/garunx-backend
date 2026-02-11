@@ -58,6 +58,10 @@ class AuthService {
                 otpExpiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 mins
             }
 
+            if (query.length === 0) {
+                throw new Error("Email or Phone Number is required for registration.");
+            }
+
             // Upsert User (Update unverified or create new)
             const user = await User.findOneAndUpdate(
                 {
@@ -86,6 +90,7 @@ class AuthService {
             return user;
 
         } catch (error: any) {
+            console.log(error)
             await session.abortTransaction();
             if (error.code?.startsWith('auth/')) { throw new Error("Session expired, please try again") }
             if (error.code === 11000) { throw new Error("A verified user this phone number or email is already exists.") }

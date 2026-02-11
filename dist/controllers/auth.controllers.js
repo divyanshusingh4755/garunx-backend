@@ -15,6 +15,7 @@ export const register = async (req, res) => {
                 phoneNumber: user.phoneNumber,
                 email: user.email,
                 isOtpVerified: user.isOtpVerified,
+                otp: user.otp,
                 nextStep
             }
         });

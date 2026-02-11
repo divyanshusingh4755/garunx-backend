@@ -48,6 +48,9 @@ class AuthService {
                 generatedOtp = Math.floor(100000 + Math.random() * 900000).toString();
                 otpExpiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 mins
             }
+            if (query.length === 0) {
+                throw new Error("Email or Phone Number is required for registration.");
+            }
             // Upsert User (Update unverified or create new)
             const user = await User.findOneAndUpdate({
                 $or: query.length > 0 ? query : [{ _id: new mongoose.Types.ObjectId() }]
@@ -71,6 +74,7 @@ class AuthService {
             return user;
         }
         catch (error) {
+            console.log(error);
             await session.abortTransaction();
             if (error.code?.startsWith('auth/')) {
                 throw new Error("Session expired, please try again");

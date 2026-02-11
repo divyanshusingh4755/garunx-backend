@@ -59,8 +59,21 @@ const userSchema = new Schema<IUser>({
 }, { timestamps: true });
 
 // Allow same phone/email across DIFFERENT roles
-userSchema.index({ phoneNumber: 1, role: 1 }, { unique: true, sparse: true });
-userSchema.index({ email: 1, role: 1 }, { unique: true, sparse: true });
+userSchema.index(
+    { email: 1, role: 1 },
+    {
+        unique: true,
+        partialFilterExpression: { email: { $type: "string" } }
+    }
+);
+
+userSchema.index(
+    { phoneNumber: 1, role: 1 },
+    {
+        unique: true,
+        partialFilterExpression: { phoneNumber: { $type: "string" } }
+    }
+);
 userSchema.index({ referralCode: 1 }, { unique: true, sparse: true });
 
 // Cleanup unverified users after 24 hours
