@@ -15,9 +15,8 @@ const sessionSchema = new Schema<ISession>({
         type: Schema.Types.ObjectId,
         ref: 'User',
         required: true,
-        unique: true    // One user = One session
     },
-    refreshToken: { type: String, required: true, unique: true },
+    refreshToken: { type: String, required: true },
     familyId: { type: String, required: true, index: true },
     deviceInfo: { type: String },
     ipAddress: { type: String },

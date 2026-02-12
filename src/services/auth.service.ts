@@ -218,14 +218,18 @@ class AuthService {
         const expiresAt = new Date();
         expiresAt.setDate(expiresAt.getDate() + 30);
 
-        await Session.create({
-            userId: user._id,
-            refreshToken,
-            deviceInfo: userAgent || 'unknown',
-            familyId: familyId,
-            expiresAt,
-            ...(ip && { ipAddress: ip })
-        });
+        await Session.findOneAndUpdate(
+            {
+                userId: user._id,
+                deviceInfo: userAgent || 'unknown'
+            },
+            {
+                refreshToken,
+                familyId: familyId,
+                expiresAt,
+                ...(ip && { ipAddress: ip })
+            },
+            { upsert: true, new: true });
 
         const userObject = user.toObject();
         delete userObject.password;
@@ -281,26 +285,21 @@ class AuthService {
 
     static async logoutUser(refreshToken: string, allDevices: boolean = false) {
         try {
-            // Decode the token
             const decoded = jwt.verify(
                 refreshToken,
                 process.env.JWT_REFRESH_SECRET as string
-            ) as unknown as { userId: string; familyId: string }
+            ) as { userId: string; familyId: string };
 
-            if (!decoded || !decoded.userId) {
-                await Session.deleteOne({ refreshToken });
-                return { success: true };
-            }
-
-            if (allDevices) {
-                await Session.deleteMany({ userId: decoded.userId })
+            if (allDevices && decoded.userId) {
+                await Session.deleteMany({ userId: decoded.userId });
             } else {
-                await Session.deleteOne({ refreshToken })
+                await Session.deleteOne({ refreshToken });
             }
 
-            return { success: true }
+            return { success: true };
         } catch (error: any) {
-            return { sucess: true }
+            await Session.deleteOne({ refreshToken });
+            return { success: true };
         }
     }
 

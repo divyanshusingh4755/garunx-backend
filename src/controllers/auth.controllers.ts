@@ -120,7 +120,8 @@ export const login = async (req: Request, res: Response) => {
             success: true,
             message: "Login successful",
             user,
-            accessToken
+            accessToken,
+            refreshToken
         });
 
     } catch (error: any) {
@@ -141,7 +142,7 @@ export const login = async (req: Request, res: Response) => {
 };
 
 export const refreshToken = async (req: Request, res: Response) => {
-    const oldToken = req.cookies.refreshToken;
+    const oldToken = req.cookies.refreshToken || req.body.refreshToken;
     if (!oldToken) {
         return res.status(401).json({ success: false, message: "Session expired. Please login again." });
     }
@@ -159,14 +160,14 @@ export const refreshToken = async (req: Request, res: Response) => {
             ip
         );
 
-        res.cookie('refreshToken', refreshToken, {
+        res.cookie('refreshToken', newRefreshToken, {
             httpOnly: true,
             secure: false,
             sameSite: 'lax',
             maxAge: 30 * 24 * 60 * 60 * 1000 // 30 days
         });
 
-        res.json({ success: true, accessToken });
+        res.json({ success: true, accessToken, refreshToken: newRefreshToken });
 
     } catch (error: any) {
         res.clearCookie('refreshToken', {
@@ -185,7 +186,7 @@ export const refreshToken = async (req: Request, res: Response) => {
 
 export const logout = async (req: Request, res: Response) => {
     try {
-        const refreshToken = req.cookies?.refreshToken;
+        const refreshToken = req.cookies?.refreshToken || req.body.refreshToken;
         const { allDevices } = req.body; // Boolean from frontend
 
         if (refreshToken) {
@@ -444,7 +445,8 @@ export const completeProfile = async (req: Request, res: Response) => {
                 isComplete: user?.isComplete,
                 referralCode: user?.referralCode
             },
-            accessToken
+            accessToken,
+            refreshToken
         });
 
     } catch (error: any) {

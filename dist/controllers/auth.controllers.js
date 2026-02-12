@@ -93,7 +93,8 @@ export const login = async (req, res) => {
             success: true,
             message: "Login successful",
             user,
-            accessToken
+            accessToken,
+            refreshToken
         });
     }
     catch (error) {
@@ -112,7 +113,7 @@ export const login = async (req, res) => {
     }
 };
 export const refreshToken = async (req, res) => {
-    const oldToken = req.cookies.refreshToken;
+    const oldToken = req.cookies.refreshToken || req.body.refreshToken;
     if (!oldToken) {
         return res.status(401).json({ success: false, message: "Session expired. Please login again." });
     }
@@ -123,13 +124,13 @@ export const refreshToken = async (req, res) => {
             ? forwarded.split(',')[0]
             : req.headers['x-real-ip'] || req.socket.remoteAddress || '0.0.0.0';
         const { accessToken, refreshToken: newRefreshToken } = await AuthService.refreshAccesToken(oldToken, userAgent, ip);
-        res.cookie('refreshToken', refreshToken, {
+        res.cookie('refreshToken', newRefreshToken, {
             httpOnly: true,
             secure: false,
             sameSite: 'lax',
             maxAge: 30 * 24 * 60 * 60 * 1000 // 30 days
         });
-        res.json({ success: true, accessToken });
+        res.json({ success: true, accessToken, refreshToken: newRefreshToken });
     }
     catch (error) {
         res.clearCookie('refreshToken', {
@@ -146,7 +147,7 @@ export const refreshToken = async (req, res) => {
 };
 export const logout = async (req, res) => {
     try {
-        const refreshToken = req.cookies?.refreshToken;
+        const refreshToken = req.cookies?.refreshToken || req.body.refreshToken;
         const { allDevices } = req.body; // Boolean from frontend
         if (refreshToken) {
             await AuthService.logoutUser(refreshToken, allDevices);
@@ -348,7 +349,8 @@ export const completeProfile = async (req, res) => {
                 isComplete: user?.isComplete,
                 referralCode: user?.referralCode
             },
-            accessToken
+            accessToken,
+            refreshToken
         });
     }
     catch (error) {

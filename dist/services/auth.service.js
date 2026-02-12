@@ -177,14 +177,15 @@ class AuthService {
         const refreshToken = jwt.sign({ userId: user._id, familyId: familyId }, process.env.JWT_REFRESH_SECRET, { expiresIn: '30d' });
         const expiresAt = new Date();
         expiresAt.setDate(expiresAt.getDate() + 30);
-        await Session.create({
+        await Session.findOneAndUpdate({
             userId: user._id,
+            deviceInfo: userAgent || 'unknown'
+        }, {
             refreshToken,
-            deviceInfo: userAgent || 'unknown',
             familyId: familyId,
             expiresAt,
             ...(ip && { ipAddress: ip })
-        });
+        }, { upsert: true, new: true });
         const userObject = user.toObject();
         delete userObject.password;
         return { user: userObject, accessToken, refreshToken };
@@ -223,13 +224,8 @@ class AuthService {
     }
     static async logoutUser(refreshToken, allDevices = false) {
         try {
-            // Decode the token
             const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
-            if (!decoded || !decoded.userId) {
-                await Session.deleteOne({ refreshToken });
-                return { success: true };
-            }
-            if (allDevices) {
+            if (allDevices && decoded.userId) {
                 await Session.deleteMany({ userId: decoded.userId });
             }
             else {
@@ -238,7 +234,8 @@ class AuthService {
             return { success: true };
         }
         catch (error) {
-            return { sucess: true };
+            await Session.deleteOne({ refreshToken });
+            return { success: true };
         }
     }
     static async forgotPassword(email, role) {

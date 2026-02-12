@@ -31,10 +31,6 @@ declare class AuthService {
     }>;
     static logoutUser(refreshToken: string, allDevices?: boolean): Promise<{
         success: boolean;
-        sucess?: never;
-    } | {
-        sucess: boolean;
-        success?: never;
     }>;
     static forgotPassword(email: string, role: Role): Promise<{
         success: boolean;
