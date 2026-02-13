@@ -522,7 +522,9 @@ class AuthService {
         password?: string,
         profileImage?: string,
         userAgent?: string,
-        ip?: string
+        ip?: string,
+        email?: string,
+        phoneNumber?: string
     ) {
         const session = await mongoose.startSession();
         session.startTransaction();
@@ -565,6 +567,8 @@ class AuthService {
                         dob,
                         profileImage,
                         isComplete: true, // This locks the registration
+                        ...(phoneNumber && { phoneNumber: phoneNumber }),
+                        ...(email && { email: email }),
                         ...(hashedPassword && { password: hashedPassword }),
                         ...(referredById && { referredBy: referredById })
                     }

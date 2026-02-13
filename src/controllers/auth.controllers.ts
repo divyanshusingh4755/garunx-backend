@@ -445,7 +445,7 @@ export const deactivateUser = async (req: Request, res: Response) => {
 
 export const completeProfile = async (req: Request, res: Response) => {
     try {
-        const { userId, fullName, dob, gender, referralCode, password, profileImage } = req.body;
+        const { userId, fullName, dob, gender, referralCode, password, profileImage, email, phoneNumber } = req.body;
 
         if (!userId || !fullName) {
             return res.status(400).json({
@@ -469,7 +469,9 @@ export const completeProfile = async (req: Request, res: Response) => {
             password,
             profileImage,
             userAgent,
-            ip
+            ip,
+            email,
+            phoneNumber
         );
 
         res.cookie('refreshToken', refreshToken, {

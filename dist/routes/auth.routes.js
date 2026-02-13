@@ -44,6 +44,14 @@ const profileValidation = [
     body('fullName')
         .notEmpty().withMessage('Full name is required')
         .isString().trim().isLength({ min: 2 }),
+    body('email')
+        .optional()
+        .isEmail().withMessage('Please enter a valid email address')
+        .normalizeEmail(),
+    body('phoneNumber')
+        .optional()
+        .isMobilePhone('en-IN')
+        .withMessage('Enter valid Indian Phone Number'),
     body('password')
         .optional()
         .isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),

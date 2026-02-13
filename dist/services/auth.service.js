@@ -412,7 +412,7 @@ class AuthService {
             session.endSession();
         }
     }
-    static async completeProfile(userId, fullName, dob, gender, referralCode, password, profileImage, userAgent, ip) {
+    static async completeProfile(userId, fullName, dob, gender, referralCode, password, profileImage, userAgent, ip, email, phoneNumber) {
         const session = await mongoose.startSession();
         session.startTransaction();
         try {
@@ -449,6 +449,8 @@ class AuthService {
                     dob,
                     profileImage,
                     isComplete: true, // This locks the registration
+                    ...(phoneNumber && { phoneNumber: phoneNumber }),
+                    ...(email && { email: email }),
                     ...(hashedPassword && { password: hashedPassword }),
                     ...(referredById && { referredBy: referredById })
                 }
