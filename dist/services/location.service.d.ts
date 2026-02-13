@@ -1,6 +1,6 @@
 import { type ILocation } from "../models/location.model.js";
 export declare class LocationService {
-    static createLocation(country: String, state: String, city: String, fullAddress: String, pincode: String, image?: String, description?: String, location?: {
+    static createLocation(name: String, country: String, state: String, city: String, fullAddress: String, pincode: String, image?: String, description?: String, location?: {
         type: "Point";
         coordinates: [number, number];
     }): Promise<import("mongoose").Document<unknown, {}, ILocation, {}, import("mongoose").DefaultSchemaOptions> & ILocation & Required<{
@@ -35,5 +35,12 @@ export declare class LocationService {
     }> & {
         __v: number;
     }>;
+    static searchServicesyLocationDetails(searchQuery: any): Promise<(import("mongoose").Document<unknown, {}, ILocation, {}, import("mongoose").DefaultSchemaOptions> & ILocation & Required<{
+        _id: import("mongoose").Types.ObjectId;
+    }> & {
+        __v: number;
+    } & {
+        id: string;
+    })[]>;
 }
 //# sourceMappingURL=location.service.d.ts.map

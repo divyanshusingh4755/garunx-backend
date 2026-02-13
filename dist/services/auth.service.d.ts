@@ -40,6 +40,10 @@ declare class AuthService {
         success: boolean;
         message: string;
     }>;
+    static changePassword(userId: string, oldPassword: string, newPassword: string): Promise<{
+        success: boolean;
+        message: string;
+    }>;
     static GetAllUsers(page?: number, limit?: number, role?: Role, isComplete?: boolean): Promise<{
         users: (IUser & Required<{
             _id: Types.ObjectId;
@@ -74,13 +78,15 @@ declare class AuthService {
         dob?: Date;
         gender?: string;
         profileImage?: string;
-    }): Promise<mongoose.Document<unknown, {}, IUser, {}, mongoose.DefaultSchemaOptions> & IUser & Required<{
+        savedLocations?: string[];
+        serviceableLocations?: string[];
+    }): Promise<(mongoose.Document<unknown, {}, IUser, {}, mongoose.DefaultSchemaOptions> & IUser & Required<{
         _id: Types.ObjectId;
     }> & {
         __v: number;
     } & {
         id: string;
-    }>;
+    }) | null>;
     static uploadVerificationDocuments(userId: string, docs: {
         aadharCard?: string;
         panCard?: string;

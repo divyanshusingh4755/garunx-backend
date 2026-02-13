@@ -21,7 +21,7 @@ export const authenticate = (req, res, next) => {
     catch (error) {
         return res.status(403).json({
             success: false,
-            message: "Invalide or expired access token"
+            message: "Invalid or expired access token"
         });
     }
 };

@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { body, validationResult } from 'express-validator';
 import { Role } from '../types/rbac.js';
-import { login, register, resendOtp, verifyOtp, refreshToken, logout, forgotPassword, resetPassword, GetUserById, getGetAllUser, deactivateUser, completeProfile, updateProfile, uploadSingle, uploadMutliple, getUserByEmailOrPhone, verifyDocuments, approveOrRejectDocs } from '../controllers/auth.controllers.js';
+import { login, register, resendOtp, verifyOtp, refreshToken, logout, forgotPassword, resetPassword, GetUserById, getGetAllUser, deactivateUser, completeProfile, updateProfile, uploadSingle, uploadMutliple, getUserByEmailOrPhone, verifyDocuments, approveOrRejectDocs, changePassword } from '../controllers/auth.controllers.js';
 import { passwordRateLimiter } from '../utils/passwordRateLimiter.js';
 import { authenticate } from '../middleware/authenticate.js';
 import { upload } from '../middleware/upload.js';
@@ -84,16 +84,17 @@ router.post('/reset-password', passwordRateLimiter, resetPassword);
 // --- PROFILE COMPLETION ---
 router.patch('/complete-profile', profileValidation, completeProfile);
 // --- PROTECTED ROUTES ---
+router.post('/change-password', authenticate, changePassword);
 router.patch('/update-profile', authenticate, updateProfile);
 router.get('/get-user-by-id/:id', authenticate, GetUserById);
 router.get('/get-user-by-email-or-phone/:identifier', authenticate, getUserByEmailOrPhone);
 // --- ADMIN / MANAGEMENT ROUTES ---
 router.get('/get-all-user', authenticate, getGetAllUser);
 router.delete('/deactivate-user/:id', authenticate, deactivateUser);
-router.patch('/verify-user', authenticate, approveOrRejectDocs);
+router.patch('/verify-documents', authenticate, approveOrRejectDocs);
 // --- MEDIA UPLOADS ---
 router.post('/upload-single', upload.single('image'), uploadSingle);
 router.post('/upload-multiple', upload.array('images', 5), uploadMutliple);
-router.patch('/verify-documents', authenticate, verifyDocuments);
+router.patch('/upload-documents', authenticate, verifyDocuments);
 export default router;
 //# sourceMappingURL=auth.routes.js.map

@@ -5,6 +5,9 @@ import cors from "cors";
 import authRoutes from './routes/auth.routes.js';
 import brandingRoutes from './routes/branding.routes.js';
 import locationRoutes from './routes/location.routes.js';
+import serviceRoutes from './routes/service.routes.js';
+import pricingRoutes from './routes/pricing.routes.js';
+import packageRoutes from './routes/package.routes.js';
 
 const app: Application = express()
 // Connect DB
@@ -20,12 +23,15 @@ app.use(cors({
 }))
 app.use(express.json())
 app.use(express.urlencoded({ extended: true }))
-app.set('trust proxy', false)
+app.set('trust proxy', 1);
 
 // Routes
 app.use('/api/auth', authRoutes)
 app.use('/api/branding', brandingRoutes)
 app.use('/api/location', locationRoutes)
+app.use('/api/service', serviceRoutes)
+app.use('/api/pricing', pricingRoutes)
+app.use('/api/package', packageRoutes)
 
 
 // Routes

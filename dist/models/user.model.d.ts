@@ -19,11 +19,13 @@ export interface IUser extends Document {
     referredBy?: Types.ObjectId;
     resetPasswordToken?: string | null;
     resetPasswordExpires?: Date | null;
+    savedLocations?: string[];
+    serviceableLocations?: Types.ObjectId[];
     documentVerification: {
         aadharCard?: string;
         panCard?: string;
         bankPassbook: string;
-        status: 'PENDING';
+        status: 'PENDING' | 'APPROVED' | 'REJECTED';
         rejectionReason?: string;
     };
     isDocumentVerified: {

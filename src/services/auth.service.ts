@@ -381,6 +381,33 @@ class AuthService {
         return { success: true, message: "Password updated sucessfully" }
     }
 
+    static async changePassword(userId: string, oldPassword: string, newPassword: string) {
+        // Find user with valid token
+        const user = await User.findOne({ _id: userId });
+
+        if (!user) {
+            throw new Error("User not found")
+        }
+
+        if (!user.password) {
+            throw new Error("Password not set for this account (Social Login?)");
+        }
+
+        const isMatch = await bcrypt.compare(oldPassword, user.password);
+        if (!isMatch) throw new Error("Invalid Current Password");
+
+        const isSamePassword = await bcrypt.compare(newPassword, user.password);
+        if (isSamePassword) throw new Error("New password cannot be the same as the old one");
+
+        const salt = await bcrypt.genSalt(10);
+        user.password = await bcrypt.hash(newPassword, salt);
+        await user.save()
+
+        // security: Invalidate all existing sessions
+        await Session.deleteMany({ userId: user._id })
+        return { success: true, message: "Password updated sucessfully" }
+    }
+
     static async GetAllUsers(
         page: number = 1,
         limit: number = 40,
@@ -587,27 +614,47 @@ class AuthService {
         }
     }
 
-    static async updateProfile(userId: string, updateData: { fullName?: string; dob?: Date; gender?: string; profileImage?: string }) {
-        const user = await User.findByIdAndUpdate(
+    static async updateProfile(userId: string, updateData: {
+        fullName?: string;
+        dob?: Date;
+        gender?: string;
+        profileImage?: string;
+        savedLocations?: string[];
+        serviceableLocations?: string[];
+    }) {
+
+        const user = await User.findById(userId);
+        if (!user) throw new Error("User not found");
+
+        if (updateData.serviceableLocations && !user.isDocumentVerified) {
+            throw new Error("Action Denied: Please wait for Admin to verify your documents before setting work areas.")
+        }
+
+        const updatedUser = await User.findByIdAndUpdate(
             userId,
             { $set: updateData },
             { new: true, runValidators: true }
-        ).select('-password -otp');
+        )
+            .select('-password -otp')
+            .populate('serviceableLocations');
 
-        if (!user) throw new Error("User not found");
-        return user;
+        return updatedUser;
     }
 
     static async uploadVerificationDocuments(userId: string, docs: { aadharCard?: string, panCard?: string, bankPassbook?: string }) {
+        const updateData: any = {
+            "documentVerification.status": "PENDING"
+        }
+
+        if (docs.aadharCard) updateData["documentVerification.aadharCard"] = docs.aadharCard;
+        if (docs.panCard) updateData["documentVerification.panCard"] = docs.panCard;
+        if (docs.bankPassbook) updateData["documentVerification.bankPassbook"] = docs.bankPassbook;
+
+
         const user = await User.findByIdAndUpdate(
             userId,
             {
-                $set: {
-                    "documentVerification.aadharCard": docs.aadharCard,
-                    "documentVerification.panCard": docs.panCard,
-                    "documentVerification.bankPassbook": docs.bankPassbook,
-                    "documentVerification.status": "PENDING"
-                }
+                $set: updateData
             },
             { new: true, runValidators: true }
         ).select('-password -otp');

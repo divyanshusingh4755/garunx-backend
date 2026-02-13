@@ -1,7 +1,7 @@
 import { Router, type Request, type Response, type NextFunction } from 'express';
 import { body, validationResult } from 'express-validator';
 import { authenticate } from '../middleware/authenticate.js';
-import { createLocation, deleteLocation, getAllLocation, getLocationById, updateLocation } from '../controllers/location.controllers.js';
+import { createLocation, deleteLocation, getAllLocation, getLocationById, searchServicesByLocationDetails, updateLocation } from '../controllers/location.controllers.js';
 
 const router = Router()
 
@@ -17,7 +17,14 @@ const locationValidation = [
     body('location.coordinates').optional().isArray({ min: 2, max: 2 }).withMessage("Coordinates must be [longitude, latitude]"),
     (req: Request, res: Response, next: NextFunction) => {
         const errors = validationResult(req);
-        if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() })
+        if (!errors.isEmpty()) {
+            const firstError = errors.array()[0];
+            return res.status(400).json({
+                success: false,
+                message: firstError?.msg,
+                error: firstError
+            });
+        }
         next();
     }
 ];
@@ -27,5 +34,6 @@ router.patch('/update-location/:id', authenticate, locationValidation, updateLoc
 router.get('/get-all-location', getAllLocation)
 router.get('/:id', authenticate, getLocationById)
 router.delete('/:id', authenticate, deleteLocation)
+router.post('/discovery', searchServicesByLocationDetails)
 
 export default router;

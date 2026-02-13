@@ -1,5 +1,6 @@
 import { type Document, Types } from 'mongoose';
 export interface ILocation extends Document {
+    name: String;
     country: String;
     state: String;
     city: String;

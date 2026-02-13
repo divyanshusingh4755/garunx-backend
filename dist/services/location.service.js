@@ -1,7 +1,8 @@
 import { Location } from "../models/location.model.js";
 export class LocationService {
-    static async createLocation(country, state, city, fullAddress, pincode, image, description, location) {
+    static async createLocation(name, country, state, city, fullAddress, pincode, image, description, location) {
         const newLocation = new Location({
+            name,
             country,
             state,
             city,
@@ -90,6 +91,28 @@ export class LocationService {
         }
         catch (error) {
             throw new Error(`Failed to get location: ${error.message}`);
+        }
+    }
+    static async searchServicesyLocationDetails(searchQuery) {
+        try {
+            let locations = await Location.find({ $text: { $search: searchQuery }, isActive: true }, { score: { $meta: "textScore" } })
+                .sort({ score: { $meta: "textScore" } })
+                .select('_id name city state pincode fullAddress');
+            // Fallback if text search is empty
+            if (locations.length === 0) {
+                locations = await Location.find({
+                    $or: [
+                        { city: new RegExp(searchQuery, 'i') },
+                        { pincode: searchQuery },
+                        { state: new RegExp(searchQuery, 'i') }
+                    ],
+                    isActive: true
+                }).select('_id name city state pincode fullAddress');
+            }
+            return locations;
+        }
+        catch (error) {
+            throw new Error(error.message);
         }
     }
 }

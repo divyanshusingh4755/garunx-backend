@@ -4,7 +4,7 @@ const userSchema = new Schema({
     firebaseUid: { type: String, unique: true, sparse: true, index: true },
     phoneNumber: { type: String, trim: true },
     email: { type: String, lowercase: true, trim: true },
-    password: { type: String, select: false },
+    password: { type: String },
     role: {
         type: String,
         enum: Object.values(Role),
@@ -24,6 +24,20 @@ const userSchema = new Schema({
     referredBy: { type: Schema.Types.ObjectId, ref: 'User', default: null },
     resetPasswordToken: { type: String, default: null },
     resetPasswordExpires: { type: Date, default: null },
+    savedLocations: [{ type: String }],
+    serviceableLocations: [{ type: Schema.Types.ObjectId, ref: "Location" }],
+    documentVerification: {
+        aadharCard: { type: String },
+        panCard: { type: String },
+        bankPassbook: { type: String },
+        status: {
+            type: String,
+            enum: ['PENDING', 'APPROVED', 'REJECTED'],
+            default: 'PENDING'
+        },
+        rejectionReason: { type: String }
+    },
+    isDocumentVerified: { type: Boolean, default: false }
 }, { timestamps: true });
 // Allow same phone/email across DIFFERENT roles
 userSchema.index({ email: 1, role: 1 }, {

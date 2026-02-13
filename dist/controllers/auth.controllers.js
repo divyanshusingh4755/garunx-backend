@@ -1,4 +1,5 @@
 import AuthService from '../services/auth.service.js';
+import { Role } from '../types/rbac.js';
 export const register = async (req, res) => {
     try {
         const { role, password, idToken, userEmail, phoneNumber } = req.body;
@@ -85,8 +86,8 @@ export const login = async (req, res) => {
         const { user, accessToken, refreshToken } = await AuthService.loginUser(identifier, role, password, idToken, userAgent, ip);
         res.cookie('refreshToken', refreshToken, {
             httpOnly: true,
-            secure: false,
-            sameSite: 'lax',
+            secure: true,
+            sameSite: 'none',
             maxAge: 30 * 24 * 60 * 60 * 1000 // 30 days
         });
         res.status(200).json({
@@ -113,7 +114,7 @@ export const login = async (req, res) => {
     }
 };
 export const refreshToken = async (req, res) => {
-    const oldToken = req.cookies.refreshToken || req.body.refreshToken;
+    const oldToken = req.cookies?.refreshToken || req.body?.refreshToken;
     if (!oldToken) {
         return res.status(401).json({ success: false, message: "Session expired. Please login again." });
     }
@@ -126,8 +127,8 @@ export const refreshToken = async (req, res) => {
         const { accessToken, refreshToken: newRefreshToken } = await AuthService.refreshAccesToken(oldToken, userAgent, ip);
         res.cookie('refreshToken', newRefreshToken, {
             httpOnly: true,
-            secure: false,
-            sameSite: 'lax',
+            secure: true,
+            sameSite: 'none',
             maxAge: 30 * 24 * 60 * 60 * 1000 // 30 days
         });
         res.json({ success: true, accessToken, refreshToken: newRefreshToken });
@@ -135,8 +136,8 @@ export const refreshToken = async (req, res) => {
     catch (error) {
         res.clearCookie('refreshToken', {
             httpOnly: true,
-            secure: false,
-            sameSite: 'lax',
+            secure: true,
+            sameSite: 'none',
             path: '/'
         });
         res.status(403).json({
@@ -154,8 +155,8 @@ export const logout = async (req, res) => {
         }
         res.clearCookie('refreshToken', {
             httpOnly: true,
-            secure: false,
-            sameSite: 'lax',
+            secure: true,
+            sameSite: 'none',
             path: '/'
         });
         res.status(200).json({
@@ -168,8 +169,8 @@ export const logout = async (req, res) => {
     catch (error) {
         res.clearCookie('refreshToken', {
             httpOnly: true,
-            secure: false,
-            sameSite: 'lax',
+            secure: true,
+            sameSite: 'none',
             path: '/'
         });
         res.status(200).json({ success: true, message: "Logged out" });
@@ -214,8 +215,44 @@ export const resetPassword = async (req, res) => {
         await AuthService.resetPassword(otp, newPassword);
         res.clearCookie('refreshToken', {
             httpOnly: true,
-            secure: false,
-            sameSite: 'lax',
+            secure: true,
+            sameSite: 'none',
+            path: '/'
+        });
+        res.status(200).json({
+            success: true,
+            message: "Password reset successfully. Please login with your new credentials."
+        });
+    }
+    catch (error) {
+        const statusCode = (error.message.includes('expired') || error.message.includes('invalid')) ? 400 : 500;
+        res.status(statusCode).json({
+            success: false,
+            message: error.message || "Failed to reset password."
+        });
+    }
+};
+export const changePassword = async (req, res) => {
+    try {
+        const { oldPassword, newPassword } = req.body;
+        const userId = req.user?.userId;
+        if (!userId) {
+            return res.status(401).json({ success: false, message: "Unauthorized" });
+        }
+        if (!oldPassword) {
+            return res.status(400).json({ success: false, message: "Existing Password missing" });
+        }
+        if (!newPassword || newPassword.length < 8) {
+            return res.status(400).json({
+                success: false,
+                message: "Password must be at least 8 characters long."
+            });
+        }
+        await AuthService.changePassword(userId, oldPassword, newPassword);
+        res.clearCookie('refreshToken', {
+            httpOnly: true,
+            secure: true,
+            sameSite: 'none',
             path: '/'
         });
         res.status(200).json({
@@ -335,8 +372,8 @@ export const completeProfile = async (req, res) => {
         const { user, accessToken, refreshToken } = await AuthService.completeProfile(userId, fullName, dob, gender, referralCode, password, profileImage, userAgent, ip);
         res.cookie('refreshToken', refreshToken, {
             httpOnly: true,
-            secure: false,
-            sameSite: 'lax',
+            secure: true,
+            sameSite: 'none',
             maxAge: 30 * 24 * 60 * 60 * 1000 // 30 days
         });
         res.status(200).json({
@@ -363,12 +400,25 @@ export const completeProfile = async (req, res) => {
 export const updateProfile = async (req, res) => {
     try {
         const userId = req.user?.userId;
-        const { fullName, dob, gender, profileImage } = req.body;
-        const user = await AuthService.updateProfile(userId, { fullName, dob, gender, profileImage });
+        const userRole = req.user?.role;
+        const { fullName, dob, gender, profileImage, savedLocations, serviceableLocations } = req.body;
+        const dataToUpdate = {
+            fullName, dob, gender, profileImage, savedLocations
+        };
+        if (serviceableLocations && userRole === Role.COORDINATOR) {
+            dataToUpdate.serviceableLocations = serviceableLocations;
+        }
+        const updatedUser = await AuthService.updateProfile(userId, dataToUpdate);
+        if (!updatedUser) {
+            return res.status(404).json({
+                success: false,
+                message: "User not found or update failed"
+            });
+        }
         res.status(200).json({
             success: true,
             message: "Profile updated successfully",
-            data: user
+            data: updatedUser
         });
     }
     catch (error) {

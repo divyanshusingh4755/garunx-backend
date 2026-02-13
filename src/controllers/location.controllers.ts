@@ -1,9 +1,12 @@
 import type { Request, Response } from 'express';
 import { LocationService } from "../services/location.service.js"
+import { PricingSerive } from '../services/pricing.service.js';
+import { PackageService } from '../services/package.service.js';
 
 export const createLocation = async (req: Request, res: Response) => {
     try {
         const {
+            name,
             country,
             state,
             city,
@@ -14,6 +17,7 @@ export const createLocation = async (req: Request, res: Response) => {
             location } = req.body
 
         await LocationService.createLocation(
+            name,
             country,
             state,
             city,
@@ -99,4 +103,54 @@ export const deleteLocation = async (req: Request, res: Response) => {
             message: error.message
         })
     }
-} 
+}
+
+export const searchServicesByLocationDetails = async (req: Request, res: Response) => {
+    try {
+        const { query } = req.query as { query?: string };
+        const { locationIds } = (req.body || {}) as { locationIds?: string[] };
+
+        let finalLocationIds: string[] = [];
+        let locationContext: any = null;
+
+        // Query takes priority
+        if (query) {
+            locationContext = await LocationService.searchServicesyLocationDetails(query);
+            finalLocationIds = locationContext.map((loc: any) => loc._id);
+        } else if (locationIds && locationIds.length > 0) {
+            finalLocationIds = locationIds
+        } else {
+            return res.status(400).json({
+                success: false,
+                message: 'Please provide either a search query or specific location IDs.'
+            });
+        }
+
+        if (finalLocationIds.length === 0) {
+            return res.status(404).json({
+                success: true,
+                message: "No service available in this location yet",
+                data: {
+                    services: [],
+                    packages: []
+                }
+            })
+        }
+
+        const [services, packages] = await Promise.all([
+            PricingSerive.fetchByLocation(finalLocationIds),
+            PackageService.fetchByLocation(finalLocationIds)
+        ])
+
+        res.status(200).json({
+            success: true,
+            locationContext: query ? locationContext : "Using provided IDs",
+            data: {
+                services,
+                packages
+            }
+        })
+    } catch (error: any) {
+        res.status(500).json({ success: false, message: error.message })
+    }
+}
