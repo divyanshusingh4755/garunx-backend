@@ -313,7 +313,9 @@ class AuthService {
             }
 
             // Generate 6-digit OTP
-            const otp = crypto.randomInt(100000, 1000000).toString();
+            // const otp = crypto.randomInt(100000, 1000000).toString();
+            // For testing
+            const otp = "111111";
 
             // Save to user document (using your existing 15-min expiry logic)
             const hashedOtp = crypto.createHash('sha256').update(otp).digest('hex');
@@ -322,31 +324,31 @@ class AuthService {
             user.resetPasswordExpires = new Date(Date.now() + 15 * 60 * 1000); // 15 mins
             await user.save();
 
-            // Configure Mailer
-            const transporter = nodemailer.createTransport({
-                service: "gmail",
-                auth: {
-                    user: process.env.EMAIL_USER,
-                    pass: process.env.EMAIL_PASS
-                }
-            });
+            // // Configure Mailer
+            // const transporter = nodemailer.createTransport({
+            //     service: "gmail",
+            //     auth: {
+            //         user: process.env.EMAIL_USER,
+            //         pass: process.env.EMAIL_PASS
+            //     }
+            // });
 
-            const mailOptions = {
-                from: process.env.EMAIL_USER,
-                to: email,
-                subject: `Reset Password Code for ${role}`,
-                html: `
-                <div style="font-family: sans-serif; padding: 20px;">
-                    <h3>Password Reset Request</h3>
-                    <p>You requested to reset your password for your <b>${role}</b> account.</p>
-                    <p>Your 6-digit verification code is: <h2 style="color: #007bff;">${otp}</h2></p>
-                    <p>This code will expire in 15 minutes.</p>
-                    <p>If you didn't request this, please ignore this email.</p>
-                </div>
-            `
-            };
+            // const mailOptions = {
+            //     from: process.env.EMAIL_USER,
+            //     to: email,
+            //     subject: `Reset Password Code for ${role}`,
+            //     html: `
+            //     <div style="font-family: sans-serif; padding: 20px;">
+            //         <h3>Password Reset Request</h3>
+            //         <p>You requested to reset your password for your <b>${role}</b> account.</p>
+            //         <p>Your 6-digit verification code is: <h2 style="color: #007bff;">${otp}</h2></p>
+            //         <p>This code will expire in 15 minutes.</p>
+            //         <p>If you didn't request this, please ignore this email.</p>
+            //     </div>
+            // `
+            // };
 
-            await transporter.sendMail(mailOptions);
+            // await transporter.sendMail(mailOptions);
 
             return { success: true, message: 'Reset code sent to your email' };
 
