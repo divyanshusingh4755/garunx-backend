@@ -15,7 +15,7 @@ export const register = async (req: Request, res: Response) => {
             message: user.isOtpVerified
                 ? "Social login verified. Please complete your profile."
                 : "Registration initiated. Please verify your OTP.",
-            data: {
+            user: {
                 userId: user._id,
                 role: user.role,
                 phoneNumber: user.phoneNumber,
