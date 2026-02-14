@@ -504,13 +504,7 @@ export const completeProfile = async (req: Request, res: Response) => {
         res.status(200).json({
             success: true,
             message: "Profile completed successfully. You are now fully registered.",
-            data: {
-                userId: user?._id,
-                fullName: user?.fullName,
-                role: user?.role,
-                isComplete: user?.isComplete,
-                referralCode: user?.referralCode
-            },
+            user,
             accessToken,
             refreshToken
         });
@@ -538,9 +532,9 @@ export const updateProfile = async (req: Request, res: Response) => {
             dataToUpdate.serviceableLocations = serviceableLocations;
         }
 
-        const updatedUser = await AuthService.updateProfile(userId, dataToUpdate);
+        const user = await AuthService.updateProfile(userId, dataToUpdate);
 
-        if (!updatedUser) {
+        if (!user) {
             return res.status(404).json({
                 success: false,
                 message: "User not found or update failed"
@@ -550,7 +544,7 @@ export const updateProfile = async (req: Request, res: Response) => {
         res.status(200).json({
             success: true,
             message: "Profile updated successfully",
-            data: updatedUser
+            user
         });
     } catch (error: any) {
         res.status(400).json({ success: false, message: error.message });
