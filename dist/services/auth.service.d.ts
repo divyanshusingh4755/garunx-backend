@@ -10,17 +10,14 @@ declare class AuthService {
     } & {
         id: string;
     }>;
-    static verifyOtp(userId: string, otp: string, type: string): Promise<mongoose.Document<unknown, {}, IUser, {}, mongoose.DefaultSchemaOptions> & IUser & Required<{
+    static verifyOtp(userId: string, otp: string, email: string): Promise<mongoose.Document<unknown, {}, IUser, {}, mongoose.DefaultSchemaOptions> & IUser & Required<{
         _id: Types.ObjectId;
     }> & {
         __v: number;
     } & {
         id: string;
     }>;
-    static resendOtp(userId: string, type: string): Promise<{
-        success: string;
-        message: string;
-    } | {
+    static resendOtp(userId: string, email: string): Promise<{
         success: boolean;
         message: string;
     }>;

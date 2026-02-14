@@ -100,8 +100,8 @@ class AuthService {
         }
     }
 
-    static async verifyOtp(userId: string, otp: string, type: string) {
-        if (type === "register") {
+    static async verifyOtp(userId: string, otp: string, email: string) {
+        if (userId) {
             // Find OTP in DB
             const user = await User.findById(userId);
             if (!user) throw new Error("User not found.");
@@ -128,18 +128,19 @@ class AuthService {
             return user;
         }
 
-        if (type === "resetpassword") {
+        if (email) {
             // hash the incoming token to match
             const hashedToken = crypto.createHash('sha256').update(otp).digest('hex');
 
             // Find user with valid token
             const user = await User.findOne({
+                email: email,
                 resetPasswordToken: hashedToken,
                 resetPasswordExpires: { $gt: Date.now() }
             });
 
             if (!user) {
-                throw new Error("Token is invalid or has expired")
+                throw new Error("OTP is invalid or has expired")
             }
 
             (user.resetPasswordToken as string | undefined) = undefined;
@@ -153,14 +154,15 @@ class AuthService {
         throw new Error("Invalid verification type.");
     }
 
-    static async resendOtp(userId: string, type: string) {
-        // Find the specific document by ID
-        const user = await User.findById(userId);
-        if (!user) throw new Error('User not found. Please restart registration.');
-
+    static async resendOtp(userId: string, email: string) {
         const expiryTime = new Date(Date.now() + 15 * 60 * 1000); // 15 mins
 
-        if (type === "register") {
+        if (userId) {
+            // Find the specific document by ID
+            const user = await User.findById(userId);
+            if (!user) throw new Error('User not found. Please restart registration.');
+
+
             // Safety check: Don't resend if they already finished everything
             if (user.isComplete) {
                 throw new Error('Account is already fully registered. Please login instead.');
@@ -177,10 +179,14 @@ class AuthService {
             // Trigger your SMS provider here (using user.phoneNumber)
             console.log(`Resending OTP ${newOtp} to ${user.phoneNumber}`);
 
-            return { success: "true", message: "OTP resent successfully via SMS" };
+            return { success: true, message: "OTP resent successfully via SMS" };
         }
 
-        if (type === "resetpassword") {
+        if (email) {
+            // Find the specific document by ID
+            const user = await User.findOne({ email });
+            if (!user) throw new Error('User not found. Please restart registration.');
+
             // Generate 6-digit OTP
             // const otp = crypto.randomInt(100000, 1000000).toString();
             // For testing
@@ -191,6 +197,7 @@ class AuthService {
 
             user.resetPasswordToken = hashedOtp;
             user.resetPasswordExpires = expiryTime
+            user.isResetVerified = false;
             await user.save();
 
             // const { email, role } = user;

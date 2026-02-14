@@ -30,33 +30,32 @@ export const register = async (req, res) => {
 };
 export const verifyOtp = async (req, res) => {
     try {
-        const { userId, otp, type } = req.body;
-        if (!userId || !otp || !type) {
+        const { userId, otp, email } = req.body;
+        if (!otp || (!userId && !email)) {
             return res.status(400).json({
                 success: false,
-                message: 'UserId, OTP and Type are required'
+                message: 'OTP and either User ID and email is required'
             });
         }
-        const user = await AuthService.verifyOtp(userId, otp, type);
+        const user = await AuthService.verifyOtp(userId, otp, email);
         if (!user) {
             return res.status(400).json({
                 success: false,
                 message: 'Invalid OTP or Session expired'
             });
         }
-        const dynamicMsg = type === "register" ?
-            "OTP verified successfully. Please complete your profile."
-            : "OTP verified successfully. Please reset your password.";
+        const isRegistrationFlow = !!userId;
         res.status(200).json({
             success: true,
-            message: dynamicMsg,
-            data: type === "register" ? {
+            message: isRegistrationFlow
+                ? "OTP verified. Please complete your profile."
+                : "OTP verified. You may now reset your password.",
+            data: {
                 userId: user._id,
                 role: user.role,
                 isOtpVerified: user.isOtpVerified,
-                isComplete: user.isComplete // Usually false at this stage
-            } : {
-                userId: user._id
+                isResetVerified: user.isResetVerified,
+                isComplete: user.isComplete
             }
         });
     }
@@ -69,14 +68,14 @@ export const verifyOtp = async (req, res) => {
 };
 export const resendOtp = async (req, res) => {
     try {
-        const { userId, type } = req.body;
-        if (!userId || !type) {
+        const { userId, email } = req.body;
+        if (!userId && !email) {
             return res.status(400).json({
                 success: false,
-                message: 'User ID and type is required to resend OTP'
+                message: 'User ID and email is required to resend OTP'
             });
         }
-        const result = await AuthService.resendOtp(userId, type);
+        const result = await AuthService.resendOtp(userId, email);
         res.status(200).json({
             success: true,
             message: result.message || 'A new OTP has been sent successfully'
