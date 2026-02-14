@@ -20,6 +20,7 @@ declare class AuthService {
     static resendOtp(userId: string, email: string): Promise<{
         success: boolean;
         message: string;
+        otp: string;
     }>;
     static loginUser(identifier: string, role: Role, password?: string, idToken?: string, userAgent?: string, ip?: string): Promise<{
         user: IUser;

@@ -94,6 +94,7 @@ export const resendOtp = async (req: Request, res: Response) => {
 
         res.status(200).json({
             success: true,
+            otp: result.otp,
             message: result.message || 'A new OTP has been sent successfully'
         });
 

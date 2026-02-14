@@ -179,7 +179,7 @@ class AuthService {
             // Trigger your SMS provider here (using user.phoneNumber)
             console.log(`Resending OTP ${newOtp} to ${user.phoneNumber}`);
 
-            return { success: true, message: "OTP resent successfully via SMS" };
+            return { success: true, message: "OTP resent successfully via SMS", otp: newOtp };
         }
 
         if (email) {
@@ -227,7 +227,7 @@ class AuthService {
             // };
 
             // await transporter.sendMail(mailOptions);
-            return { success: true, message: 'Reset code sent to your email' };
+            return { success: true, message: 'Reset code sent to your email', otp: otp };
         }
 
         throw new Error("Invalid resend type.");

@@ -78,6 +78,7 @@ export const resendOtp = async (req, res) => {
         const result = await AuthService.resendOtp(userId, email);
         res.status(200).json({
             success: true,
+            otp: result.otp,
             message: result.message || 'A new OTP has been sent successfully'
         });
     }
