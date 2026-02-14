@@ -37,18 +37,38 @@ export const register = async (req: Request, res: Response) => {
 
 export const verifyOtp = async (req: Request, res: Response) => {
     try {
-        const { userId, otp } = req.body;
+        const { userId, otp, type } = req.body;
 
-        const user = await AuthService.verifyOtp(userId, otp);
+        if (!userId || !otp || !type) {
+            return res.status(400).json({
+                success: false,
+                message: 'UserId, OTP and Type are required'
+            });
+        }
+
+        const user = await AuthService.verifyOtp(userId, otp, type);
+
+        if (!user) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid OTP or Session expired'
+            });
+        }
+
+        const dynamicMsg = type === "register" ?
+            "OTP verified successfully. Please complete your profile."
+            : "OTP verified successfully. Please reset your password.";
 
         res.status(200).json({
             success: true,
-            message: "OTP verified successfully. Please complete your profile.",
-            data: {
+            message: dynamicMsg,
+            data: type === "register" ? {
                 userId: user._id,
                 role: user.role,
                 isOtpVerified: user.isOtpVerified,
                 isComplete: user.isComplete // Usually false at this stage
+            } : {
+                userId: user._id
             }
         });
 
@@ -62,20 +82,20 @@ export const verifyOtp = async (req: Request, res: Response) => {
 
 export const resendOtp = async (req: Request, res: Response) => {
     try {
-        const { userId } = req.body;
+        const { userId, type } = req.body;
 
-        if (!userId) {
+        if (!userId || !type) {
             return res.status(400).json({
                 success: false,
-                message: 'User ID is required to resend OTP'
+                message: 'User ID and type is required to resend OTP'
             });
         }
 
-        await AuthService.resendOtp(userId);
+        const result = await AuthService.resendOtp(userId, type);
 
         res.status(200).json({
             success: true,
-            message: 'A new OTP has been sent successfully'
+            message: result.message || 'A new OTP has been sent successfully'
         });
 
     } catch (error: any) {
@@ -249,10 +269,10 @@ export const forgotPassword = async (req: Request, res: Response) => {
 
 export const resetPassword = async (req: Request, res: Response) => {
     try {
-        const { otp, newPassword } = req.body;
+        const { userId, newPassword } = req.body;
 
-        if (!otp) {
-            return res.status(400).json({ success: false, message: "Verification code is required." });
+        if (!userId) {
+            return res.status(400).json({ success: false, message: "UserId is missing" });
         }
 
         if (!newPassword || newPassword.length < 8) {
@@ -262,7 +282,7 @@ export const resetPassword = async (req: Request, res: Response) => {
             });
         }
 
-        await AuthService.resetPassword(otp, newPassword);
+        await AuthService.resetPassword(userId, newPassword);
 
         res.clearCookie('refreshToken', {
             httpOnly: true,

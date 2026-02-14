@@ -15,6 +15,7 @@ export interface IUser extends Document {
     gender?: 'Male' | 'Female' | 'Other';
     profileImage?: string;
     isComplete: boolean;
+    isResetVerified: boolean;
     referralCode?: string;
     referredBy?: Types.ObjectId;
     resetPasswordToken?: string | null;

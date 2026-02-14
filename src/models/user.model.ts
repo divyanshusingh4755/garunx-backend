@@ -21,6 +21,7 @@ export interface IUser extends Document {
     gender?: 'Male' | 'Female' | 'Other',
     profileImage?: string;
     isComplete: boolean;
+    isResetVerified: boolean;
 
     // Referral System
     referralCode?: string;
@@ -66,6 +67,7 @@ const userSchema = new Schema<IUser>({
     gender: { type: String, enum: ['Male', 'Female', 'Other'] },
     profileImage: { type: String, default: null },
     isComplete: { type: Boolean, default: false },
+    isResetVerified: { type: Boolean, default: false },
     referralCode: { type: String, sparse: true },
     referredBy: { type: Schema.Types.ObjectId, ref: 'User', default: null },
     resetPasswordToken: { type: String, default: null },

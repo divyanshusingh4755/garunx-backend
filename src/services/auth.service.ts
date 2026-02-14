@@ -100,58 +100,130 @@ class AuthService {
         }
     }
 
-    static async verifyOtp(userId: string, otp: string) {
-        // Find OTP in DB
-        const user = await User.findById(userId);
-        if (!user) throw new Error("User not found.");
-        if (!user.otp) throw new Error("No OTP was requested for this account.")
+    static async verifyOtp(userId: string, otp: string, type: string) {
+        if (type === "register") {
+            // Find OTP in DB
+            const user = await User.findById(userId);
+            if (!user) throw new Error("User not found.");
+            if (!user.otp) throw new Error("No OTP was requested for this account.")
 
-        // Check Expiry
-        if (user.otpExpiresAt && new Date() > user.otpExpiresAt) {
-            // Clear expired OTP to keep DB clean
-            user.otp = null;
+            // Check Expiry
+            if (user.otpExpiresAt && new Date() > user.otpExpiresAt) {
+                // Clear expired OTP to keep DB clean
+                user.otp = null;
+                user.otpExpiresAt = null;
+                await user.save();
+                throw new Error("OTP has expired. Please request a new one.");
+            }
+
+            if (user.otp !== otp) {
+                throw new Error("Invalid OTP.");
+            }
+
+            // Success
+            user.isOtpVerified = true;
+            user.otp = null; // Clear it
             user.otpExpiresAt = null;
             await user.save();
-            throw new Error("OTP has expired. Please request a new one.");
+            return user;
         }
 
-        if (user.otp !== otp) {
-            throw new Error("Invalid OTP.");
+        if (type === "resetpassword") {
+            // hash the incoming token to match
+            const hashedToken = crypto.createHash('sha256').update(otp).digest('hex');
+
+            // Find user with valid token
+            const user = await User.findOne({
+                resetPasswordToken: hashedToken,
+                resetPasswordExpires: { $gt: Date.now() }
+            });
+
+            if (!user) {
+                throw new Error("Token is invalid or has expired")
+            }
+
+            (user.resetPasswordToken as string | undefined) = undefined;
+            (user.resetPasswordExpires as string | undefined) = undefined;
+            user.isResetVerified = true;
+
+            await user.save()
+            return user;
         }
 
-        // Success
-        user.isOtpVerified = true;
-        user.otp = null; // Clear it
-        user.otpExpiresAt = null;
-        await user.save();
-
-        return user;
+        throw new Error("Invalid verification type.");
     }
 
-    static async resendOtp(userId: string) {
+    static async resendOtp(userId: string, type: string) {
         // Find the specific document by ID
         const user = await User.findById(userId);
-
         if (!user) throw new Error('User not found. Please restart registration.');
 
-        // Safety check: Don't resend if they already finished everything
-        if (user.isComplete) {
-            throw new Error('Account is already fully registered. Please login instead.');
+        const expiryTime = new Date(Date.now() + 15 * 60 * 1000); // 15 mins
+
+        if (type === "register") {
+            // Safety check: Don't resend if they already finished everything
+            if (user.isComplete) {
+                throw new Error('Account is already fully registered. Please login instead.');
+            }
+
+            // Update the existing document with new OTP
+            const newOtp = Math.floor(100000 + Math.random() * 900000).toString();
+
+            user.otp = newOtp;
+            user.otpExpiresAt = expiryTime
+            user.isOtpVerified = false;
+            await user.save();
+
+            // Trigger your SMS provider here (using user.phoneNumber)
+            console.log(`Resending OTP ${newOtp} to ${user.phoneNumber}`);
+
+            return { success: "true", message: "OTP resent successfully via SMS" };
         }
 
-        // Update the existing document with new OTP
-        const newOtp = Math.floor(100000 + Math.random() * 900000).toString();
+        if (type === "resetpassword") {
+            // Generate 6-digit OTP
+            // const otp = crypto.randomInt(100000, 1000000).toString();
+            // For testing
+            const otp = "111111";
 
-        user.otp = newOtp;
-        user.otpExpiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 mins expiry
-        user.isOtpVerified = false;
+            // Save to user document (using your existing 15-min expiry logic)
+            const hashedOtp = crypto.createHash('sha256').update(otp).digest('hex');
 
-        await user.save();
+            user.resetPasswordToken = hashedOtp;
+            user.resetPasswordExpires = expiryTime
+            await user.save();
 
-        // Trigger your SMS provider here (using user.phoneNumber)
-        console.log(`Resending OTP ${newOtp} to ${user.phoneNumber}`);
+            // const { email, role } = user;
 
-        return { message: "OTP resent successfully" };
+            // // Configure Mailer
+            // const transporter = nodemailer.createTransport({
+            //     service: "gmail",
+            //     auth: {
+            //         user: process.env.EMAIL_USER,
+            //         pass: process.env.EMAIL_PASS
+            //     }
+            // });
+
+            // const mailOptions = {
+            //     from: process.env.EMAIL_USER,
+            //     to: email,
+            //     subject: `Reset Password Code for ${role}`,
+            //     html: `
+            //     <div style="font-family: sans-serif; padding: 20px;">
+            //         <h3>Password Reset Request</h3>
+            //         <p>You requested to reset your password for your <b>${role}</b> account.</p>
+            //         <p>Your 6-digit verification code is: <h2 style="color: #007bff;">${otp}</h2></p>
+            //         <p>This code will expire in 15 minutes.</p>
+            //         <p>If you didn't request this, please ignore this email.</p>
+            //     </div>
+            // `
+            // };
+
+            // await transporter.sendMail(mailOptions);
+            return { success: true, message: 'Reset code sent to your email' };
+        }
+
+        throw new Error("Invalid resend type.");
     }
 
     static async loginUser(
@@ -357,25 +429,16 @@ class AuthService {
         }
     }
 
-    static async resetPassword(token: string, newPassword: string) {
-        // hash the incoming token to match
-        const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
-
-        // Find user with valid token
-        const user = await User.findOne({
-            resetPasswordToken: hashedToken,
-            resetPasswordExpires: { $gt: Date.now() }
-        });
+    static async resetPassword(userId: string, newPassword: string) {
+        const user = await User.findOne({ _id: userId, isResetVerified: true });
 
         if (!user) {
-            throw new Error("Token is invalid or has expired")
+            throw new Error("Invalid user")
         }
 
         const salt = await bcrypt.genSalt(10);
         user.password = await bcrypt.hash(newPassword, salt);
-        (user.resetPasswordToken as string | undefined) = undefined;
-        (user.resetPasswordExpires as string | undefined) = undefined;
-
+        user.isResetVerified = false;
         await user.save()
 
         // security: Invalidate all existing sessions

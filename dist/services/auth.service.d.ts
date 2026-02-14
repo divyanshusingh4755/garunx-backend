@@ -10,14 +10,18 @@ declare class AuthService {
     } & {
         id: string;
     }>;
-    static verifyOtp(userId: string, otp: string): Promise<mongoose.Document<unknown, {}, IUser, {}, mongoose.DefaultSchemaOptions> & IUser & Required<{
+    static verifyOtp(userId: string, otp: string, type: string): Promise<mongoose.Document<unknown, {}, IUser, {}, mongoose.DefaultSchemaOptions> & IUser & Required<{
         _id: Types.ObjectId;
     }> & {
         __v: number;
     } & {
         id: string;
     }>;
-    static resendOtp(userId: string): Promise<{
+    static resendOtp(userId: string, type: string): Promise<{
+        success: string;
+        message: string;
+    } | {
+        success: boolean;
         message: string;
     }>;
     static loginUser(identifier: string, role: Role, password?: string, idToken?: string, userAgent?: string, ip?: string): Promise<{
@@ -36,7 +40,7 @@ declare class AuthService {
         success: boolean;
         message: string;
     }>;
-    static resetPassword(token: string, newPassword: string): Promise<{
+    static resetPassword(userId: string, newPassword: string): Promise<{
         success: boolean;
         message: string;
     }>;

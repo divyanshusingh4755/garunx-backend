@@ -20,6 +20,7 @@ const userSchema = new Schema({
     gender: { type: String, enum: ['Male', 'Female', 'Other'] },
     profileImage: { type: String, default: null },
     isComplete: { type: Boolean, default: false },
+    isResetVerified: { type: Boolean, default: false },
     referralCode: { type: String, sparse: true },
     referredBy: { type: Schema.Types.ObjectId, ref: 'User', default: null },
     resetPasswordToken: { type: String, default: null },
