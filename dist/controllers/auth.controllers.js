@@ -29,13 +29,18 @@ export const register = async (req, res) => {
 export const socialAuth = async (req, res) => {
     try {
         const { role, idToken, email } = req.body;
+        const userAgent = req.get('User-Agent') || 'unknown';
+        const forwarded = req.headers['x-forwarded-for'];
+        const ip = typeof forwarded === 'string'
+            ? forwarded.split(',')[0]
+            : req.headers['x-real-ip'] || req.socket.remoteAddress || '0.0.0.0';
         if (!idToken && !email) {
             return res.status(400).json({
                 success: false,
                 message: 'token and email is required'
             });
         }
-        const result = await AuthService.socialAuth(role, email);
+        const result = await AuthService.socialAuth(role, idToken, userAgent, ip);
         const nextStep = result.isNewUser ? "COMPLETE_PROFILE" : "DASHBOARD";
         res.status(200).json({
             success: true,

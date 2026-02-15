@@ -75,7 +75,7 @@ class AuthService {
             session.endSession();
         }
     }
-    static async socialAuth(role, email) {
+    static async socialAuth(role, email, userAgent, ip) {
         try {
             const user = await User.findOneAndUpdate({ role, email }, {
                 $set: { isOtpVerified: true },
@@ -90,10 +90,8 @@ class AuthService {
             });
             if (!user.isActive)
                 throw new Error('Account is deactivated');
-            return {
-                user,
-                isNewUser: !user.isComplete
-            };
+            const sessionData = await this.generateUserSession(user, userAgent, ip);
+            return { ...sessionData, isNewUser: !user.isComplete };
         }
         catch (error) {
             if (error.code === 11000) {

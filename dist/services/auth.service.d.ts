@@ -11,15 +11,15 @@ declare class AuthService {
     } & {
         id: string;
     }>;
-    static socialAuth(role: Role, email: string): Promise<{
-        user: mongoose.Document<unknown, {}, IUser, {}, mongoose.DefaultSchemaOptions> & IUser & Required<{
+    static socialAuth(role: Role, email: string, userAgent?: string, ip?: string): Promise<{
+        isNewUser: boolean;
+        user: IUser & Required<{
             _id: Types.ObjectId;
         }> & {
             __v: number;
-        } & {
-            id: string;
         };
-        isNewUser: boolean;
+        accessToken: string;
+        refreshToken: string;
     }>;
     static verifyOtp(userId: string, otp: string, email: string): Promise<mongoose.Document<unknown, {}, IUser, {}, mongoose.DefaultSchemaOptions> & IUser & Required<{
         _id: Types.ObjectId;

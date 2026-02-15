@@ -35,6 +35,12 @@ export const register = async (req: Request, res: Response) => {
 export const socialAuth = async (req: Request, res: Response) => {
     try {
         const { role, idToken, email } = req.body;
+        const userAgent = req.get('User-Agent') || 'unknown';
+        const forwarded = req.headers['x-forwarded-for'];
+        const ip = typeof forwarded === 'string'
+            ? forwarded.split(',')[0]
+            : (req.headers['x-real-ip'] as string) || req.socket.remoteAddress || '0.0.0.0';
+
         if (!idToken && !email) {
             return res.status(400).json({
                 success: false,
@@ -42,7 +48,7 @@ export const socialAuth = async (req: Request, res: Response) => {
             });
         }
 
-        const result = await AuthService.socialAuth(role, email);
+        const result = await AuthService.socialAuth(role, idToken, userAgent, ip);
 
         const nextStep = result.isNewUser ? "COMPLETE_PROFILE" : "DASHBOARD";
 

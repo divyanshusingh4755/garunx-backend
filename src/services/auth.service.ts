@@ -105,7 +105,7 @@ class AuthService {
         }
     }
 
-    static async socialAuth(role: Role, email: string) {
+    static async socialAuth(role: Role, email: string, userAgent?: string, ip?: string) {
         try {
             const user = await User.findOneAndUpdate(
                 { role, email },
@@ -125,10 +125,8 @@ class AuthService {
 
             if (!user.isActive) throw new Error('Account is deactivated');
 
-            return {
-                user,
-                isNewUser: !user.isComplete
-            };
+            const sessionData = await this.generateUserSession(user as HydratedDocument<IUser>, userAgent, ip);
+            return { ...sessionData, isNewUser: !user.isComplete };
 
         } catch (error: any) {
             if (error.code === 11000) {
