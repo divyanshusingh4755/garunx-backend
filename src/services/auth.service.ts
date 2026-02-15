@@ -105,31 +105,35 @@ class AuthService {
         }
     }
 
-    static async socialAuth(role: Role, email: string, userAgent?: string, ip?: string) {
+    static async socialAuth(role: Role, email: string) {
         try {
-            let user = await User.findOne({ role, email });
-
-            if (user) {
-                user.isOtpVerified = true;
-                await user.save();
-            } else {
-                user = await User.create({
-                    role,
-                    isComplete: false,
-                    isOtpVerified: true,
-                    referralCode: `REF-${generateUniqueCode()}`,
-                    email: email,
-                });
-            }
+            const user = await User.findOneAndUpdate(
+                { role, email },
+                {
+                    $set: { isOtpVerified: true },
+                    $setOnInsert: {
+                        isComplete: false,
+                        referralCode: `REF-${generateUniqueCode()}`,
+                    }
+                },
+                {
+                    new: true,
+                    upsert: true,
+                    runValidators: true
+                }
+            );
 
             if (!user.isActive) throw new Error('Account is deactivated');
 
-            return { user, isNewUser: !user.isComplete };
+            return {
+                user,
+                isNewUser: !user.isComplete
+            };
 
         } catch (error: any) {
-            console.log(error)
-            if (error.code?.startsWith('auth/')) { throw new Error("Session expired, please try again") }
-            if (error.code === 11000) { throw new Error("A verified user this phone number or email is already exists.") }
+            if (error.code === 11000) {
+                throw new Error("An account with this email already exists.");
+            }
             throw error;
         }
     }
@@ -670,6 +674,27 @@ class AuthService {
 
         } catch (error: any) {
             await session.abortTransaction();
+
+            if (error.code === 11000 && error.keyValue) {
+                const keys = Object.keys(error.keyValue);
+                const duplicateField = keys.length > 0 ? keys[0] : null;
+
+                if (duplicateField === 'email') {
+                    throw new Error("This email is already registered.");
+                }
+
+                if (duplicateField === 'phoneNumber') {
+                    throw new Error("This phone number is already in use.");
+                }
+
+                throw new Error(`${duplicateField} already exists.`);
+            }
+
+            if (error.name === 'ValidationError') {
+                const messages = Object.values(error.errors).map((val: any) => val.message);
+                throw new Error(`Validation failed: ${messages.join(', ')}`);
+            }
+
             throw error;
         } finally {
             session.endSession();

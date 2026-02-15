@@ -14,12 +14,16 @@ const app: Application = express()
 ConnectDB()
 
 // Middleware
-app.use(cors({
-    origin: process.env.CLIENT_URL,
+const corsOptions = {
+    origin: process.env.CLIENT_URL || 'http://localhost:3001',
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ["Content-Type", "Authorization"]
-}))
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
+};
+
+app.use(cors(corsOptions))
+app.options('*', cors(corsOptions));
+
 app.use(helmet({
     crossOriginResourcePolicy: { policy: "cross-origin" }
 }));

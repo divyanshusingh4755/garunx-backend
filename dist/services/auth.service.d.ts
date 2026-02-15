@@ -11,7 +11,7 @@ declare class AuthService {
     } & {
         id: string;
     }>;
-    static socialAuth(role: Role, email: string, userAgent?: string, ip?: string): Promise<{
+    static socialAuth(role: Role, email: string): Promise<{
         user: mongoose.Document<unknown, {}, IUser, {}, mongoose.DefaultSchemaOptions> & IUser & Required<{
             _id: Types.ObjectId;
         }> & {
