@@ -3,12 +3,23 @@ import type { Role } from "../types/rbac.js";
 import type { Types } from 'mongoose';
 import mongoose from 'mongoose';
 declare class AuthService {
-    static registerUser(role: Role, idToken?: string, password?: string, userEmail?: string, phoneNumber?: string): Promise<mongoose.Document<unknown, {}, IUser, {}, mongoose.DefaultSchemaOptions> & IUser & Required<{
+    private static generateUserSession;
+    static registerUser(role: Role, password?: string, userEmail?: string, phoneNumber?: string): Promise<mongoose.Document<unknown, {}, IUser, {}, mongoose.DefaultSchemaOptions> & IUser & Required<{
         _id: Types.ObjectId;
     }> & {
         __v: number;
     } & {
         id: string;
+    }>;
+    static socialAuth(role: Role, idToken: string, userAgent?: string, ip?: string): Promise<{
+        isNewUser: boolean;
+        user: IUser & Required<{
+            _id: Types.ObjectId;
+        }> & {
+            __v: number;
+        };
+        accessToken: string;
+        refreshToken: string;
     }>;
     static verifyOtp(userId: string, otp: string, email: string): Promise<mongoose.Document<unknown, {}, IUser, {}, mongoose.DefaultSchemaOptions> & IUser & Required<{
         _id: Types.ObjectId;
@@ -22,7 +33,7 @@ declare class AuthService {
         message: string;
         otp: string;
     }>;
-    static loginUser(identifier: string, role: Role, password?: string, idToken?: string, userAgent?: string, ip?: string): Promise<{
+    static loginUser(identifier: string, role: Role, password?: string, userAgent?: string, ip?: string): Promise<{
         user: IUser;
         accessToken: string;
         refreshToken: string;

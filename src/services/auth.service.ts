@@ -11,35 +11,56 @@ import { auth } from '../config/firebase.js';
 import { generateUniqueCode } from '../utils/generateUniqueCode.js';
 
 class AuthService {
-    static async registerUser(role: Role, idToken?: string, password?: string, userEmail?: string, phoneNumber?: string) {
+    private static async generateUserSession(user: HydratedDocument<IUser>, userAgent?: string, ip?: string) {
+        const familyId = crypto.randomUUID();
+        const accessToken = jwt.sign(
+            { userId: user._id, role: user.role },
+            process.env.JWT_ACCESS_SECRET as string,
+            { expiresIn: '15m' }
+        );
+
+        const refreshToken = jwt.sign(
+            { userId: user._id, familyId },
+            process.env.JWT_REFRESH_SECRET as string,
+            { expiresIn: '30d' }
+        );
+
+        const expiresAt = new Date();
+        expiresAt.setDate(expiresAt.getDate() + 30);
+
+        await Session.findOneAndUpdate(
+            { userId: user._id, deviceInfo: userAgent || 'unknown' },
+            { refreshToken, familyId, expiresAt, ...(ip && { ipAddress: ip }) },
+            { upsert: true }
+        );
+
+        const userObject = user.toObject();
+        delete userObject.password;
+
+        return { user: userObject, accessToken, refreshToken };
+    }
+
+    static async registerUser(role: Role, password?: string, userEmail?: string, phoneNumber?: string) {
         const session = await mongoose.startSession();
         session.startTransaction()
 
         try {
             let finalEmail = userEmail?.toLowerCase();
             let finalNumber = phoneNumber;
-            let firebaseUid: string | undefined;
-            let isSocialLogin = false;
-
-            if (idToken) {
-                const decodedToken = await auth.verifyIdToken(idToken);
-                firebaseUid = decodedToken.uid;
-                finalEmail = finalEmail || decodedToken.email;
-                finalNumber = finalNumber || decodedToken.phone_number;
-                isSocialLogin = true;
-            }
 
             const query = [];
             if (finalEmail) query.push({ email: finalEmail, role: role });
             if (finalNumber) query.push({ phoneNumber: finalNumber, role: role });
 
-            if (query.length > 0) {
-                const existingUser = await User.findOne({ $or: query }).session(session);
+            if (query.length === 0) {
+                throw new Error("Email or Phone Number is required for registration.");
+            }
 
-                // Block only if the registration journey is 100% finished
-                if (existingUser && existingUser.isComplete) {
-                    throw new Error(`You are already a registered ${role}. Please login instead.`);
-                }
+            const existingUser = await User.findOne({ $or: query }).session(session);
+
+            // Block only if the registration journey is 100% finished
+            if (existingUser && existingUser.isComplete) {
+                throw new Error(`You are already a registered ${role}. Please login instead.`);
             }
 
             // Hash Password
@@ -50,37 +71,24 @@ class AuthService {
             }
 
             // Generate OTP only if NOT a social login
-            let generatedOtp = null;
-            let otpExpiresAt = null;
-
-            if (!isSocialLogin) {
-                generatedOtp = Math.floor(100000 + Math.random() * 900000).toString();
-                otpExpiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 mins
-            }
-
-            if (query.length === 0) {
-                throw new Error("Email or Phone Number is required for registration.");
-            }
+            const generatedOtp = Math.floor(100000 + Math.random() * 900000).toString();
+            const otpExpiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 mins
 
             // Upsert User (Update unverified or create new)
             const user = await User.findOneAndUpdate(
-                {
-                    $or: query.length > 0 ? query : [{ _id: new mongoose.Types.ObjectId() }]
-                },
+                { $or: query },
                 {
                     role,
                     otp: generatedOtp,
                     otpExpiresAt,
-                    // Social logins are pre-verified; Phone logins need OTP verification
-                    isOtpVerified: isSocialLogin,
+                    isOtpVerified: false, // Always false for manual registration until OTP check
                     ...(finalNumber && { phoneNumber: finalNumber }),
                     ...(finalEmail && { email: finalEmail }),
                     ...(hashedPassword && { password: hashedPassword }),
-                    ...(firebaseUid && { firebaseUid }),
                     $setOnInsert: {
                         referralCode: `REF-${generateUniqueCode()}`,
                         isComplete: false,
-                        ...(!firebaseUid && { firebaseUid: `internal-${new mongoose.Types.ObjectId()}` })
+                        firebaseUid: `internal-${new mongoose.Types.ObjectId()}`
                     }
                 },
                 { session, upsert: true, new: true, runValidators: true }
@@ -90,13 +98,57 @@ class AuthService {
             return user;
 
         } catch (error: any) {
-            console.log(error)
             await session.abortTransaction();
-            if (error.code?.startsWith('auth/')) { throw new Error("Session expired, please try again") }
             if (error.code === 11000) { throw new Error("A verified user this phone number or email is already exists.") }
             throw error;
         } finally {
             session.endSession()
+        }
+    }
+
+    static async socialAuth(role: Role, idToken: string, userAgent?: string, ip?: string) {
+        try {
+            const decodedToken = await auth.verifyIdToken(idToken);
+            const { uid, email, phone_number } = decodedToken;
+            const normalizedEmail = email?.toLowerCase();
+
+            let user = await User.findOne({
+                role,
+                $or: [
+                    { firebaseUid: uid },
+                    ...(normalizedEmail ? [{ email: normalizedEmail }] : []),
+                    ...(phone_number ? [{ phoneNumber: phone_number }] : [])
+                ]
+            });
+
+            if (user) {
+                if (!user.firebaseUid || user.firebaseUid.startsWith('internal-')) {
+                    user.firebaseUid = uid;
+                    user.isOtpVerified = true;
+                    await user.save();
+                }
+            } else {
+                user = await User.create({
+                    firebaseUid: uid,
+                    role,
+                    isComplete: false,
+                    isOtpVerified: true,
+                    referralCode: `REF-${generateUniqueCode()}`,
+                    ...(normalizedEmail && { email: normalizedEmail }),
+                    ...(phone_number && { phoneNumber: phone_number })
+                });
+            }
+
+            if (!user.isActive) throw new Error('Account is deactivated');
+
+            const sessionData = await this.generateUserSession(user as HydratedDocument<IUser>, userAgent, ip);
+            return { ...sessionData, isNewUser: !user.isComplete };
+
+        } catch (error: any) {
+            console.log(error)
+            if (error.code?.startsWith('auth/')) { throw new Error("Session expired, please try again") }
+            if (error.code === 11000) { throw new Error("A verified user this phone number or email is already exists.") }
+            throw error;
         }
     }
 
@@ -237,83 +289,35 @@ class AuthService {
         identifier: string,
         role: Role,
         password?: string,
-        idToken?: string,
         userAgent?: string,
         ip?: string
     ): Promise<{ user: IUser, accessToken: string, refreshToken: string }> {
 
-        let user: HydratedDocument<IUser> | null = null;
-
-        // Social Login via Firebase
-        if (idToken) {
-            try {
-                const decodedToken = await auth.verifyIdToken(idToken);
-                const { uid } = decodedToken;
-                user = await User.findOne({ firebaseUid: uid, role });
-                if (!user) throw new Error(`Account not found for the ${role} role. Please register.`);
-
-            } catch (error: any) {
-                if (error.code?.startsWith('auth/')) throw new Error('Invalid or expired session');
-                throw error;
-            }
+        if (!password) {
+            throw new Error("Password is required for manual login");
         }
-        // Password Login
-        else if (password) {
-            user = await User.findOne({
-                $or: [
-                    { email: identifier, role },
-                    { phoneNumber: identifier, role }
-                ]
-            }).select('+password') as HydratedDocument<IUser> | null;
 
-            if (!user || !user.password) throw new Error('Invalid Credentials');
+        const user = await User.findOne({
+            role,
+            $or: [
+                { email: identifier.toLowerCase() },
+                { phoneNumber: identifier }
+            ]
+        }).select('+password') as HydratedDocument<IUser> | null;
 
-            const isMatch = await bcrypt.compare(password, user.password);
-            if (!isMatch) throw new Error("Invalid credentials");
-        }
-        else {
-            throw new Error("Login method not supported");
-        }
+        if (!user || !user.password) throw new Error('Invalid Credentials');
+
+        const isMatch = await bcrypt.compare(password, user.password);
+        if (!isMatch) throw new Error("Invalid credentials");
+
 
         // Status & Completeness Checks
         if (!user.isActive) throw new Error('Account is deactivated');
+        if (!user.isOtpVerified) throw new Error('Please verify your account first.');
         if (!user.isComplete) throw new Error('Registration incomplete. Please finish setting up your profile.');
 
-        // Session & Token Generation
-        const familyId = crypto.randomUUID();
-
-        const accessToken = jwt.sign(
-            { userId: user._id, role: user.role },
-            process.env.JWT_ACCESS_SECRET as string,
-            { expiresIn: '15m' }
-        );
-
-        const refreshToken = jwt.sign(
-            { userId: user._id, familyId: familyId },
-            process.env.JWT_REFRESH_SECRET as string,
-            { expiresIn: '30d' }
-        );
-
-        const expiresAt = new Date();
-        expiresAt.setDate(expiresAt.getDate() + 30);
-
-        await Session.findOneAndUpdate(
-            {
-                userId: user._id,
-                deviceInfo: userAgent || 'unknown'
-            },
-            {
-                refreshToken,
-                familyId: familyId,
-                expiresAt,
-                ...(ip && { ipAddress: ip })
-            },
-            { upsert: true, new: true });
-
-        const userObject = user.toObject();
-        delete userObject.password;
-
-        return { user: userObject as IUser, accessToken, refreshToken };
+        const sessionData = await this.generateUserSession(user, userAgent, ip);
+        return sessionData as { user: IUser, accessToken: string, refreshToken: string };
     }
 
     static async refreshAccesToken(oldRefreshToken: string, userAgent: string, ip?: string) {

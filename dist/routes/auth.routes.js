@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { body, validationResult } from 'express-validator';
 import { Role } from '../types/rbac.js';
-import { login, register, resendOtp, verifyOtp, refreshToken, logout, forgotPassword, resetPassword, GetUserById, getGetAllUser, deactivateUser, completeProfile, updateProfile, uploadSingle, uploadMutliple, getUserByEmailOrPhone, verifyDocuments, approveOrRejectDocs, changePassword } from '../controllers/auth.controllers.js';
+import { login, register, resendOtp, verifyOtp, refreshToken, logout, forgotPassword, resetPassword, GetUserById, getGetAllUser, deactivateUser, completeProfile, updateProfile, uploadSingle, uploadMutliple, getUserByEmailOrPhone, verifyDocuments, approveOrRejectDocs, changePassword, socialAuth } from '../controllers/auth.controllers.js';
 import { passwordRateLimiter } from '../utils/passwordRateLimiter.js';
 import { authenticate } from '../middleware/authenticate.js';
 import { upload } from '../middleware/upload.js';
@@ -84,6 +84,7 @@ router.post('/register', registerValidation, register);
 router.post('/verify-otp', verifyOtp);
 router.post('/resend-otp', resendOtp);
 router.post('/login', login);
+router.post('/social', socialAuth);
 router.post('/refresh-token', refreshToken);
 router.post('/logout', logout);
 // --- PASSWORD RECOVERY ---

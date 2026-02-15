@@ -2,14 +2,12 @@ import AuthService from '../services/auth.service.js';
 import { Role } from '../types/rbac.js';
 export const register = async (req, res) => {
     try {
-        const { role, password, idToken, userEmail, phoneNumber } = req.body;
-        const user = await AuthService.registerUser(role, idToken, password, userEmail, phoneNumber);
-        const nextStep = user.isOtpVerified ? "COMPLETE_PROFILE" : "VERIFY_OTP";
+        const { role, password, userEmail, phoneNumber } = req.body;
+        const user = await AuthService.registerUser(role, password, userEmail, phoneNumber);
+        const nextStep = "VERIFY_OTP";
         res.status(201).json({
             success: true,
-            message: user.isOtpVerified
-                ? "Social login verified. Please complete your profile."
-                : "Registration initiated. Please verify your OTP.",
+            message: "Registration initiated. Please verify your OTP.",
             user: {
                 userId: user._id,
                 role: user.role,
@@ -25,6 +23,29 @@ export const register = async (req, res) => {
         res.status(400).json({
             success: false,
             message: error.message || 'Registration failed'
+        });
+    }
+};
+export const socialAuth = async (req, res) => {
+    try {
+        const { role, idToken } = req.body;
+        const userAgent = req.headers['user-agent'];
+        const ip = req.ip;
+        const result = await AuthService.socialAuth(role, idToken, userAgent, ip);
+        const nextStep = result.isNewUser ? "COMPLETE_PROFILE" : "DASHBOARD";
+        res.status(200).json({
+            success: true,
+            message: result.isNewUser
+                ? "Social account linked. Please complete your profile."
+                : "Login successful",
+            ...result,
+            nextStep
+        });
+    }
+    catch (error) {
+        res.status(401).json({
+            success: false,
+            message: error.message || 'Social authentication failed'
         });
     }
 };
@@ -91,7 +112,7 @@ export const resendOtp = async (req, res) => {
 };
 export const login = async (req, res) => {
     try {
-        const { identifier, password, idToken, role } = req.body;
+        const { identifier, password, role } = req.body;
         if (!role) {
             return res.status(400).json({ success: false, message: "Please specify the role for login." });
         }
@@ -100,7 +121,7 @@ export const login = async (req, res) => {
         const ip = typeof forwarded === 'string'
             ? forwarded.split(',')[0]
             : req.headers['x-real-ip'] || req.socket.remoteAddress || '0.0.0.0';
-        const { user, accessToken, refreshToken } = await AuthService.loginUser(identifier, role, password, idToken, userAgent, ip);
+        const { user, accessToken, refreshToken } = await AuthService.loginUser(identifier, role, password, userAgent, ip);
         res.cookie('refreshToken', refreshToken, {
             httpOnly: true,
             secure: true,
@@ -121,6 +142,13 @@ export const login = async (req, res) => {
                 success: false,
                 message: error.message,
                 nextStep: "COMPLETE_PROFILE"
+            });
+        }
+        if (error.message.includes('verify')) {
+            return res.status(403).json({
+                success: false,
+                message: error.message,
+                nextStep: "VERIFY_OTP"
             });
         }
         const statusCode = error.message.includes('not found') ? 404 : 401;
