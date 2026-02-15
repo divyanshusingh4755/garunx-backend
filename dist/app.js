@@ -19,6 +19,7 @@ const corsOptions = {
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
 };
 app.use(cors(corsOptions));
+app.options('/*splat', cors(corsOptions));
 app.use(helmet({
     crossOriginResourcePolicy: { policy: "cross-origin" }
 }));
