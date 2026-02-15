@@ -124,8 +124,7 @@ class AuthService {
 
             if (!user.isActive) throw new Error('Account is deactivated');
 
-            const sessionData = await this.generateUserSession(user as HydratedDocument<IUser>, userAgent, ip);
-            return { ...sessionData, isNewUser: !user.isComplete };
+            return { user, isNewUser: !user.isComplete };
 
         } catch (error: any) {
             console.log(error)
