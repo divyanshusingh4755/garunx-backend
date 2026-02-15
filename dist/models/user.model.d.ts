@@ -1,7 +1,6 @@
 import { Types, type Document } from 'mongoose';
 import { Role } from '../types/rbac.js';
 export interface IUser extends Document {
-    firebaseUid?: string;
     phoneNumber?: string;
     email?: string;
     password?: string;

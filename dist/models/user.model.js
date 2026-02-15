@@ -1,7 +1,6 @@
 import { Schema, Types, model } from 'mongoose';
 import { Role } from '../types/rbac.js';
 const userSchema = new Schema({
-    firebaseUid: { type: String, unique: true, sparse: true, index: true },
     phoneNumber: { type: String, trim: true },
     email: { type: String, lowercase: true, trim: true },
     password: { type: String },

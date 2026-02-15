@@ -3,7 +3,6 @@ import { Role } from '../types/rbac.js'
 
 export interface IUser extends Document {
     // Auth & Identity
-    firebaseUid?: string;
     phoneNumber?: string;
     email?: string;
     password?: string;
@@ -48,7 +47,6 @@ export interface IUser extends Document {
 }
 
 const userSchema = new Schema<IUser>({
-    firebaseUid: { type: String, unique: true, sparse: true, index: true },
     phoneNumber: { type: String, trim: true },
     email: { type: String, lowercase: true, trim: true },
     password: { type: String },

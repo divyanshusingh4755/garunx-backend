@@ -34,11 +34,18 @@ export const register = async (req: Request, res: Response) => {
 
 export const socialAuth = async (req: Request, res: Response) => {
     try {
-        const { role, idToken } = req.body;
+        const { role, idToken, email } = req.body;
         const userAgent = req.headers['user-agent'];
         const ip = req.ip;
 
-        const result = await AuthService.socialAuth(role, idToken, userAgent, ip);
+        if (!idToken && !email) {
+            return res.status(400).json({
+                success: false,
+                message: 'token and email is required'
+            });
+        }
+
+        const result = await AuthService.socialAuth(role, email, userAgent, ip);
 
         const nextStep = result.isNewUser ? "COMPLETE_PROFILE" : "DASHBOARD";
 

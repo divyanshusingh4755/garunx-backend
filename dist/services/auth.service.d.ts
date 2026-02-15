@@ -11,7 +11,7 @@ declare class AuthService {
     } & {
         id: string;
     }>;
-    static socialAuth(role: Role, idToken: string, userAgent?: string, ip?: string): Promise<{
+    static socialAuth(role: Role, email: string, userAgent?: string, ip?: string): Promise<{
         isNewUser: boolean;
         user: IUser & Required<{
             _id: Types.ObjectId;

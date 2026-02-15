@@ -88,7 +88,6 @@ class AuthService {
                     $setOnInsert: {
                         referralCode: `REF-${generateUniqueCode()}`,
                         isComplete: false,
-                        firebaseUid: `internal-${new mongoose.Types.ObjectId()}`
                     }
                 },
                 { session, upsert: true, new: true, runValidators: true }
@@ -106,36 +105,20 @@ class AuthService {
         }
     }
 
-    static async socialAuth(role: Role, idToken: string, userAgent?: string, ip?: string) {
+    static async socialAuth(role: Role, email: string, userAgent?: string, ip?: string) {
         try {
-            const decodedToken = await auth.verifyIdToken(idToken);
-            const { uid, email, phone_number } = decodedToken;
-            const normalizedEmail = email?.toLowerCase();
-
-            let user = await User.findOne({
-                role,
-                $or: [
-                    { firebaseUid: uid },
-                    ...(normalizedEmail ? [{ email: normalizedEmail }] : []),
-                    ...(phone_number ? [{ phoneNumber: phone_number }] : [])
-                ]
-            });
+            let user = await User.findOne({ role, email });
 
             if (user) {
-                if (!user.firebaseUid || user.firebaseUid.startsWith('internal-')) {
-                    user.firebaseUid = uid;
-                    user.isOtpVerified = true;
-                    await user.save();
-                }
+                user.isOtpVerified = true;
+                await user.save();
             } else {
                 user = await User.create({
-                    firebaseUid: uid,
                     role,
                     isComplete: false,
                     isOtpVerified: true,
                     referralCode: `REF-${generateUniqueCode()}`,
-                    ...(normalizedEmail && { email: normalizedEmail }),
-                    ...(phone_number && { phoneNumber: phone_number })
+                    email: email,
                 });
             }
 
