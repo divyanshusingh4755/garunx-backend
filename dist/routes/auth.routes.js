@@ -36,6 +36,28 @@ const registerValidation = [
         next();
     }
 ];
+const socialRegisterValidation = [
+    body('email')
+        .isEmail().withMessage('Please enter a valid email address')
+        .normalizeEmail(),
+    body('role')
+        .isIn(Object.values(Role))
+        .withMessage('Invalid user type'),
+    body('idToken')
+        .withMessage('Token is missing'),
+    (req, res, next) => {
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+            const firstError = errors.array()[0];
+            return res.status(400).json({
+                success: false,
+                message: firstError?.msg,
+                error: firstError
+            });
+        }
+        next();
+    }
+];
 // Validation Middleware
 const profileValidation = [
     body('userId')
@@ -84,7 +106,7 @@ router.post('/register', registerValidation, register);
 router.post('/verify-otp', verifyOtp);
 router.post('/resend-otp', resendOtp);
 router.post('/login', login);
-router.post('/social', socialAuth);
+router.post('/social', socialRegisterValidation, socialAuth);
 router.post('/refresh-token', refreshToken);
 router.post('/logout', logout);
 // --- PASSWORD RECOVERY ---

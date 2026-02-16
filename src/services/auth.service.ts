@@ -7,7 +7,6 @@ import jwt from "jsonwebtoken"
 import { Session } from '../models/session.model.js';
 import crypto from 'crypto';
 import nodemailer from "nodemailer"
-import { auth } from '../config/firebase.js';
 import { generateUniqueCode } from '../utils/generateUniqueCode.js';
 
 class AuthService {

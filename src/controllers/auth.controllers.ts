@@ -41,14 +41,14 @@ export const socialAuth = async (req: Request, res: Response) => {
             ? forwarded.split(',')[0]
             : (req.headers['x-real-ip'] as string) || req.socket.remoteAddress || '0.0.0.0';
 
-        if (!idToken && !email) {
+        if (!idToken && !email && !role) {
             return res.status(400).json({
                 success: false,
-                message: 'token and email is required'
+                message: 'token, role and email is required'
             });
         }
 
-        const result = await AuthService.socialAuth(role, idToken, userAgent, ip);
+        const result = await AuthService.socialAuth(role, email, userAgent, ip);
 
         const nextStep = result.isNewUser ? "COMPLETE_PROFILE" : "DASHBOARD";
 
