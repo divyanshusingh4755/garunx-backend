@@ -49,10 +49,12 @@ const socialRegisterValidation = [
         .normalizeEmail(),
 
     body('role')
+        .exists().withMessage('Role is required')
         .isIn(Object.values(Role))
         .withMessage('Invalid user type'),
 
     body('idToken')
+        .notEmpty()
         .withMessage('Token is missing'),
 
     (req: Request, res: Response, next: NextFunction) => {

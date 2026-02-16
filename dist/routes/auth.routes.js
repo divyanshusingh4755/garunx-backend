@@ -41,9 +41,11 @@ const socialRegisterValidation = [
         .isEmail().withMessage('Please enter a valid email address')
         .normalizeEmail(),
     body('role')
+        .exists().withMessage('Role is required')
         .isIn(Object.values(Role))
         .withMessage('Invalid user type'),
     body('idToken')
+        .notEmpty()
         .withMessage('Token is missing'),
     (req, res, next) => {
         const errors = validationResult(req);
