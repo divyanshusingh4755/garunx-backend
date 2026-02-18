@@ -431,11 +431,11 @@ class AuthService {
             throw new Error(error.message || "Failed to fetch user");
         }
     }
-    static async deactivateUser(userId) {
+    static async deactivateUser(userId, status) {
         const session = await mongoose.startSession();
         session.startTransaction();
         try {
-            const user = await User.findByIdAndUpdate(userId, { isActive: false }, { session, new: true });
+            const user = await User.findByIdAndUpdate(userId, { isActive: status }, { session, new: true, runValidators: true });
             if (!user)
                 throw new Error("User not found");
             // Kill all active session

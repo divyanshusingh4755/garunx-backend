@@ -147,7 +147,7 @@ router.get('/get-user-by-email-or-phone/:identifier', authenticate, getUserByEma
 
 // --- ADMIN / MANAGEMENT ROUTES ---
 router.get('/get-all-user', authenticate, getGetAllUser);
-router.delete('/deactivate-user/:id', authenticate, deactivateUser);
+router.patch('/deactivate-user/:id', authenticate, deactivateUser);
 router.patch('/verify-documents', authenticate, approveOrRejectDocs)
 
 // --- MEDIA UPLOADS ---

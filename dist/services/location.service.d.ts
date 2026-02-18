@@ -25,7 +25,7 @@ export declare class LocationService {
     }> & {
         __v: number;
     }>;
-    static softDeleteLocation(locationId: string): Promise<ILocation & Required<{
+    static softDeleteLocation(locationId: string, status: string): Promise<ILocation & Required<{
         _id: import("mongoose").Types.ObjectId;
     }> & {
         __v: number;

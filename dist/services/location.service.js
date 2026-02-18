@@ -68,9 +68,9 @@ export class LocationService {
             throw new Error(`Location Update Failed: ${error.message}`);
         }
     }
-    static async softDeleteLocation(locationId) {
+    static async softDeleteLocation(locationId, status) {
         try {
-            const deletedLocation = await Location.findByIdAndUpdate(locationId, { isActive: false }, { new: true }).lean();
+            const deletedLocation = await Location.findByIdAndUpdate(locationId, { isActive: status }, { new: true, runValidators: true }).lean();
             if (!deletedLocation)
                 throw new Error("Location not found");
             return deletedLocation;

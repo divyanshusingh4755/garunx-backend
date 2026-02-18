@@ -30,7 +30,7 @@ router.post('/create-location', authenticate, locationValidation, createLocation
 router.patch('/update-location/:id', authenticate, locationValidation, updateLocation);
 router.get('/get-all-location', getAllLocation);
 router.get('/:id', authenticate, getLocationById);
-router.delete('/:id', authenticate, deleteLocation);
+router.patch('/:id', authenticate, deleteLocation);
 router.post('/discovery', searchServicesByLocationDetails);
 export default router;
 //# sourceMappingURL=location.routes.js.map

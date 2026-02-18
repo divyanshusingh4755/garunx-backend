@@ -95,8 +95,21 @@ export const getLocationById = async (req: Request, res: Response) => {
 export const deleteLocation = async (req: Request, res: Response) => {
     try {
         const { id } = req.params
-        const location = await LocationService.softDeleteLocation(id as string)
-        res.status(200).json({ success: true, data: location })
+        const { status } = req.body
+
+        if (!id || status === undefined) {
+            return res.status(400).json({
+                success: false,
+                message: "User ID and status are required."
+            });
+        }
+
+        const location = await LocationService.softDeleteLocation(id as string, status)
+        res.status(200).json({
+            success: true,
+            message: `Location marked as ${status}`,
+            data: location
+        })
     } catch (error: any) {
         res.status(error.message === "Location not found" ? 404 : 400).json({
             success: false,

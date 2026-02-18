@@ -98,12 +98,12 @@ export class LocationService {
         }
     }
 
-    static async softDeleteLocation(locationId: string) {
+    static async softDeleteLocation(locationId: string, status: string) {
         try {
             const deletedLocation = await Location.findByIdAndUpdate(
                 locationId,
-                { isActive: false },
-                { new: true }
+                { isActive: status },
+                { new: true, runValidators: true }
             ).lean()
 
             if (!deletedLocation) throw new Error("Location not found");

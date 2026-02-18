@@ -80,7 +80,7 @@ declare class AuthService {
     }> & {
         __v: number;
     }>;
-    static deactivateUser(userId: String): Promise<void>;
+    static deactivateUser(userId: String, status: String): Promise<void>;
     static completeProfile(userId: string, fullName: string, dob?: Date, gender?: 'Male' | 'Female' | 'Other', referralCode?: string, password?: string, profileImage?: string, userAgent?: string, ip?: string, email?: string, phoneNumber?: string): Promise<{
         user: IUser;
         accessToken: string;

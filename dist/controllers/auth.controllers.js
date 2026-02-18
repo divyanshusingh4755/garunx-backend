@@ -390,13 +390,14 @@ export const getUserByEmailOrPhone = async (req, res) => {
 export const deactivateUser = async (req, res) => {
     try {
         const { id } = req.params;
-        if (!id) {
-            return res.status(400).json({ success: false, message: "User ID is required." });
+        const { status } = req.body;
+        if (!id || status === undefined) {
+            return res.status(400).json({ success: false, message: "User ID and Status is required." });
         }
-        await AuthService.deactivateUser(id);
+        await AuthService.deactivateUser(id, status);
         res.status(200).json({
             success: true,
-            message: "Account deactivated successfully and all active sessions revoked."
+            message: `Account ${status}ed successfully and all active sessions revoked.`
         });
     }
     catch (error) {

@@ -546,15 +546,15 @@ class AuthService {
         }
     }
 
-    static async deactivateUser(userId: String) {
+    static async deactivateUser(userId: String, status: String) {
         const session = await mongoose.startSession()
         session.startTransaction()
 
         try {
             const user = await User.findByIdAndUpdate(
                 userId,
-                { isActive: false },
-                { session, new: true }
+                { isActive: status },
+                { session, new: true, runValidators: true }
             )
 
             if (!user) throw new Error("User not found")
