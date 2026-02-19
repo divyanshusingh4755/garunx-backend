@@ -30,6 +30,12 @@ export class LocationService {
         return await newLocation.save()
     }
 
+    private static applyFilter(filterValue?: string) {
+        if (!filterValue) return undefined;
+        const values = filterValue.split(',').map(val => val.trim());
+        return { $in: values }
+    }
+
     static async FindLocation(
         searchTerm?: string,
         countryFilter?: string,
@@ -45,10 +51,10 @@ export class LocationService {
             query.$text = { $search: searchTerm };
         }
 
-        if (countryFilter) query.country = countryFilter;
-        if (stateFilter) query.state = stateFilter;
-        if (cityFilter) query.city = cityFilter;
-        if (pincodeFilter) query.pincode = pincodeFilter;
+        if (countryFilter) query.country = this.applyFilter(countryFilter);
+        if (stateFilter) query.state = this.applyFilter(stateFilter);
+        if (cityFilter) query.city = this.applyFilter(cityFilter);
+        if (pincodeFilter) query.pincode = this.applyFilter(pincodeFilter);
 
         try {
             const skip = limit * (page - 1)

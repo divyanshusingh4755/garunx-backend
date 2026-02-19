@@ -500,20 +500,27 @@ export const uploadMutliple = async (req, res) => {
 export const verifyDocuments = async (req, res) => {
     try {
         const userId = req.user?.userId;
-        const { aadharCard, panCard, bankPassbook } = req.body;
+        const { aadharCard, panCard, bankPassbook, accountNumber, accountName, bankName, ifscCode } = req.body;
         if (!aadharCard && !panCard && !bankPassbook) {
             return res.status(400).json({ success: false, message: "Aadhar Card, Pan Card, Passbook is required" });
         }
         const docs = {
             aadharCard,
             panCard,
-            bankPassbook
+            bankPassbook,
+            accountNumber,
+            accountName,
+            bankName,
+            ifscCode
         };
         const updatedUser = await AuthService.uploadVerificationDocuments(userId, docs);
         res.status(200).json({
             success: true,
             message: "Documents submitted successfully. Verification is now PENDING.",
-            data: updatedUser.documentVerification
+            data: {
+                identity: updatedUser.documentVerification,
+                bank: updatedUser.bankDocumentVerification
+            }
         });
     }
     catch (error) {
@@ -522,21 +529,26 @@ export const verifyDocuments = async (req, res) => {
 };
 export const approveOrRejectDocs = async (req, res) => {
     try {
-        const { userId, status, rejectionReason } = req.body;
+        const { userId, type, status, rejectionReason } = req.body;
+        if (!['document', 'bank'].includes(type)) {
+            return res.status(400).json({ success: false, message: "Invalid type. Must be 'document' or 'bank'" });
+        }
         if (!['APPROVED', 'REJECTED'].includes(status)) {
             return res.status(400).json({ success: false, message: "Invalid status" });
         }
         if (status === "REJECTED" && !rejectionReason) {
             return res.status(400).json({ success: false, message: "Reason is required for rejection" });
         }
-        const updatedUser = await AuthService.updateVerificationStatus(userId, status, rejectionReason);
+        const updatedUser = await AuthService.updateVerificationStatus(userId, type, status, rejectionReason);
         res.status(200).json({
             success: true,
             message: `User documents ${status.toLowerCase()} successfully`,
             data: {
                 userId: updatedUser._id,
-                status: updatedUser.documentVerification.status,
-                isDocumentVerified: updatedUser.isDocumentVerified
+                documentStatus: updatedUser.documentVerification.status,
+                bankStatus: updatedUser.bankDocumentVerification.status,
+                isDocumentVerified: updatedUser.isDocumentVerified,
+                isBankDocumentVerified: updatedUser.isBankDocumentVerified
             }
         });
     }

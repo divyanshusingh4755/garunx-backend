@@ -38,11 +38,20 @@ export interface IUser extends Document {
     documentVerification: {
         aadharCard?: string,
         panCard?: string,
-        bankPassbook: string,
         status: 'PENDING' | 'APPROVED' | 'REJECTED',
         rejectionReason?: string;
     };
-    isDocumentVerified: { type: Boolean, default: false }
+    bankDocumentVerification: {
+        bankPassbook?: string,
+        accountNumber?: string,
+        accountName?: string,
+        bankName?: string,
+        ifscCode?: string,
+        status: 'PENDING' | 'APPROVED' | 'REJECTED',
+        rejectionReason?: string;
+    },
+    isDocumentVerified: { type: Boolean, default: false };
+    isBankDocumentVerified: { type: Boolean, default: false };
 
 }
 
@@ -75,7 +84,6 @@ const userSchema = new Schema<IUser>({
     documentVerification: {
         aadharCard: { type: String },
         panCard: { type: String },
-        bankPassbook: { type: String },
         status: {
             type: String,
             enum: ['PENDING', 'APPROVED', 'REJECTED'],
@@ -84,7 +92,22 @@ const userSchema = new Schema<IUser>({
         },
         rejectionReason: { type: String }
     },
-    isDocumentVerified: { type: Boolean, default: false }
+    bankDocumentVerification: {
+        bankPassbook: { type: String },
+        accountNumber: { type: String },
+        accountName: { type: String },
+        bankName: { type: String },
+        ifscCode: { type: String },
+        status: {
+            type: String,
+            enum: ['PENDING', 'APPROVED', 'REJECTED'],
+            default: 'PENDING'
+
+        },
+        rejectionReason: { type: String }
+    },
+    isDocumentVerified: { type: Boolean, default: false },
+    isBankDocumentVerified: { type: Boolean, default: false },
 }, { timestamps: true });
 
 // Allow same phone/email across DIFFERENT roles

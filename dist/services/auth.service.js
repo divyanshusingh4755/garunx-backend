@@ -551,30 +551,49 @@ class AuthService {
         return updatedUser;
     }
     static async uploadVerificationDocuments(userId, docs) {
-        const updateData = {
-            "documentVerification.status": "PENDING"
-        };
-        if (docs.aadharCard)
-            updateData["documentVerification.aadharCard"] = docs.aadharCard;
-        if (docs.panCard)
-            updateData["documentVerification.panCard"] = docs.panCard;
-        if (docs.bankPassbook)
-            updateData["documentVerification.bankPassbook"] = docs.bankPassbook;
+        const updatePayload = {};
+        if (docs.aadharCard || docs.panCard) {
+            updatePayload["documentVerification.status"] = "PENDING";
+            if (docs.aadharCard)
+                updatePayload["documentVerification.aadharCard"] = docs.aadharCard;
+            if (docs.panCard)
+                updatePayload["documentVerification.panCard"] = docs.panCard;
+        }
+        if (docs.bankPassbook) {
+            updatePayload["bankDocumentVerification.status"] = "PENDING";
+            updatePayload["bankDocumentVerification.bankPassbook"] = docs.bankPassbook;
+            updatePayload["bankDocumentVerification.accountNumber"] = docs.accountNumber;
+            updatePayload["bankDocumentVerification.accountName"] = docs.accountName;
+            updatePayload["bankDocumentVerification.bankName"] = docs.bankName;
+            updatePayload["bankDocumentVerification.ifscCode"] = docs.ifscCode;
+        }
+        if (Object.keys(updatePayload).length === 0) {
+            throw new Error("No valid documents provided for update");
+        }
         const user = await User.findByIdAndUpdate(userId, {
-            $set: updateData
+            $set: updatePayload
         }, { new: true, runValidators: true }).select('-password -otp');
         if (!user)
             throw new Error('User not found');
         return user;
     }
-    static async updateVerificationStatus(userId, status, rejectionReason) {
-        const update = {
-            "documentVerification.status": status,
-            "documentVerification.rejectionReason": status === 'REJECTED' ? rejectionReason : null,
-            // Mark as fully verified only if approved
-            isDocumentVerified: status === 'APPROVED'
-        };
-        const user = await User.findByIdAndUpdate(userId, { $set: update }, { new: true }).select('-password -otp');
+    static async updateVerificationStatus(userId, type, status, rejectionReason) {
+        let update = {};
+        if (type === "document") {
+            update = {
+                "documentVerification.status": status,
+                "documentVerification.rejectionReason": status === 'REJECTED' ? rejectionReason : null,
+                isDocumentVerified: status === 'APPROVED'
+            };
+        }
+        else if (type === "bank") {
+            update = {
+                "bankDocumentVerification.status": status,
+                "bankDocumentVerification.rejectionReason": status === 'REJECTED' ? rejectionReason : null,
+                isBankDocumentVerified: status === 'APPROVED'
+            };
+        }
+        const user = await User.findByIdAndUpdate(userId, { $set: update }, { new: true, runValidators: true }).select('-password -otp');
         if (!user)
             throw new Error("User not found");
         return user;

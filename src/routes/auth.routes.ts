@@ -123,6 +123,54 @@ const profileValidation = [
     }
 ];
 
+
+const documentUploadValidation = [
+    body().custom((value, { req }) => {
+        if (!req.body.aadharCard && !req.body.panCard && !req.body.bankPassbook) {
+            throw new Error('At least one document (Aadhar, PAN, or Bank Passbook) must be provided');
+        }
+        return true;
+    }),
+
+    body('bankPassbook').optional().isString().withMessage('Invalid passbook image format'),
+
+    body('accountNumber')
+        .if(body('bankPassbook').exists({ checkFalsy: true }))
+        .notEmpty().withMessage('Account number is required when uploading bank passbook')
+        .isNumeric().withMessage('Account number must contain only digits'),
+
+    body('accountName')
+        .if(body('bankPassbook').exists({ checkFalsy: true }))
+        .notEmpty().withMessage('Account holder name is required when uploading bank passbook')
+        .trim(),
+
+    body('bankName')
+        .if(body('bankPassbook').exists({ checkFalsy: true }))
+        .notEmpty().withMessage('Bank name is required when uploading bank passbook')
+        .trim(),
+
+    body('ifscCode')
+        .if(body('bankPassbook').exists({ checkFalsy: true }))
+        .notEmpty().withMessage('IFSC code is required when uploading bank passbook')
+        .toUpperCase()
+        .matches(/^[A-Z]{4}0[A-Z0-9]{6}$/)
+        .withMessage('Invalid IFSC code format (e.g., SBIN0012345)'),
+
+    (req: Request, res: Response, next: NextFunction) => {
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+            const firstError = errors.array()[0];
+            return res.status(400).json({
+                success: false,
+                message: firstError?.msg,
+                error: firstError
+            });
+        }
+        next();
+    }
+];
+
+
 // --- PUBLIC ROUTES (Registration & Auth) ---
 router.post('/register', registerValidation, register);
 router.post('/verify-otp', verifyOtp);
@@ -153,5 +201,5 @@ router.patch('/verify-documents', authenticate, approveOrRejectDocs)
 // --- MEDIA UPLOADS ---
 router.post('/upload-single', upload.single('image'), uploadSingle);
 router.post('/upload-multiple', upload.array('images', 5), uploadMutliple);
-router.patch('/upload-documents', authenticate, verifyDocuments)
+router.patch('/upload-documents', authenticate, documentUploadValidation, verifyDocuments)
 export default router;

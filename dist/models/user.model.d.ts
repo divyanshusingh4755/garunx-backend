@@ -24,11 +24,23 @@ export interface IUser extends Document {
     documentVerification: {
         aadharCard?: string;
         panCard?: string;
-        bankPassbook: string;
+        status: 'PENDING' | 'APPROVED' | 'REJECTED';
+        rejectionReason?: string;
+    };
+    bankDocumentVerification: {
+        bankPassbook?: string;
+        accountNumber?: string;
+        accountName?: string;
+        bankName?: string;
+        ifscCode?: string;
         status: 'PENDING' | 'APPROVED' | 'REJECTED';
         rejectionReason?: string;
     };
     isDocumentVerified: {
+        type: Boolean;
+        default: false;
+    };
+    isBankDocumentVerified: {
         type: Boolean;
         default: false;
     };

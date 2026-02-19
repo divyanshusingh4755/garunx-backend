@@ -29,7 +29,6 @@ const userSchema = new Schema({
     documentVerification: {
         aadharCard: { type: String },
         panCard: { type: String },
-        bankPassbook: { type: String },
         status: {
             type: String,
             enum: ['PENDING', 'APPROVED', 'REJECTED'],
@@ -37,7 +36,21 @@ const userSchema = new Schema({
         },
         rejectionReason: { type: String }
     },
-    isDocumentVerified: { type: Boolean, default: false }
+    bankDocumentVerification: {
+        bankPassbook: { type: String },
+        accountNumber: { type: String },
+        accountName: { type: String },
+        bankName: { type: String },
+        ifscCode: { type: String },
+        status: {
+            type: String,
+            enum: ['PENDING', 'APPROVED', 'REJECTED'],
+            default: 'PENDING'
+        },
+        rejectionReason: { type: String }
+    },
+    isDocumentVerified: { type: Boolean, default: false },
+    isBankDocumentVerified: { type: Boolean, default: false },
 }, { timestamps: true });
 // Allow same phone/email across DIFFERENT roles
 userSchema.index({ email: 1, role: 1 }, {
