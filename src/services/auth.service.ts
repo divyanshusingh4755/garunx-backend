@@ -742,7 +742,8 @@ class AuthService {
         }
 
         if (docs.bankPassbook) {
-            updatePayload["bankDocumentVerification.status"] = "PENDING";
+            updatePayload["isBankDocumentVerified"] = true;
+            updatePayload["bankDocumentVerification.status"] = "APPROVED";
             updatePayload["bankDocumentVerification.bankPassbook"] = docs.bankPassbook;
             updatePayload["bankDocumentVerification.accountNumber"] = docs.accountNumber;
             updatePayload["bankDocumentVerification.accountName"] = docs.accountName;

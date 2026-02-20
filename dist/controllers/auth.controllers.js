@@ -502,8 +502,17 @@ export const verifyDocuments = async (req, res) => {
     try {
         const userId = req.user?.userId;
         const { aadharCard, panCard, bankPassbook, accountNumber, accountName, bankName, ifscCode } = req.body;
+        if (!userId) {
+            return res.status(401).json({ success: false, message: "Unauthorized access" });
+        }
         if (!aadharCard && !panCard && !bankPassbook) {
-            return res.status(400).json({ success: false, message: "Aadhar Card, Pan Card, Passbook is required" });
+            return res.status(400).json({ success: false, message: "At least one document (Aadhar, PAN, or Passbook) is required" });
+        }
+        if (bankPassbook && (!accountNumber || !ifscCode)) {
+            return res.status(400).json({
+                success: false,
+                message: "Account number and IFSC code are required with bank passbook"
+            });
         }
         const docs = {
             aadharCard,
@@ -515,9 +524,13 @@ export const verifyDocuments = async (req, res) => {
             ifscCode
         };
         const updatedUser = await AuthService.uploadVerificationDocuments(userId, docs);
+        const isIdentityUpdate = aadharCard || panCard;
+        const message = isIdentityUpdate
+            ? "Documents submitted. Identity verification is now PENDING."
+            : "Bank details updated successfully.";
         res.status(200).json({
             success: true,
-            message: "Documents submitted successfully. Verification is now PENDING.",
+            message: message,
             data: {
                 identity: updatedUser.documentVerification,
                 bank: updatedUser.bankDocumentVerification
