@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { body, validationResult } from 'express-validator';
 import { authenticate } from '../middleware/authenticate.js';
-import { createLocation, deleteLocation, getAllLocation, getLocationById, searchServicesByLocationDetails, updateLocation } from '../controllers/location.controllers.js';
+import { createLocation, deleteLocation, getAllLocation, getLocationById, getLocationIds, searchServicesByLocationDetails, updateLocation } from '../controllers/location.controllers.js';
 const router = Router();
 // Validation Middleware
 const locationValidation = [
@@ -27,6 +27,7 @@ const locationValidation = [
     }
 ];
 router.get('/get-all-location', getAllLocation);
+router.post('/get-location-by-ids', getLocationIds);
 router.post('/create-location', authenticate, locationValidation, createLocation);
 router.patch('/update-location/:id', authenticate, locationValidation, updateLocation);
 router.get('/:id', authenticate, getLocationById);

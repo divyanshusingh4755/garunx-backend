@@ -77,6 +77,30 @@ export const deleteLocation = async (req, res) => {
         });
     }
 };
+export const getLocationIds = async (req, res) => {
+    try {
+        const { locationIds } = (req.body || {});
+        if (!locationIds || locationIds.length === 0) {
+            return res.status(400).json({
+                success: false,
+                message: "No location IDs provided",
+                data: []
+            });
+        }
+        const locations = await LocationService.getLocationByIds(locationIds);
+        return res.status(200).json({
+            success: true,
+            data: locations
+        });
+    }
+    catch (error) {
+        const statusCode = error.statusCode || 500;
+        return res.status(statusCode).json({
+            success: false,
+            message: error.message || "Internal Server Error"
+        });
+    }
+};
 export const searchServicesByLocationDetails = async (req, res) => {
     try {
         const { query } = req.query;

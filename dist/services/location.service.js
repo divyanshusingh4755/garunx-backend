@@ -99,6 +99,20 @@ export class LocationService {
             throw new Error(`Failed to get location: ${error.message}`);
         }
     }
+    static async getLocationByIds(locationIds) {
+        try {
+            const locations = await Location.find({ _id: { $in: locationIds } }).lean().exec();
+            if (!locations || locations.length === 0) {
+                const error = new Error("Locations not found");
+                error.statusCode = 404;
+                throw error;
+            }
+            return locations;
+        }
+        catch (error) {
+            throw new Error(`Failed to get locations: ${error.message}`);
+        }
+    }
     static async searchServicesyLocationDetails(searchQuery) {
         try {
             let locations = await Location.find({ $text: { $search: searchQuery }, isActive: true }, { score: { $meta: "textScore" } })

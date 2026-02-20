@@ -133,6 +133,21 @@ export class LocationService {
         }
     }
 
+    static async getLocationByIds(locationIds: string[]) {
+        try {
+            const locations = await Location.find({ _id: { $in: locationIds } }).lean().exec();
+
+            if (!locations || locations.length === 0) {
+                const error = new Error("Locations not found");
+                (error as any).statusCode = 404;
+                throw error
+            }
+            return locations;
+        } catch (error: any) {
+            throw new Error(`Failed to get locations: ${error.message}`)
+        }
+    }
+
     static async searchServicesyLocationDetails(searchQuery: any) {
         try {
             let locations = await Location.find(

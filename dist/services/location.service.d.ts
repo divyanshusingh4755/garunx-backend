@@ -36,6 +36,11 @@ export declare class LocationService {
     }> & {
         __v: number;
     }>;
+    static getLocationByIds(locationIds: string[]): Promise<(ILocation & Required<{
+        _id: import("mongoose").Types.ObjectId;
+    }> & {
+        __v: number;
+    })[]>;
     static searchServicesyLocationDetails(searchQuery: any): Promise<(import("mongoose").Document<unknown, {}, ILocation, {}, import("mongoose").DefaultSchemaOptions> & ILocation & Required<{
         _id: import("mongoose").Types.ObjectId;
     }> & {
