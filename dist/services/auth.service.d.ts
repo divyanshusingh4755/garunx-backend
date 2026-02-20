@@ -47,6 +47,7 @@ declare class AuthService {
     }>;
     static forgotPassword(email: string, role: Role): Promise<{
         success: boolean;
+        otp: string;
         message: string;
     }>;
     static resetPassword(userId: string, newPassword: string): Promise<{

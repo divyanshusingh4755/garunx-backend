@@ -5,6 +5,8 @@ import cors from "cors";
 import authRoutes from './routes/auth.routes.js';
 import brandingRoutes from './routes/branding.routes.js';
 import locationRoutes from './routes/location.routes.js';
+import cityRoutes from './routes/city.routes.js';
+import stateRoutes from './routes/state.routes.js';
 import serviceRoutes from './routes/service.routes.js';
 import pricingRoutes from './routes/pricing.routes.js';
 import packageRoutes from './routes/package.routes.js';
@@ -46,6 +48,8 @@ app.set('trust proxy', 1);
 app.use('/api/auth', authRoutes)
 app.use('/api/branding', brandingRoutes)
 app.use('/api/location', locationRoutes)
+app.use('/api/city', cityRoutes)
+app.use('/api/state', stateRoutes)
 app.use('/api/service', serviceRoutes)
 app.use('/api/pricing', pricingRoutes)
 app.use('/api/package', packageRoutes)

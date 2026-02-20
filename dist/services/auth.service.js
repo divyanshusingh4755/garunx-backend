@@ -46,8 +46,9 @@ class AuthService {
             // Generate OTP only if NOT a social login
             const generatedOtp = Math.floor(100000 + Math.random() * 900000).toString();
             const otpExpiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 mins
+            const filter = existingUser ? { _id: existingUser._id } : { $or: query };
             // Upsert User (Update unverified or create new)
-            const user = await User.findOneAndUpdate({ $or: query }, {
+            const user = await User.findOneAndUpdate(filter, {
                 role,
                 otp: generatedOtp,
                 otpExpiresAt,
@@ -137,8 +138,6 @@ class AuthService {
             if (!user) {
                 throw new Error("OTP is invalid or has expired");
             }
-            user.resetPasswordToken = undefined;
-            user.resetPasswordExpires = undefined;
             user.isResetVerified = true;
             await user.save();
             return user;
@@ -298,6 +297,7 @@ class AuthService {
             const hashedOtp = crypto.createHash('sha256').update(otp).digest('hex');
             user.resetPasswordToken = hashedOtp;
             user.resetPasswordExpires = new Date(Date.now() + 15 * 60 * 1000); // 15 mins
+            user.isResetVerified = false;
             await user.save();
             // // Configure Mailer
             // const transporter = nodemailer.createTransport({
@@ -322,20 +322,26 @@ class AuthService {
             // `
             // };
             // await transporter.sendMail(mailOptions);
-            return { success: true, message: 'Reset code sent to your email' };
+            return { success: true, otp: otp, message: 'Reset code sent to your email' };
         }
         catch (error) {
             throw new Error(error.message || "Failed to send reset email");
         }
     }
     static async resetPassword(userId, newPassword) {
-        const user = await User.findOne({ _id: userId, isResetVerified: true });
+        const user = await User.findOne({
+            _id: userId,
+            isResetVerified: true,
+            resetPasswordExpires: { $gt: new Date() }
+        });
         if (!user) {
-            throw new Error("Invalid user");
+            throw new Error("Action unauthorized or session expired. Please verify your OTP again.");
         }
         const salt = await bcrypt.genSalt(10);
         user.password = await bcrypt.hash(newPassword, salt);
         user.isResetVerified = false;
+        user.resetPasswordToken = undefined;
+        user.resetPasswordExpires = undefined;
         await user.save();
         // security: Invalidate all existing sessions
         await Session.deleteMany({ userId: user._id });

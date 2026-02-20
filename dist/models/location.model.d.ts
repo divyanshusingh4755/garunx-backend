@@ -1,14 +1,14 @@
 import { type Document, Types } from 'mongoose';
 export interface ILocation extends Document {
-    name: String;
-    country: String;
-    state: String;
-    city: String;
-    fullAddress: String;
-    pincode: String;
-    image?: String;
-    description?: String;
-    isActive: Boolean;
+    name: string;
+    country: string;
+    state: string;
+    city: string;
+    fullAddress: string;
+    pincode: string;
+    image?: string;
+    description?: string;
+    isActive: boolean;
     location?: {
         type: "Point";
         coordinates: [number, number];

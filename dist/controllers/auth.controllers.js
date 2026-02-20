@@ -242,6 +242,7 @@ export const forgotPassword = async (req, res) => {
         const result = await AuthService.forgotPassword(email, role);
         res.status(200).json({
             success: true,
+            otp: result.otp,
             message: result.message || "Reset code sent to your email",
             nextStep: "RESET_PASSWORD"
         });

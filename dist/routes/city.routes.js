@@ -1,15 +1,11 @@
 import { Router } from 'express';
 import { body, validationResult } from 'express-validator';
 import { authenticate } from '../middleware/authenticate.js';
-import { createLocation, deleteLocation, getAllLocation, getLocationById, searchServicesByLocationDetails, updateLocation } from '../controllers/location.controllers.js';
+import { createCity, deleteCity, getAllCity, getCityById, updateCity } from '../controllers/city.controllers.js';
 const router = Router();
-// Validation Middleware
-const locationValidation = [
-    body('country').notEmpty().trim(),
+const cityValidation = [
     body('state').notEmpty().trim(),
     body('city').notEmpty().trim(),
-    body('fullAddress').isLength({ min: 10 }).withMessage("Address is too short"),
-    body('pincode').isPostalCode('IN').withMessage("Invalid Indian Pincode"),
     body('image').optional().isURL().withMessage("Image must be a valid URL"),
     body('description').optional().isString().trim(),
     body('location.coordinates').optional().isArray({ min: 2, max: 2 }).withMessage("Coordinates must be [longitude, latitude]"),
@@ -26,11 +22,10 @@ const locationValidation = [
         next();
     }
 ];
-router.get('/get-all-location', getAllLocation);
-router.post('/create-location', authenticate, locationValidation, createLocation);
-router.patch('/update-location/:id', authenticate, locationValidation, updateLocation);
-router.get('/:id', authenticate, getLocationById);
-router.patch('/:id', authenticate, deleteLocation);
-router.post('/discovery', searchServicesByLocationDetails);
+router.get('/get-all-city', getAllCity); // Specific first
+router.post('/create-city', authenticate, cityValidation, createCity);
+router.patch('/update-city/:id', authenticate, cityValidation, updateCity);
+router.get('/:id', authenticate, getCityById); // Dynamic last
+router.patch('/:id', authenticate, deleteCity);
 export default router;
-//# sourceMappingURL=location.routes.js.map
+//# sourceMappingURL=city.routes.js.map
