@@ -456,7 +456,7 @@ class AuthService {
             session.endSession();
         }
     }
-    static async completeProfile(userId, fullName, dob, gender, referralCode, password, profileImage, userAgent, ip, email, phoneNumber) {
+    static async completeProfile(userId, fullName, dob, gender, referralCode, password, profileImage, userAgent, ip, email, phoneNumber, caste, gotra) {
         const session = await mongoose.startSession();
         session.startTransaction();
         try {
@@ -496,7 +496,9 @@ class AuthService {
                     ...(phoneNumber && { phoneNumber: phoneNumber }),
                     ...(email && { email: email }),
                     ...(hashedPassword && { password: hashedPassword }),
-                    ...(referredById && { referredBy: referredById })
+                    ...(referredById && { referredBy: referredById }),
+                    ...(caste && { caste: caste }),
+                    ...(gotra && { gotra: gotra }),
                 }
             }, { new: true, runValidators: true, session }).lean();
             if (!updatedUser)

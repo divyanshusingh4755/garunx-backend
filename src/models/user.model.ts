@@ -50,8 +50,10 @@ export interface IUser extends Document {
         status: 'PENDING' | 'APPROVED' | 'REJECTED',
         rejectionReason?: string;
     },
-    isDocumentVerified: { type: Boolean, default: false };
-    isBankDocumentVerified: { type: Boolean, default: false };
+    caste?: 'SC' | 'ST' | 'OBC' | 'GENERAL',
+    gotra?: 'Bharadvaja' | 'Kashyapa' | 'Vashistha' | 'Vishvamitra' | 'Gautama' | 'Atri' | 'Jamadagni' | 'Agastya',
+    isDocumentVerified: boolean;
+    isBankDocumentVerified: boolean;
 
 }
 
@@ -105,6 +107,16 @@ const userSchema = new Schema<IUser>({
 
         },
         rejectionReason: { type: String }
+    },
+    caste: {
+        index: true,
+        type: String,
+        enum: ['SC', 'ST', 'OBC', 'GENERAL'],
+    },
+    gotra: {
+        index: true,
+        type: String,
+        enum: ['Bharadvaja', 'Kashyapa', 'Vashistha', 'Vishvamitra', 'Gautama', 'Atri', 'Jamadagni', 'Agastya'],
     },
     isDocumentVerified: { type: Boolean, default: false },
     isBankDocumentVerified: { type: Boolean, default: false },

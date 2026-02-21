@@ -49,6 +49,16 @@ const userSchema = new Schema({
         },
         rejectionReason: { type: String }
     },
+    caste: {
+        index: true,
+        type: String,
+        enum: ['SC', 'ST', 'OBC', 'GENERAL'],
+    },
+    gotra: {
+        index: true,
+        type: String,
+        enum: ['Bharadvaja', 'Kashyapa', 'Vashistha', 'Vishvamitra', 'Gautama', 'Atri', 'Jamadagni', 'Agastya'],
+    },
     isDocumentVerified: { type: Boolean, default: false },
     isBankDocumentVerified: { type: Boolean, default: false },
 }, { timestamps: true });

@@ -588,7 +588,10 @@ class AuthService {
         userAgent?: string,
         ip?: string,
         email?: string,
-        phoneNumber?: string
+        phoneNumber?: string,
+        caste?: 'SC' | 'ST' | 'OBC' | 'GENERAL',
+        gotra?: 'Bharadvaja' | 'Kashyapa' | 'Vashistha' | 'Vishvamitra' | 'Gautama' | 'Atri' | 'Jamadagni' | 'Agastya',
+
     ) {
         const session = await mongoose.startSession();
         session.startTransaction();
@@ -634,7 +637,9 @@ class AuthService {
                         ...(phoneNumber && { phoneNumber: phoneNumber }),
                         ...(email && { email: email }),
                         ...(hashedPassword && { password: hashedPassword }),
-                        ...(referredById && { referredBy: referredById })
+                        ...(referredById && { referredBy: referredById }),
+                        ...(caste && { caste: caste }),
+                        ...(gotra && { gotra: gotra }),
                     }
                 },
                 { new: true, runValidators: true, session }

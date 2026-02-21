@@ -36,14 +36,10 @@ export interface IUser extends Document {
         status: 'PENDING' | 'APPROVED' | 'REJECTED';
         rejectionReason?: string;
     };
-    isDocumentVerified: {
-        type: Boolean;
-        default: false;
-    };
-    isBankDocumentVerified: {
-        type: Boolean;
-        default: false;
-    };
+    caste?: 'SC' | 'ST' | 'OBC' | 'GENERAL';
+    gotra?: 'Bharadvaja' | 'Kashyapa' | 'Vashistha' | 'Vishvamitra' | 'Gautama' | 'Atri' | 'Jamadagni' | 'Agastya';
+    isDocumentVerified: boolean;
+    isBankDocumentVerified: boolean;
 }
 export declare const User: import("mongoose").Model<IUser, {}, {}, {}, Document<unknown, {}, IUser, {}, import("mongoose").DefaultSchemaOptions> & IUser & Required<{
     _id: Types.ObjectId;

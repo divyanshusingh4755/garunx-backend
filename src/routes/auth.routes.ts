@@ -105,6 +105,16 @@ const profileValidation = [
         .isIn(['Male', 'Female', 'Other'])
         .withMessage('Invalid gender value'),
 
+    body('caste')
+        .optional()
+        .isIn(['SC', 'ST', 'OBC', 'GENERAL'])
+        .withMessage('Invalid Caste value'),
+
+    body('gotra')
+        .optional()
+        .isIn(['Bharadvaja', 'Kashyapa', 'Vashistha', 'Vishvamitra', 'Gautama', 'Atri', 'Jamadagni', 'Agastya'])
+        .withMessage('Invalid gotra value'),
+
     body('referralCode')
         .optional()
         .isString().trim().toUpperCase(),

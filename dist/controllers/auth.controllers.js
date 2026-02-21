@@ -413,7 +413,7 @@ export const deactivateUser = async (req, res) => {
 };
 export const completeProfile = async (req, res) => {
     try {
-        const { userId, fullName, dob, gender, referralCode, password, profileImage, email, phoneNumber } = req.body;
+        const { userId, fullName, dob, gender, referralCode, password, profileImage, email, phoneNumber, caste, gotra } = req.body;
         if (!userId || !fullName) {
             return res.status(400).json({
                 success: false,
@@ -425,7 +425,7 @@ export const completeProfile = async (req, res) => {
         const ip = typeof forwarded === 'string'
             ? forwarded.split(',')[0]
             : req.headers['x-real-ip'] || req.socket.remoteAddress || '0.0.0.0';
-        const { user, accessToken, refreshToken } = await AuthService.completeProfile(userId, fullName, dob, gender, referralCode, password, profileImage, userAgent, ip, email, phoneNumber);
+        const { user, accessToken, refreshToken } = await AuthService.completeProfile(userId, fullName, dob, gender, referralCode, password, profileImage, userAgent, ip, email, phoneNumber, caste, gotra);
         res.cookie('refreshToken', refreshToken, {
             httpOnly: true,
             secure: true,
