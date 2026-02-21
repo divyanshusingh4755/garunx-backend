@@ -46,14 +46,19 @@ export class PricingSerive {
             throw new Error(err.message);
         }
     }
-    static async getAllSerivces() {
+    static async getAllServices(filter = {}) {
         try {
-            return await ServicePricing.find()
+            return await ServicePricing.find({
+                isActive: true,
+                ...filter
+            })
                 .populate('serviceId', 'name category image description')
-                .populate('locationId', '_id name city state pincode fullAddress');
+                .populate('locationId', '_id name city state pincode fullAddress')
+                .sort({ createdAt: -1 })
+                .lean(); // Returns POJOs for 5x faster execution
         }
         catch (err) {
-            throw new Error(err.message);
+            throw new Error(`Failed to fetch service prices: ${err.message}`);
         }
     }
 }

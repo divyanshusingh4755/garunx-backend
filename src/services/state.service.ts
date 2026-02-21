@@ -1,4 +1,5 @@
 import { State, type IState } from "../models/state.model.js";
+import type { QueryFilter } from 'mongoose';
 
 export class StateService {
     private static applyFilter(filterValue?: string) {
@@ -33,19 +34,26 @@ export class StateService {
         countryFilter?: string,
         stateFilter?: string,
         limit: number = 40,
-        page: number = 1
+        page: number = 1,
+        isActive?: boolean
     ) {
-        const query: any = { isActive: { $ne: false } }
+        const skip = limit * (page - 1);
+        const query: QueryFilter<IState> = {};
+
+        if (typeof isActive === 'boolean') {
+            query.isActive = isActive;
+        } else {
+            query.isActive = { $ne: false };
+        }
 
         if (searchTerm) {
             query.$text = { $search: searchTerm };
         }
 
-        if (countryFilter) query.country = this.applyFilter(countryFilter);
-        if (stateFilter) query.state = this.applyFilter(stateFilter);
+        if (countryFilter) (query as any).country = this.applyFilter(countryFilter);
+        if (stateFilter) (query as any).state = this.applyFilter(stateFilter);
 
         try {
-            const skip = limit * (page - 1)
             const findQuery = State.find(query);
             if (searchTerm) {
                 findQuery.

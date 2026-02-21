@@ -35,12 +35,10 @@ export declare class PackageService {
     } & {
         id: string;
     }) | null>;
-    static getAllPackages(): Promise<(import("mongoose").Document<unknown, {}, IPackage, {}, import("mongoose").DefaultSchemaOptions> & IPackage & {
+    static getAllPackages(filter?: Record<string, any>): Promise<(IPackage & {
         _id: import("mongoose").Types.ObjectId;
     } & {
         __v: number;
-    } & {
-        id: string;
     })[]>;
 }
 //# sourceMappingURL=package.service.d.ts.map

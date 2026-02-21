@@ -1,4 +1,5 @@
 import { Location, type ILocation } from "../models/location.model.js";
+import type { QueryFilter } from 'mongoose';
 
 export class LocationService {
     static async createLocation(
@@ -43,21 +44,28 @@ export class LocationService {
         cityFilter?: string,
         pincodeFilter?: string,
         limit: number = 40,
-        page: number = 1
+        page: number = 1,
+        isActive?: boolean
     ) {
-        const query: any = { isActive: { $ne: false } }
+        const skip = limit * (page - 1);
+        const query: QueryFilter<ILocation> = {};
+
+        if (typeof isActive === 'boolean') {
+            query.isActive = isActive;
+        } else {
+            query.isActive = { $ne: false };
+        }
 
         if (searchTerm) {
             query.$text = { $search: searchTerm };
         }
 
-        if (countryFilter) query.country = this.applyFilter(countryFilter);
-        if (stateFilter) query.state = this.applyFilter(stateFilter);
-        if (cityFilter) query.city = this.applyFilter(cityFilter);
-        if (pincodeFilter) query.pincode = this.applyFilter(pincodeFilter);
+        if (countryFilter) (query as any).country = this.applyFilter(countryFilter);
+        if (stateFilter) (query as any).state = this.applyFilter(stateFilter);
+        if (cityFilter) (query as any).city = this.applyFilter(cityFilter);
+        if (pincodeFilter) (query as any).pincode = this.applyFilter(pincodeFilter);
 
         try {
-            const skip = limit * (page - 1)
             const findQuery = Location.find(query);
             if (searchTerm) {
                 findQuery.

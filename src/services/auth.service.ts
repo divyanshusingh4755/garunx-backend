@@ -478,7 +478,8 @@ class AuthService {
         page: number = 1,
         limit: number = 40,
         role?: Role,
-        isComplete?: boolean
+        isComplete?: boolean,
+        isActive?: boolean
     ) {
         try {
             const skip = (page - 1) * limit;
@@ -487,6 +488,7 @@ class AuthService {
             const filter: any = {};
             if (role) filter.role = role;
             if (typeof isComplete === 'boolean') filter.isComplete = isComplete;
+            if (typeof isActive === 'boolean') filter.isActive = isActive;
 
             // Fetch data and count in parallel for better performance
             const [users, total] = await Promise.all([

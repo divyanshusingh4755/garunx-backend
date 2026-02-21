@@ -11,7 +11,7 @@ export declare class LocationService {
         id: string;
     }>;
     private static applyFilter;
-    static FindLocation(searchTerm?: string, countryFilter?: string, stateFilter?: string, cityFilter?: string, pincodeFilter?: string, limit?: number, page?: number): Promise<{
+    static FindLocation(searchTerm?: string, countryFilter?: string, stateFilter?: string, cityFilter?: string, pincodeFilter?: string, limit?: number, page?: number, isActive?: boolean): Promise<{
         data: (ILocation & Required<{
             _id: import("mongoose").Types.ObjectId;
         }> & {

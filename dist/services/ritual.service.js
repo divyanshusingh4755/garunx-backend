@@ -10,7 +10,11 @@ export class RitualService {
     }
     static async findAll(filter = {}) {
         try {
-            return await Service.find({ ...filter, isActive: true }).sort({ createdAt: -1 });
+            const finalFilter = {
+                isActive: filter.isActive !== undefined ? filter.isActive : true,
+                ...filter
+            };
+            return await Service.find(finalFilter).sort({ createdAt: -1 });
         }
         catch (error) {
             throw new Error(error.message);

@@ -16,21 +16,26 @@ export class CityService {
         });
         return await newCity.save();
     }
-    static async FindCity(searchTerm, cityFilter, stateFilter, limit = 40, page = 1) {
-        const query = { isActive: { $ne: false } };
-        if (searchTerm) {
-            query.$text = { $search: searchTerm };
+    static async FindCity(searchTerm, cityFilter, stateFilter, limit = 40, page = 1, isActive) {
+        const skip = limit * (page - 1);
+        const query = {};
+        if (typeof isActive === 'boolean') {
+            query.isActive = isActive;
         }
+        else {
+            query.isActive = { $ne: false };
+        }
+        if (searchTerm)
+            query.$text = { $search: searchTerm };
         if (cityFilter)
-            query.country = this.applyFilter(cityFilter);
+            query.name = this.applyFilter(cityFilter); // Fixed field name
         if (stateFilter)
             query.state = this.applyFilter(stateFilter);
         try {
-            const skip = limit * (page - 1);
             const findQuery = City.find(query);
             if (searchTerm) {
-                findQuery.
-                    select({ score: { $meta: "textScore" } })
+                findQuery
+                    .select({ score: { $meta: "textScore" } })
                     .sort({ score: { $meta: "textScore" } });
             }
             else {
@@ -40,12 +45,10 @@ export class CityService {
                 findQuery.skip(skip).limit(limit).lean(),
                 City.countDocuments(query)
             ]);
-            return {
-                data, total, page, totalPages: Math.ceil(total / limit)
-            };
+            return { data, total, page, totalPages: Math.ceil(total / limit) };
         }
         catch (error) {
-            throw new Error(`City fetched failed: ${error.message}`);
+            throw new Error(`City fetch failed: ${error.message}`);
         }
     }
     static async updateCity(cityId, updateData) {

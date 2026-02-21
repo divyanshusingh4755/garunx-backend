@@ -369,7 +369,7 @@ class AuthService {
         await Session.deleteMany({ userId: user._id });
         return { success: true, message: "Password updated sucessfully" };
     }
-    static async GetAllUsers(page = 1, limit = 40, role, isComplete) {
+    static async GetAllUsers(page = 1, limit = 40, role, isComplete, isActive) {
         try {
             const skip = (page - 1) * limit;
             // Build a dynamic filter object
@@ -378,6 +378,8 @@ class AuthService {
                 filter.role = role;
             if (typeof isComplete === 'boolean')
                 filter.isComplete = isComplete;
+            if (typeof isActive === 'boolean')
+                filter.isActive = isActive;
             // Fetch data and count in parallel for better performance
             const [users, total] = await Promise.all([
                 User.find(filter)

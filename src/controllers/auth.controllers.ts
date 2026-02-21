@@ -395,13 +395,14 @@ export const changePassword = async (req: Request, res: Response) => {
 
 export const getGetAllUser = async (req: Request, res: Response) => {
     try {
-        const { limit, page, role, isComplete } = req.query;
+        const { limit, page, role, isComplete, isActive } = req.query;
 
         const { users, pagination } = await AuthService.GetAllUsers(
             Number(page) || 1,
             Number(limit) || 40,
             role as Role,
-            isComplete === 'true' ? true : isComplete === 'false' ? false : undefined
+            isComplete === 'true' ? true : isComplete === 'false' ? false : undefined,
+            isActive === 'true' ? true : isActive === 'false' ? false : undefined
         );
 
         res.status(200).json({

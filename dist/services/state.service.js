@@ -16,8 +16,15 @@ export class StateService {
         });
         return await newState.save();
     }
-    static async FindState(searchTerm, countryFilter, stateFilter, limit = 40, page = 1) {
-        const query = { isActive: { $ne: false } };
+    static async FindState(searchTerm, countryFilter, stateFilter, limit = 40, page = 1, isActive) {
+        const skip = limit * (page - 1);
+        const query = {};
+        if (typeof isActive === 'boolean') {
+            query.isActive = isActive;
+        }
+        else {
+            query.isActive = { $ne: false };
+        }
         if (searchTerm) {
             query.$text = { $search: searchTerm };
         }
@@ -26,7 +33,6 @@ export class StateService {
         if (stateFilter)
             query.state = this.applyFilter(stateFilter);
         try {
-            const skip = limit * (page - 1);
             const findQuery = State.find(query);
             if (searchTerm) {
                 findQuery.

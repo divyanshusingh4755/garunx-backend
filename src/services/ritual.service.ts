@@ -9,9 +9,14 @@ export class RitualService {
         }
     }
 
-    static async findAll(filter = {}) {
+    static async findAll(filter: Record<string, any> = {}) {
         try {
-            return await Service.find({ ...filter, isActive: true }).sort({ createdAt: -1 });
+            const finalFilter = {
+                isActive: filter.isActive !== undefined ? filter.isActive : true,
+                ...filter
+            };
+
+            return await Service.find(finalFilter).sort({ createdAt: -1 });
         } catch (error: any) {
             throw new Error(error.message)
         }

@@ -63,7 +63,13 @@ export const togglePackageStatus = async (req, res) => {
 };
 export const getAllPackages = async (req, res) => {
     try {
-        const packages = await PackageService.getAllPackages();
+        const { isActive, ...otherFilters } = req.query;
+        const filter = { ...otherFilters };
+        if (isActive === 'true')
+            filter.isActive = true;
+        if (isActive === 'false')
+            filter.isActive = false;
+        const packages = await PackageService.getAllPackages(filter);
         return res.status(200).json({ success: true, data: packages });
     }
     catch (error) {

@@ -46,7 +46,8 @@ export const getAllState = async (req: Request, res: Response) => {
             stateFilter,
             countryFilter,
             limit,
-            page
+            page,
+            isActive
         } = req.query
 
         const { data, total, page: CurrentPage, totalPages } = await StateService.FindState(
@@ -54,7 +55,8 @@ export const getAllState = async (req: Request, res: Response) => {
             stateFilter as string,
             countryFilter as string,
             Number(limit) || 40,
-            Number(page) || 1
+            Number(page) || 1,
+            isActive === 'true' ? true : isActive === 'false' ? false : undefined
         )
         res.status(200).json({ success: true, data, total, CurrentPage, totalPages })
     } catch (error: any) {

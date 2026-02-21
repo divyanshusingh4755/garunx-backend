@@ -20,12 +20,10 @@ export declare class PricingSerive {
     } & {
         id: string;
     }) | null>;
-    static getAllSerivces(): Promise<(import("mongoose").Document<unknown, {}, IServicePricing, {}, import("mongoose").DefaultSchemaOptions> & IServicePricing & {
+    static getAllServices(filter?: Record<string, any>): Promise<(IServicePricing & {
         _id: import("mongoose").Types.ObjectId;
     } & {
         __v: number;
-    } & {
-        id: string;
     })[]>;
 }
 //# sourceMappingURL=pricing.service.d.ts.map

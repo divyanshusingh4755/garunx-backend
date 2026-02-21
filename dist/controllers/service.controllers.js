@@ -21,7 +21,13 @@ export const updateService = async (req, res) => {
 };
 export const getServices = async (req, res) => {
     try {
-        const services = await RitualService.findAll();
+        const { isActive, ...otherFilters } = req.query;
+        const filter = { ...otherFilters };
+        if (isActive === 'true')
+            filter.isActive = true;
+        if (isActive === 'false')
+            filter.isActive = false;
+        const services = await RitualService.findAll(filter);
         res.status(200).json({ success: true, count: services.length, data: services });
     }
     catch (error) {

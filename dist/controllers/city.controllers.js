@@ -27,8 +27,8 @@ export const updateCity = async (req, res) => {
 };
 export const getAllCity = async (req, res) => {
     try {
-        const { searchTerm, stateFilter, cityFilter, limit, page } = req.query;
-        const { data, total, page: CurrentPage, totalPages } = await CityService.FindCity(searchTerm, stateFilter, cityFilter, Number(limit) || 40, Number(page) || 1);
+        const { searchTerm, stateFilter, cityFilter, limit, page, isActive } = req.query;
+        const { data, total, page: CurrentPage, totalPages } = await CityService.FindCity(searchTerm, stateFilter, cityFilter, Number(limit) || 40, Number(page) || 1, isActive === 'true' ? true : isActive === 'false' ? false : undefined);
         res.status(200).json({ success: true, data, total, CurrentPage, totalPages });
     }
     catch (error) {

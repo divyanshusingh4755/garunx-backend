@@ -58,7 +58,7 @@ declare class AuthService {
         success: boolean;
         message: string;
     }>;
-    static GetAllUsers(page?: number, limit?: number, role?: Role, isComplete?: boolean): Promise<{
+    static GetAllUsers(page?: number, limit?: number, role?: Role, isComplete?: boolean, isActive?: boolean): Promise<{
         users: (IUser & Required<{
             _id: Types.ObjectId;
         }> & {

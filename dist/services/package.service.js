@@ -55,14 +55,20 @@ export class PackageService {
             throw new Error(err.message);
         }
     }
-    static async getAllPackages() {
+    static async getAllPackages(filter = {}) {
         try {
-            return await Package.find()
+            const finalFilter = {
+                isActive: true,
+                ...filter
+            };
+            return await Package.find(finalFilter)
                 .populate('includedServices', 'name')
-                .populate('locationIds', 'city state');
+                .populate('locationIds', 'city state')
+                .sort({ createdAt: -1 })
+                .lean();
         }
         catch (err) {
-            throw new Error(err.message);
+            throw new Error(`Package fetch failed: ${err.message}`);
         }
     }
 }

@@ -20,8 +20,15 @@ export class LocationService {
         const values = filterValue.split(',').map(val => val.trim());
         return { $in: values };
     }
-    static async FindLocation(searchTerm, countryFilter, stateFilter, cityFilter, pincodeFilter, limit = 40, page = 1) {
-        const query = { isActive: { $ne: false } };
+    static async FindLocation(searchTerm, countryFilter, stateFilter, cityFilter, pincodeFilter, limit = 40, page = 1, isActive) {
+        const skip = limit * (page - 1);
+        const query = {};
+        if (typeof isActive === 'boolean') {
+            query.isActive = isActive;
+        }
+        else {
+            query.isActive = { $ne: false };
+        }
         if (searchTerm) {
             query.$text = { $search: searchTerm };
         }
@@ -34,7 +41,6 @@ export class LocationService {
         if (pincodeFilter)
             query.pincode = this.applyFilter(pincodeFilter);
         try {
-            const skip = limit * (page - 1);
             const findQuery = Location.find(query);
             if (searchTerm) {
                 findQuery.

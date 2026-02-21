@@ -7,7 +7,7 @@ export declare class RitualService {
     } & {
         id: string;
     }>;
-    static findAll(filter?: {}): Promise<(import("mongoose").Document<unknown, {}, IService, {}, import("mongoose").DefaultSchemaOptions> & IService & {
+    static findAll(filter?: Record<string, any>): Promise<(import("mongoose").Document<unknown, {}, IService, {}, import("mongoose").DefaultSchemaOptions> & IService & {
         _id: import("mongoose").Types.ObjectId;
     } & {
         __v: number;

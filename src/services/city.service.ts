@@ -1,4 +1,5 @@
 import { City, type ICity } from "../models/city.model.js";
+import type { QueryFilter } from 'mongoose';
 
 export class CityService {
 
@@ -34,40 +35,44 @@ export class CityService {
         cityFilter?: string,
         stateFilter?: string,
         limit: number = 40,
-        page: number = 1
+        page: number = 1,
+        isActive?: boolean
     ) {
-        const query: any = { isActive: { $ne: false } }
+        const skip = limit * (page - 1);
+        const query: QueryFilter<ICity> = {};
 
-        if (searchTerm) {
-            query.$text = { $search: searchTerm };
+        if (typeof isActive === 'boolean') {
+            query.isActive = isActive;
+        } else {
+            query.isActive = { $ne: false };
         }
 
-        if (cityFilter) query.country = this.applyFilter(cityFilter);
-        if (stateFilter) query.state = this.applyFilter(stateFilter);
+        if (searchTerm) query.$text = { $search: searchTerm };
+        if (cityFilter) query.name = this.applyFilter(cityFilter); // Fixed field name
+        if (stateFilter) (query as any).state = this.applyFilter(stateFilter);
 
         try {
-            const skip = limit * (page - 1)
             const findQuery = City.find(query);
+
             if (searchTerm) {
-                findQuery.
-                    select({ score: { $meta: "textScore" } })
-                    .sort({ score: { $meta: "textScore" } })
+                findQuery
+                    .select({ score: { $meta: "textScore" } })
+                    .sort({ score: { $meta: "textScore" } });
             } else {
-                findQuery.sort({ createdAt: -1 })
+                findQuery.sort({ createdAt: -1 });
             }
 
             const [data, total] = await Promise.all([
                 findQuery.skip(skip).limit(limit).lean(),
                 City.countDocuments(query)
-            ])
+            ]);
 
-            return {
-                data, total, page, totalPages: Math.ceil(total / limit)
-            }
+            return { data, total, page, totalPages: Math.ceil(total / limit) };
         } catch (error: any) {
-            throw new Error(`City fetched failed: ${error.message}`)
+            throw new Error(`City fetch failed: ${error.message}`);
         }
     }
+
 
     static async updateCity(cityId: string, updateData: Partial<ICity>) {
         try {

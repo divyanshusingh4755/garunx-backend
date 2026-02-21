@@ -44,7 +44,13 @@ export const getPriceDetails = async (req, res) => {
 };
 export const getAllSerivces = async (req, res) => {
     try {
-        const services = await PricingSerive.getAllSerivces();
+        const { isActive, ...otherFilters } = req.query;
+        const filter = { ...otherFilters };
+        if (isActive === 'true')
+            filter.isActive = true;
+        if (isActive === 'false')
+            filter.isActive = false;
+        const services = await PricingSerive.getAllServices(filter);
         res.status(200).json({ success: true, data: services });
     }
     catch (error) {
