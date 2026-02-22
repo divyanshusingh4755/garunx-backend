@@ -138,7 +138,12 @@ class AuthService {
             if (!user) {
                 throw new Error("OTP is invalid or has expired");
             }
-            user.isResetVerified = true;
+            if (user.resetPasswordToken) {
+                user.isResetVerified = true;
+                user.resetPasswordToken = undefined;
+                user.resetPasswordExpires = undefined;
+            }
+            user.isOtpVerified = true;
             await user.save();
             return user;
         }
