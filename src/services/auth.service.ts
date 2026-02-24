@@ -724,7 +724,11 @@ class AuthService {
         gender?: string;
         profileImage?: string;
         savedLocations?: string[];
-        serviceableLocations?: string[];
+        serviceableLocations?: {
+            locationId: string | Types.ObjectId;
+            caste?: string;
+            gotra?: string;
+        }[];
     }) {
 
         const user = await User.findById(userId);
