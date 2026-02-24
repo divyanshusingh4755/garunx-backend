@@ -93,7 +93,11 @@ declare class AuthService {
         gender?: string;
         profileImage?: string;
         savedLocations?: string[];
-        serviceableLocations?: string[];
+        serviceableLocations?: {
+            locationId: string | Types.ObjectId;
+            caste?: string;
+            gotra?: string;
+        }[];
     }): Promise<(mongoose.Document<unknown, {}, IUser, {}, mongoose.DefaultSchemaOptions> & IUser & Required<{
         _id: Types.ObjectId;
     }> & {

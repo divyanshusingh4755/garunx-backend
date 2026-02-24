@@ -25,7 +25,17 @@ const userSchema = new Schema({
     resetPasswordToken: { type: String, default: null },
     resetPasswordExpires: { type: Date, default: null },
     savedLocations: [{ type: String }],
-    serviceableLocations: [{ type: Schema.Types.ObjectId, ref: "Location" }],
+    serviceableLocations: [{
+            locationId: { types: Schema.Types.ObjectId, ref: "Location", required: true },
+            caste: {
+                type: String,
+                enum: ['SC', 'ST', 'OBC', 'GENERAL']
+            },
+            gotra: {
+                type: String,
+                enum: ['Bharadvaja', 'Kashyapa', 'Vashistha', 'Vishvamitra', 'Gautama', 'Atri', 'Jamadagni', 'Agastya']
+            }
+        }],
     documentVerification: {
         aadharCard: { type: String },
         panCard: { type: String },

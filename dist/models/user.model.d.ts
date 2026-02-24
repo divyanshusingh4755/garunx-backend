@@ -20,7 +20,11 @@ export interface IUser extends Document {
     resetPasswordToken?: string | null;
     resetPasswordExpires?: Date | null;
     savedLocations?: string[];
-    serviceableLocations?: Types.ObjectId[];
+    serviceableLocations?: {
+        locationId: Types.ObjectId;
+        caste?: 'SC' | 'ST' | 'OBC' | 'GENERAL';
+        gotra?: 'Bharadvaja' | 'Kashyapa' | 'Vashistha' | 'Vishvamitra' | 'Gautama' | 'Atri' | 'Jamadagni' | 'Agastya';
+    }[];
     documentVerification: {
         aadharCard?: string;
         panCard?: string;
