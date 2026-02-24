@@ -562,7 +562,7 @@ class AuthService {
         }
         const updatedUser = await User.findByIdAndUpdate(userId, { $set: updateData }, { new: true, runValidators: true })
             .select('-password -otp')
-            .populate('serviceableLocations');
+            .populate('serviceableLocations.locationId');
         return updatedUser;
     }
     static async uploadVerificationDocuments(userId, docs) {

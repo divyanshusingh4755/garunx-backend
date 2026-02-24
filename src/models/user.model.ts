@@ -34,8 +34,8 @@ export interface IUser extends Document {
     savedLocations?: string[];
     serviceableLocations?: {
         locationId: Types.ObjectId,
-        caste?: 'SC' | 'ST' | 'OBC' | 'GENERAL',
-        gotra?: 'Bharadvaja' | 'Kashyapa' | 'Vashistha' | 'Vishvamitra' | 'Gautama' | 'Atri' | 'Jamadagni' | 'Agastya';
+        caste?: string[],
+        gotra?: string[];
     }[];
 
     // Document Verification
@@ -87,16 +87,17 @@ const userSchema = new Schema<IUser>({
     resetPasswordExpires: { type: Date, default: null },
     savedLocations: [{ type: String }],
     serviceableLocations: [{
-        locationId: { types: Schema.Types.ObjectId, ref: "Location", required: true },
-        caste: {
+        locationId: { type: Schema.Types.ObjectId, ref: "Location", required: true },
+        caste: [{
             type: String,
             enum: ['SC', 'ST', 'OBC', 'GENERAL']
-        },
-        gotra: {
+        }],
+        gotra: [{
             type: String,
             enum: ['Bharadvaja', 'Kashyapa', 'Vashistha', 'Vishvamitra', 'Gautama', 'Atri', 'Jamadagni', 'Agastya']
-        }
+        }]
     }],
+
     documentVerification: {
         aadharCard: { type: String },
         panCard: { type: String },

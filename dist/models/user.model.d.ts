@@ -22,8 +22,8 @@ export interface IUser extends Document {
     savedLocations?: string[];
     serviceableLocations?: {
         locationId: Types.ObjectId;
-        caste?: 'SC' | 'ST' | 'OBC' | 'GENERAL';
-        gotra?: 'Bharadvaja' | 'Kashyapa' | 'Vashistha' | 'Vishvamitra' | 'Gautama' | 'Atri' | 'Jamadagni' | 'Agastya';
+        caste?: string[];
+        gotra?: string[];
     }[];
     documentVerification: {
         aadharCard?: string;

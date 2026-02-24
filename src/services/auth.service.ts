@@ -726,8 +726,8 @@ class AuthService {
         savedLocations?: string[];
         serviceableLocations?: {
             locationId: string | Types.ObjectId;
-            caste?: string;
-            gotra?: string;
+            caste?: string[];
+            gotra?: string[];
         }[];
     }) {
 
@@ -744,7 +744,7 @@ class AuthService {
             { new: true, runValidators: true }
         )
             .select('-password -otp')
-            .populate('serviceableLocations');
+            .populate('serviceableLocations.locationId');
 
         return updatedUser;
     }
