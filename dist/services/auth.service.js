@@ -557,9 +557,6 @@ class AuthService {
         const user = await User.findById(userId);
         if (!user)
             throw new Error("User not found");
-        if (updateData.serviceableLocations && !user.isDocumentVerified) {
-            throw new Error("Action Denied: Please wait for Admin to verify your documents before setting work areas.");
-        }
         const updatedUser = await User.findByIdAndUpdate(userId, { $set: updateData }, { new: true, runValidators: true })
             .select('-password -otp')
             .populate('serviceableLocations.locationId');
