@@ -11,7 +11,7 @@ export declare class StateService {
     } & {
         id: string;
     }>;
-    static FindState(searchTerm?: string, countryFilter?: string, stateFilter?: string, limit?: number, page?: number, isActive?: boolean): Promise<{
+    static FindState(searchTerm?: string, countryFilter?: string, stateFilter?: string, limit?: number, page?: number, isActive?: boolean, sortBy?: string, sortOrder?: 'asc' | 'desc'): Promise<{
         data: (IState & Required<{
             _id: import("mongoose").Types.ObjectId;
         }> & {

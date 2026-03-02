@@ -35,10 +35,12 @@ export class StateService {
         stateFilter?: string,
         limit: number = 40,
         page: number = 1,
-        isActive?: boolean
+        isActive?: boolean,
+        sortBy: string = 'createdAt',
+        sortOrder: 'asc' | 'desc' = 'desc'
     ) {
         const skip = limit * (page - 1);
-        const query: QueryFilter<IState> = {};
+        const query: any = {};
 
         if (typeof isActive === 'boolean') {
             query.isActive = isActive;
@@ -46,25 +48,24 @@ export class StateService {
             query.isActive = { $ne: false };
         }
 
-        if (searchTerm) {
-            query.$text = { $search: searchTerm };
-        }
-
+        if (searchTerm) query.$text = { $search: searchTerm };
         if (countryFilter) (query as any).country = this.applyFilter(countryFilter);
         if (stateFilter) (query as any).state = this.applyFilter(stateFilter);
 
+        let sortCriteria: any = {}
+        if (searchTerm && sortBy === 'relevance') {
+            sortCriteria = { score: { $meta: 'textScore' } }
+        } else {
+            sortCriteria[sortBy] = sortOrder === 'desc' ? -1 : 1;
+            sortCriteria['createdAt'] = -1
+        }
         try {
-            const findQuery = State.find(query);
-            if (searchTerm) {
-                findQuery.
-                    select({ score: { $meta: "textScore" } })
-                    .sort({ score: { $meta: "textScore" } })
-            } else {
-                findQuery.sort({ createdAt: -1 })
-            }
-
             const [data, total] = await Promise.all([
-                findQuery.skip(skip).limit(limit).lean(),
+                State.find(query)
+                    .sort(sortCriteria)
+                    .skip(skip)
+                    .limit(limit)
+                    .lean(),
                 State.countDocuments(query)
             ])
 

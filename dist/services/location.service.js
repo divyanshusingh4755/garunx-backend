@@ -20,7 +20,7 @@ export class LocationService {
         const values = filterValue.split(',').map(val => val.trim());
         return { $in: values };
     }
-    static async FindLocation(searchTerm, countryFilter, stateFilter, cityFilter, pincodeFilter, limit = 40, page = 1, isActive) {
+    static async FindLocation(searchTerm, countryFilter, stateFilter, cityFilter, pincodeFilter, limit = 40, page = 1, isActive, sortBy = 'createdAt', sortOrder = 'desc') {
         const skip = limit * (page - 1);
         const query = {};
         if (typeof isActive === 'boolean') {
@@ -29,9 +29,8 @@ export class LocationService {
         else {
             query.isActive = { $ne: false };
         }
-        if (searchTerm) {
+        if (searchTerm)
             query.$text = { $search: searchTerm };
-        }
         if (countryFilter)
             query.country = this.applyFilter(countryFilter);
         if (stateFilter)
@@ -40,18 +39,22 @@ export class LocationService {
             query.city = this.applyFilter(cityFilter);
         if (pincodeFilter)
             query.pincode = this.applyFilter(pincodeFilter);
+        // Sorting
+        let sortCriteria = {};
+        if (searchTerm && sortBy === "relevance") {
+            sortCriteria = { score: { $meta: 'textScore' } };
+        }
+        else {
+            sortCriteria[sortBy] = sortOrder === 'desc' ? -1 : 1;
+            sortCriteria['createdAt'] = -1;
+        }
         try {
-            const findQuery = Location.find(query);
-            if (searchTerm) {
-                findQuery.
-                    select({ score: { $meta: "textScore" } })
-                    .sort({ score: { $meta: "textScore" } });
-            }
-            else {
-                findQuery.sort({ createdAt: -1 });
-            }
             const [data, total] = await Promise.all([
-                findQuery.skip(skip).limit(limit).lean(),
+                Location.find(query)
+                    .sort(sortCriteria)
+                    .skip(skip)
+                    .limit(limit)
+                    .lean(),
                 Location.countDocuments(query)
             ]);
             return {

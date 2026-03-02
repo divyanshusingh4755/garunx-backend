@@ -325,8 +325,8 @@ export const changePassword = async (req, res) => {
 };
 export const getGetAllUser = async (req, res) => {
     try {
-        const { limit, page, role, isComplete, isActive } = req.query;
-        const { users, pagination } = await AuthService.GetAllUsers(Number(page) || 1, Number(limit) || 40, role, isComplete === 'true' ? true : isComplete === 'false' ? false : undefined, isActive === 'true' ? true : isActive === 'false' ? false : undefined);
+        const { limit, page, role, isComplete, isActive, search, sortBy, sortOrder } = req.query;
+        const { users, pagination } = await AuthService.GetAllUsers(Number(page) || 1, Number(limit) || 40, role, isComplete === 'true' ? true : isComplete === 'false' ? false : undefined, isActive === 'true' ? true : isActive === 'false' ? false : undefined, search, sortBy || 'fullName', sortOrder || 'asc');
         res.status(200).json({
             success: true,
             data: users,

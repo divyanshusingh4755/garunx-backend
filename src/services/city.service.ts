@@ -36,10 +36,12 @@ export class CityService {
         stateFilter?: string,
         limit: number = 40,
         page: number = 1,
-        isActive?: boolean
+        isActive?: boolean,
+        sortBy: string = 'createdAt',
+        sortOrder: 'asc' | 'desc' = 'desc'
     ) {
         const skip = limit * (page - 1);
-        const query: QueryFilter<ICity> = {};
+        const query: any = {};
 
         if (typeof isActive === 'boolean') {
             query.isActive = isActive;
@@ -51,19 +53,22 @@ export class CityService {
         if (cityFilter) query.name = this.applyFilter(cityFilter); // Fixed field name
         if (stateFilter) (query as any).state = this.applyFilter(stateFilter);
 
+        // Sorting Logic
+        let sortCriteria: any = {}
+        if (searchTerm && sortBy === 'relevance') {
+            sortCriteria = { score: { $meta: "textScore" } }
+        } else {
+            sortCriteria[sortBy] = sortOrder === "desc" ? -1 : 1;
+            sortCriteria['createdAt'] = -1;
+        }
+
         try {
-            const findQuery = City.find(query);
-
-            if (searchTerm) {
-                findQuery
-                    .select({ score: { $meta: "textScore" } })
-                    .sort({ score: { $meta: "textScore" } });
-            } else {
-                findQuery.sort({ createdAt: -1 });
-            }
-
             const [data, total] = await Promise.all([
-                findQuery.skip(skip).limit(limit).lean(),
+                City.find(query)
+                    .sort(sortCriteria)
+                    .skip(skip)
+                    .limit(limit)
+                    .lean(),
                 City.countDocuments(query)
             ]);
 

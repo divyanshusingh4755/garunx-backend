@@ -11,7 +11,7 @@ export declare class CityService {
     } & {
         id: string;
     }>;
-    static FindCity(searchTerm?: string, cityFilter?: string, stateFilter?: string, limit?: number, page?: number, isActive?: boolean): Promise<{
+    static FindCity(searchTerm?: string, cityFilter?: string, stateFilter?: string, limit?: number, page?: number, isActive?: boolean, sortBy?: string, sortOrder?: 'asc' | 'desc'): Promise<{
         data: (ICity & Required<{
             _id: import("mongoose").Types.ObjectId;
         }> & {

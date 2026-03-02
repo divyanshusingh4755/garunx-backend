@@ -59,7 +59,9 @@ export const getAllLocation = async (req: Request, res: Response) => {
             pincodeFilter,
             limit,
             page,
-            isActive
+            isActive,
+            sortBy,
+            sortOrder
         } = req.query
 
         const { data, total, page: CurrentPage, totalPages } = await LocationService.FindLocation(
@@ -70,7 +72,9 @@ export const getAllLocation = async (req: Request, res: Response) => {
             pincodeFilter as string,
             Number(limit) || 40,
             Number(page) || 1,
-            isActive === 'true' ? true : isActive === 'false' ? false : undefined
+            isActive === 'true' ? true : isActive === 'false' ? false : undefined,
+            (sortBy as string) || 'name',
+            (sortOrder as 'asc' | 'desc') || 'asc'
         )
         res.status(200).json({ success: true, data, total, CurrentPage, totalPages })
     } catch (error: any) {

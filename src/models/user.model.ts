@@ -161,4 +161,22 @@ userSchema.index(
     { expireAfterSeconds: 86400, partialFilterExpression: { isOtpVerified: false } }
 );
 
+userSchema.index({ fullName: 1 });
+userSchema.index({ email: 1 });
+userSchema.index({ phoneNumber: 1 });
+userSchema.index({ role: 1, createdAt: -1 });
+
+userSchema.index({
+    fullName: "text",
+    email: "text",
+    phoneNumber: "text"
+}, {
+    weights: {
+        fullName: 10,
+        email: 5,
+        phoneNumber: 2
+    },
+    name: "UserSearchIndex"
+})
+
 export const User = model<IUser>('User', userSchema);

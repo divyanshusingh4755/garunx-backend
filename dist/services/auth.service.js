@@ -374,7 +374,7 @@ class AuthService {
         await Session.deleteMany({ userId: user._id });
         return { success: true, message: "Password updated sucessfully" };
     }
-    static async GetAllUsers(page = 1, limit = 40, role, isComplete, isActive) {
+    static async GetAllUsers(page = 1, limit = 40, role, isComplete, isActive, search, sortBy = 'createdAt', sortOrder = 'desc') {
         try {
             const skip = (page - 1) * limit;
             // Build a dynamic filter object
@@ -385,10 +385,21 @@ class AuthService {
                 filter.isComplete = isComplete;
             if (typeof isActive === 'boolean')
                 filter.isActive = isActive;
+            if (search)
+                filter.$text = { $search: search };
+            // Defined sort order
+            let sortCriteria = {};
+            if (search && sortBy === 'relevance') {
+                sortCriteria = { score: { $meta: 'textScore' } };
+            }
+            else {
+                sortCriteria[sortBy] = sortOrder === 'desc' ? -1 : 1;
+                sortCriteria['createdAt'] = -1;
+            }
             // Fetch data and count in parallel for better performance
             const [users, total] = await Promise.all([
                 User.find(filter)
-                    .sort({ createdAt: -1 })
+                    .sort(sortCriteria)
                     .skip(skip)
                     .limit(limit)
                     .lean(), // Use lean() for faster read-only queries

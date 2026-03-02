@@ -16,7 +16,7 @@ export class StateService {
         });
         return await newState.save();
     }
-    static async FindState(searchTerm, countryFilter, stateFilter, limit = 40, page = 1, isActive) {
+    static async FindState(searchTerm, countryFilter, stateFilter, limit = 40, page = 1, isActive, sortBy = 'createdAt', sortOrder = 'desc') {
         const skip = limit * (page - 1);
         const query = {};
         if (typeof isActive === 'boolean') {
@@ -25,25 +25,27 @@ export class StateService {
         else {
             query.isActive = { $ne: false };
         }
-        if (searchTerm) {
+        if (searchTerm)
             query.$text = { $search: searchTerm };
-        }
         if (countryFilter)
             query.country = this.applyFilter(countryFilter);
         if (stateFilter)
             query.state = this.applyFilter(stateFilter);
+        let sortCriteria = {};
+        if (searchTerm && sortBy === 'relevance') {
+            sortCriteria = { score: { $meta: 'textScore' } };
+        }
+        else {
+            sortCriteria[sortBy] = sortOrder === 'desc' ? -1 : 1;
+            sortCriteria['createdAt'] = -1;
+        }
         try {
-            const findQuery = State.find(query);
-            if (searchTerm) {
-                findQuery.
-                    select({ score: { $meta: "textScore" } })
-                    .sort({ score: { $meta: "textScore" } });
-            }
-            else {
-                findQuery.sort({ createdAt: -1 });
-            }
             const [data, total] = await Promise.all([
-                findQuery.skip(skip).limit(limit).lean(),
+                State.find(query)
+                    .sort(sortCriteria)
+                    .skip(skip)
+                    .limit(limit)
+                    .lean(),
                 State.countDocuments(query)
             ]);
             return {

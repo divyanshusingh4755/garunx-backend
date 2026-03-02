@@ -485,7 +485,10 @@ class AuthService {
         limit: number = 40,
         role?: Role,
         isComplete?: boolean,
-        isActive?: boolean
+        isActive?: boolean,
+        search?: string,
+        sortBy: string = 'createdAt',
+        sortOrder: 'asc' | 'desc' = 'desc'
     ) {
         try {
             const skip = (page - 1) * limit;
@@ -495,11 +498,22 @@ class AuthService {
             if (role) filter.role = role;
             if (typeof isComplete === 'boolean') filter.isComplete = isComplete;
             if (typeof isActive === 'boolean') filter.isActive = isActive;
+            if (search) filter.$text = { $search: search }
+
+            // Defined sort order
+            let sortCriteria: any = {}
+
+            if (search && sortBy === 'relevance') {
+                sortCriteria = { score: { $meta: 'textScore' } }
+            } else {
+                sortCriteria[sortBy] = sortOrder === 'desc' ? -1 : 1;
+                sortCriteria['createdAt'] = -1
+            }
 
             // Fetch data and count in parallel for better performance
             const [users, total] = await Promise.all([
                 User.find(filter)
-                    .sort({ createdAt: -1 })
+                    .sort(sortCriteria)
                     .skip(skip)
                     .limit(limit)
                     .lean(), // Use lean() for faster read-only queries

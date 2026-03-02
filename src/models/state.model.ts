@@ -24,6 +24,9 @@ const stateSchema = new Schema<IState>({
     }
 }, { timestamps: true });
 
+stateSchema.index({ state: 1 });
+stateSchema.index({ country: 1 });
+stateSchema.index({ createdAt: -1 });
 stateSchema.index({ location: '2dsphere' })
 stateSchema.index({ country: 1, state: 1 })
 stateSchema.index({

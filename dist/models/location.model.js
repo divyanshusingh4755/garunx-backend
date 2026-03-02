@@ -14,6 +14,10 @@ const locationSchema = new Schema({
         coordinates: { type: [Number] } // [Longitude, Latitude]
     }
 }, { timestamps: true });
+locationSchema.index({ name: 1 });
+locationSchema.index({ city: 1 });
+locationSchema.index({ pincode: 1 });
+locationSchema.index({ isActive: 1, createdAt: -1 });
 locationSchema.index({ location: '2dsphere', city: 1 });
 locationSchema.index({ country: 1, state: 1, city: 1, pincode: 1 });
 locationSchema.index({

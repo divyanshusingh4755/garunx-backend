@@ -84,5 +84,21 @@ userSchema.index({ phoneNumber: 1, role: 1 }, {
 userSchema.index({ referralCode: 1 }, { unique: true, sparse: true });
 // Cleanup unverified users after 24 hours
 userSchema.index({ createdAt: 1 }, { expireAfterSeconds: 86400, partialFilterExpression: { isOtpVerified: false } });
+userSchema.index({ fullName: 1 });
+userSchema.index({ email: 1 });
+userSchema.index({ phoneNumber: 1 });
+userSchema.index({ role: 1, createdAt: -1 });
+userSchema.index({
+    fullName: "text",
+    email: "text",
+    phoneNumber: "text"
+}, {
+    weights: {
+        fullName: 10,
+        email: 5,
+        phoneNumber: 2
+    },
+    name: "UserSearchIndex"
+});
 export const User = model('User', userSchema);
 //# sourceMappingURL=user.model.js.map
