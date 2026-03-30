@@ -1,6 +1,5 @@
 import type { Request, Response } from 'express';
 import { LocationService } from "../services/location.service.js"
-import { PricingSerive } from '../services/pricing.service.js';
 import { PackageService } from '../services/package.service.js';
 
 export const createLocation = async (req: Request, res: Response) => {
@@ -185,8 +184,7 @@ export const searchServicesByLocationDetails = async (req: Request, res: Respons
             })
         }
 
-        const [services, packages] = await Promise.all([
-            PricingSerive.fetchByLocation(finalLocationIds),
+        const [packages] = await Promise.all([
             PackageService.fetchByLocation(finalLocationIds)
         ])
 
@@ -194,7 +192,6 @@ export const searchServicesByLocationDetails = async (req: Request, res: Respons
             success: true,
             locationContext: query ? locationContext : "Using provided IDs",
             data: {
-                services,
                 packages
             }
         })

@@ -8,8 +8,8 @@ import locationRoutes from './routes/location.routes.js';
 import cityRoutes from './routes/city.routes.js';
 import stateRoutes from './routes/state.routes.js';
 import serviceRoutes from './routes/service.routes.js';
-import pricingRoutes from './routes/pricing.routes.js';
 import packageRoutes from './routes/package.routes.js';
+import productRoutes from './routes/product.routes.js';
 
 const app: Application = express()
 // Connect DB
@@ -50,8 +50,8 @@ app.use('/api/branding', brandingRoutes)
 app.use('/api/location', locationRoutes)
 app.use('/api/city', cityRoutes)
 app.use('/api/state', stateRoutes)
+app.use('/api/product', productRoutes)
 app.use('/api/service', serviceRoutes)
-app.use('/api/pricing', pricingRoutes)
 app.use('/api/package', packageRoutes)
 
 

@@ -3,9 +3,6 @@ export class PackageService {
     static async create(data) {
         try {
             data.isActive = true;
-            if (!data.includedServices || data.includedServices.length === 0) {
-                throw new Error("A package must include at least one service.");
-            }
             const newPackage = await Package.create(data);
             return await Package.findById(newPackage._id)
                 .populate('includedServices', 'name category')

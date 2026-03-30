@@ -1,5 +1,4 @@
 import { LocationService } from "../services/location.service.js";
-import { PricingSerive } from '../services/pricing.service.js';
 import { PackageService } from '../services/package.service.js';
 export const createLocation = async (req, res) => {
     try {
@@ -131,15 +130,13 @@ export const searchServicesByLocationDetails = async (req, res) => {
                 }
             });
         }
-        const [services, packages] = await Promise.all([
-            PricingSerive.fetchByLocation(finalLocationIds),
+        const [packages] = await Promise.all([
             PackageService.fetchByLocation(finalLocationIds)
         ]);
         res.status(200).json({
             success: true,
             locationContext: query ? locationContext : "Using provided IDs",
             data: {
-                services,
                 packages
             }
         });

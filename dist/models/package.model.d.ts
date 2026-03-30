@@ -1,16 +1,29 @@
-import { Schema } from "mongoose";
+import { Types, Document } from "mongoose";
+interface IPackageItem {
+    productId: Types.ObjectId;
+    variantTier: string;
+    quantity: number;
+}
+interface IPackagePrice {
+    location: string;
+    price: number;
+    originalPrice?: number;
+}
 export interface IPackage extends Document {
     name: string;
-    includedServices: Schema.Types.ObjectId[];
-    locationIds: Schema.Types.ObjectId[];
-    packagePrice: number;
+    description: string;
+    category: string;
+    items: IPackageItem[];
+    locationPrices: IPackagePrice[];
     isActive: boolean;
+    thumbnailImage: string;
 }
-export declare const Package: import("mongoose").Model<IPackage, {}, {}, {}, import("mongoose").Document<unknown, {}, IPackage, {}, import("mongoose").DefaultSchemaOptions> & IPackage & {
-    _id: import("mongoose").Types.ObjectId;
-} & {
+export declare const Package: import("mongoose").Model<IPackage, {}, {}, {}, Document<unknown, {}, IPackage, {}, import("mongoose").DefaultSchemaOptions> & IPackage & Required<{
+    _id: Types.ObjectId;
+}> & {
     __v: number;
 } & {
     id: string;
 }, any, IPackage>;
+export {};
 //# sourceMappingURL=package.model.d.ts.map
