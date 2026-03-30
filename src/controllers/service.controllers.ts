@@ -1,54 +1,217 @@
 import type { Request, Response } from 'express';
-import { RitualService } from '../services/ritual.service.js';
+import { ServiceService } from '../services/service.service.js';
 
 export const createService = async (req: Request, res: Response) => {
     try {
-        const service = await RitualService.create(req.body);
-        res.status(201).json({ success: true, data: service });
+        const service = await ServiceService.createService(req.body);
+
+        res.status(201).json({
+            success: true,
+            data: service
+        });
     } catch (error: any) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(400).json({
+            success: false,
+            message: error.message
+        });
     }
 };
 
 export const updateService = async (req: Request, res: Response) => {
     try {
-        const updated = await RitualService.update(req.params.id as string, req.body);
-        if (!updated) return res.status(404).json({ message: "Service not found" });
-        res.status(200).json({ success: true, data: updated });
-    } catch (error: any) {
-        res.status(500).json({ success: false, message: error.message });
-    }
-};
+        const { serviceId } = req.params;
 
-export const getServices = async (req: Request, res: Response) => {
-    try {
-        const { isActive, ...otherFilters } = req.query;
-        const filter: Record<string, any> = { ...otherFilters };
-        if (isActive === 'true') filter.isActive = true;
-        if (isActive === 'false') filter.isActive = false;
-        const services = await RitualService.findAll(filter);
-        res.status(200).json({ success: true, count: services.length, data: services });
-    } catch (error: any) {
-        res.status(500).json({ success: false, message: error.message });
-    }
-};
+        const service = await ServiceService.updateService(
+            serviceId as string,
+            req.body
+        );
 
-export const getServiceById = async (req: Request, res: Response) => {
-    try {
-        const service = await RitualService.findById(req.params.id as string);
-        if (!service) return res.status(404).json({ message: "Service not found" });
-        res.status(200).json({ success: true, data: service });
+        res.status(200).json({
+            success: true,
+            data: service
+        });
     } catch (error: any) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(400).json({
+            success: false,
+            message: error.message
+        });
     }
 };
 
 export const deleteService = async (req: Request, res: Response) => {
     try {
-        const deleted = await RitualService.remove(req.params.id as string);
-        if (!deleted) return res.status(404).json({ message: "Service not found" });
-        res.status(200).json({ success: true, message: "Service deleted successfully" });
+        const { serviceId } = req.params;
+
+        await ServiceService.deleteService(serviceId as string);
+
+        res.status(200).json({
+            success: true,
+            message: "Service deactivated successfully"
+        });
     } catch (error: any) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(400).json({
+            success: false,
+            message: error.message
+        });
     }
 };
+
+export const getServiceById = async (req: Request, res: Response) => {
+    try {
+        const { serviceId } = req.params;
+
+        const service = await ServiceService.getServiceById(serviceId as string);
+
+        res.status(200).json({
+            success: true,
+            data: service
+        });
+    } catch (error: any) {
+        res.status(400).json({
+            success: false,
+            message: error.message
+        });
+    }
+};
+
+export const addSubService = async (req: Request, res: Response) => {
+    try {
+        const { serviceId } = req.params
+
+        const service = await ServiceService.addSubService(
+            serviceId as string,
+            req.body
+        )
+
+        res.status(201).json({ success: true, data: service })
+    } catch (error: any) {
+        res.status(400).json({
+            success: false,
+            message: error.message
+        })
+    }
+}
+
+export const addProductsToSubService = async (req: Request, res: Response) => {
+    try {
+        const { serviceId, subServiceId } = req.params
+        const { productIds } = req.body;
+
+        const service = await ServiceService.addProductsToSubService(
+            serviceId as string,
+            subServiceId as string,
+            productIds
+        )
+
+        res.status(200).json({ success: true, data: service })
+    } catch (error: any) {
+        res.status(400).json({
+            success: false,
+            message: error.message
+        })
+    }
+}
+
+export const getServiceDetails = async (req: Request, res: Response) => {
+    try {
+        const { serviceId } = req.params;
+        const { location } = req.query;
+
+        const service = await ServiceService.getServiceWithProducts(
+            serviceId as string,
+            location as string
+        )
+
+        res.status(200).json({ success: true, data: service })
+    } catch (error: any) {
+        res.status(400).json({
+            success: false,
+            message: error.message
+        })
+    }
+}
+
+export const updateSubService = async (req: Request, res: Response) => {
+    try {
+        const { serviceId, subServiceId } = req.params
+
+        const service = await ServiceService.updateSubService(
+            serviceId as string,
+            subServiceId as string,
+            req.body
+        )
+
+        res.status(200).json({
+            success: true,
+            data: service
+        })
+    } catch (error: any) {
+        res.status(400).json({
+            success: false,
+            message: error.message
+        })
+    }
+}
+
+export const deleteSubService = async (req: Request, res: Response) => {
+    try {
+        const { serviceId, subServiceId } = req.params
+
+        const service = await ServiceService.deleteSubService(
+            serviceId as string,
+            subServiceId as string
+        )
+
+        res.status(200).json({
+            success: true,
+            data: service
+        })
+    } catch (error: any) {
+        res.status(400).json({
+            success: false,
+            message: error.message
+        })
+    }
+}
+
+export const removeProductFromSubService = async (req: Request, res: Response) => {
+    try {
+        const { serviceId, subServiceId, productId } = req.params;
+
+        const service = await ServiceService.removeProductFromSubService(
+            serviceId as string,
+            subServiceId as string,
+            productId as string
+        )
+
+        res.status(200).json({
+            success: true,
+            data: service
+        })
+    } catch (error: any) {
+        res.status(400).json({
+            success: false,
+            message: error.message
+        })
+    }
+}
+
+export const getAllServices = async (req: Request, res: Response) => {
+    try {
+        const { location } = req.query;
+
+        const services = await ServiceService.getAllService(
+            location as string
+        )
+
+        res.status(200).json({
+            success: true,
+            data: services
+        })
+    } catch (error: any) {
+        res.status(400).json({
+            success: false,
+            message: error.message
+        })
+    }
+}

@@ -92,7 +92,7 @@ export class ProductService {
         const product = await Product.findById(productId).lean();
         if (!product)
             throw new Error("Product not found");
-        const filteredVariants = product.variants.filter(v => v.location === location);
+        const filteredVariants = product.variants.filter((v) => v.location === location);
         return {
             ...product,
             variants: filteredVariants

@@ -142,7 +142,7 @@ export class ProductService {
 		if(!product) throw new Error("Product not found")
 
 		const filteredVariants = product.variants.filter(
-			v => v.location === location
+			(v: any) => v.location === location
 			);
 
 	return {

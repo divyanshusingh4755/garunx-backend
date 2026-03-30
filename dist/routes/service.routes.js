@@ -1,31 +1,81 @@
-import { Router } from 'express';
-import { authenticate } from '../middleware/authenticate.js';
-import { body, validationResult } from 'express-validator';
-import { createService, deleteService, getServiceById, getServices, updateService } from '../controllers/service.controllers.js';
+import { Router } from "express";
+import { body, param, query, validationResult } from "express-validator";
+import { addSubService, updateSubService, deleteSubService, addProductsToSubService, removeProductFromSubService, getServiceDetails, getAllServices, createService, updateService, deleteService, getServiceById, } from "../controllers/service.controllers.js";
+import { authenticate } from "../middleware/authenticate.js";
 const router = Router();
-const serviceValidation = [
-    body('name').notEmpty().withMessage("Service name is required").trim(),
-    body('description').notEmpty().withMessage("Description is required").trim(),
-    body('category').notEmpty().withMessage("Category (e.g. Puja, Astrology) is required").trim(),
-    body('image').optional().isURL().withMessage("Image must be a valid URL"),
-    body('isActive').optional().isBoolean(),
-    (req, res, next) => {
-        const errors = validationResult(req);
-        if (!errors.isEmpty()) {
-            const firstError = errors.array()[0];
-            return res.status(400).json({
-                success: false,
-                message: firstError?.msg,
-                error: firstError
-            });
-        }
-        next();
+const validate = (req, res, next) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+        const firstError = errors.array()[0];
+        return res.status(400).json({
+            success: false,
+            message: firstError?.msg,
+            error: firstError
+        });
     }
+    next();
+};
+const serviceIdValidation = [
+    param("serviceId")
+        .isMongoId().withMessage("Invalid service ID"),
+    validate
 ];
-router.post('/create-service', authenticate, serviceValidation, createService);
-router.patch('/update-service/:id', authenticate, serviceValidation, updateService);
-router.get('/get-all-services', getServices);
-router.get('/:id', getServiceById);
-router.delete('/:id', authenticate, deleteService);
+const subServiceIdValidation = [
+    param("subServiceId")
+        .isMongoId().withMessage("Invalid subService ID"),
+    validate
+];
+const productIdValidation = [
+    param("productId")
+        .isMongoId().withMessage("Invalid product ID"),
+    validate
+];
+const subServiceValidation = [
+    body("name")
+        .notEmpty().withMessage("SubService name is required"),
+    body("slug")
+        .notEmpty().withMessage("Slug is required")
+        .isString().trim(),
+    body("description")
+        .optional()
+        .isString(),
+    body("displayOrder")
+        .optional()
+        .isInt({ min: 0 }).withMessage("Display order must be >= 0"),
+    validate
+];
+const addProductsValidation = [
+    body("productIds")
+        .isArray({ min: 1 })
+        .withMessage("productIds must be a non-empty array"),
+    body("productIds.*")
+        .isMongoId()
+        .withMessage("Each productId must be valid"),
+    validate
+];
+const locationQueryValidation = [
+    query("location")
+        .notEmpty().withMessage("Location is required"),
+    validate
+];
+const serviceValidation = [
+    body("name").notEmpty().withMessage("Name is required"),
+    body("locations").isArray({ min: 1 }).withMessage("Locations required"),
+    body("category").notEmpty().withMessage("Category required"),
+    body("shortDescription").notEmpty(),
+    body("fullDescription").notEmpty(),
+    validate
+];
+router.get("/", getAllServices);
+router.get("/:serviceId", serviceIdValidation, locationQueryValidation, getServiceDetails);
+router.post("/", authenticate, serviceValidation, createService);
+router.put("/:serviceId", authenticate, serviceIdValidation, updateService);
+router.delete("/:serviceId", authenticate, serviceIdValidation, deleteService);
+router.get("/get-service-by-id/:serviceId", authenticate, serviceIdValidation, getServiceById);
+router.post("/:serviceId/subservices", authenticate, serviceIdValidation, subServiceValidation, addSubService);
+router.put("/:serviceId/subservices/:subServiceId", authenticate, serviceIdValidation, subServiceIdValidation, updateSubService);
+router.delete("/:serviceId/subservices/:subServiceId", authenticate, serviceIdValidation, subServiceIdValidation, deleteSubService);
+router.post("/:serviceId/subservices/:subServiceId/products", authenticate, serviceIdValidation, subServiceIdValidation, addProductsValidation, addProductsToSubService);
+router.delete("/:serviceId/subservices/:subServiceId/products/:productId", authenticate, serviceIdValidation, subServiceIdValidation, productIdValidation, removeProductFromSubService);
 export default router;
 //# sourceMappingURL=service.routes.js.map
