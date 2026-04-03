@@ -10,6 +10,7 @@ import stateRoutes from './routes/state.routes.js';
 import serviceRoutes from './routes/service.routes.js';
 import packageRoutes from './routes/package.routes.js';
 import productRoutes from './routes/product.routes.js';
+import categoryRoutes from './routes/category.routes.js';
 
 const app: Application = express()
 // Connect DB
@@ -53,6 +54,7 @@ app.use('/api/state', stateRoutes)
 app.use('/api/product', productRoutes)
 app.use('/api/service', serviceRoutes)
 app.use('/api/package', packageRoutes)
+app.use('/api/category', categoryRoutes)
 
 
 // Routes
