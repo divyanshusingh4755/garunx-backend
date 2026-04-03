@@ -1,22 +1,30 @@
 import { Types, Document } from "mongoose";
 interface IPackageItem {
     productId: Types.ObjectId;
-    variantTier: string;
+    variantSelection?: {
+        tier?: string;
+    };
+    isOptional?: boolean;
+    isEditable?: boolean;
     quantity: number;
-}
-interface IPackagePrice {
-    location: string;
-    price: number;
-    originalPrice?: number;
 }
 export interface IPackage extends Document {
     name: string;
-    description: string;
-    category: string;
+    slug: string;
+    description?: string;
+    applicableServices?: Types.ObjectId[];
+    locations?: string[];
     items: IPackageItem[];
-    locationPrices: IPackagePrice[];
+    pricing: {
+        type: "DERIVED" | "FIXED";
+        fixedPrice?: number;
+        discountPercentage?: number;
+    };
+    displayOrder?: number;
     isActive: boolean;
-    thumbnailImage: string;
+    createdBy?: Types.ObjectId;
+    version: number;
+    isDeleted: boolean;
 }
 export declare const Package: import("mongoose").Model<IPackage, {}, {}, {}, Document<unknown, {}, IPackage, {}, import("mongoose").DefaultSchemaOptions> & IPackage & Required<{
     _id: Types.ObjectId;
