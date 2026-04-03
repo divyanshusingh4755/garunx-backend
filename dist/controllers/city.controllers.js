@@ -28,14 +28,11 @@ export const updateCity = async (req, res) => {
 export const getAllCity = async (req, res) => {
     try {
         const { searchTerm, stateFilter, cityFilter, limit, page, isActive, sortBy, sortOrder } = req.query;
-        const { data, total, page: CurrentPage, totalPages } = await CityService.FindCity(searchTerm, stateFilter, cityFilter, Number(limit) || 40, Number(page) || 1, isActive === 'true' ? true : isActive === 'false' ? false : undefined, sortBy || 'city', sortOrder || 'asc');
+        const { data, total, page: CurrentPage, totalPages } = await CityService.FindCity(searchTerm, cityFilter, stateFilter, Number(limit) || 40, Number(page) || 1, isActive === 'true' ? true : isActive === 'false' ? false : undefined, sortBy || 'city', sortOrder || 'asc');
         res.status(200).json({ success: true, data, total, CurrentPage, totalPages });
     }
     catch (error) {
-        res.status(error.message === "City not found" ? 404 : 400).json({
-            success: false,
-            message: error.message
-        });
+        res.status(400).json({ success: false, message: error.message });
     }
 };
 export const getCityById = async (req, res) => {

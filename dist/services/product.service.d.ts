@@ -22,22 +22,15 @@ export declare class ProductService {
     }> & {
         __v: number;
     }>;
-    static getAllProducts(page: number | undefined, limit: number | undefined, filters: {
-        categoryName?: string;
-        location?: string;
-        tier?: string;
-    }): Promise<{
-        products: (IProduct & Required<{
+    static FindProducts(searchTerm?: string, categoryFilter?: string, locationFilter?: string, tierFilter?: string, limit?: number, page?: number, isRemovable?: boolean, sortBy?: string, sortOrder?: 'asc' | 'desc'): Promise<{
+        data: (IProduct & Required<{
             _id: import("mongoose").Types.ObjectId;
         }> & {
             __v: number;
         })[];
-        pagination: {
-            total: number;
-            page: number;
-            limit: number;
-            pages: number;
-        };
+        total: number;
+        page: number;
+        totalPages: number;
     }>;
     static addVariant(productId: string, variant: {
         location: string;
@@ -71,7 +64,6 @@ export declare class ProductService {
         isRemovable: boolean;
         categoryName: string;
         description: string;
-        unit: string;
         imageUrl?: string;
         adminNotes?: string;
         _id: import("mongoose").Types.ObjectId;

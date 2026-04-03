@@ -1,4 +1,4 @@
-import mongoose from 'mongoose';
+import mongoose, { Types } from 'mongoose';
 import { Service, type IService } from '../models/service.model.js';
 import { Product } from '../models/product.model.js';
 
@@ -110,16 +110,15 @@ export class ServiceService {
         subServiceId: string,
         productIds: string[]
     ) {
-
         const products = await Product.find({
             _id: { $in: productIds }
-        }).select("_id categoryName");
+        }).select("_id");
 
         if (products.length !== productIds.length) {
             throw new Error("Some products do not exist");
         }
 
-        const objectIds = productIds.map(id => new mongoose.Types.ObjectId(id));
+        const objectIds = productIds.map(id => new (Types.ObjectId as any)(id));
 
         const service = await Service.findOneAndUpdate(
             {
@@ -132,9 +131,9 @@ export class ServiceService {
                 }
             },
             { new: true }
-        );
+        ).populate('subServices.productIds'); // Optional: return populated products
 
-        if (!service) throw new Error("SubService not found")
+        if (!service) throw new Error("Service or SubService not found");
 
         return service;
     }
@@ -151,15 +150,17 @@ export class ServiceService {
             },
             {
                 $pull: {
-                    "subServices.$.productIds": new mongoose.Types.ObjectId(productId)
+                    "subServices.$.productIds": productId
                 }
             },
             { new: true }
-        )
+        ).populate('subServices.productIds');
 
-        if (!service) throw new Error("SubService not found")
+        if (!service) {
+            throw new Error("Service or SubService not found");
+        }
 
-        return service
+        return service;
     }
 
     static async getServiceWithProducts(serviceId: string, location: string) {
@@ -191,17 +192,54 @@ export class ServiceService {
         }
     }
 
-    static async getAllService(location?: string) {
-        const query: any = { isActive: true };
+    static async FindServices(
+        searchTerm?: string,
+        locationFilter?: string,
+        categoryFilter?: string,
+        limit: number = 20,
+        page: number = 1,
+        isActive: boolean = true,
+        sortBy: string = 'createdAt',
+        sortOrder: 'asc' | 'desc' = 'desc'
+    ) {
+        const skip = (page - 1) * limit;
+        const query: any = { isActive };
 
-        if (location) {
-            query.locations = location
+        if (searchTerm) query.$text = { $search: searchTerm };
+        if (locationFilter) query.locations = locationFilter;
+        if (categoryFilter) query.category = categoryFilter;
+
+        let sortCriteria: any = {};
+        let projection: any = {};
+
+        if (searchTerm && sortBy === 'relevance') {
+            projection = { score: { $meta: "textScore" } };
+            sortCriteria = { score: { $meta: "textScore" } };
+        } else {
+            sortCriteria[sortBy] = sortOrder === "desc" ? -1 : 1;
+            if (sortBy !== 'createdAt') sortCriteria['createdAt'] = -1;
         }
 
-        const services = await Service.find(query)
-            .select("name shortDescription thumbnailImage locations")
-            .lean();
+        try {
+            const [data, total] = await Promise.all([
+                Service.find(query, projection)
+                    .select("name shortDescription thumbnailImage locations category isActive")
+                    .sort(sortCriteria)
+                    .skip(skip)
+                    .limit(limit)
+                    .lean(),
+                Service.countDocuments(query)
+            ]);
 
-        return services
+            return {
+                data,
+                total,
+                page,
+                totalPages: Math.ceil(total / limit)
+            };
+        } catch (error: any) {
+            throw new Error(`Service fetch failed: ${error.message}`);
+        }
     }
+
 };

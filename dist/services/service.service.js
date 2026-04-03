@@ -1,4 +1,4 @@
-import mongoose from 'mongoose';
+import mongoose, { Types } from 'mongoose';
 import { Service } from '../models/service.model.js';
 import { Product } from '../models/product.model.js';
 export class ServiceService {
@@ -65,11 +65,11 @@ export class ServiceService {
     static async addProductsToSubService(serviceId, subServiceId, productIds) {
         const products = await Product.find({
             _id: { $in: productIds }
-        }).select("_id categoryName");
+        }).select("_id");
         if (products.length !== productIds.length) {
             throw new Error("Some products do not exist");
         }
-        const objectIds = productIds.map(id => new mongoose.Types.ObjectId(id));
+        const objectIds = productIds.map(id => new Types.ObjectId(id));
         const service = await Service.findOneAndUpdate({
             _id: serviceId,
             "subServices._id": subServiceId
@@ -77,9 +77,9 @@ export class ServiceService {
             $addToSet: {
                 "subServices.$.productIds": { $each: objectIds }
             }
-        }, { new: true });
+        }, { new: true }).populate('subServices.productIds'); // Optional: return populated products
         if (!service)
-            throw new Error("SubService not found");
+            throw new Error("Service or SubService not found");
         return service;
     }
     static async removeProductFromSubService(serviceId, subServiceId, productId) {
@@ -88,11 +88,12 @@ export class ServiceService {
             "subServices._id": subServiceId
         }, {
             $pull: {
-                "subServices.$.productIds": new mongoose.Types.ObjectId(productId)
+                "subServices.$.productIds": productId
             }
-        }, { new: true });
-        if (!service)
-            throw new Error("SubService not found");
+        }, { new: true }).populate('subServices.productIds');
+        if (!service) {
+            throw new Error("Service or SubService not found");
+        }
         return service;
     }
     static async getServiceWithProducts(serviceId, location) {
@@ -119,15 +120,46 @@ export class ServiceService {
             subServices: updatedSubServices
         };
     }
-    static async getAllService(location) {
-        const query = { isActive: true };
-        if (location) {
-            query.locations = location;
+    static async FindServices(searchTerm, locationFilter, categoryFilter, limit = 20, page = 1, isActive = true, sortBy = 'createdAt', sortOrder = 'desc') {
+        const skip = (page - 1) * limit;
+        const query = { isActive };
+        if (searchTerm)
+            query.$text = { $search: searchTerm };
+        if (locationFilter)
+            query.locations = locationFilter;
+        if (categoryFilter)
+            query.category = categoryFilter;
+        let sortCriteria = {};
+        let projection = {};
+        if (searchTerm && sortBy === 'relevance') {
+            projection = { score: { $meta: "textScore" } };
+            sortCriteria = { score: { $meta: "textScore" } };
         }
-        const services = await Service.find(query)
-            .select("name shortDescription thumbnailImage locations")
-            .lean();
-        return services;
+        else {
+            sortCriteria[sortBy] = sortOrder === "desc" ? -1 : 1;
+            if (sortBy !== 'createdAt')
+                sortCriteria['createdAt'] = -1;
+        }
+        try {
+            const [data, total] = await Promise.all([
+                Service.find(query, projection)
+                    .select("name shortDescription thumbnailImage locations category isActive")
+                    .sort(sortCriteria)
+                    .skip(skip)
+                    .limit(limit)
+                    .lean(),
+                Service.countDocuments(query)
+            ]);
+            return {
+                data,
+                total,
+                page,
+                totalPages: Math.ceil(total / limit)
+            };
+        }
+        catch (error) {
+            throw new Error(`Service fetch failed: ${error.message}`);
+        }
     }
 }
 ;

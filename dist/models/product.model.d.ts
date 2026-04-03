@@ -10,7 +10,6 @@ export interface IProduct extends Document {
     isRemovable: boolean;
     categoryName: string;
     description: string;
-    unit: string;
     imageUrl?: string;
     adminNotes?: string;
     variants: IVariant[];

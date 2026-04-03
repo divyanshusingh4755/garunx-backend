@@ -1,20 +1,20 @@
-import type {Request, Response} from "express";
-import {ProductService} from "../services/product.service.js"
+import type { Request, Response } from "express";
+import { ProductService } from "../services/product.service.js"
 
-export const createProduct = async(req: Request, res: Response) => {
-	try{
-		const product = await ProductService.createProduct(req.body);
+export const createProduct = async (req: Request, res: Response) => {
+    try {
+        const product = await ProductService.createProduct(req.body);
 
-		res.status(201).json({
-			success: true,
-			data: product
-		})
-	}catch(error: any){
-		res.status(400).json({
-			success: false,
-			message: error.message || "Failed to create product"
-		})
-	}
+        res.status(201).json({
+            success: true,
+            data: product
+        })
+    } catch (error: any) {
+        res.status(400).json({
+            success: false,
+            message: error.message || "Failed to create product"
+        })
+    }
 }
 
 export const updateProduct = async (req: Request, res: Response) => {
@@ -74,26 +74,35 @@ export const getProductById = async (req: Request, res: Response) => {
 export const getAllProducts = async (req: Request, res: Response) => {
     try {
         const {
-            page = 1,
-            limit = 20,
+            searchTerm,
             categoryName,
             location,
-            tier
+            tier,
+            limit,
+            page,
+            isRemovable,
+            sortBy,
+            sortOrder
         } = req.query;
 
-        const data = await ProductService.getAllProducts(
-            Number(page),
-            Number(limit),
-            {
-                categoryName: categoryName as string,
-                location: location as string,
-                tier: tier as string
-            }
+        const { data, total, page: CurrentPage, totalPages } = await ProductService.FindProducts(
+            searchTerm as string,
+            categoryName as string,
+            location as string,
+            tier as string,
+            Number(limit) || 20,
+            Number(page) || 1,
+            isRemovable === 'true' ? true : isRemovable === 'false' ? false : undefined,
+            (sortBy as string) || 'name',
+            (sortOrder as 'asc' | 'desc') || 'asc'
         );
 
         res.status(200).json({
             success: true,
-            ...data
+            data,
+            total,
+            CurrentPage,
+            totalPages
         });
     } catch (error: any) {
         res.status(400).json({

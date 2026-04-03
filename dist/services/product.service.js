@@ -35,34 +35,50 @@ export class ProductService {
             throw new Error("Product not found");
         return product;
     }
-    static async getAllProducts(page = 1, limit = 20, filters) {
+    static async FindProducts(searchTerm, categoryFilter, locationFilter, tierFilter, limit = 20, page = 1, isRemovable, sortBy = 'createdAt', sortOrder = 'desc') {
         const skip = (page - 1) * limit;
         const query = {};
-        if (filters.categoryName) {
-            query.categoryName = filters.categoryName;
+        if (typeof isRemovable === 'boolean') {
+            query.isRemovable = isRemovable;
         }
-        if (filters.location) {
-            query["variants.location"] = filters.location;
+        if (searchTerm)
+            query.$text = { $search: searchTerm };
+        if (categoryFilter)
+            query.categoryName = categoryFilter;
+        if (locationFilter)
+            query["variants.location"] = locationFilter;
+        if (tierFilter)
+            query["variants.tier"] = tierFilter;
+        let sortCriteria = {};
+        let projection = {};
+        if (searchTerm && sortBy === 'relevance') {
+            projection = { score: { $meta: "textScore" } };
+            sortCriteria = { score: { $meta: "textScore" } };
         }
-        if (filters.tier) {
-            query["variants.tier"] = filters.tier;
+        else {
+            sortCriteria[sortBy] = sortOrder === "desc" ? -1 : 1;
+            if (sortBy !== 'createdAt')
+                sortCriteria['createdAt'] = -1;
         }
-        const [products, total] = await Promise.all([
-            Product.find(query)
-                .skip(skip)
-                .limit(limit)
-                .lean(),
-            Product.countDocuments(query)
-        ]);
-        return {
-            products,
-            pagination: {
+        try {
+            const [data, total] = await Promise.all([
+                Product.find(query, projection)
+                    .sort(sortCriteria)
+                    .skip(skip)
+                    .limit(limit)
+                    .lean(),
+                Product.countDocuments(query)
+            ]);
+            return {
+                data,
                 total,
                 page,
-                limit,
-                pages: Math.ceil(total / limit)
-            }
-        };
+                totalPages: Math.ceil(total / limit)
+            };
+        }
+        catch (error) {
+            throw new Error(`Product fetch failed: ${error.message}`);
+        }
     }
     static async addVariant(productId, variant) {
         const product = await Product.findByIdAndUpdate(productId, { $push: { variants: variant } }, { new: true, runValidators: true });

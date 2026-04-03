@@ -198,20 +198,39 @@ export const removeProductFromSubService = async (req: Request, res: Response) =
 
 export const getAllServices = async (req: Request, res: Response) => {
     try {
-        const { location } = req.query;
+        const {
+            searchTerm,
+            location,
+            category,
+            limit,
+            page,
+            isActive,
+            sortBy,
+            sortOrder
+        } = req.query;
 
-        const services = await ServiceService.getAllService(
-            location as string
-        )
+        const { data, total, page: CurrentPage, totalPages } = await ServiceService.FindServices(
+            searchTerm as string,
+            location as string,
+            category as string,
+            Number(limit) || 20,
+            Number(page) || 1,
+            isActive === 'false' ? false : true, // Default to true for services
+            (sortBy as string) || 'name',
+            (sortOrder as 'asc' | 'desc') || 'asc'
+        );
 
         res.status(200).json({
             success: true,
-            data: services
-        })
+            data,
+            total,
+            CurrentPage,
+            totalPages
+        });
     } catch (error: any) {
         res.status(400).json({
             success: false,
-            message: error.message
-        })
+            message: error.message || "Failed to fetch services"
+        });
     }
-}
+};

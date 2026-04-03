@@ -12,7 +12,6 @@ export interface IProduct extends Document {
     isRemovable: boolean;
     categoryName: string;
     description: string;
-    unit: string;   // e.g: "per person", "per event"
     imageUrl?: string;
     adminNotes?: string;
     variants: IVariant[];
@@ -23,7 +22,6 @@ const productSchema = new Schema<IProduct>({
     isRemovable: {type: Boolean, default: true},
     categoryName: {type: String, required: true},
     description: {type: String, required: true},
-    unit: {type: String, default: "per event"},
     imageUrl: {type: String},
     adminNotes: {type: String},
     variants: [{
@@ -36,5 +34,13 @@ const productSchema = new Schema<IProduct>({
 
 productSchema.index({"variants.location": 1})
 productSchema.index({ categoryName: 1 });
+
+productSchema.index({
+    name: 'text',
+    categoryName: 'text',
+    description: 'text'
+}, { name: 'ProductTextSearchIndex' });
+
+productSchema.index({ isRemovable: 1, createdAt: -1 });
 
 export const Product = model<IProduct>('Product', productSchema)

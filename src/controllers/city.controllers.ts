@@ -50,26 +50,24 @@ export const getAllCity = async (req: Request, res: Response) => {
             isActive,
             sortBy,
             sortOrder
-        } = req.query
+        } = req.query;
 
         const { data, total, page: CurrentPage, totalPages } = await CityService.FindCity(
             searchTerm as string,
-            stateFilter as string,
             cityFilter as string,
+            stateFilter as string,
             Number(limit) || 40,
             Number(page) || 1,
             isActive === 'true' ? true : isActive === 'false' ? false : undefined,
             (sortBy as string) || 'city',
             (sortOrder as 'asc' | 'desc') || 'asc'
-        )
-        res.status(200).json({ success: true, data, total, CurrentPage, totalPages })
+        );
+        
+        res.status(200).json({ success: true, data, total, CurrentPage, totalPages });
     } catch (error: any) {
-        res.status(error.message === "City not found" ? 404 : 400).json({
-            success: false,
-            message: error.message
-        })
+        res.status(400).json({ success: false, message: error.message });
     }
-}
+};
 
 export const getCityById = async (req: Request, res: Response) => {
     try {

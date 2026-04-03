@@ -32,28 +32,29 @@ export class StateService {
         if (stateFilter)
             query.state = this.applyFilter(stateFilter);
         let sortCriteria = {};
+        let projection = {};
         if (searchTerm && sortBy === 'relevance') {
+            projection = { score: { $meta: 'textScore' } };
             sortCriteria = { score: { $meta: 'textScore' } };
         }
         else {
             sortCriteria[sortBy] = sortOrder === 'desc' ? -1 : 1;
-            sortCriteria['createdAt'] = -1;
+            if (sortBy !== 'createdAt')
+                sortCriteria['createdAt'] = -1;
         }
         try {
             const [data, total] = await Promise.all([
-                State.find(query)
+                State.find(query, projection)
                     .sort(sortCriteria)
                     .skip(skip)
                     .limit(limit)
                     .lean(),
                 State.countDocuments(query)
             ]);
-            return {
-                data, total, page, totalPages: Math.ceil(total / limit)
-            };
+            return { data, total, page, totalPages: Math.ceil(total / limit) };
         }
         catch (error) {
-            throw new Error(`State fetched failed: ${error.message}`);
+            throw new Error(`State fetch failed: ${error.message}`);
         }
     }
     static async updateState(stateId, updateData) {

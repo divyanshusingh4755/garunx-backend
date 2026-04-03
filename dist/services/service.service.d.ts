@@ -1,29 +1,29 @@
-import mongoose from 'mongoose';
+import mongoose, { Types } from 'mongoose';
 import { type IService } from '../models/service.model.js';
 export declare class ServiceService {
     static createService(payload: Partial<IService>): Promise<mongoose.Document<unknown, {}, IService, {}, mongoose.DefaultSchemaOptions> & IService & Required<{
-        _id: mongoose.Types.ObjectId;
+        _id: Types.ObjectId;
     }> & {
         __v: number;
     } & {
         id: string;
     }>;
     static updateService(serviceId: string, updateData: any): Promise<mongoose.Document<unknown, {}, IService, {}, mongoose.DefaultSchemaOptions> & IService & Required<{
-        _id: mongoose.Types.ObjectId;
+        _id: Types.ObjectId;
     }> & {
         __v: number;
     } & {
         id: string;
     }>;
     static deleteService(serviceId: string): Promise<mongoose.Document<unknown, {}, IService, {}, mongoose.DefaultSchemaOptions> & IService & Required<{
-        _id: mongoose.Types.ObjectId;
+        _id: Types.ObjectId;
     }> & {
         __v: number;
     } & {
         id: string;
     }>;
     static getServiceById(serviceId: string): Promise<IService & Required<{
-        _id: mongoose.Types.ObjectId;
+        _id: Types.ObjectId;
     }> & {
         __v: number;
     }>;
@@ -33,35 +33,35 @@ export declare class ServiceService {
         description?: string;
         displayOrder?: number;
     }): Promise<mongoose.Document<unknown, {}, IService, {}, mongoose.DefaultSchemaOptions> & IService & Required<{
-        _id: mongoose.Types.ObjectId;
+        _id: Types.ObjectId;
     }> & {
         __v: number;
     } & {
         id: string;
     }>;
     static updateSubService(serviceId: string, subServiceId: string, updateData: any): Promise<mongoose.Document<unknown, {}, IService, {}, mongoose.DefaultSchemaOptions> & IService & Required<{
-        _id: mongoose.Types.ObjectId;
+        _id: Types.ObjectId;
     }> & {
         __v: number;
     } & {
         id: string;
     }>;
     static deleteSubService(serviceId: string, subServiceId: string): Promise<mongoose.Document<unknown, {}, IService, {}, mongoose.DefaultSchemaOptions> & IService & Required<{
-        _id: mongoose.Types.ObjectId;
+        _id: Types.ObjectId;
     }> & {
         __v: number;
     } & {
         id: string;
     }>;
     static addProductsToSubService(serviceId: string, subServiceId: string, productIds: string[]): Promise<mongoose.Document<unknown, {}, IService, {}, mongoose.DefaultSchemaOptions> & IService & Required<{
-        _id: mongoose.Types.ObjectId;
+        _id: Types.ObjectId;
     }> & {
         __v: number;
     } & {
         id: string;
     }>;
     static removeProductFromSubService(serviceId: string, subServiceId: string, productId: string): Promise<mongoose.Document<unknown, {}, IService, {}, mongoose.DefaultSchemaOptions> & IService & Required<{
-        _id: mongoose.Types.ObjectId;
+        _id: Types.ObjectId;
     }> & {
         __v: number;
     } & {
@@ -83,7 +83,7 @@ export declare class ServiceService {
         thumbnailImage?: string;
         bannerImage?: string;
         isActive: boolean;
-        _id: mongoose.Types.ObjectId;
+        _id: Types.ObjectId;
         $locals: Record<string, unknown>;
         $op: "save" | "validate" | "remove" | null;
         $where: Record<string, unknown>;
@@ -95,10 +95,15 @@ export declare class ServiceService {
         schema: mongoose.Schema;
         __v: number;
     }>;
-    static getAllService(location?: string): Promise<(IService & Required<{
-        _id: mongoose.Types.ObjectId;
-    }> & {
-        __v: number;
-    })[]>;
+    static FindServices(searchTerm?: string, locationFilter?: string, categoryFilter?: string, limit?: number, page?: number, isActive?: boolean, sortBy?: string, sortOrder?: 'asc' | 'desc'): Promise<{
+        data: (IService & Required<{
+            _id: Types.ObjectId;
+        }> & {
+            __v: number;
+        })[];
+        total: number;
+        page: number;
+        totalPages: number;
+    }>;
 }
 //# sourceMappingURL=service.service.d.ts.map

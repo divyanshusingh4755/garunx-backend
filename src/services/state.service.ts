@@ -49,31 +49,33 @@ export class StateService {
         }
 
         if (searchTerm) query.$text = { $search: searchTerm };
-        if (countryFilter) (query as any).country = this.applyFilter(countryFilter);
-        if (stateFilter) (query as any).state = this.applyFilter(stateFilter);
+        if (countryFilter) query.country = this.applyFilter(countryFilter);
+        if (stateFilter) query.state = this.applyFilter(stateFilter);
 
-        let sortCriteria: any = {}
+        let sortCriteria: any = {};
+        let projection: any = {};
+
         if (searchTerm && sortBy === 'relevance') {
-            sortCriteria = { score: { $meta: 'textScore' } }
+            projection = { score: { $meta: 'textScore' } };
+            sortCriteria = { score: { $meta: 'textScore' } };
         } else {
             sortCriteria[sortBy] = sortOrder === 'desc' ? -1 : 1;
-            sortCriteria['createdAt'] = -1
+            if (sortBy !== 'createdAt') sortCriteria['createdAt'] = -1;
         }
+
         try {
             const [data, total] = await Promise.all([
-                State.find(query)
+                State.find(query, projection)
                     .sort(sortCriteria)
                     .skip(skip)
                     .limit(limit)
                     .lean(),
                 State.countDocuments(query)
-            ])
+            ]);
 
-            return {
-                data, total, page, totalPages: Math.ceil(total / limit)
-            }
+            return { data, total, page, totalPages: Math.ceil(total / limit) };
         } catch (error: any) {
-            throw new Error(`State fetched failed: ${error.message}`)
+            throw new Error(`State fetch failed: ${error.message}`);
         }
     }
 

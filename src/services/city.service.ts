@@ -40,31 +40,37 @@ export class CityService {
         sortBy: string = 'createdAt',
         sortOrder: 'asc' | 'desc' = 'desc'
     ) {
-        const skip = limit * (page - 1);
+        const skip = (page - 1) * limit;
         const query: any = {};
 
+        // Handle Active Status
         if (typeof isActive === 'boolean') {
             query.isActive = isActive;
         } else {
             query.isActive = { $ne: false };
         }
 
+        // Filters (Fixed field name to 'city')
         if (searchTerm) query.$text = { $search: searchTerm };
-        if (cityFilter) query.name = this.applyFilter(cityFilter); // Fixed field name
-        if (stateFilter) (query as any).state = this.applyFilter(stateFilter);
+        if (cityFilter) query.city = this.applyFilter(cityFilter);
+        if (stateFilter) query.state = this.applyFilter(stateFilter);
 
-        // Sorting Logic
-        let sortCriteria: any = {}
+        // Sorting and Projection
+        let sortCriteria: any = {};
+        let projection: any = {};
+
         if (searchTerm && sortBy === 'relevance') {
-            sortCriteria = { score: { $meta: "textScore" } }
+            projection = { score: { $meta: "textScore" } };
+            sortCriteria = { score: { $meta: "textScore" } };
         } else {
             sortCriteria[sortBy] = sortOrder === "desc" ? -1 : 1;
-            sortCriteria['createdAt'] = -1;
+            // Secondary sort for consistency
+            if (sortBy !== 'createdAt') sortCriteria['createdAt'] = -1;
         }
 
         try {
             const [data, total] = await Promise.all([
-                City.find(query)
+                City.find(query, projection)
                     .sort(sortCriteria)
                     .skip(skip)
                     .limit(limit)

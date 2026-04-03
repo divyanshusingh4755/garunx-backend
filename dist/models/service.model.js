@@ -19,5 +19,12 @@ const serviceSchema = new Schema({
         }],
     isActive: { type: Boolean, default: true }
 }, { timestamps: true });
+serviceSchema.index({
+    name: 'text',
+    shortDescription: 'text',
+    category: 'text'
+}, { name: 'ServiceTextSearchIndex' });
+serviceSchema.index({ isActive: 1, category: 1 });
+serviceSchema.index({ locations: 1 });
 export const Service = model('Service', serviceSchema);
 //# sourceMappingURL=service.model.js.map

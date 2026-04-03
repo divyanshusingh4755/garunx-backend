@@ -54,14 +54,14 @@ export const getAllState = async (req: Request, res: Response) => {
 
         const { data, total, page: CurrentPage, totalPages } = await StateService.FindState(
             searchTerm as string,
-            stateFilter as string,
             countryFilter as string,
+            stateFilter as string,
             Number(limit) || 40,
             Number(page) || 1,
             isActive === 'true' ? true : isActive === 'false' ? false : undefined,
             (sortBy as string) || 'state',
             (sortOrder as 'asc' | 'desc') || 'asc'
-        )
+        );
         res.status(200).json({ success: true, data, total, CurrentPage, totalPages })
     } catch (error: any) {
         res.status(error.message === "State not found" ? 404 : 400).json({

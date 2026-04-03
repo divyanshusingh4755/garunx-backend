@@ -17,32 +17,38 @@ export class CityService {
         return await newCity.save();
     }
     static async FindCity(searchTerm, cityFilter, stateFilter, limit = 40, page = 1, isActive, sortBy = 'createdAt', sortOrder = 'desc') {
-        const skip = limit * (page - 1);
+        const skip = (page - 1) * limit;
         const query = {};
+        // Handle Active Status
         if (typeof isActive === 'boolean') {
             query.isActive = isActive;
         }
         else {
             query.isActive = { $ne: false };
         }
+        // Filters (Fixed field name to 'city')
         if (searchTerm)
             query.$text = { $search: searchTerm };
         if (cityFilter)
-            query.name = this.applyFilter(cityFilter); // Fixed field name
+            query.city = this.applyFilter(cityFilter);
         if (stateFilter)
             query.state = this.applyFilter(stateFilter);
-        // Sorting Logic
+        // Sorting and Projection
         let sortCriteria = {};
+        let projection = {};
         if (searchTerm && sortBy === 'relevance') {
+            projection = { score: { $meta: "textScore" } };
             sortCriteria = { score: { $meta: "textScore" } };
         }
         else {
             sortCriteria[sortBy] = sortOrder === "desc" ? -1 : 1;
-            sortCriteria['createdAt'] = -1;
+            // Secondary sort for consistency
+            if (sortBy !== 'createdAt')
+                sortCriteria['createdAt'] = -1;
         }
         try {
             const [data, total] = await Promise.all([
-                City.find(query)
+                City.find(query, projection)
                     .sort(sortCriteria)
                     .skip(skip)
                     .limit(limit)

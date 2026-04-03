@@ -28,7 +28,7 @@ export const updateState = async (req, res) => {
 export const getAllState = async (req, res) => {
     try {
         const { searchTerm, stateFilter, countryFilter, limit, page, isActive, sortBy, sortOrder } = req.query;
-        const { data, total, page: CurrentPage, totalPages } = await StateService.FindState(searchTerm, stateFilter, countryFilter, Number(limit) || 40, Number(page) || 1, isActive === 'true' ? true : isActive === 'false' ? false : undefined, sortBy || 'state', sortOrder || 'asc');
+        const { data, total, page: CurrentPage, totalPages } = await StateService.FindState(searchTerm, countryFilter, stateFilter, Number(limit) || 40, Number(page) || 1, isActive === 'true' ? true : isActive === 'false' ? false : undefined, sortBy || 'state', sortOrder || 'asc');
         res.status(200).json({ success: true, data, total, CurrentPage, totalPages });
     }
     catch (error) {
