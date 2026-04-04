@@ -130,15 +130,10 @@ export const searchServicesByLocationDetails = async (req, res) => {
                 }
             });
         }
-        const [packages] = await Promise.all([
-            PackageService.fetchByLocation(finalLocationIds)
-        ]);
         res.status(200).json({
             success: true,
             locationContext: query ? locationContext : "Using provided IDs",
-            data: {
-                packages
-            }
+            data: {}
         });
     }
     catch (error) {

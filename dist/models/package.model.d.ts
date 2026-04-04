@@ -1,20 +1,14 @@
 import { Types, Document } from "mongoose";
-interface IPackageItem {
-    productId: Types.ObjectId;
-    variantSelection?: {
-        tier?: string;
-    };
-    isOptional?: boolean;
-    isEditable?: boolean;
-    quantity: number;
+interface IPackageService {
+    serviceId: Types.ObjectId;
+    displayOrder?: number;
 }
 export interface IPackage extends Document {
     name: string;
     slug: string;
     description?: string;
-    applicableServices?: Types.ObjectId[];
+    services: IPackageService[];
     locations?: string[];
-    items: IPackageItem[];
     pricing: {
         type: "DERIVED" | "FIXED";
         fixedPrice?: number;

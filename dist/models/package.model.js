@@ -1,31 +1,4 @@
 import { model, Schema, Types, Document } from "mongoose";
-const packageItemSchema = new Schema({
-    productId: {
-        type: Schema.Types.ObjectId,
-        ref: 'Product',
-        required: true
-    },
-    quantity: {
-        type: Number,
-        required: true,
-        min: 1,
-        default: 1
-    },
-    variantSelection: {
-        tier: {
-            type: String,
-            trim: true
-        }
-    },
-    isOptional: {
-        type: Boolean,
-        default: false
-    },
-    isEditable: {
-        type: Boolean,
-        default: true
-    }
-}, { _id: false });
 const packageSchema = new Schema({
     name: {
         type: String,
@@ -36,33 +9,27 @@ const packageSchema = new Schema({
         type: String,
         required: true,
         lowercase: true,
-        trim: true
+        trim: true,
+        unique: true
     },
     description: {
         type: String
     },
-    applicableServices: [{
-            type: Schema.Types.ObjectId,
-            ref: "Service",
-            index: true
+    services: [{
+            serviceId: {
+                type: Schema.Types.ObjectId,
+                ref: "Service",
+                required: true
+            },
+            displayOrder: {
+                type: Number,
+                default: 0
+            }
         }],
     locations: [{
             type: String,
             index: true
         }],
-    items: {
-        type: [packageItemSchema],
-        validate: {
-            validator: function (items) {
-                if (!items || items.length === 0)
-                    return false;
-                // Prevent duplicate productIds
-                const ids = items.map(i => i.productId.toString());
-                return new Set(ids).size === ids.length;
-            },
-            message: "Package must have  unique products and at least one item"
-        }
-    },
     pricing: {
         type: {
             type: String,
@@ -102,13 +69,17 @@ const packageSchema = new Schema({
         ref: "User"
     }
 }, { timestamps: true });
-packageSchema.index({ slug: 1, applicableServices: 1 }, { unique: true });
+packageSchema.index({ slug: 1 }, { unique: true });
 packageSchema.index({
-    applicableServices: 1,
+    "services.serviceId": 1,
     locations: 1,
     isActive: 1,
     isDeleted: 1,
     displayOrder: 1
+});
+packageSchema.index({
+    name: "text",
+    description: "text"
 });
 packageSchema.pre("save", async function () {
     if (this.pricing.type === "FIXED") {
@@ -119,6 +90,10 @@ packageSchema.pre("save", async function () {
     }
     if (this.pricing.type === "DERIVED") {
         delete this.pricing.fixedPrice;
+    }
+    const serviceIds = this.services.map(s => s.serviceId.toString());
+    if (new Set(serviceIds).size !== serviceIds.length) {
+        throw new Error("Duplicate services are not allowed in package");
     }
 });
 export const Package = model('Package', packageSchema);

@@ -1,31 +1,97 @@
 import { Router } from "express";
-import { body, validationResult } from "express-validator";
+import { body, param, query, validationResult } from "express-validator";
+import { createPackage, updatePackage, getPackageDetails, deletePackage, updatePackageStatus, getPackageById, getPackages } from "../controllers/package.controllers.js";
 import { authenticate } from "../middleware/authenticate.js";
-import { createPackage, getAllPackages, getPacakgeById, getPacakgesByLocation, togglePackageStatus, updatePackage } from "../controllers/package.controllers.js";
 const router = Router();
-const packageValidation = [
-    body('name').notEmpty().withMessage("Package name is required").trim(),
-    body('includedServices').isArray({ min: 1 }).withMessage("At least one services must be included"),
-    body('locationIds').isArray({ min: 1 }).withMessage("Invalid Location ID"),
-    body("packagePrice").isNumeric().withMessage("Price must be a number"),
-    (req, res, next) => {
-        const errors = validationResult(req);
-        if (!errors.isEmpty()) {
-            const firstError = errors.array()[0];
-            return res.status(400).json({
-                success: false,
-                message: firstError?.msg,
-                error: firstError
-            });
-        }
-        next();
+const validate = (req, res, next) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+        const firstError = errors.array()[0];
+        return res.status(400).json({
+            success: false,
+            message: firstError?.msg,
+            error: firstError
+        });
     }
+    next();
+};
+const packageIdValidation = [
+    param("id")
+        .isMongoId()
+        .withMessage("Invalid package ID"),
+    validate
 ];
-router.get('/get-all-packages', getAllPackages);
-router.post('/create-package', authenticate, packageValidation, createPackage);
-router.patch('/update-package/:id', authenticate, packageValidation, updatePackage);
-router.get('/location/:locationId', getPacakgesByLocation);
-router.get('/get-package/:id', getPacakgeById);
-router.patch('/delete-package/:id', togglePackageStatus);
+const packageValidation = [
+    body("name")
+        .notEmpty().withMessage("Package name is required"),
+    body("slug")
+        .notEmpty().withMessage("Slug is required")
+        .isString().trim(),
+    body("services")
+        .isArray({ min: 1 })
+        .withMessage("At least one service is required"),
+    body("services.*.serviceId")
+        .isMongoId()
+        .withMessage("Invalid service ID"),
+    body("services.*.displayOrder")
+        .optional()
+        .isInt({ min: 0 })
+        .withMessage("displayOrder must be >= 0"),
+    body("locations")
+        .optional()
+        .isArray()
+        .withMessage("Locations must be an array"),
+    body("pricing.type")
+        .isIn(["DERIVED", "FIXED"])
+        .withMessage("Invalid pricing type"),
+    body("pricing.fixedPrice")
+        .optional()
+        .isFloat({ min: 0 })
+        .withMessage("Fixed price must be >= 0"),
+    validate
+];
+const statusValidation = [
+    body("isActive")
+        .isBoolean()
+        .withMessage("isActive must be boolean"),
+    validate
+];
+const packageQueryValidation = [
+    query("serviceId")
+        .optional()
+        .isMongoId()
+        .withMessage("Invalid serviceId"),
+    query("location")
+        .optional()
+        .isString(),
+    query("page")
+        .optional()
+        .isInt({ min: 1 }),
+    query("limit")
+        .optional()
+        .isInt({ min: 1 }),
+    validate
+];
+const adminQueryValidation = [
+    query("search").optional().isString(),
+    query("isActive")
+        .optional()
+        .isBoolean()
+        .withMessage("isActive must be boolean"),
+    query("page")
+        .optional()
+        .isInt({ min: 1 }),
+    query("limit")
+        .optional()
+        .isInt({ min: 1 }),
+    validate
+];
+router.get("/", packageQueryValidation, getPackages);
+router.get("/:id/details", packageIdValidation, getPackageDetails);
+router.post("/", authenticate, packageValidation, createPackage);
+router.patch("/:id", authenticate, packageIdValidation, packageValidation, updatePackage);
+router.delete("/:id", authenticate, packageIdValidation, deletePackage);
+router.patch("/:id/status", authenticate, packageIdValidation, statusValidation, updatePackageStatus);
+router.get("/:id", authenticate, packageIdValidation, getPackageById);
 export default router;
 //# sourceMappingURL=package.routes.js.map

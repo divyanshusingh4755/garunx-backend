@@ -1,79 +1,155 @@
-import type { Request, Response } from "express"
-import { PackageService } from "../services/package.service.js"
+import type { Request, Response } from "express";
+import {PackageService} from "../services/package.service.js";
 
 export const createPackage = async (req: Request, res: Response) => {
     try {
-        const newPackage = await PackageService.create(req.body);
-        res.status(201).json({ success: true, data: newPackage })
-    } catch (error: any) {
-        res.status(500).json({ success: false, message: error.message })
-    }
-}
+        const pkg = await PackageService.createPackage(req.body);
 
-export const getPacakgesByLocation = async (req: Request, res: Response) => {
-    try {
-        const { locationId } = req.params
-        const packages = await PackageService.fetchByLocation(locationId);
-        res.status(200).json({ success: true, count: packages.length, data: packages })
+        res.status(201).json({
+            success: true,
+            data: pkg
+        });
     } catch (error: any) {
-        res.status(500).json({ success: false, message: error.message })
+        res.status(400).json({
+            success: false,
+            message: error.message || "Failed to create package"
+        });
     }
-}
-
-export const getPacakgeById = async (req: Request, res: Response) => {
-    try {
-        const packages = await PackageService.findById(req.params.id as string);
-        res.status(200).json({ success: true, data: packages })
-    } catch (error: any) {
-        res.status(500).json({ success: false, message: error.message })
-    }
-}
+};
 
 export const updatePackage = async (req: Request, res: Response) => {
     try {
-        const updated = await PackageService.update(req.params.id as string, req.body);
-        if (!updated) return res.status(404).json({ message: "Package not found" })
-        res.status(201).json({ success: true, data: updated })
-    } catch (error: any) {
-        res.status(500).json({ success: false, message: error.message })
-    }
-}
+        const { id } = req.params;
 
-export const togglePackageStatus = async (req: Request, res: Response) => {
-    try {
-        const { id } = req.params
-        const { status } = req.body;
-
-        if (typeof status !== 'boolean') {
-            return res.status(400).json({
-                success: false,
-                message: "Status must be a boolean (true/false)"
-            })
-        }
-
-        const updated = await PackageService.toggleStatus(id as string, status);
-
-        if (!updated) return res.status(404).json({ message: "Package not found" })
+        const pkg = await PackageService.updatePackage(
+            id as string,
+            req.body
+        );
 
         res.status(200).json({
             success: true,
-            message: `Package ${status ? 'activated' : 'deactivated'} successfully`,
-            data: updated
-        })
+            data: pkg
+        });
     } catch (error: any) {
-        res.status(500).json({ success: false, message: error.message })
+        res.status(400).json({
+            success: false,
+            message: error.message || "Failed to update package"
+        });
     }
-}
+};
 
-export const getAllPackages = async (req: Request, res: Response) => {
+export const getPackageDetails = async (req: Request, res: Response) => {
     try {
-        const { isActive, ...otherFilters } = req.query;
-        const filter: Record<string, any> = { ...otherFilters };
-        if (isActive === 'true') filter.isActive = true;
-        if (isActive === 'false') filter.isActive = false;
-        const packages = await PackageService.getAllPackages(filter);
-        return res.status(200).json({ success: true, data: packages })
+        const { id } = req.params;
+        const { location } = req.query;
+
+        const pkg = await PackageService.getPackageDetails(
+            id as string,
+            location as string
+        );
+
+        res.status(200).json({
+            success: true,
+            data: pkg
+        });
     } catch (error: any) {
-        res.status(500).json({ success: false, message: error.message })
+        res.status(400).json({
+            success: false,
+            message: error.message || "Failed to fetch package details"
+        });
     }
-}
+};
+
+export const getPackageById = async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+
+        const pkg = await PackageService.getPackageById(id as string);
+
+        res.status(200).json({
+            success: true,
+            data: pkg
+        });
+    } catch (error: any) {
+        res.status(404).json({
+            success: false,
+            message: error.message || "Package not found"
+        });
+    }
+};
+
+export const deletePackage = async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+
+        await PackageService.deletePackage(id as string);
+
+        res.status(200).json({
+            success: true,
+            message: "Package deleted successfully"
+        });
+    } catch (error: any) {
+        res.status(400).json({
+            success: false,
+            message: error.message || "Failed to delete package"
+        });
+    }
+};
+
+export const updatePackageStatus = async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+        const { isActive } = req.body;
+
+        const pkg = await PackageService.updatePackageStatus(
+            id as string,
+            isActive
+        );
+
+        res.status(200).json({
+            success: true,
+            data: pkg
+        });
+    } catch (error: any) {
+        res.status(400).json({
+            success: false,
+            message: error.message || "Failed to update package status"
+        });
+    }
+};
+
+export const getPackages = async (req: Request, res: Response) => {
+    try {
+        const {
+            page,
+            limit,
+            isActive,
+            search,
+            serviceId,
+            location,
+            sortBy,
+            sortOrder
+        } = req.query;
+
+        const result = await PackageService.getPackages({
+            page: Number(page) || 1,
+            limit: Number(limit) || 20,
+            isActive: isActive !== undefined ? isActive === "true" : true,
+            search: search as string,
+            serviceId: serviceId as string,
+            location: location as string,
+            sortBy: (sortBy as string) || "displayOrder",
+            sortOrder: (sortOrder as "asc" | "desc") || "asc"
+        });
+
+        res.status(200).json({
+            success: true,
+            ...result
+        });
+    } catch (error: any) {
+        res.status(400).json({
+            success: false,
+            message: error.message || "Failed to fetch packages"
+        });
+    }
+};
