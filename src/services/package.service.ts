@@ -17,7 +17,7 @@ export class PackageService {
             _id: { $in: objectIds }
         })
 
-        if (Service.length !== objectIds.length) {
+        if (services.length !== objectIds.length) {
             throw new Error("One or more services are invalid")
         }
 
@@ -33,7 +33,7 @@ export class PackageService {
         name: string;
         slug: string;
         description?: string;
-        services: string[];
+        services: { serviceId: string; displayOrder: number }[];
         locations?: string[];
         pricing?: {
             type?: "DERIVED" | "FIXED";
@@ -57,7 +57,8 @@ export class PackageService {
             throw new Error("Package with this slug already exists")
         }
 
-        const validatedServices = await this.validateServices(services);
+        const serviceIds = services.map(s => s.serviceId);
+        const validatedServices = await this.validateServices(serviceIds);
 
         const servicePayload = validatedServices.map((s, index) => ({
             serviceId: s._id,
@@ -108,17 +109,29 @@ export class PackageService {
         let updatedServices = existing.services;
 
         if (updateData.services) {
-            const validated = await this.validateServices(updateData.services)
+            const incomingServiceIds = (updateData.services as any).map((s: any) =>
+                typeof s === 'string' ? s : s.serviceId
+            );
+
+            const validated = await this.validateServices(incomingServiceIds);
+
             const newServiceIds = validated.map(s => s._id.toString()).sort();
             const oldServiceIds = existing.services.map(s => s.serviceId.toString()).sort();
 
             if (JSON.stringify(newServiceIds) !== JSON.stringify(oldServiceIds)) {
-                shouldIncrementVersion = true
+                shouldIncrementVersion = true;
 
-                updatedServices = validated.map((s, index) => ({
-                    serviceId: s._id,
-                    displayOrder: index
-                }))
+                // 3. Map back to the required schema structure
+                updatedServices = validated.map((s, index) => {
+                    // Find the original displayOrder if provided, otherwise use index
+                    const original = (updateData.services as any).find((income: any) =>
+                        (income.serviceId || income) === s._id.toString()
+                    );
+                    return {
+                        serviceId: s._id,
+                        displayOrder: original?.displayOrder ?? index
+                    };
+                });
             }
         }
 

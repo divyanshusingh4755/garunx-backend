@@ -100,13 +100,15 @@ const packageSchema = new Schema<IPackage>({
 }, { timestamps: true })
 
 packageSchema.index({ slug: 1 }, { unique: true });
+
 packageSchema.index({
-    "services.serviceId": 1,
     locations: 1,
     isActive: 1,
     isDeleted: 1,
     displayOrder: 1
 });
+
+packageSchema.index({ "services.serviceId": 1 });
 
 packageSchema.index({
     name: "text",

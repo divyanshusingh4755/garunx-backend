@@ -11,7 +11,7 @@ export class PackageService {
         const services = await Service.find({
             _id: { $in: objectIds }
         });
-        if (Service.length !== objectIds.length) {
+        if (services.length !== objectIds.length) {
             throw new Error("One or more services are invalid");
         }
         const inactive = services.find(s => !s.isActive);
@@ -26,7 +26,8 @@ export class PackageService {
         if (existing) {
             throw new Error("Package with this slug already exists");
         }
-        const validatedServices = await this.validateServices(services);
+        const serviceIds = services.map(s => s.serviceId);
+        const validatedServices = await this.validateServices(serviceIds);
         const servicePayload = validatedServices.map((s, index) => ({
             serviceId: s._id,
             displayOrder: index
@@ -55,15 +56,21 @@ export class PackageService {
         let shouldIncrementVersion = false;
         let updatedServices = existing.services;
         if (updateData.services) {
-            const validated = await this.validateServices(updateData.services);
+            const incomingServiceIds = updateData.services.map((s) => typeof s === 'string' ? s : s.serviceId);
+            const validated = await this.validateServices(incomingServiceIds);
             const newServiceIds = validated.map(s => s._id.toString()).sort();
             const oldServiceIds = existing.services.map(s => s.serviceId.toString()).sort();
             if (JSON.stringify(newServiceIds) !== JSON.stringify(oldServiceIds)) {
                 shouldIncrementVersion = true;
-                updatedServices = validated.map((s, index) => ({
-                    serviceId: s._id,
-                    displayOrder: index
-                }));
+                // 3. Map back to the required schema structure
+                updatedServices = validated.map((s, index) => {
+                    // Find the original displayOrder if provided, otherwise use index
+                    const original = updateData.services.find((income) => (income.serviceId || income) === s._id.toString());
+                    return {
+                        serviceId: s._id,
+                        displayOrder: original?.displayOrder ?? index
+                    };
+                });
             }
         }
         if (updateData.locations) {

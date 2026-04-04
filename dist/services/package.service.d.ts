@@ -11,7 +11,10 @@ export declare class PackageService {
         name: string;
         slug: string;
         description?: string;
-        services: string[];
+        services: {
+            serviceId: string;
+            displayOrder: number;
+        }[];
         locations?: string[];
         pricing?: {
             type?: "DERIVED" | "FIXED";
