@@ -1,5 +1,6 @@
-import { Document } from "mongoose";
+import { Document, Types } from "mongoose";
 export interface IVariant {
+    _id: Types.ObjectId;
     location: string;
     tier: string;
     price: number;
@@ -15,7 +16,7 @@ export interface IProduct extends Document {
     variants: IVariant[];
 }
 export declare const Product: import("mongoose").Model<IProduct, {}, {}, {}, Document<unknown, {}, IProduct, {}, import("mongoose").DefaultSchemaOptions> & IProduct & Required<{
-    _id: import("mongoose").Types.ObjectId;
+    _id: Types.ObjectId;
 }> & {
     __v: number;
 } & {

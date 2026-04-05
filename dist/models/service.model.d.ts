@@ -4,7 +4,7 @@ interface ISubService {
     slug: string;
     description?: string;
     displayOrder: number;
-    productIds: Types.ObjectId[];
+    variantIds: Types.ObjectId[];
 }
 export interface IService extends Document {
     name: string;

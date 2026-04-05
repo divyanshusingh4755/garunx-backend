@@ -1,4 +1,4 @@
-import { model, Schema, Document } from "mongoose";
+import { model, Schema, Document, Types } from "mongoose";
 const productSchema = new Schema({
     name: { type: String, required: true, trim: true },
     isRemovable: { type: Boolean, default: true },

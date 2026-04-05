@@ -95,12 +95,12 @@ export const addSubService = async (req: Request, res: Response) => {
 export const addProductsToSubService = async (req: Request, res: Response) => {
     try {
         const { serviceId, subServiceId } = req.params
-        const { productIds } = req.body;
+        const { variantIds } = req.body;
 
         const service = await ServiceService.addProductsToSubService(
             serviceId as string,
             subServiceId as string,
-            productIds
+            variantIds
         )
 
         res.status(200).json({ success: true, data: service })
@@ -232,5 +232,41 @@ export const getAllServices = async (req: Request, res: Response) => {
             success: false,
             message: error.message || "Failed to fetch services"
         });
+    }
+}
+
+export const getFilteredServices = async (req: Request, res: Response) => {
+    try {
+        const { category, location, page, limit } = req.query;
+
+        if (!category || !location) {
+            return res.status(400).json({
+                success: false,
+                message: "Both category and location are required filters."
+            });
+        }
+
+        const pageNum = parseInt(page as string) || 1;
+        const limitNum = parseInt(limit as string) || 10;
+
+        const { services, total } = await ServiceService.getServicesByFilters(
+            category as string | string[],
+            location as string | string[],
+            pageNum,
+            limitNum
+        );
+
+        return res.status(200).json({
+            success: true,
+            pagination: {
+                total,
+                page: pageNum,
+                limit: limitNum,
+                totalPages: Math.ceil(total / limitNum)
+            },
+            data: services
+        });
+    } catch (error: any) {
+        return res.status(500).json({ success: false, message: error.message });
     }
 };

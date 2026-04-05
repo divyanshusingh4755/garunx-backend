@@ -53,7 +53,7 @@ export declare class ServiceService {
     } & {
         id: string;
     }>;
-    static addProductsToSubService(serviceId: string, subServiceId: string, productIds: string[]): Promise<mongoose.Document<unknown, {}, IService, {}, mongoose.DefaultSchemaOptions> & IService & Required<{
+    static addProductsToSubService(serviceId: string, subServiceId: string, variantIds: string[]): Promise<mongoose.Document<unknown, {}, IService, {}, mongoose.DefaultSchemaOptions> & IService & Required<{
         _id: Types.ObjectId;
     }> & {
         __v: number;
@@ -69,11 +69,12 @@ export declare class ServiceService {
     }>;
     static getServiceWithProducts(serviceId: string, location: string): Promise<{
         subServices: {
-            productIds: any[];
+            products: any[];
             name: string;
             slug: string;
             description?: string;
             displayOrder: number;
+            variantIds: Types.ObjectId[];
         }[];
         name: string;
         locations: string[];
@@ -104,6 +105,10 @@ export declare class ServiceService {
         total: number;
         page: number;
         totalPages: number;
+    }>;
+    static getServicesByFilters(categories: string | string[], locations: string | string[], page?: number, limit?: number): Promise<{
+        services: IService[];
+        total: number;
     }>;
 }
 //# sourceMappingURL=service.service.d.ts.map

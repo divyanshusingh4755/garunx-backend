@@ -5,7 +5,7 @@ interface ISubService {
     slug: string;
     description?: string;
     displayOrder: number;
-    productIds: Types.ObjectId[];
+    variantIds: Types.ObjectId[];
 }
 
 export interface IService extends Document {
@@ -36,7 +36,7 @@ const serviceSchema = new Schema<IService>({
         slug: { type: String, required: true },
         description: String,
         displayOrder: {type: Number, default: 0},
-        productIds: [{type: Schema.Types.ObjectId, ref: 'Product'}]
+        variantIds: [{ type: Schema.Types.ObjectId, ref: 'Product' }],
     }],
     isActive: { type: Boolean, default: true }
 }, { timestamps: true })

@@ -10,4 +10,5 @@ export declare const updateSubService: (req: Request, res: Response) => Promise<
 export declare const deleteSubService: (req: Request, res: Response) => Promise<void>;
 export declare const removeProductFromSubService: (req: Request, res: Response) => Promise<void>;
 export declare const getAllServices: (req: Request, res: Response) => Promise<void>;
+export declare const getFilteredServices: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
 //# sourceMappingURL=service.controllers.d.ts.map

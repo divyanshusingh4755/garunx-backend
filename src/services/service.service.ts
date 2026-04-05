@@ -108,17 +108,18 @@ export class ServiceService {
     static async addProductsToSubService(
         serviceId: string,
         subServiceId: string,
-        productIds: string[]
+        variantIds: string[]
     ) {
         const products = await Product.find({
-            _id: { $in: productIds }
-        }).select("_id");
+            "variants._id": { $in: variantIds }
+        }).select("variants._id");
 
-        if (products.length !== productIds.length) {
-            throw new Error("Some products do not exist");
+        const existingVariantIds = products.flatMap(p => p.variants.map(v => v._id.toString()));
+        const allExists = variantIds.every(id => existingVariantIds.includes(id));
+
+        if (!allExists) {
+            throw new Error("Some variants do not exist");
         }
-
-        const objectIds = productIds.map(id => new (Types.ObjectId as any)(id));
 
         const service = await Service.findOneAndUpdate(
             {
@@ -127,11 +128,11 @@ export class ServiceService {
             },
             {
                 $addToSet: {
-                    "subServices.$.productIds": { $each: objectIds }
+                    "subServices.$.variantIds": { $each: variantIds }
                 }
             },
             { new: true }
-        ).populate('subServices.productIds'); // Optional: return populated products
+        );
 
         if (!service) throw new Error("Service or SubService not found");
 
@@ -150,11 +151,11 @@ export class ServiceService {
             },
             {
                 $pull: {
-                    "subServices.$.productIds": productId
+                    "subServices.$.variantIds": productId
                 }
             },
             { new: true }
-        ).populate('subServices.productIds');
+        ).populate('subServices.variantIds');
 
         if (!service) {
             throw new Error("Service or SubService not found");
@@ -164,32 +165,45 @@ export class ServiceService {
     }
 
     static async getServiceWithProducts(serviceId: string, location: string) {
-        const service = await Service.findById(serviceId)
-            .populate({
-                path: "subServices.productIds",
-                model: "Product"
-            })
-            .lean()
-
+        const service = await Service.findById(serviceId).lean();
         if (!service) throw new Error("Service not found");
 
-        // Filter variants by location
-        const updatedSubServices = service.subServices.map(sub => ({
-            ...sub,
-            productIds: sub.productIds
-                .map((product: any) => ({
-                    ...product,
-                    variants: product.variants.filter(
-                        (v: any) => v.location === location
-                    )
-                }))
-                .filter((product: any) => product.variants.length > 0)
-        }))
+        const allVariantIds = service.subServices.flatMap(sub => sub.variantIds);
+
+        const products = await Product.find({
+            "variants._id": { $in: allVariantIds },
+            "variants.location": location
+        }).lean();
+
+        const updatedSubServices = service.subServices.map(sub => {
+            const matchedProducts: any[] = [];
+
+            products.forEach(product => {
+                const subServiceVariants = product.variants.filter(v =>
+                    sub.variantIds.some(vid => vid.toString() === v._id.toString()) &&
+                    v.location === location
+                );
+
+                if (subServiceVariants.length > 0) {
+                    matchedProducts.push({
+                        _id: product._id,
+                        name: product.name,
+                        categoryName: product.categoryName,
+                        variants: subServiceVariants
+                    });
+                }
+            });
+
+            return {
+                ...sub,
+                products: matchedProducts
+            };
+        }).filter(sub => sub.products.length > 0);
 
         return {
             ...service,
             subServices: updatedSubServices
-        }
+        };
     }
 
     static async FindServices(
@@ -241,5 +255,36 @@ export class ServiceService {
             throw new Error(`Service fetch failed: ${error.message}`);
         }
     }
+
+    static async getServicesByFilters(
+        categories: string | string[],
+        locations: string | string[],
+        page: number = 1,
+        limit: number = 10
+    ): Promise<{ services: IService[]; total: number }> {
+        const categoryFilter = Array.isArray(categories) ? categories : [categories];
+        const locationFilter = Array.isArray(locations) ? locations : [locations];
+
+        const skip = (page - 1) * limit;
+
+        const query = {
+            category: { $in: categoryFilter },
+            locations: { $in: locationFilter },
+            isActive: true
+        };
+
+        const [services, total] = await Promise.all([
+            Service.find(query)
+                .select("-subServices.variantIds")
+                .sort({ createdAt: -1 })
+                .skip(skip)
+                .limit(limit)
+                .lean(),
+            Service.countDocuments(query)
+        ]);
+
+        return { services, total };
+    }
+
 
 };

@@ -56,6 +56,7 @@ export declare class PackageService {
                 slug: string;
                 description?: string;
                 displayOrder: number;
+                variantIds: Types.ObjectId[];
             }[];
             name: string;
             locations: string[];

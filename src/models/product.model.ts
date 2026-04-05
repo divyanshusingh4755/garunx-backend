@@ -1,6 +1,7 @@
-import { model, Schema, Document } from "mongoose";
+import { model, Schema, Document, Types } from "mongoose";
 
 export interface IVariant {
+    _id: Types.ObjectId;
     location: string;
     tier: string;
     price: number;

@@ -13,6 +13,7 @@ import {
     updateService,
     deleteService,
     getServiceById,
+    getFilteredServices
 } from "../controllers/service.controllers.js";
 
 import { authenticate } from "../middleware/authenticate.js";
@@ -70,11 +71,11 @@ const subServiceValidation = [
 ];
 
 const addProductsValidation = [
-    body("productIds")
+    body("variantIds")
         .isArray({ min: 1 })
-        .withMessage("productIds must be a non-empty array"),
+        .withMessage("variantIds must be a non-empty array"),
 
-    body("productIds.*")
+    body("variantIds.*")
         .isMongoId()
         .withMessage("Each productId must be valid"),
 
@@ -98,6 +99,7 @@ const serviceValidation = [
 
 router.get("/", getAllServices);
 router.get("/:serviceId", serviceIdValidation, locationQueryValidation, getServiceDetails);
+router.get('/filter', getFilteredServices);
 router.post("/", authenticate, serviceValidation, createService);
 router.put("/:serviceId", authenticate, serviceIdValidation, updateService);
 router.delete("/:serviceId", authenticate, serviceIdValidation, deleteService);

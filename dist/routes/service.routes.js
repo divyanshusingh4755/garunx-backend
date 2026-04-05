@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { body, param, query, validationResult } from "express-validator";
-import { addSubService, updateSubService, deleteSubService, addProductsToSubService, removeProductFromSubService, getServiceDetails, getAllServices, createService, updateService, deleteService, getServiceById, } from "../controllers/service.controllers.js";
+import { addSubService, updateSubService, deleteSubService, addProductsToSubService, removeProductFromSubService, getServiceDetails, getAllServices, createService, updateService, deleteService, getServiceById, getFilteredServices } from "../controllers/service.controllers.js";
 import { authenticate } from "../middleware/authenticate.js";
 const router = Router();
 const validate = (req, res, next) => {
@@ -45,10 +45,10 @@ const subServiceValidation = [
     validate
 ];
 const addProductsValidation = [
-    body("productIds")
+    body("variantIds")
         .isArray({ min: 1 })
-        .withMessage("productIds must be a non-empty array"),
-    body("productIds.*")
+        .withMessage("variantIds must be a non-empty array"),
+    body("variantIds.*")
         .isMongoId()
         .withMessage("Each productId must be valid"),
     validate
@@ -68,6 +68,7 @@ const serviceValidation = [
 ];
 router.get("/", getAllServices);
 router.get("/:serviceId", serviceIdValidation, locationQueryValidation, getServiceDetails);
+router.get('/filter', getFilteredServices);
 router.post("/", authenticate, serviceValidation, createService);
 router.put("/:serviceId", authenticate, serviceIdValidation, updateService);
 router.delete("/:serviceId", authenticate, serviceIdValidation, deleteService);

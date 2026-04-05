@@ -168,7 +168,7 @@ export class ProductService {
 	static async getProductsByLocation(location: string) {
 		return await Product.find(
 			{ "variants.location": location },
-			{ "variants.$": 1, name: 1, categoryName: 1 }
+			{ variants: 1, name: 1, categoryName: 1 }
 		).lean();
 	}
 }

@@ -129,7 +129,7 @@ export class PackageService {
             ...service,
             subServices: service.subServices.map(sub => ({
                 ...sub,
-                productIds: sub.productIds.map((product) => {
+                productIds: sub.variantIds.map((product) => {
                     const filteredVariants = product.variants.filter((v) => v.location === location);
                     return {
                         ...product,
