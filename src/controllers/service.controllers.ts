@@ -237,12 +237,12 @@ export const getAllServices = async (req: Request, res: Response) => {
 
 export const getFilteredServices = async (req: Request, res: Response) => {
     try {
-        const { category, location, page, limit } = req.query;
+        const { categories, locations, page, limit } = req.query;
 
-        if (!category || !location) {
+        if (!categories || !locations) {
             return res.status(400).json({
                 success: false,
-                message: "Both category and location are required filters."
+                message: "Both categories and locations are required filters."
             });
         }
 
@@ -250,8 +250,8 @@ export const getFilteredServices = async (req: Request, res: Response) => {
         const limitNum = parseInt(limit as string) || 10;
 
         const { services, total } = await ServiceService.getServicesByFilters(
-            category as string | string[],
-            location as string | string[],
+            categories as string | string[],
+            locations as string | string[],
             pageNum,
             limitNum
         );
@@ -269,4 +269,4 @@ export const getFilteredServices = async (req: Request, res: Response) => {
     } catch (error: any) {
         return res.status(500).json({ success: false, message: error.message });
     }
-};
+}

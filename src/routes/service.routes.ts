@@ -98,8 +98,8 @@ const serviceValidation = [
 ];
 
 router.get("/", getAllServices);
+router.get("/filter", getFilteredServices);
 router.get("/:serviceId", serviceIdValidation, locationQueryValidation, getServiceDetails);
-router.get('/filter', getFilteredServices);
 router.post("/", authenticate, serviceValidation, createService);
 router.put("/:serviceId", authenticate, serviceIdValidation, updateService);
 router.delete("/:serviceId", authenticate, serviceIdValidation, deleteService);

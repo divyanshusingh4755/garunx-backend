@@ -215,7 +215,6 @@ export class ServiceService {
         try {
             const [data, total] = await Promise.all([
                 Service.find(query, projection)
-                    .select(`name shortDescription thumbnailImage locations category isActive ${searchTerm ? 'score' : ''}`)
                     .sort(sortCriteria)
                     .skip(skip)
                     .limit(limit)

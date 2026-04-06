@@ -173,16 +173,16 @@ export const getAllServices = async (req, res) => {
 };
 export const getFilteredServices = async (req, res) => {
     try {
-        const { category, location, page, limit } = req.query;
-        if (!category || !location) {
+        const { categories, locations, page, limit } = req.query;
+        if (!categories || !locations) {
             return res.status(400).json({
                 success: false,
-                message: "Both category and location are required filters."
+                message: "Both categories and locations are required filters."
             });
         }
         const pageNum = parseInt(page) || 1;
         const limitNum = parseInt(limit) || 10;
-        const { services, total } = await ServiceService.getServicesByFilters(category, location, pageNum, limitNum);
+        const { services, total } = await ServiceService.getServicesByFilters(categories, locations, pageNum, limitNum);
         return res.status(200).json({
             success: true,
             pagination: {
