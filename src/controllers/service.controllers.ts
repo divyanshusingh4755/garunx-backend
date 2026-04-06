@@ -239,10 +239,10 @@ export const getFilteredServices = async (req: Request, res: Response) => {
     try {
         const { categories, locations, page, limit } = req.query;
 
-        if (!categories || !locations) {
+        if (!categories) {
             return res.status(400).json({
                 success: false,
-                message: "Both categories and locations are required filters."
+                message: "Categories are required filters. Location is optional"
             });
         }
 
