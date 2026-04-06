@@ -22,11 +22,7 @@ export declare class ServiceService {
     } & {
         id: string;
     }>;
-    static getServiceById(serviceId: string): Promise<IService & Required<{
-        _id: Types.ObjectId;
-    }> & {
-        __v: number;
-    }>;
+    static getServiceById(serviceId: string): Promise<any[]>;
     static addSubService(serviceId: string, payload: {
         name: string;
         slug: string;
@@ -39,13 +35,18 @@ export declare class ServiceService {
     } & {
         id: string;
     }>;
-    static updateSubService(serviceId: string, subServiceId: string, updateData: any): Promise<mongoose.Document<unknown, {}, IService, {}, mongoose.DefaultSchemaOptions> & IService & Required<{
+    static updateSubService(serviceId: string, subServiceId: string, updateData: {
+        name?: string;
+        slug?: string;
+        description?: string;
+        displayOrder?: number;
+    }): Promise<(mongoose.Document<unknown, {}, IService, {}, mongoose.DefaultSchemaOptions> & IService & Required<{
         _id: Types.ObjectId;
     }> & {
         __v: number;
     } & {
         id: string;
-    }>;
+    }) | null>;
     static deleteSubService(serviceId: string, subServiceId: string): Promise<mongoose.Document<unknown, {}, IService, {}, mongoose.DefaultSchemaOptions> & IService & Required<{
         _id: Types.ObjectId;
     }> & {
@@ -60,7 +61,7 @@ export declare class ServiceService {
     } & {
         id: string;
     }>;
-    static removeProductFromSubService(serviceId: string, subServiceId: string, productId: string): Promise<mongoose.Document<unknown, {}, IService, {}, mongoose.DefaultSchemaOptions> & IService & Required<{
+    static removeProductFromSubService(serviceId: string, subServiceId: string, variantId: string): Promise<mongoose.Document<unknown, {}, IService, {}, mongoose.DefaultSchemaOptions> & IService & Required<{
         _id: Types.ObjectId;
     }> & {
         __v: number;
@@ -106,7 +107,7 @@ export declare class ServiceService {
         page: number;
         totalPages: number;
     }>;
-    static getServicesByFilters(categories: string | string[], locations: string | string[], page?: number, limit?: number): Promise<{
+    static getServicesByFilters(categories?: string | string[], locations?: string | string[], page?: number, limit?: number): Promise<{
         services: IService[];
         total: number;
     }>;

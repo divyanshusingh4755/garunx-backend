@@ -15,7 +15,7 @@ const serviceSchema = new Schema({
             slug: { type: String, required: true },
             description: String,
             displayOrder: { type: Number, default: 0 },
-            variantIds: [{ type: Schema.Types.ObjectId, ref: 'Product' }],
+            variantIds: [{ type: Schema.Types.ObjectId }],
         }],
     isActive: { type: Boolean, default: true }
 }, { timestamps: true });

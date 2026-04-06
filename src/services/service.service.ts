@@ -33,11 +33,67 @@ export class ServiceService {
     }
 
     static async getServiceById(serviceId: string) {
-        const service = await Service.findById(serviceId).lean();
+        const serviceData = await Service.aggregate([
+            { $match: { _id: new Types.ObjectId(serviceId) } },
+            { $unwind: { path: "$subServices", preserveNullAndEmptyArrays: true } },
+            {
+                $lookup: {
+                    from: "products",
+                    localField: "subServices.variantIds",
+                    foreignField: "variants._id",
+                    as: "matchedProducts"
+                }
+            },
+            {
+                $addFields: {
+                    "subServices.variants": {
+                        $map: {
+                            input: "$subServices.variantIds",
+                            as: "vId",
+                            in: {
+                                $arrayElemAt: [
+                                    {
+                                        $filter: {
+                                            input: {
+                                                $reduce: {
+                                                    input: "$matchedProducts.variants",
+                                                    initialValue: [],
+                                                    in: { $concatArrays: ["$$value", "$$this"] }
+                                                }
+                                            },
+                                            as: "flatVariant",
+                                            cond: { $eq: ["$$flatVariant._id", "$$vId"] }
+                                        }
+                                    },
+                                    0
+                                ]
+                            }
+                        }
+                    }
+                }
+            },
+            { $project: { matchedProducts: 0, "subServices.variantIds": 0 } },
+            {
+                $group: {
+                    _id: "$_id",
+                    name: { $first: "$name" },
+                    category: { $first: "$category" },
+                    locations: { $first: "$locations" },
+                    shortDescription: { $first: "$shortDescription" },
+                    fullDescription: { $first: "$fullDescription" },
+                    thumbnailImage: { $first: "$thumbnailImage" },
+                    bannerImage: { $first: "$bannerImage" },
+                    isActive: { $first: "$isActive" },
+                    subServices: { $push: "$subServices" },
+                    createdAt: { $first: "$createdAt" },
+                    updatedAt: { $first: "$updatedAt" }
+                }
+            }
+        ]);
 
-        if (!service) throw new Error("Service not found");
+        if (!serviceData || serviceData.length === 0) throw new Error("Service not found");
 
-        return service;
+        return serviceData;
     }
 
     static async addSubService(serviceId: string, payload: {
@@ -46,11 +102,6 @@ export class ServiceService {
         description?: string;
         displayOrder?: number;
     }) {
-        const subService = {
-            ...payload,
-            productIds: []
-        };
-
         const existing = await Service.findOne({
             _id: serviceId,
             "subServices.slug": payload.slug
@@ -59,6 +110,11 @@ export class ServiceService {
         if (existing) {
             throw new Error("SubService slug already exists");
         }
+
+        const subService = {
+            ...payload,
+            variantIds: []
+        };
 
         const service = await Service.findByIdAndUpdate(
             serviceId,
@@ -74,14 +130,24 @@ export class ServiceService {
     static async updateSubService(
         serviceId: string,
         subServiceId: string,
-        updateData: any
+        updateData: {
+            name?: string;
+            slug?: string;
+            description?: string;
+            displayOrder?: number
+        }
     ) {
         const updateFields: any = {};
 
-        if (updateData.name) updateFields["subServices.$.name"] = updateData.name;
-        if (updateData.slug) updateFields["subServices.$.slug"] = updateData.slug;
-        if (updateData.description) updateFields["subServices.$.description"] = updateData.description;
-        if (updateData.displayOrder !== undefined) updateFields["subServices.$.displayOrder"] = updateData.displayOrder;
+        Object.entries(updateData).forEach(([key, value]) => {
+            if (value != undefined) {
+                updateFields[`subServices.$.${key}`] = value
+            }
+        })
+
+        if (Object.keys(updateFields).length === 0) {
+            return await Service.findById(serviceId);
+        }
 
         const service = await Service.findOneAndUpdate(
             { _id: serviceId, "subServices._id": subServiceId },
@@ -112,13 +178,15 @@ export class ServiceService {
     ) {
         const products = await Product.find({
             "variants._id": { $in: variantIds }
-        }).select("variants._id");
+        })
 
-        const existingVariantIds = products.flatMap(p => p.variants.map(v => v._id.toString()));
-        const allExists = variantIds.every(id => existingVariantIds.includes(id));
+        const foundIds = products
+            .flatMap(p => p.variants.map(v => v._id.toString()))
+            .filter(id => variantIds.includes(id))
 
-        if (!allExists) {
-            throw new Error("Some variants do not exist");
+        const uniqueInputIds = [...new Set(variantIds)]
+        if (foundIds.length < uniqueInputIds.length) {
+            throw new Error("One or more Variant IDs are invalid or do not exist")
         }
 
         const service = await Service.findOneAndUpdate(
@@ -142,7 +210,7 @@ export class ServiceService {
     static async removeProductFromSubService(
         serviceId: string,
         subServiceId: string,
-        productId: string
+        variantId: string
     ) {
         const service = await Service.findOneAndUpdate(
             {
@@ -151,11 +219,11 @@ export class ServiceService {
             },
             {
                 $pull: {
-                    "subServices.$.variantIds": productId
+                    "subServices.$.variantIds": variantId
                 }
             },
             { new: true }
-        ).populate('subServices.variantIds');
+        );
 
         if (!service) {
             throw new Error("Service or SubService not found");
@@ -171,8 +239,12 @@ export class ServiceService {
         const allVariantIds = service.subServices.flatMap(sub => sub.variantIds);
 
         const products = await Product.find({
-            "variants._id": { $in: allVariantIds },
-            "variants.location": location
+            variants: {
+                $elemMatch: {
+                    _id: { $in: allVariantIds },
+                    location: location
+                }
+            }
         }).lean();
 
         const updatedSubServices = service.subServices.map(sub => {
@@ -237,7 +309,7 @@ export class ServiceService {
         try {
             const [data, total] = await Promise.all([
                 Service.find(query, projection)
-                    .select("name shortDescription thumbnailImage locations category isActive")
+                    .select(`name shortDescription thumbnailImage locations category isActive ${searchTerm ? 'score' : ''}`)
                     .sort(sortCriteria)
                     .skip(skip)
                     .limit(limit)
@@ -257,21 +329,21 @@ export class ServiceService {
     }
 
     static async getServicesByFilters(
-        categories: string | string[],
-        locations: string | string[],
+        categories?: string | string[],
+        locations?: string | string[],
         page: number = 1,
         limit: number = 10
     ): Promise<{ services: IService[]; total: number }> {
-        const categoryFilter = Array.isArray(categories) ? categories : [categories];
-        const locationFilter = Array.isArray(locations) ? locations : [locations];
-
         const skip = (page - 1) * limit;
+        const query: any = { isActive: true };
 
-        const query = {
-            category: { $in: categoryFilter },
-            locations: { $in: locationFilter },
-            isActive: true
-        };
+        if (categories && (Array.isArray(categories) ? categories.length > 0 : true)) {
+            query.category = { $in: Array.isArray(categories) ? categories : [categories] }
+        }
+
+        if (locations && (Array.isArray(locations) ? locations.length > 0 : true)) {
+            query.locations = { $in: Array.isArray(locations) ? locations : [locations] }
+        }
 
         const [services, total] = await Promise.all([
             Service.find(query)
@@ -285,6 +357,4 @@ export class ServiceService {
 
         return { services, total };
     }
-
-
 };

@@ -7,7 +7,7 @@ const productSchema = new Schema({
     imageUrl: { type: String },
     adminNotes: { type: String },
     variants: [{
-            location: { type: String, require: true },
+            location: { type: String, required: true },
             tier: { type: String, required: true },
             price: { type: Number, required: true, min: 0 },
             description: String
