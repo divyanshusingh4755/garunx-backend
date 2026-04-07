@@ -9,4 +9,5 @@ export declare const updateVariant: (req: Request, res: Response) => Promise<voi
 export declare const deleteVariant: (req: Request, res: Response) => Promise<void>;
 export declare const getProductForUser: (req: Request, res: Response) => Promise<void>;
 export declare const getProductsByLocation: (req: Request, res: Response) => Promise<void>;
+export declare const getVariantsByLocationFromId: (req: Request, res: Response) => Promise<Response<any, Record<string, any>> | undefined>;
 //# sourceMappingURL=product.controllers.d.ts.map

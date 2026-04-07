@@ -11,7 +11,8 @@ import {
     updateVariant,
     deleteVariant,
     getProductForUser,
-    getProductsByLocation
+    getProductsByLocation,
+    getVariantsByLocationFromId
 } from "../controllers/product.controllers.js";
 
 import { authenticate } from "../middleware/authenticate.js";
@@ -94,6 +95,9 @@ router.get("/by-location", locationQueryValidation, getProductsByLocation);
 // Get single product (with location filter)
 router.get("/:productId", productIdValidation, getProductForUser);
 
+// Get variant by location and variantId
+router.get('/variants-by-location/:variantId', getVariantsByLocationFromId)
+
 
 // Create product
 router.post("/", authenticate, productValidation, createProduct );
@@ -108,7 +112,7 @@ router.put("/:productId",
 // Delete product
 router.delete("/:productId", authenticate, productIdValidation, deleteProduct );
 
-// Get pr  full view)
+// Get product (full view)
 router.get("/:productId", authenticate, productIdValidation, getProductById );
 
 // Add variant

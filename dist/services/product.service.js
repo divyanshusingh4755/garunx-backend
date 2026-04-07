@@ -1,3 +1,4 @@
+import { Types } from "mongoose";
 import { Product } from "../models/product.model.js";
 export class ProductService {
     static async createProduct(payload) {
@@ -116,6 +117,40 @@ export class ProductService {
     }
     static async getProductsByLocation(location) {
         return await Product.find({ "variants.location": location }, { variants: 1, name: 1, categoryName: 1 }).lean();
+    }
+    static async getVariantsByLocationFromId(variantId) {
+        const result = await Product.aggregate([
+            {
+                $match: { "variants._id": new Types.ObjectId(variantId) }
+            },
+            {
+                $addFields: {
+                    targetLocation: {
+                        $filter: {
+                            input: "$variants",
+                            as: "v",
+                            cond: { $eq: ["$$v._id", new Types.ObjectId(variantId)] }
+                        }
+                    }
+                }
+            },
+            {
+                $project: {
+                    name: 1,
+                    categoryName: 1,
+                    matchedVariants: {
+                        $filter: {
+                            input: "$variants",
+                            as: "variant",
+                            cond: {
+                                $eq: ["$$variant.location", { $arrayElemAt: ["$targetLocation.location", 0] }]
+                            }
+                        }
+                    }
+                }
+            }
+        ]);
+        return result[0];
     }
 }
 //# sourceMappingURL=product.service.js.map

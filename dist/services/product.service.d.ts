@@ -1,14 +1,15 @@
+import { Types } from "mongoose";
 import { type IProduct } from "../models/product.model.js";
 export declare class ProductService {
     static createProduct(payload: Partial<IProduct>): Promise<import("mongoose").Document<unknown, {}, IProduct, {}, import("mongoose").DefaultSchemaOptions> & IProduct & Required<{
-        _id: import("mongoose").Types.ObjectId;
+        _id: Types.ObjectId;
     }> & {
         __v: number;
     } & {
         id: string;
     }>;
     static updateProduct(productId: string, updateData: Partial<IProduct>): Promise<import("mongoose").Document<unknown, {}, IProduct, {}, import("mongoose").DefaultSchemaOptions> & IProduct & Required<{
-        _id: import("mongoose").Types.ObjectId;
+        _id: Types.ObjectId;
     }> & {
         __v: number;
     } & {
@@ -18,13 +19,13 @@ export declare class ProductService {
         success: boolean;
     }>;
     static getProductById(productId: string): Promise<IProduct & Required<{
-        _id: import("mongoose").Types.ObjectId;
+        _id: Types.ObjectId;
     }> & {
         __v: number;
     }>;
     static FindProducts(searchTerm?: string, categoryFilter?: string, locationFilter?: string, tierFilter?: string, limit?: number, page?: number, isRemovable?: boolean, sortBy?: string, sortOrder?: 'asc' | 'desc'): Promise<{
         data: (IProduct & Required<{
-            _id: import("mongoose").Types.ObjectId;
+            _id: Types.ObjectId;
         }> & {
             __v: number;
         })[];
@@ -38,21 +39,21 @@ export declare class ProductService {
         price: number;
         description?: string;
     }): Promise<import("mongoose").Document<unknown, {}, IProduct, {}, import("mongoose").DefaultSchemaOptions> & IProduct & Required<{
-        _id: import("mongoose").Types.ObjectId;
+        _id: Types.ObjectId;
     }> & {
         __v: number;
     } & {
         id: string;
     }>;
     static updateVariant(productId: string, variantId: string, updateData: any): Promise<import("mongoose").Document<unknown, {}, IProduct, {}, import("mongoose").DefaultSchemaOptions> & IProduct & Required<{
-        _id: import("mongoose").Types.ObjectId;
+        _id: Types.ObjectId;
     }> & {
         __v: number;
     } & {
         id: string;
     }>;
     static deleteVariant(productId: string, variantId: string): Promise<import("mongoose").Document<unknown, {}, IProduct, {}, import("mongoose").DefaultSchemaOptions> & IProduct & Required<{
-        _id: import("mongoose").Types.ObjectId;
+        _id: Types.ObjectId;
     }> & {
         __v: number;
     } & {
@@ -66,7 +67,7 @@ export declare class ProductService {
         description: string;
         imageUrl?: string;
         adminNotes?: string;
-        _id: import("mongoose").Types.ObjectId;
+        _id: Types.ObjectId;
         $locals: Record<string, unknown>;
         $op: "save" | "validate" | "remove" | null;
         $where: Record<string, unknown>;
@@ -79,9 +80,10 @@ export declare class ProductService {
         __v: number;
     }>;
     static getProductsByLocation(location: string): Promise<(IProduct & Required<{
-        _id: import("mongoose").Types.ObjectId;
+        _id: Types.ObjectId;
     }> & {
         __v: number;
     })[]>;
+    static getVariantsByLocationFromId(variantId: string): Promise<any>;
 }
 //# sourceMappingURL=product.service.d.ts.map

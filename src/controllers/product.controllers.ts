@@ -211,3 +211,36 @@ export const getProductsByLocation = async (req: Request, res: Response) => {
         });
     }
 };
+
+export const getVariantsByLocationFromId = async (req: Request, res: Response) => {
+    try {
+        const { variantId } = req.params;
+
+        if (!variantId) {
+            return res.status(400).json({
+                success: false,
+                message: "A valid variantId is required"
+            })
+        }
+
+        const result = await ProductService.getVariantsByLocationFromId(variantId as string)
+
+        if (!result || result.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: "No product or variant found with that ID."
+            })
+        }
+
+        return res.status(200).json({
+            success: true,
+            data: result
+        })
+
+    } catch (error: any) {
+        res.status(400).json({
+            success: false,
+            message: error.message || "Failed to fetch variants"
+        })
+    }
+}
