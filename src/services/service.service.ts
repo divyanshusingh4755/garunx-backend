@@ -93,7 +93,7 @@ export class ServiceService {
 
         if (!serviceData || serviceData.length === 0) throw new Error("Service not found");
 
-        return serviceData;
+        return serviceData[0];
     }
 
     static async addSubService(serviceId: string, payload: {

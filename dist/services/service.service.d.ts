@@ -22,7 +22,7 @@ export declare class ServiceService {
     } & {
         id: string;
     }>;
-    static getServiceById(serviceId: string): Promise<any[]>;
+    static getServiceById(serviceId: string): Promise<any>;
     static addSubService(serviceId: string, payload: {
         name: string;
         slug: string;
