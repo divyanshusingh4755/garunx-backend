@@ -5,7 +5,6 @@ import {
     createPackage,
     updatePackage,
     getPackageDetails,
-    deletePackage,
     updatePackageStatus,
     getPackageById,
     getPackages
@@ -124,7 +123,6 @@ router.get("/", packageQueryValidation, getPackages);
 router.get("/:id/details", packageIdValidation, getPackageDetails);
 router.post("/", authenticate, packageValidation, createPackage);
 router.patch("/:id", authenticate, packageIdValidation, packageValidation, updatePackage);
-router.delete("/:id", authenticate, packageIdValidation, deletePackage);
 router.patch("/:id/status", authenticate, packageIdValidation, statusValidation, updatePackageStatus);
 router.get("/:id", authenticate, packageIdValidation, getPackageById);
 

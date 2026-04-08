@@ -1,7 +1,7 @@
 import { model, Schema, Types, Document } from "mongoose";
 import type { HydratedDocument } from "mongoose";
 
-interface IPackageService {
+export interface IPackageService {
     serviceId: Types.ObjectId;
     displayOrder?: number;
 }
@@ -20,7 +20,6 @@ export interface IPackage extends Document {
     isActive: boolean;
     createdBy?: Types.ObjectId;
     version: number;
-    isDeleted: boolean;
 }
 
 const packageSchema = new Schema<IPackage>({
@@ -80,13 +79,6 @@ const packageSchema = new Schema<IPackage>({
         default: true,
         index: true
     },
-
-    isDeleted: {
-        type: Boolean,
-        default: false,
-        index: true
-    },
-
     displayOrder: {
         type: Number,
         default: 0

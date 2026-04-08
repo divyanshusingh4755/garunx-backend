@@ -50,7 +50,7 @@ export declare class PackageService {
     static getPackageDetails(packageId: string, location: string): Promise<{
         services: {
             subServices: {
-                productIds: any[];
+                products: any[];
                 _id: Types.ObjectId;
                 name: string;
                 description?: string;
@@ -89,7 +89,6 @@ export declare class PackageService {
         isActive: boolean;
         createdBy?: Types.ObjectId;
         version: number;
-        isDeleted: boolean;
         _id: Types.ObjectId;
         $locals: Record<string, unknown>;
         $op: "save" | "validate" | "remove" | null;
@@ -102,21 +101,34 @@ export declare class PackageService {
         schema: import("mongoose").Schema;
         __v: number;
     }>;
-    static deletePackage(packageId: string): Promise<import("mongoose").Document<unknown, {}, import("../models/package.model.js").IPackage, {}, import("mongoose").DefaultSchemaOptions> & import("../models/package.model.js").IPackage & Required<{
+    static updatePackageStatus(packageId: string, isActive: boolean): Promise<{
+        status: string;
+        name: string;
+        description?: string;
+        services: import("../models/package.model.js").IPackageService[];
+        locations?: string[];
+        pricing: {
+            type: "DERIVED" | "FIXED";
+            fixedPrice?: number;
+            discountPercentage?: number;
+        };
+        displayOrder?: number;
+        isActive: boolean;
+        createdBy?: Types.ObjectId;
+        version: number;
         _id: Types.ObjectId;
-    }> & {
+        $locals: Record<string, unknown>;
+        $op: "save" | "validate" | "remove" | null;
+        $where: Record<string, unknown>;
+        baseModelName?: string;
+        collection: import("mongoose").Collection;
+        db: import("mongoose").Connection;
+        errors?: import("mongoose").Error.ValidationError;
+        isNew: boolean;
+        schema: import("mongoose").Schema;
         __v: number;
-    } & {
-        id: string;
     }>;
-    static updatePackageStatus(packageId: string, isActive: boolean): Promise<import("mongoose").Document<unknown, {}, import("../models/package.model.js").IPackage, {}, import("mongoose").DefaultSchemaOptions> & import("../models/package.model.js").IPackage & Required<{
-        _id: Types.ObjectId;
-    }> & {
-        __v: number;
-    } & {
-        id: string;
-    }>;
-    static getPackageById(packageId: string): Promise<import("../models/package.model.js").IPackage & Required<{
+    static getPackageById(packageId: string, isActive?: boolean): Promise<import("../models/package.model.js").IPackage & Required<{
         _id: Types.ObjectId;
     }> & {
         __v: number;

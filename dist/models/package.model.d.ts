@@ -1,5 +1,5 @@
 import { Types, Document } from "mongoose";
-interface IPackageService {
+export interface IPackageService {
     serviceId: Types.ObjectId;
     displayOrder?: number;
 }
@@ -17,7 +17,6 @@ export interface IPackage extends Document {
     isActive: boolean;
     createdBy?: Types.ObjectId;
     version: number;
-    isDeleted: boolean;
 }
 export declare const Package: import("mongoose").Model<IPackage, {}, {}, {}, Document<unknown, {}, IPackage, {}, import("mongoose").DefaultSchemaOptions> & IPackage & Required<{
     _id: Types.ObjectId;
@@ -26,5 +25,4 @@ export declare const Package: import("mongoose").Model<IPackage, {}, {}, {}, Doc
 } & {
     id: string;
 }, any, IPackage>;
-export {};
 //# sourceMappingURL=package.model.d.ts.map

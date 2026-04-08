@@ -45,7 +45,7 @@ export class PackageService {
     }
     static async updatePackage(packageId, updateData) {
         const existing = await Package.findById(packageId);
-        if (!existing || existing.isDeleted) {
+        if (!existing || !existing.isActive) {
             throw new Error("Package not found");
         }
         let shouldIncrementVersion = false;
@@ -107,7 +107,6 @@ export class PackageService {
     static async getPackageDetails(packageId, location) {
         const pkg = await Package.findOne({
             _id: packageId,
-            isDeleted: false,
             isActive: true
         }).lean();
         if (!pkg)
@@ -117,20 +116,27 @@ export class PackageService {
             _id: { $in: serviceIds },
             isActive: true
         }).populate({
-            path: "subServices.productIds",
+            path: "subServices.variants.variantId",
             model: "Product"
         }).lean();
         const enrichedServices = services.map(service => ({
             ...service,
             subServices: service.subServices.map(sub => ({
                 ...sub,
-                productIds: sub.variants.map((product) => {
-                    const filteredVariants = product.variants.filter((v) => v.location === location);
+                products: sub.variants.map((vEntry) => {
+                    const productDoc = vEntry.variantId;
+                    if (!productDoc)
+                        return null;
+                    const filteredVariants = (productDoc.variants || []).filter((v) => v.location === location && v.isActive);
                     return {
-                        ...product,
+                        ...productDoc,
+                        instanceDetails: {
+                            isOptional: vEntry.isOptional,
+                            displayOrder: vEntry.displayOrder
+                        },
                         variants: filteredVariants
                     };
-                })
+                }).filter(Boolean)
             }))
         }));
         return {
@@ -138,25 +144,21 @@ export class PackageService {
             services: enrichedServices
         };
     }
-    static async deletePackage(packageId) {
-        const pkg = await Package.findByIdAndUpdate(packageId, {
-            isDeleted: true,
-            isActive: false
-        }, { new: true });
-        if (!pkg)
-            throw new Error("Package not found");
-        return pkg;
-    }
     static async updatePackageStatus(packageId, isActive) {
-        const pkg = await Package.findOneAndUpdate({ _id: packageId, isDeleted: false }, { isActive }, { new: true });
+        const pkg = await Package.findByIdAndUpdate(packageId, {
+            isActive: isActive,
+        }, { new: true }).lean();
         if (!pkg)
             throw new Error("Package not found");
-        return pkg;
+        return {
+            ...pkg,
+            status: isActive ? 'ACTIVE' : 'INACTIVE'
+        };
     }
-    static async getPackageById(packageId) {
+    static async getPackageById(packageId, isActive = true) {
         const pkg = await Package.findOne({
             _id: packageId,
-            isDeleted: false
+            isActive: isActive
         }).lean();
         if (!pkg)
             throw new Error("Package not found");
@@ -164,28 +166,33 @@ export class PackageService {
     }
     static async getPackages({ search, serviceId, location, isActive = true, page = 1, limit = 20, sortBy = "displayOrder", sortOrder = "asc" }) {
         const skip = (page - 1) * limit;
-        const query = {
-            isDeleted: false,
-            isActive
-        };
+        const query = {};
+        if (typeof isActive === 'boolean') {
+            query.isActive = isActive;
+        }
         if (search) {
+            // Use text search
             query.$text = { $search: search };
         }
         if (serviceId) {
-            query["services.serviceId"] = serviceId;
+            query["services.serviceId"] = new Types.ObjectId(serviceId);
         }
         if (location) {
             query.locations = location;
         }
         const sortCriteria = {};
-        sortCriteria[sortBy] = sortOrder === "desc" ? -1 : 1;
-        if (sortBy !== "displayOrder") {
-            sortCriteria["displayOrder"] = 1;
+        if (search && sortBy === "displayOrder") {
+            sortCriteria.score = { $meta: "textScore" };
+        }
+        else {
+            sortCriteria[sortBy] = sortOrder === "desc" ? -1 : 1;
+            if (sortBy !== "_id")
+                sortCriteria["_id"] = 1;
         }
         try {
             const [packages, total] = await Promise.all([
                 Package.find(query)
-                    .select("name description services locations displayOrder isActive")
+                    .select("name description services locations displayOrder isActive pricing")
                     .sort(sortCriteria)
                     .skip(skip)
                     .limit(limit)

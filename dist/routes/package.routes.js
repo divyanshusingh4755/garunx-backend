@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { body, param, query, validationResult } from "express-validator";
-import { createPackage, updatePackage, getPackageDetails, deletePackage, updatePackageStatus, getPackageById, getPackages } from "../controllers/package.controllers.js";
+import { createPackage, updatePackage, getPackageDetails, updatePackageStatus, getPackageById, getPackages } from "../controllers/package.controllers.js";
 import { authenticate } from "../middleware/authenticate.js";
 const router = Router();
 const validate = (req, res, next) => {
@@ -90,7 +90,6 @@ router.get("/", packageQueryValidation, getPackages);
 router.get("/:id/details", packageIdValidation, getPackageDetails);
 router.post("/", authenticate, packageValidation, createPackage);
 router.patch("/:id", authenticate, packageIdValidation, packageValidation, updatePackage);
-router.delete("/:id", authenticate, packageIdValidation, deletePackage);
 router.patch("/:id/status", authenticate, packageIdValidation, statusValidation, updatePackageStatus);
 router.get("/:id", authenticate, packageIdValidation, getPackageById);
 export default router;

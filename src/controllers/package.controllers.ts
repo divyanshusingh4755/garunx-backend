@@ -78,24 +78,6 @@ export const getPackageById = async (req: Request, res: Response) => {
     }
 };
 
-export const deletePackage = async (req: Request, res: Response) => {
-    try {
-        const { id } = req.params;
-
-        await PackageService.deletePackage(id as string);
-
-        res.status(200).json({
-            success: true,
-            message: "Package deleted successfully"
-        });
-    } catch (error: any) {
-        res.status(400).json({
-            success: false,
-            message: error.message || "Failed to delete package"
-        });
-    }
-};
-
 export const updatePackageStatus = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;

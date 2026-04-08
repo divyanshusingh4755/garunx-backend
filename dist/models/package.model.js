@@ -56,11 +56,6 @@ const packageSchema = new Schema({
         default: true,
         index: true
     },
-    isDeleted: {
-        type: Boolean,
-        default: false,
-        index: true
-    },
     displayOrder: {
         type: Number,
         default: 0
