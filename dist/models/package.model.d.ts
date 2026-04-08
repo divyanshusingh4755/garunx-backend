@@ -5,7 +5,6 @@ interface IPackageService {
 }
 export interface IPackage extends Document {
     name: string;
-    slug: string;
     description?: string;
     services: IPackageService[];
     locations?: string[];

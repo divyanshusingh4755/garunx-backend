@@ -38,11 +38,12 @@ export const updateService = async (req: Request, res: Response) => {
     }
 };
 
-export const deleteService = async (req: Request, res: Response) => {
+export const toggleServiceStatus = async (req: Request, res: Response) => {
     try {
         const { serviceId } = req.params;
+        const { isActive } = req.body;
 
-        await ServiceService.deleteService(serviceId as string);
+        await ServiceService.toggleServiceStatus(serviceId as string, isActive);
 
         res.status(200).json({
             success: true,
@@ -92,25 +93,37 @@ export const addSubService = async (req: Request, res: Response) => {
     }
 }
 
-export const addProductsToSubService = async (req: Request, res: Response) => {
+export const addVariantsToSubService = async (req: Request, res: Response) => {
     try {
-        const { serviceId, subServiceId } = req.params
-        const { variantIds } = req.body;
+        const { serviceId, subServiceId } = req.params;
 
-        const service = await ServiceService.addProductsToSubService(
+        const { variants } = req.body;
+
+        if (!Array.isArray(variants)) {
+            return res.status(400).json({
+                success: false,
+                message: "variants must be an array of objects"
+            });
+        }
+
+        const updatedService = await ServiceService.addVariantsToSubService(
             serviceId as string,
             subServiceId as string,
-            variantIds
-        )
+            variants
+        );
 
-        res.status(200).json({ success: true, data: service })
+        res.status(200).json({
+            success: true,
+            data: updatedService
+        });
     } catch (error: any) {
         res.status(400).json({
             success: false,
             message: error.message
-        })
+        });
     }
 }
+
 
 export const getServiceDetails = async (req: Request, res: Response) => {
     try {
@@ -153,13 +166,15 @@ export const updateSubService = async (req: Request, res: Response) => {
     }
 }
 
-export const deleteSubService = async (req: Request, res: Response) => {
+export const toggleSubServiceStatus = async (req: Request, res: Response) => {
     try {
         const { serviceId, subServiceId } = req.params
+        const { isActive } = req.body;
 
-        const service = await ServiceService.deleteSubService(
+        const service = await ServiceService.toggleSubServiceStatus(
             serviceId as string,
-            subServiceId as string
+            subServiceId as string,
+            isActive
         )
 
         res.status(200).json({
@@ -174,14 +189,40 @@ export const deleteSubService = async (req: Request, res: Response) => {
     }
 }
 
-export const removeProductFromSubService = async (req: Request, res: Response) => {
+export const updateVariantInSubService = async (req: Request, res: Response) => {
     try {
-        const { serviceId, subServiceId, productId } = req.params;
+        const { serviceId, subServiceId, variantId } = req.params;
 
-        const service = await ServiceService.removeProductFromSubService(
+        const { isOptional, isEditable, displayOrder } = req.body;
+
+        const updatedService = await ServiceService.updateVariantInSubService(
             serviceId as string,
             subServiceId as string,
-            productId as string
+            variantId as string,
+            { isOptional, isEditable, displayOrder }
+        );
+
+        res.status(200).json({
+            success: true,
+            data: updatedService
+        });
+    } catch (error: any) {
+        res.status(400).json({
+            success: false,
+            message: error.message
+        });
+    }
+};
+
+
+export const removeProductFromSubService = async (req: Request, res: Response) => {
+    try {
+        const { serviceId, subServiceId, variantId } = req.params;
+
+        const service = await ServiceService.removeVariantFromSubService(
+            serviceId as string,
+            subServiceId as string,
+            variantId as string
         )
 
         res.status(200).json({

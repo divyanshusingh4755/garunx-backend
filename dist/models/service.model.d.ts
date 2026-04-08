@@ -1,10 +1,16 @@
 import { Types, Document } from "mongoose";
+export interface ISubServiceVariant {
+    variantId: Types.ObjectId;
+    displayOrder?: number;
+    isOptional?: boolean;
+    isEditable?: boolean;
+}
 interface ISubService {
+    _id: Types.ObjectId;
     name: string;
-    slug: string;
     description?: string;
     displayOrder: number;
-    variantIds: Types.ObjectId[];
+    variants: ISubServiceVariant[];
 }
 export interface IService extends Document {
     name: string;

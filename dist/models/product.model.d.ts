@@ -5,6 +5,7 @@ export interface IVariant {
     tier: string;
     price: number;
     description?: string;
+    isActive: boolean;
 }
 export interface IProduct extends Document {
     name: string;
@@ -14,6 +15,7 @@ export interface IProduct extends Document {
     imageUrl?: string;
     adminNotes?: string;
     variants: IVariant[];
+    isActive: boolean;
 }
 export declare const Product: import("mongoose").Model<IProduct, {}, {}, {}, Document<unknown, {}, IProduct, {}, import("mongoose").DefaultSchemaOptions> & IProduct & Required<{
     _id: Types.ObjectId;

@@ -3,6 +3,16 @@ import { Product } from "../models/product.model.js";
 export class ProductService {
     static async createProduct(payload) {
         try {
+            if (!payload.name)
+                throw new Error("Product name is required");
+            if (!payload.variants || payload.variants.length === 0) {
+                throw new Error("At least one variant is required");
+            }
+            payload.variants = payload.variants.map(v => ({
+                ...v,
+                tier: v.tier.toLowerCase(),
+                location: v.location.toLowerCase()
+            }));
             const product = await Product.create(payload);
             return product;
         }
@@ -15,20 +25,70 @@ export class ProductService {
     }
     static async updateProduct(productId, updateData) {
         try {
-            const product = await Product.findByIdAndUpdate(productId, { $set: updateData }, { new: true, runValidators: true });
+            const product = await Product.findById(productId);
             if (!product)
                 throw new Error("Product not found");
+            const allowedFields = [
+                "name",
+                "description",
+                "imageUrl",
+                "adminNotes",
+                "categoryName",
+                "isActive"
+            ];
+            for (const key of allowedFields) {
+                if (updateData[key] !== undefined) {
+                    product[key] = updateData[key];
+                }
+            }
+            if (updateData.variants) {
+                for (const incomingVariant of updateData.variants) {
+                    if (incomingVariant._id) {
+                        const existing = product.variants.find(v => v._id.equals(incomingVariant._id));
+                        if (!existing)
+                            continue;
+                        if (!incomingVariant.tier !== undefined)
+                            existing.tier = incomingVariant.tier.toLowerCase();
+                        if (incomingVariant.location !== undefined)
+                            existing.location = incomingVariant.location.toLowerCase();
+                        if (incomingVariant.price !== undefined)
+                            existing.price = incomingVariant.price;
+                        if (incomingVariant.description !== undefined)
+                            existing.description = incomingVariant.description;
+                        if (incomingVariant.isActive !== undefined)
+                            existing.isActive = incomingVariant.isActive;
+                    }
+                    else {
+                        product.variants.push({
+                            ...incomingVariant,
+                            tier: incomingVariant.tier?.toLowerCase(),
+                            location: incomingVariant.location?.toLowerCase()
+                        });
+                    }
+                }
+            }
+            await product.save();
             return product;
         }
         catch (error) {
             throw new Error(error.message || "Failed to update product");
         }
     }
-    static async deleteProduct(productId) {
-        const product = await Product.findByIdAndDelete(productId);
+    static async updateProductStatus(productId, isActive) {
+        const product = await Product.findById(productId);
         if (!product)
             throw new Error("Product not found");
-        return { success: true };
+        product.isActive = isActive;
+        if (!isActive) {
+            product.variants.forEach(v => {
+                v.isActive = false;
+            });
+        }
+        await product.save();
+        return {
+            success: true,
+            message: `Product ${isActive ? "activated" : "deactivated"} successfully`
+        };
     }
     static async getProductById(productId) {
         const product = await Product.findById(productId).lean();
@@ -36,9 +96,11 @@ export class ProductService {
             throw new Error("Product not found");
         return product;
     }
-    static async FindProducts(searchTerm, categoryFilter, locationFilter, tierFilter, limit = 20, page = 1, isRemovable, sortBy = 'createdAt', sortOrder = 'desc') {
+    static async FindProducts(searchTerm, categoryFilter, locationFilter, tierFilter, limit = 20, page = 1, isRemovable, isActive = true, sortBy = 'createdAt', sortOrder = 'desc') {
         const skip = (page - 1) * limit;
-        const query = {};
+        const query = {
+            isActive
+        };
         if (typeof isRemovable === 'boolean') {
             query.isRemovable = isRemovable;
         }
@@ -46,10 +108,14 @@ export class ProductService {
             query.$text = { $search: searchTerm };
         if (categoryFilter)
             query.categoryName = categoryFilter;
-        if (locationFilter)
-            query["variants.location"] = locationFilter;
-        if (tierFilter)
-            query["variants.tier"] = tierFilter;
+        if (locationFilter || tierFilter) {
+            query.variants = {
+                $elemMatch: {
+                    ...(locationFilter && { location: locationFilter }),
+                    ...(tierFilter && { tier: tierFilter })
+                }
+            };
+        }
         let sortCriteria = {};
         let projection = {};
         if (searchTerm && sortBy === 'relevance') {
@@ -62,7 +128,7 @@ export class ProductService {
                 sortCriteria['createdAt'] = -1;
         }
         try {
-            const [data, total] = await Promise.all([
+            const [products, total] = await Promise.all([
                 Product.find(query, projection)
                     .sort(sortCriteria)
                     .skip(skip)
@@ -70,8 +136,23 @@ export class ProductService {
                     .lean(),
                 Product.countDocuments(query)
             ]);
+            const cleanedProducts = products
+                .map(product => {
+                let variants = product.variants.filter((v) => v.isActive);
+                if (locationFilter) {
+                    variants = variants.filter((v) => v.location.toLowerCase() === locationFilter.toLowerCase());
+                }
+                if (tierFilter) {
+                    variants = variants.filter((v) => v.tier.toLowerCase() === tierFilter.toLowerCase());
+                }
+                return {
+                    ...product,
+                    variants
+                };
+            })
+                .filter(product => product.variants.length > 0);
             return {
-                data,
+                data: cleanedProducts,
                 total,
                 page,
                 totalPages: Math.ceil(total / limit)
@@ -82,55 +163,144 @@ export class ProductService {
         }
     }
     static async addVariant(productId, variant) {
-        const product = await Product.findByIdAndUpdate(productId, { $push: { variants: variant } }, { new: true, runValidators: true });
+        if (variant.price < 0)
+            throw new Error("Invalid price");
+        const product = await Product.findById(productId);
         if (!product)
             throw new Error("Product not found");
+        const exists = product.variants.some(v => v.location.toLowerCase() === variant.location.toLowerCase() &&
+            v.tier.toLowerCase() === variant.tier.toLowerCase());
+        if (exists) {
+            throw new Error("Variant already exists for this location and tier");
+        }
+        product.variants.push({
+            ...variant,
+            isActive: true
+        });
+        await product.save();
         return product;
     }
     static async updateVariant(productId, variantId, updateData) {
-        const updateFields = {};
-        for (const key in updateData) {
-            if (key !== '_id') {
-                updateFields[`variants.$.${key}`] = updateData[key];
-            }
+        const product = await Product.findById(productId);
+        if (!product)
+            throw new Error("Product not found");
+        const variant = product.variants.find(v => v._id.equals(variantId));
+        if (!variant)
+            throw new Error("Variant not found");
+        const newLocation = updateData.location
+            ? updateData.location.toLowerCase()
+            : variant.location;
+        const newTier = updateData.tier
+            ? updateData.tier.toLowerCase()
+            : variant.tier;
+        const duplicate = product.variants.some(v => v._id.toString() !== variantId &&
+            v.location === newLocation &&
+            v.tier === newTier);
+        if (duplicate) {
+            throw new Error("Variant with same location and tier already exists");
         }
-        const product = await Product.findOneAndUpdate({ _id: productId, "variants._id": variantId }, { $set: updateFields }, { new: true, runValidators: true });
+        if (updateData.location)
+            variant.location = newLocation;
+        if (updateData.tier)
+            variant.tier = newTier;
+        if (updateData.price !== undefined)
+            variant.price = updateData.price;
+        if (updateData.description !== undefined)
+            variant.description = updateData.description;
+        if (updateData.isActive !== undefined)
+            variant.isActive = updateData.isActive;
+        await product.save();
+        return product;
+    }
+    static async toggleVariantStatus(productId, variantId, isActive) {
+        const product = await Product.findOne({
+            _id: productId,
+            "variants._id": variantId
+        });
         if (!product)
             throw new Error("Variant not found");
-        return product;
-    }
-    static async deleteVariant(productId, variantId) {
-        const product = await Product.findOneAndUpdate({ _id: productId }, { $pull: { variants: { _id: variantId } } }, { new: true });
-        if (!product)
-            throw new Error("Product not found");
-        return product;
+        const variant = product.variants.find(v => v._id.equals(variantId));
+        if (!variant)
+            throw new Error("Variant not found");
+        if (isActive && !product.isActive) {
+            throw new Error("Cannot activate variant of inactive product");
+        }
+        variant.isActive = isActive;
+        await product.save();
+        return {
+            success: true,
+            message: `Variant ${isActive ? "activated" : "deactivated"} successfully`
+        };
     }
     static async getProductForUser(productId, location) {
-        const product = await Product.findById(productId).lean();
+        const product = await Product.findOne({
+            _id: productId,
+            isActive: true
+        }).lean();
         if (!product)
             throw new Error("Product not found");
-        const filteredVariants = product.variants.filter((v) => v.location === location);
+        const filteredVariants = product.variants.filter((v) => v.isActive &&
+            v.location.toLowerCase() === location.toLowerCase());
+        if (filteredVariants.length === 0) {
+            throw new Error("No variants available for this location");
+        }
         return {
-            ...product,
+            _id: product._id,
+            name: product.name,
+            categoryName: product.categoryName,
+            isRemovable: product.isRemovable,
             variants: filteredVariants
         };
     }
     static async getProductsByLocation(location) {
-        return await Product.find({ "variants.location": location }, { variants: 1, name: 1, categoryName: 1 }).lean();
+        const products = await Product.find({
+            isActive: true,
+            variants: {
+                $elemMatch: {
+                    location: location,
+                    isActive: true
+                }
+            }
+        })
+            .select("name categoryName isRemovable variants")
+            .lean();
+        const cleanedProducts = products
+            .map(product => {
+            const variants = product.variants.filter((v) => v.isActive &&
+                v.location.toLowerCase() === location.toLowerCase());
+            return {
+                _id: product._id,
+                name: product.name,
+                categoryName: product.categoryName,
+                isRemovable: product.isRemovable,
+                variants
+            };
+        })
+            .filter(p => p.variants.length > 0);
+        return cleanedProducts;
     }
     static async getVariantsByLocationFromId(variantId) {
+        const objectId = new Types.ObjectId(variantId);
         const result = await Product.aggregate([
             {
-                $match: { "variants._id": new Types.ObjectId(variantId) }
+                $match: {
+                    isActive: true,
+                    "variants._id": objectId
+                }
             },
             {
                 $addFields: {
-                    targetLocation: {
-                        $filter: {
-                            input: "$variants",
-                            as: "v",
-                            cond: { $eq: ["$$v._id", new Types.ObjectId(variantId)] }
-                        }
+                    targetVariant: {
+                        $arrayElemAt: [
+                            {
+                                $filter: {
+                                    input: "$variants",
+                                    as: "v",
+                                    cond: { $eq: ["$$v._id", objectId] }
+                                }
+                            },
+                            0
+                        ]
                     }
                 }
             },
@@ -138,18 +308,25 @@ export class ProductService {
                 $project: {
                     name: 1,
                     categoryName: 1,
-                    matchedVariants: {
+                    isRemovable: 1,
+                    variants: {
                         $filter: {
                             input: "$variants",
-                            as: "variant",
+                            as: "v",
                             cond: {
-                                $eq: ["$$variant.location", { $arrayElemAt: ["$targetLocation.location", 0] }]
+                                $and: [
+                                    { $eq: ["$$v.location", "$targetVariant.location"] },
+                                    { $eq: ["$$v.isActive", true] }
+                                ]
                             }
                         }
                     }
                 }
             }
         ]);
+        if (!result.length) {
+            throw new Error("Variant not found");
+        }
         return result[0];
     }
 }

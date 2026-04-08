@@ -30,10 +30,11 @@ export const updateProduct = async (req, res) => {
         });
     }
 };
-export const deleteProduct = async (req, res) => {
+export const updateProductStatus = async (req, res) => {
     try {
         const { productId } = req.params;
-        await ProductService.deleteProduct(productId);
+        const { isActive } = req.body;
+        await ProductService.updateProductStatus(productId, isActive);
         res.status(200).json({
             success: true,
             message: "Product deleted successfully"
@@ -64,8 +65,8 @@ export const getProductById = async (req, res) => {
 };
 export const getAllProducts = async (req, res) => {
     try {
-        const { searchTerm, categoryName, location, tier, limit, page, isRemovable, sortBy, sortOrder } = req.query;
-        const { data, total, page: CurrentPage, totalPages } = await ProductService.FindProducts(searchTerm, categoryName, location, tier, Number(limit) || 20, Number(page) || 1, isRemovable === 'true' ? true : isRemovable === 'false' ? false : undefined, sortBy || 'name', sortOrder || 'asc');
+        const { searchTerm, categoryName, location, tier, limit, page, isRemovable, isActive, sortBy, sortOrder } = req.query;
+        const { data, total, page: CurrentPage, totalPages } = await ProductService.FindProducts(searchTerm, categoryName, location, tier, Number(limit) || 20, Number(page) || 1, isRemovable === 'true' ? true : isRemovable === 'false' ? false : undefined, isActive === 'true' ? true : isRemovable === 'false' ? false : undefined, sortBy || 'name', sortOrder || 'asc');
         res.status(200).json({
             success: true,
             data,
@@ -113,10 +114,11 @@ export const updateVariant = async (req, res) => {
         });
     }
 };
-export const deleteVariant = async (req, res) => {
+export const toggleVariantStatus = async (req, res) => {
     try {
         const { productId, variantId } = req.params;
-        const product = await ProductService.deleteVariant(productId, variantId);
+        const { isActive } = req.body;
+        const product = await ProductService.toggleVariantStatus(productId, variantId, isActive);
         res.status(200).json({
             success: true,
             data: product

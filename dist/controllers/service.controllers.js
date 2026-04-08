@@ -30,10 +30,11 @@ export const updateService = async (req, res) => {
         });
     }
 };
-export const deleteService = async (req, res) => {
+export const toggleServiceStatus = async (req, res) => {
     try {
         const { serviceId } = req.params;
-        await ServiceService.deleteService(serviceId);
+        const { isActive } = req.body;
+        await ServiceService.toggleServiceStatus(serviceId, isActive);
         res.status(200).json({
             success: true,
             message: "Service deactivated successfully"
@@ -75,12 +76,21 @@ export const addSubService = async (req, res) => {
         });
     }
 };
-export const addProductsToSubService = async (req, res) => {
+export const addVariantsToSubService = async (req, res) => {
     try {
         const { serviceId, subServiceId } = req.params;
-        const { variantIds } = req.body;
-        const service = await ServiceService.addProductsToSubService(serviceId, subServiceId, variantIds);
-        res.status(200).json({ success: true, data: service });
+        const { variants } = req.body;
+        if (!Array.isArray(variants)) {
+            return res.status(400).json({
+                success: false,
+                message: "variants must be an array of objects"
+            });
+        }
+        const updatedService = await ServiceService.addVariantsToSubService(serviceId, subServiceId, variants);
+        res.status(200).json({
+            success: true,
+            data: updatedService
+        });
     }
     catch (error) {
         res.status(400).json({
@@ -119,10 +129,11 @@ export const updateSubService = async (req, res) => {
         });
     }
 };
-export const deleteSubService = async (req, res) => {
+export const toggleSubServiceStatus = async (req, res) => {
     try {
         const { serviceId, subServiceId } = req.params;
-        const service = await ServiceService.deleteSubService(serviceId, subServiceId);
+        const { isActive } = req.body;
+        const service = await ServiceService.toggleSubServiceStatus(serviceId, subServiceId, isActive);
         res.status(200).json({
             success: true,
             data: service
@@ -135,10 +146,27 @@ export const deleteSubService = async (req, res) => {
         });
     }
 };
+export const updateVariantInSubService = async (req, res) => {
+    try {
+        const { serviceId, subServiceId, variantId } = req.params;
+        const { isOptional, isEditable, displayOrder } = req.body;
+        const updatedService = await ServiceService.updateVariantInSubService(serviceId, subServiceId, variantId, { isOptional, isEditable, displayOrder });
+        res.status(200).json({
+            success: true,
+            data: updatedService
+        });
+    }
+    catch (error) {
+        res.status(400).json({
+            success: false,
+            message: error.message
+        });
+    }
+};
 export const removeProductFromSubService = async (req, res) => {
     try {
-        const { serviceId, subServiceId, productId } = req.params;
-        const service = await ServiceService.removeProductFromSubService(serviceId, subServiceId, productId);
+        const { serviceId, subServiceId, variantId } = req.params;
+        const service = await ServiceService.removeVariantFromSubService(serviceId, subServiceId, variantId);
         res.status(200).json({
             success: true,
             data: service

@@ -5,31 +5,36 @@ const packageSchema = new Schema({
         required: true,
         trim: true
     },
-    slug: {
-        type: String,
-        required: true,
-        lowercase: true,
-        trim: true,
-        unique: true
-    },
     description: {
         type: String
     },
-    services: [{
-            serviceId: {
-                type: Schema.Types.ObjectId,
-                ref: "Service",
-                required: true
+    services: {
+        type: [{
+                serviceId: {
+                    type: Schema.Types.ObjectId,
+                    ref: "Service",
+                    required: true
+                },
+                displayOrder: {
+                    type: Number,
+                    default: 0
+                }
+            }],
+        validate: {
+            validator: function (services) {
+                return services && services.length > 0;
             },
-            displayOrder: {
-                type: Number,
-                default: 0
-            }
-        }],
-    locations: [{
-            type: String,
-            index: true
-        }],
+            message: "Package must contain at least on service"
+        }
+    },
+    locations: {
+        type: [String],
+        required: true,
+        validate: {
+            validator: (val) => val.length > 0,
+            message: "At least one location is required"
+        }
+    },
     pricing: {
         type: {
             type: String,
@@ -69,7 +74,6 @@ const packageSchema = new Schema({
         ref: "User"
     }
 }, { timestamps: true });
-packageSchema.index({ slug: 1 }, { unique: true });
 packageSchema.index({
     locations: 1,
     isActive: 1,

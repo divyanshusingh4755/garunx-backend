@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { body, param, query, validationResult } from "express-validator";
-import { createProduct, updateProduct, deleteProduct, getProductById, getAllProducts, addVariant, updateVariant, deleteVariant, getProductForUser, getProductsByLocation, getVariantsByLocationFromId } from "../controllers/product.controllers.js";
+import { createProduct, updateProduct, getProductById, getAllProducts, addVariant, updateVariant, getProductForUser, getProductsByLocation, getVariantsByLocationFromId, toggleVariantStatus, updateProductStatus } from "../controllers/product.controllers.js";
 import { authenticate } from "../middleware/authenticate.js";
 const router = Router();
 const validate = (req, res, next) => {
@@ -60,8 +60,10 @@ const locationQueryValidation = [
 router.get("/", getAllProducts);
 // Get products by location
 router.get("/by-location", locationQueryValidation, getProductsByLocation);
+// Get product (full view)
+router.get("/:productId", authenticate, productIdValidation, getProductById);
 // Get single product (with location filter)
-router.get("/:productId", productIdValidation, getProductForUser);
+router.get("/:productId/details", productIdValidation, getProductForUser);
 // Get variant by location and variantId
 router.get('/variants-by-location/:variantId', getVariantsByLocationFromId);
 // Create product
@@ -69,14 +71,12 @@ router.post("/", authenticate, productValidation, createProduct);
 // Update product
 router.put("/:productId", authenticate, productIdValidation, updateProduct);
 // Delete product
-router.delete("/:productId", authenticate, productIdValidation, deleteProduct);
-// Get product (full view)
-router.get("/:productId", authenticate, productIdValidation, getProductById);
+router.patch("/:productId/status", authenticate, productIdValidation, updateProductStatus);
 // Add variant
 router.post("/:productId/variants", authenticate, productIdValidation, variantValidation, addVariant);
 // Update variant
 router.put("/:productId/variants/:variantId", authenticate, productIdValidation, variantIdValidation, updateVariant);
 // Delete variant
-router.delete("/:productId/variants/:variantId", authenticate, productIdValidation, variantIdValidation, deleteVariant);
+router.patch("/:productId/variants/:variantId/status", authenticate, productIdValidation, variantIdValidation, toggleVariantStatus);
 export default router;
 //# sourceMappingURL=product.routes.js.map

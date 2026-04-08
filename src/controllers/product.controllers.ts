@@ -35,11 +35,12 @@ export const updateProduct = async (req: Request, res: Response) => {
     }
 };
 
-export const deleteProduct = async (req: Request, res: Response) => {
+export const updateProductStatus = async (req: Request, res: Response) => {
     try {
         const { productId } = req.params;
+        const { isActive } = req.body
 
-        await ProductService.deleteProduct(productId as string);
+        await ProductService.updateProductStatus(productId as string, isActive);
 
         res.status(200).json({
             success: true,
@@ -81,6 +82,7 @@ export const getAllProducts = async (req: Request, res: Response) => {
             limit,
             page,
             isRemovable,
+            isActive,
             sortBy,
             sortOrder
         } = req.query;
@@ -93,6 +95,7 @@ export const getAllProducts = async (req: Request, res: Response) => {
             Number(limit) || 20,
             Number(page) || 1,
             isRemovable === 'true' ? true : isRemovable === 'false' ? false : undefined,
+            isActive === 'true' ? true : isRemovable === 'false' ? false : undefined,
             (sortBy as string) || 'name',
             (sortOrder as 'asc' | 'desc') || 'asc'
         );
@@ -152,11 +155,12 @@ export const updateVariant = async (req: Request, res: Response) => {
     }
 };
 
-export const deleteVariant = async (req: Request, res: Response) => {
+export const toggleVariantStatus = async (req: Request, res: Response) => {
     try {
         const { productId, variantId } = req.params;
+        const { isActive } = req.body;
 
-        const product = await ProductService.deleteVariant(productId as string, variantId as any);
+        const product = await ProductService.toggleVariantStatus(productId as string, variantId as any, isActive);
 
         res.status(200).json({
             success: true,

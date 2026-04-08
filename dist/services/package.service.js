@@ -21,11 +21,7 @@ export class PackageService {
         return services;
     }
     static async createPackage(payload) {
-        const { name, slug, description, services, locations, pricing, createdBy } = payload;
-        const existing = await Package.findOne({ slug });
-        if (existing) {
-            throw new Error("Package with this slug already exists");
-        }
+        const { name, description, services, locations, pricing, createdBy } = payload;
         const serviceIds = services.map(s => s.serviceId);
         const validatedServices = await this.validateServices(serviceIds);
         const servicePayload = validatedServices.map((s, index) => ({
@@ -39,7 +35,6 @@ export class PackageService {
         };
         const pkg = await Package.create({
             name,
-            slug,
             services: servicePayload,
             pricing: finalPricing,
             ...(description !== undefined && { description }),
@@ -129,7 +124,7 @@ export class PackageService {
             ...service,
             subServices: service.subServices.map(sub => ({
                 ...sub,
-                productIds: sub.variantIds.map((product) => {
+                productIds: sub.variants.map((product) => {
                     const filteredVariants = product.variants.filter((v) => v.location === location);
                     return {
                         ...product,
@@ -190,7 +185,7 @@ export class PackageService {
         try {
             const [packages, total] = await Promise.all([
                 Package.find(query)
-                    .select("name slug description services locations displayOrder isActive")
+                    .select("name description services locations displayOrder isActive")
                     .sort(sortCriteria)
                     .skip(skip)
                     .limit(limit)

@@ -9,7 +9,6 @@ export declare class PackageService {
     })[]>;
     static createPackage(payload: {
         name: string;
-        slug: string;
         description?: string;
         services: {
             serviceId: string;
@@ -52,11 +51,11 @@ export declare class PackageService {
         services: {
             subServices: {
                 productIds: any[];
+                _id: Types.ObjectId;
                 name: string;
-                slug: string;
                 description?: string;
                 displayOrder: number;
-                variantIds: Types.ObjectId[];
+                variants: import("../models/service.model.js").ISubServiceVariant[];
             }[];
             name: string;
             locations: string[];
@@ -79,7 +78,6 @@ export declare class PackageService {
             __v: number;
         }[];
         name: string;
-        slug: string;
         description?: string;
         locations?: string[];
         pricing: {
