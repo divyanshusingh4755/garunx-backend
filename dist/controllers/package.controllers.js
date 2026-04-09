@@ -67,11 +67,8 @@ export const updatePackageStatus = async (req, res) => {
     try {
         const { id } = req.params;
         const { isActive } = req.body;
-        const pkg = await PackageService.updatePackageStatus(id, isActive);
-        res.status(200).json({
-            success: true,
-            data: pkg
-        });
+        const result = await PackageService.updatePackageStatus(id, isActive);
+        res.status(200).json(result);
     }
     catch (error) {
         res.status(400).json({

@@ -103,31 +103,8 @@ export declare class PackageService {
         __v: number;
     }>;
     static updatePackageStatus(packageId: string, isActive: boolean): Promise<{
-        status: string;
-        name: string;
-        description?: string;
-        services: import("../models/package.model.js").IPackageService[];
-        locations?: string[];
-        pricing: {
-            type: "DERIVED" | "FIXED";
-            fixedPrice?: number;
-            discountPercentage?: number;
-        };
-        displayOrder?: number;
-        isActive: boolean;
-        createdBy?: Types.ObjectId;
-        version: number;
-        _id: Types.ObjectId;
-        $locals: Record<string, unknown>;
-        $op: "save" | "validate" | "remove" | null;
-        $where: Record<string, unknown>;
-        baseModelName?: string;
-        collection: import("mongoose").Collection;
-        db: import("mongoose").Connection;
-        errors?: import("mongoose").Error.ValidationError;
-        isNew: boolean;
-        schema: import("mongoose").Schema;
-        __v: number;
+        success: boolean;
+        message: string;
     }>;
     static getPackageById(packageId: string, isActive?: boolean): Promise<import("../models/package.model.js").IPackage & Required<{
         _id: Types.ObjectId;

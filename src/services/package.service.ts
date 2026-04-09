@@ -226,25 +226,20 @@ export class PackageService {
         };
     }
 
-    static async updatePackageStatus(
-        packageId: string,
-        isActive: boolean,
-    ) {
-        const pkg = await Package.findByIdAndUpdate(
-            packageId,
-            {
-                isActive: isActive,
-            },
-            { new: true }
-        ).lean();
+   static async updatePackageStatus(packageId: string, isActive: boolean) {
+    const pkg = await Package.findByIdAndUpdate(
+        packageId,
+        { isActive: isActive },
+        { new: true }
+    ).lean();
 
-        if (!pkg) throw new Error("Package not found");
+    if (!pkg) throw new Error("Package not found");
 
-        return {
-            ...pkg,
-            status: isActive ? 'ACTIVE' : 'INACTIVE'
-        };
-    }
+    return {
+        success: true,
+        message: `Package ${isActive ? "activated" : "deactivated"} successfully`
+    };
+}
 
     static async getPackageById(packageId: string, isActive: boolean = true) {
         const pkg = await Package.findOne({

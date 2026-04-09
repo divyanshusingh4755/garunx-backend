@@ -34,11 +34,8 @@ export const toggleServiceStatus = async (req, res) => {
     try {
         const { serviceId } = req.params;
         const { isActive } = req.body;
-        await ServiceService.toggleServiceStatus(serviceId, isActive);
-        res.status(200).json({
-            success: true,
-            message: "Service deactivated successfully"
-        });
+        const result = await ServiceService.toggleServiceStatus(serviceId, isActive);
+        res.status(200).json(result);
     }
     catch (error) {
         res.status(400).json({
@@ -133,11 +130,8 @@ export const toggleSubServiceStatus = async (req, res) => {
     try {
         const { serviceId, subServiceId } = req.params;
         const { isActive } = req.body;
-        const service = await ServiceService.toggleSubServiceStatus(serviceId, subServiceId, isActive);
-        res.status(200).json({
-            success: true,
-            data: service
-        });
+        const result = await ServiceService.toggleSubServiceStatus(serviceId, subServiceId, isActive);
+        res.status(200).json(result);
     }
     catch (error) {
         res.status(400).json({

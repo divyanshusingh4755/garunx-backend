@@ -40,12 +40,9 @@ export const updateProductStatus = async (req: Request, res: Response) => {
         const { productId } = req.params;
         const { isActive } = req.body
 
-        await ProductService.updateProductStatus(productId as string, isActive);
+        const result = await ProductService.updateProductStatus(productId as string, isActive);
 
-        res.status(200).json({
-            success: true,
-            message: "Product deleted successfully"
-        });
+        res.status(200).json(result)
     } catch (error: any) {
         res.status(400).json({
             success: false,
@@ -162,12 +159,9 @@ export const toggleVariantStatus = async (req: Request, res: Response) => {
         const { productId, variantId } = req.params;
         const { isActive } = req.body;
 
-        const product = await ProductService.toggleVariantStatus(productId as string, variantId as any, isActive);
+        const result = await ProductService.toggleVariantStatus(productId as string, variantId as any, isActive);
 
-        res.status(200).json({
-            success: true,
-            data: product
-        });
+        res.status(200).json(result);
     } catch (error: any) {
         res.status(400).json({
             success: false,

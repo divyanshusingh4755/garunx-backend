@@ -30,12 +30,9 @@ export declare class ServiceService {
     } & {
         id: string;
     }>;
-    static toggleServiceStatus(serviceId: string, isActive: boolean): Promise<import("mongoose").Document<unknown, {}, import("../models/service.model.js").IService, {}, import("mongoose").DefaultSchemaOptions> & import("../models/service.model.js").IService & Required<{
-        _id: Types.ObjectId;
-    }> & {
-        __v: number;
-    } & {
-        id: string;
+    static toggleServiceStatus(serviceId: string, isActive: boolean): Promise<{
+        success: boolean;
+        message: string;
     }>;
     static getServiceById(serviceId: string): Promise<{
         subServices: {
@@ -88,12 +85,9 @@ export declare class ServiceService {
     } & {
         id: string;
     }>;
-    static toggleSubServiceStatus(serviceId: string, subServiceId: string, isActive: boolean): Promise<import("mongoose").Document<unknown, {}, import("../models/service.model.js").IService, {}, import("mongoose").DefaultSchemaOptions> & import("../models/service.model.js").IService & Required<{
-        _id: Types.ObjectId;
-    }> & {
-        __v: number;
-    } & {
-        id: string;
+    static toggleSubServiceStatus(serviceId: string, subServiceId: string, isActive: boolean): Promise<{
+        success: boolean;
+        message: string;
     }>;
     static addVariantsToSubService(serviceId: string, subServiceId: string, isComplete: boolean, variants: {
         variantId: string;

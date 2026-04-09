@@ -120,7 +120,10 @@ export class ServiceService {
 
         if (!service) throw new Error("Service not found");
 
-        return service;
+        return {
+            success: true,
+            message: `Service ${isActive ? "activated" : "deactivated"} successfully`
+        };
     }
 
     static async getServiceById(serviceId: string) {
@@ -287,29 +290,32 @@ export class ServiceService {
 
 
     static async toggleSubServiceStatus(
-        serviceId: string,
-        subServiceId: string,
-        isActive: boolean
-    ) {
-        const service = await Service.findOneAndUpdate(
-            {
-                _id: serviceId,
-                "subServices._id": subServiceId
-            },
-            {
-                $set: {
-                    "subServices.$.isActive": isActive
-                }
-            },
-            { new: true }
-        );
+    serviceId: string,
+    subServiceId: string,
+    isActive: boolean
+) {
+    const service = await Service.findOneAndUpdate(
+        {
+            _id: serviceId,
+            "subServices._id": subServiceId
+        },
+        {
+            $set: {
+                "subServices.$.isActive": isActive
+            }
+        },
+        { new: true }
+    );
 
-        if (!service) {
-            throw new Error("Service or SubService not found");
-        }
-
-        return service;
+    if (!service) {
+        throw new Error("Service or Sub-service not found");
     }
+
+    return {
+        success: true,
+        message: `Sub-service ${isActive ? "activated" : "deactivated"} successfully`
+    };
+}
 
     static async addVariantsToSubService(
         serviceId: string,
@@ -656,7 +662,9 @@ export class ServiceService {
                         category: { $first: "$root.category" },
                         locations: { $first: "$root.locations" },
                         thumbnailImage: { $first: "$root.thumbnailImage" },
+                        bannerImage: { $first: "$root.bannerImage" },
                         shortDescription: { $first: "$root.shortDescription" },
+                        fullDescription: { $first: "$root.fullDescription" },
                         createdAt: { $first: "$root.createdAt" },
                         isActive: { $first: "$root.isActive" },
                         subServices: {

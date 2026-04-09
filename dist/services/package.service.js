@@ -145,14 +145,12 @@ export class PackageService {
         };
     }
     static async updatePackageStatus(packageId, isActive) {
-        const pkg = await Package.findByIdAndUpdate(packageId, {
-            isActive: isActive,
-        }, { new: true }).lean();
+        const pkg = await Package.findByIdAndUpdate(packageId, { isActive: isActive }, { new: true }).lean();
         if (!pkg)
             throw new Error("Package not found");
         return {
-            ...pkg,
-            status: isActive ? 'ACTIVE' : 'INACTIVE'
+            success: true,
+            message: `Package ${isActive ? "activated" : "deactivated"} successfully`
         };
     }
     static async getPackageById(packageId, isActive = true) {
