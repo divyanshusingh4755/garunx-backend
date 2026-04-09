@@ -65,6 +65,7 @@ export declare class PackageService {
             thumbnailImage?: string;
             bannerImage?: string;
             isActive: boolean;
+            isComplete: boolean;
             _id: Types.ObjectId;
             $locals: Record<string, unknown>;
             $op: "save" | "validate" | "remove" | null;

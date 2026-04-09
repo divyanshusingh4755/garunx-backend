@@ -22,6 +22,7 @@ export interface IService extends Document {
     bannerImage?: string;
     subServices: ISubService[];
     isActive: boolean;
+    isComplete: boolean;
 }
 export declare const Service: import("mongoose").Model<IService, {}, {}, {}, Document<unknown, {}, IService, {}, import("mongoose").DefaultSchemaOptions> & IService & Required<{
     _id: Types.ObjectId;

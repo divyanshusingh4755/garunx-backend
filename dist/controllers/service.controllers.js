@@ -79,14 +79,14 @@ export const addSubService = async (req, res) => {
 export const addVariantsToSubService = async (req, res) => {
     try {
         const { serviceId, subServiceId } = req.params;
-        const { variants } = req.body;
+        const { variants, isComplete } = req.body;
         if (!Array.isArray(variants)) {
             return res.status(400).json({
                 success: false,
                 message: "variants must be an array of objects"
             });
         }
-        const updatedService = await ServiceService.addVariantsToSubService(serviceId, subServiceId, variants);
+        const updatedService = await ServiceService.addVariantsToSubService(serviceId, subServiceId, isComplete, variants);
         res.status(200).json({
             success: true,
             data: updatedService
@@ -149,8 +149,8 @@ export const toggleSubServiceStatus = async (req, res) => {
 export const updateVariantInSubService = async (req, res) => {
     try {
         const { serviceId, subServiceId, variantId } = req.params;
-        const { isOptional, isEditable, displayOrder } = req.body;
-        const updatedService = await ServiceService.updateVariantInSubService(serviceId, subServiceId, variantId, { isOptional, isEditable, displayOrder });
+        const { isOptional, isEditable, displayOrder, isComplete } = req.body;
+        const updatedService = await ServiceService.updateVariantInSubService(serviceId, subServiceId, variantId, isComplete, { isOptional, isEditable, displayOrder });
         res.status(200).json({
             success: true,
             data: updatedService
@@ -181,9 +181,8 @@ export const removeProductFromSubService = async (req, res) => {
 };
 export const getAllServices = async (req, res) => {
     try {
-        const { searchTerm, location, category, limit, page, isActive, sortBy, sortOrder } = req.query;
-        const { data, total, page: CurrentPage, totalPages } = await ServiceService.FindServices(searchTerm, location, category, Number(limit) || 20, Number(page) || 1, isActive === 'false' ? false : true, // Default to true for services
-        sortBy || 'name', sortOrder || 'asc');
+        const { searchTerm, location, category, limit, page, isActive, isComplete, sortBy, sortOrder } = req.query;
+        const { data, total, page: CurrentPage, totalPages } = await ServiceService.FindServices(searchTerm, location, category, Number(limit) || 20, Number(page) || 1, isActive === 'false' ? false : true, isComplete === 'false' ? false : true, sortBy || 'name', sortOrder || 'asc');
         res.status(200).json({
             success: true,
             data,

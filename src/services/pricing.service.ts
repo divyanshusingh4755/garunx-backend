@@ -1,65 +1,99 @@
 import { Package } from "../models/package.model.js";
 import { Product } from "../models/product.model.js";
 import { Service } from "../models/service.model.js";
+
+export interface IPricingRequest {
+    targetId: string;
+    type: 'SERVICE' | 'PACKAGE';
+    selectedVariantIds?: string[];
+}
+
+export interface PriceBreakdown {
+    subTotal: number;
+    discount: number;
+    discountPercentage: number;
+    total: number
+}
+
 export class PricingService {
-    async calculate(request) {
+    async calculate(request: IPricingRequest): Promise<PriceBreakdown> {
         if (request.type === "SERVICE") {
             const serviceRes = await this.calculateService(request);
+
             return {
                 subTotal: serviceRes.total,
                 discount: 0,
                 discountPercentage: 0,
                 total: serviceRes.total
-            };
-        }
-        else if (request.type === "PACKAGE") {
-            return this.calculatePackage(request);
+            }
+
+        } else if (request.type === "PACKAGE") {
+            return this.calculatePackage(request)
         }
         throw new Error("Invalid calculation type");
     }
-    async calculateService(req) {
+
+    private async calculateService(req: IPricingRequest): Promise<{ total: number }> {
         const serviceDoc = await Service.findOne({ _id: req.targetId, isActive: true }).lean();
-        if (!serviceDoc)
-            throw new Error(`Service ${req.targetId} is not available or inactive`);
+        if (!serviceDoc) throw new Error(`Service ${req.targetId} is not available or inactive`);
+
         const selectedIds = req.selectedVariantIds || [];
-        if (selectedIds.length > 50)
-            throw new Error("Too many items selected.");
+        if (selectedIds.length > 50) throw new Error("Too many items selected.");
+
         const products = await Product.find({
             "variants._id": { $in: selectedIds },
             isActive: true
         }).lean();
+
         let total = 0;
         let itemsProcessed = 0;
-        let detectedLocation = null;
+        let detectedLocation: string | null = null;
+
         selectedIds.forEach((selectedId) => {
             const product = products.find(p => p.variants.some(v => v._id.toString() === selectedId.toString()));
-            const variantData = product?.variants.find(v => v._id.toString() === selectedId.toString() && v.isActive);
+            const variantData = product?.variants.find(v =>
+                v._id.toString() === selectedId.toString() && v.isActive
+            );
+
             if (variantData) {
+
                 if (!detectedLocation) {
                     detectedLocation = variantData.location;
                 }
+
                 else if (detectedLocation !== variantData.location) {
                     throw new Error(`Location mismatch: Items must all be from ${detectedLocation}`);
                 }
+
                 total += variantData.price;
                 itemsProcessed++;
             }
         });
+
         if (detectedLocation && !serviceDoc.locations.includes(detectedLocation)) {
             throw new Error(`Service is not offered in ${detectedLocation}`);
         }
+
         if (itemsProcessed !== selectedIds.length) {
             throw new Error("One or more selected items are invalid or inactive.");
         }
+
         return { total };
     }
-    async calculatePackage(req) {
+
+    private async calculatePackage(req: IPricingRequest): Promise<PriceBreakdown> {
         const packageDoc = await Package.findOne({ _id: req.targetId, isActive: true }).lean();
-        if (!packageDoc)
-            throw new Error(`Package ${req.targetId} is not available or inactive`);
+        if (!packageDoc) throw new Error(`Package ${req.targetId} is not available or inactive`);
+
         // Parallel execution for faster performance
-        const serviceCalculations = await Promise.all(packageDoc.services.map(pService => this.calculateService({ ...req, targetId: pService.serviceId.toString() })));
+        const serviceCalculations = await Promise.all(
+            packageDoc.services.map(pService =>
+                this.calculateService({ ...req, targetId: pService.serviceId.toString() })
+            )
+        );
+
         const subTotal = serviceCalculations.reduce((sum, res) => sum + res.total, 0);
+
         if (packageDoc.pricing.type === "FIXED") {
             const finalTotal = packageDoc.pricing.fixedPrice || 0;
             return {
@@ -69,8 +103,10 @@ export class PricingService {
                 total: finalTotal
             };
         }
+
         const pct = packageDoc.pricing.discountPercentage || 0;
         const discountAmount = Math.round(subTotal * (pct / 100));
+
         return {
             subTotal,
             discount: discountAmount,
@@ -79,4 +115,3 @@ export class PricingService {
         };
     }
 }
-//# sourceMappingURL=pricing.service.js.map

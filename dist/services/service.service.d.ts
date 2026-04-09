@@ -53,6 +53,7 @@ export declare class ServiceService {
         thumbnailImage?: string;
         bannerImage?: string;
         isActive: boolean;
+        isComplete: boolean;
         _id: Types.ObjectId;
         $locals: Record<string, unknown>;
         $op: "save" | "validate" | "remove" | null;
@@ -94,7 +95,7 @@ export declare class ServiceService {
     } & {
         id: string;
     }>;
-    static addVariantsToSubService(serviceId: string, subServiceId: string, variants: {
+    static addVariantsToSubService(serviceId: string, subServiceId: string, isComplete: boolean, variants: {
         variantId: string;
         isOptional?: boolean;
         isEditable?: boolean;
@@ -106,7 +107,7 @@ export declare class ServiceService {
     } & {
         id: string;
     }>;
-    static updateVariantInSubService(serviceId: string, subServiceId: string, variantId: string, updateData: {
+    static updateVariantInSubService(serviceId: string, subServiceId: string, variantId: string, isComplete: boolean, updateData: {
         isOptional?: boolean;
         isEditable?: boolean;
         displayOrder?: number;
@@ -141,6 +142,7 @@ export declare class ServiceService {
         thumbnailImage?: string;
         bannerImage?: string;
         isActive: boolean;
+        isComplete: boolean;
         _id: Types.ObjectId;
         $locals: Record<string, unknown>;
         $op: "save" | "validate" | "remove" | null;
@@ -153,7 +155,7 @@ export declare class ServiceService {
         schema: import("mongoose").Schema;
         __v: number;
     }>;
-    static FindServices(searchTerm?: string, locationFilter?: string, categoryFilter?: string, limit?: number, page?: number, isActive?: boolean, sortBy?: string, sortOrder?: 'asc' | 'desc'): Promise<{
+    static FindServices(searchTerm?: string, locationFilter?: string, categoryFilter?: string, limit?: number, page?: number, isActive?: boolean, isComplete?: boolean, sortBy?: string, sortOrder?: 'asc' | 'desc'): Promise<{
         data: any[];
         total: number;
         page: number;

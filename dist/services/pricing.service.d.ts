@@ -1,29 +1,17 @@
-import type { MongooseBulkWriteResult } from "mongoose";
-import { type IServicePricing } from "../models/servicepricing.model.js";
-export declare class PricingSerive {
-    static upsertServicePrice(data: {
-        serviceId: string;
-        locationIds: string[];
-        price: number;
-    }): Promise<MongooseBulkWriteResult>;
-    static fetchByLocation(locationIds: any): Promise<(import("mongoose").Document<unknown, {}, IServicePricing, {}, import("mongoose").DefaultSchemaOptions> & IServicePricing & {
-        _id: import("mongoose").Types.ObjectId;
-    } & {
-        __v: number;
-    } & {
-        id: string;
-    })[]>;
-    static fetchPriceDetails(serviceId: string, locationId: string): Promise<(import("mongoose").Document<unknown, {}, IServicePricing, {}, import("mongoose").DefaultSchemaOptions> & IServicePricing & {
-        _id: import("mongoose").Types.ObjectId;
-    } & {
-        __v: number;
-    } & {
-        id: string;
-    }) | null>;
-    static getAllServices(filter?: Record<string, any>): Promise<(IServicePricing & {
-        _id: import("mongoose").Types.ObjectId;
-    } & {
-        __v: number;
-    })[]>;
+export interface IPricingRequest {
+    targetId: string;
+    type: 'SERVICE' | 'PACKAGE';
+    selectedVariantIds?: string[];
+}
+export interface PriceBreakdown {
+    subTotal: number;
+    discount: number;
+    discountPercentage: number;
+    total: number;
+}
+export declare class PricingService {
+    calculate(request: IPricingRequest): Promise<PriceBreakdown>;
+    private calculateService;
+    private calculatePackage;
 }
 //# sourceMappingURL=pricing.service.d.ts.map

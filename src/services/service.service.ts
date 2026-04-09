@@ -314,6 +314,7 @@ export class ServiceService {
     static async addVariantsToSubService(
         serviceId: string,
         subServiceId: string,
+        isComplete: boolean,
         variants: {
             variantId: string;
             isOptional?: boolean;
@@ -386,6 +387,8 @@ export class ServiceService {
 
         subService.variants.push(...newVariants);
 
+        service.isComplete = isComplete
+
         await service.save();
 
         return service;
@@ -395,6 +398,7 @@ export class ServiceService {
         serviceId: string,
         subServiceId: string,
         variantId: string,
+        isComplete: boolean,
         updateData: {
             isOptional?: boolean;
             isEditable?: boolean;
@@ -427,6 +431,7 @@ export class ServiceService {
             variant.displayOrder = updateData.displayOrder;
         }
 
+        service.isComplete = isComplete
         await service.save();
 
         return service;
@@ -542,12 +547,15 @@ export class ServiceService {
         limit: number = 20,
         page: number = 1,
         isActive: boolean = true,
+        isComplete: boolean = true,
         sortBy: string = 'createdAt',
         sortOrder: 'asc' | 'desc' = 'desc'
     ) {
         const skip = (page - 1) * limit;
 
-        const matchQuery: any = { isActive };
+        const matchQuery: any = {};
+        if (isActive) matchQuery.isActive = isActive;
+        if (isComplete) matchQuery.isComplete = isComplete;
         if (searchTerm) matchQuery.$text = { $search: searchTerm };
         if (locationFilter) matchQuery.locations = locationFilter;
         if (categoryFilter) matchQuery.category = categoryFilter;

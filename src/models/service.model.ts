@@ -25,6 +25,7 @@ export interface IService extends Document {
     bannerImage?: string;
     subServices: ISubService[];
     isActive: boolean;
+    isComplete: boolean;
 }
 
 const subServiceVariantSchema = new Schema<ISubServiceVariant>({
@@ -68,7 +69,8 @@ const serviceSchema = new Schema<IService>({
     bannerImage: { type: String },
     category: { type: String, required: true, index: true },
     subServices: [subServiceSchema],
-    isActive: { type: Boolean, default: true, index: true }
+    isActive: { type: Boolean, default: true, index: true },
+    isComplete: { type: Boolean, default: false }
 }, { timestamps: true });
 
 // Text Search Index

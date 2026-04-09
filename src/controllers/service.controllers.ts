@@ -97,7 +97,7 @@ export const addVariantsToSubService = async (req: Request, res: Response) => {
     try {
         const { serviceId, subServiceId } = req.params;
 
-        const { variants } = req.body;
+        const { variants, isComplete } = req.body;
 
         if (!Array.isArray(variants)) {
             return res.status(400).json({
@@ -109,6 +109,7 @@ export const addVariantsToSubService = async (req: Request, res: Response) => {
         const updatedService = await ServiceService.addVariantsToSubService(
             serviceId as string,
             subServiceId as string,
+            isComplete,
             variants
         );
 
@@ -193,12 +194,13 @@ export const updateVariantInSubService = async (req: Request, res: Response) => 
     try {
         const { serviceId, subServiceId, variantId } = req.params;
 
-        const { isOptional, isEditable, displayOrder } = req.body;
+        const { isOptional, isEditable, displayOrder, isComplete } = req.body;
 
         const updatedService = await ServiceService.updateVariantInSubService(
             serviceId as string,
             subServiceId as string,
             variantId as string,
+            isComplete,
             { isOptional, isEditable, displayOrder }
         );
 
@@ -246,6 +248,7 @@ export const getAllServices = async (req: Request, res: Response) => {
             limit,
             page,
             isActive,
+            isComplete,
             sortBy,
             sortOrder
         } = req.query;
@@ -256,7 +259,8 @@ export const getAllServices = async (req: Request, res: Response) => {
             category as string,
             Number(limit) || 20,
             Number(page) || 1,
-            isActive === 'false' ? false : true, // Default to true for services
+            isActive === 'false' ? false : true,
+            isComplete === 'false' ? false : true,
             (sortBy as string) || 'name',
             (sortOrder as 'asc' | 'desc') || 'asc'
         );

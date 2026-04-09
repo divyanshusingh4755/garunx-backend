@@ -30,3 +30,25 @@ export const authenticate = (req: Request, res: Response, next: NextFunction) =>
         })
     }
 }
+
+export const optionalAuthenticate = (req: Request, res: Response, next: NextFunction) => {
+    const authHeader = req.headers.authorization;
+    const token = authHeader && authHeader.split(' ')[1];
+
+    if (!token) {
+        return next();
+    }
+
+    try {
+        const decoded = jwt.verify(token, process.env.JWT_ACCESS_SECRET as string) as { userId: string, role: string };
+        // Attach the user info to the request object
+        req.user = {
+            userId: decoded.userId,
+            role: decoded.role as any
+        }
+
+        next()
+    } catch (error) {
+        next();
+    }
+};

@@ -25,4 +25,23 @@ export const authenticate = (req, res, next) => {
         });
     }
 };
+export const optionalAuthenticate = (req, res, next) => {
+    const authHeader = req.headers.authorization;
+    const token = authHeader && authHeader.split(' ')[1];
+    if (!token) {
+        return next();
+    }
+    try {
+        const decoded = jwt.verify(token, process.env.JWT_ACCESS_SECRET);
+        // Attach the user info to the request object
+        req.user = {
+            userId: decoded.userId,
+            role: decoded.role
+        };
+        next();
+    }
+    catch (error) {
+        next();
+    }
+};
 //# sourceMappingURL=authenticate.js.map

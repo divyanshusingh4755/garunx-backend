@@ -10,6 +10,8 @@ import stateRoutes from './routes/state.routes.js';
 import serviceRoutes from './routes/service.routes.js';
 import packageRoutes from './routes/package.routes.js';
 import productRoutes from './routes/product.routes.js';
+import pricingRoutes from './routes/pricing.routes.js';
+import cartRoutes from './routes/cart.routes.js';
 import categoryRoutes from './routes/category.routes.js';
 const app = express();
 // Connect DB
@@ -50,6 +52,8 @@ app.use('/api/product', productRoutes);
 app.use('/api/service', serviceRoutes);
 app.use('/api/package', packageRoutes);
 app.use('/api/category', categoryRoutes);
+app.use('/api/pricing', pricingRoutes);
+app.use('/api/cart', cartRoutes);
 // Routes
 app.get('/health', (req, res) => {
     res.status(200).json({ status: 'ok', uptime: process.uptime() });

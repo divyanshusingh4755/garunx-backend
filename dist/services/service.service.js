@@ -204,7 +204,7 @@ export class ServiceService {
         }
         return service;
     }
-    static async addVariantsToSubService(serviceId, subServiceId, variants) {
+    static async addVariantsToSubService(serviceId, subServiceId, isComplete, variants) {
         if (!variants || variants.length === 0) {
             throw new Error("Variants array is required");
         }
@@ -253,10 +253,11 @@ export class ServiceService {
             isEditable: v.isEditable ?? true,
         }));
         subService.variants.push(...newVariants);
+        service.isComplete = isComplete;
         await service.save();
         return service;
     }
-    static async updateVariantInSubService(serviceId, subServiceId, variantId, updateData) {
+    static async updateVariantInSubService(serviceId, subServiceId, variantId, isComplete, updateData) {
         const service = await Service.findById(serviceId);
         if (!service)
             throw new Error("Service not found");
@@ -276,6 +277,7 @@ export class ServiceService {
         if (updateData.displayOrder !== undefined) {
             variant.displayOrder = updateData.displayOrder;
         }
+        service.isComplete = isComplete;
         await service.save();
         return service;
     }
@@ -355,9 +357,13 @@ export class ServiceService {
             subServices: updatedSubServices
         };
     }
-    static async FindServices(searchTerm, locationFilter, categoryFilter, limit = 20, page = 1, isActive = true, sortBy = 'createdAt', sortOrder = 'desc') {
+    static async FindServices(searchTerm, locationFilter, categoryFilter, limit = 20, page = 1, isActive = true, isComplete = true, sortBy = 'createdAt', sortOrder = 'desc') {
         const skip = (page - 1) * limit;
-        const matchQuery = { isActive };
+        const matchQuery = {};
+        if (isActive)
+            matchQuery.isActive = isActive;
+        if (isComplete)
+            matchQuery.isComplete = isComplete;
         if (searchTerm)
             matchQuery.$text = { $search: searchTerm };
         if (locationFilter)
