@@ -56,10 +56,6 @@ const subServiceValidation = [
     body("name")
         .notEmpty().withMessage("SubService name is required"),
 
-    body("slug")
-        .notEmpty().withMessage("Slug is required")
-        .isString().trim(),
-
     body("description")
         .optional()
         .isString(),

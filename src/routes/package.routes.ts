@@ -38,10 +38,6 @@ const packageValidation = [
     body("name")
         .notEmpty().withMessage("Package name is required"),
 
-    body("slug")
-        .notEmpty().withMessage("Slug is required")
-        .isString().trim(),
-
     body("services")
         .isArray({ min: 1 })
         .withMessage("At least one service is required"),
