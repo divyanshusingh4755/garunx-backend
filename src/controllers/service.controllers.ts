@@ -253,14 +253,17 @@ export const getAllServices = async (req: Request, res: Response) => {
             sortOrder
         } = req.query;
 
+        const activeBool = isActive === 'true' ? true : isActive === 'false' ? false : undefined;
+        const completeBool = isComplete === 'true' ? true : isComplete === 'false' ? false : undefined;
+
         const { data, total, page: CurrentPage, totalPages } = await ServiceService.FindServices(
             searchTerm as string,
             location as string,
             category as string,
             Number(limit) || 20,
             Number(page) || 1,
-            isActive === 'false' ? false : true,
-            isComplete === 'false' ? false : true,
+            activeBool,
+            completeBool,
             (sortBy as string) || 'name',
             (sortOrder as 'asc' | 'desc') || 'asc'
         );

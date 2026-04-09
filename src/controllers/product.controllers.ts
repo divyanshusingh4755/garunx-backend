@@ -87,6 +87,8 @@ export const getAllProducts = async (req: Request, res: Response) => {
             sortOrder
         } = req.query;
 
+        const parseBool = (val: any) =>  val === 'true' ? true : val === 'false' ? false : undefined;
+
         const { data, total, page: CurrentPage, totalPages } = await ProductService.FindProducts(
             searchTerm as string,
             categoryName as string,
@@ -94,8 +96,8 @@ export const getAllProducts = async (req: Request, res: Response) => {
             tier as string,
             Number(limit) || 20,
             Number(page) || 1,
-            isRemovable === 'true' ? true : isRemovable === 'false' ? false : undefined,
-            isActive === 'true' ? true : isRemovable === 'false' ? false : undefined,
+            parseBool(isRemovable),
+            parseBool(isActive),
             (sortBy as string) || 'name',
             (sortOrder as 'asc' | 'desc') || 'asc'
         );

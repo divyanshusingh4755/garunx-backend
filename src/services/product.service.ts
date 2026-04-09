@@ -119,28 +119,26 @@ export class ProductService {
 		limit: number = 20,
 		page: number = 1,
 		isRemovable?: boolean,
-		isActive: boolean = true,
+		isActive?: boolean,
 		sortBy: string = 'createdAt',
 		sortOrder: 'asc' | 'desc' = 'desc'
 	) {
 		const skip = (page - 1) * limit;
 
-		const query: any = {
-			isActive
-		};
+		const query: any = {};
 
-		if (typeof isRemovable === 'boolean') {
-			query.isRemovable = isRemovable;
-		}
+		if (typeof isActive === 'boolean') query.isActive = isActive;
+		if (typeof isRemovable === 'boolean') query.isRemovable = isRemovable;
 
 		if (searchTerm) query.$text = { $search: searchTerm };
 		if (categoryFilter) query.categoryName = categoryFilter;
 
-		if (locationFilter || tierFilter) {
+		if (locationFilter || tierFilter || isActive !== undefined) {
 			query.variants = {
 				$elemMatch: {
 					...(locationFilter && { location: locationFilter }),
-					...(tierFilter && { tier: tierFilter })
+					...(tierFilter && { tier: tierFilter }),
+					...(isActive !== undefined && { isActive: isActive })
 				}
 			};
 		}
@@ -153,7 +151,6 @@ export class ProductService {
 			sortCriteria = { score: { $meta: "textScore" } };
 		} else {
 			sortCriteria[sortBy] = sortOrder === "desc" ? -1 : 1;
-			if (sortBy !== 'createdAt') sortCriteria['createdAt'] = -1;
 		}
 
 		try {
@@ -163,34 +160,30 @@ export class ProductService {
 					.skip(skip)
 					.limit(limit)
 					.lean(),
-
 				Product.countDocuments(query)
 			]);
 
-			const cleanedProducts = products
-				.map(product => {
-					let variants = product.variants.filter((v: any) => v.isActive);
+			const cleanedProducts = products.map(product => {
+				let variants = product.variants || [];
 
-					if (locationFilter) {
-						variants = variants.filter(
-							(v: any) =>
-								v.location.toLowerCase() === locationFilter.toLowerCase()
-						);
-					}
+				if (isActive !== undefined) {
+					variants = variants.filter((v: any) => v.isActive === isActive);
+				}
 
-					if (tierFilter) {
-						variants = variants.filter(
-							(v: any) =>
-								v.tier.toLowerCase() === tierFilter.toLowerCase()
-						);
-					}
+				if (locationFilter) {
+					variants = variants.filter(
+						(v: any) => v.location?.toLowerCase() === locationFilter.toLowerCase()
+					);
+				}
 
-					return {
-						...product,
-						variants
-					};
-				})
-				.filter(product => product.variants.length > 0);
+				if (tierFilter) {
+					variants = variants.filter(
+						(v: any) => v.tier?.toLowerCase() === tierFilter.toLowerCase()
+					);
+				}
+
+				return { ...product, variants };
+			});
 
 			return {
 				data: cleanedProducts,
@@ -202,7 +195,6 @@ export class ProductService {
 			throw new Error(`Product fetch failed: ${error.message}`);
 		}
 	}
-
 
 	static async addVariant(
 		productId: string,

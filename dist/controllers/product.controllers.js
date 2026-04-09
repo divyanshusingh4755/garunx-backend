@@ -66,7 +66,8 @@ export const getProductById = async (req, res) => {
 export const getAllProducts = async (req, res) => {
     try {
         const { searchTerm, categoryName, location, tier, limit, page, isRemovable, isActive, sortBy, sortOrder } = req.query;
-        const { data, total, page: CurrentPage, totalPages } = await ProductService.FindProducts(searchTerm, categoryName, location, tier, Number(limit) || 20, Number(page) || 1, isRemovable === 'true' ? true : isRemovable === 'false' ? false : undefined, isActive === 'true' ? true : isRemovable === 'false' ? false : undefined, sortBy || 'name', sortOrder || 'asc');
+        const parseBool = (val) => val === 'true' ? true : val === 'false' ? false : undefined;
+        const { data, total, page: CurrentPage, totalPages } = await ProductService.FindProducts(searchTerm, categoryName, location, tier, Number(limit) || 20, Number(page) || 1, parseBool(isRemovable), parseBool(isActive), sortBy || 'name', sortOrder || 'asc');
         res.status(200).json({
             success: true,
             data,

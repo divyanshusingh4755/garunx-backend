@@ -182,7 +182,9 @@ export const removeProductFromSubService = async (req, res) => {
 export const getAllServices = async (req, res) => {
     try {
         const { searchTerm, location, category, limit, page, isActive, isComplete, sortBy, sortOrder } = req.query;
-        const { data, total, page: CurrentPage, totalPages } = await ServiceService.FindServices(searchTerm, location, category, Number(limit) || 20, Number(page) || 1, isActive === 'false' ? false : true, isComplete === 'false' ? false : true, sortBy || 'name', sortOrder || 'asc');
+        const activeBool = isActive === 'true' ? true : isActive === 'false' ? false : undefined;
+        const completeBool = isComplete === 'true' ? true : isComplete === 'false' ? false : undefined;
+        const { data, total, page: CurrentPage, totalPages } = await ServiceService.FindServices(searchTerm, location, category, Number(limit) || 20, Number(page) || 1, activeBool, completeBool, sortBy || 'name', sortOrder || 'asc');
         res.status(200).json({
             success: true,
             data,

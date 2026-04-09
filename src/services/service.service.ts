@@ -546,16 +546,16 @@ export class ServiceService {
         categoryFilter?: string,
         limit: number = 20,
         page: number = 1,
-        isActive: boolean = true,
-        isComplete: boolean = true,
+        isActive?: boolean,
+        isComplete?: boolean,
         sortBy: string = 'createdAt',
         sortOrder: 'asc' | 'desc' = 'desc'
     ) {
         const skip = (page - 1) * limit;
-
         const matchQuery: any = {};
-        if (isActive) matchQuery.isActive = isActive;
-        if (isComplete) matchQuery.isComplete = isComplete;
+
+        if (isActive !== undefined) matchQuery.isActive = isActive;
+        if (isComplete !== undefined) matchQuery.isComplete = isComplete;
         if (searchTerm) matchQuery.$text = { $search: searchTerm };
         if (locationFilter) matchQuery.locations = locationFilter;
         if (categoryFilter) matchQuery.category = categoryFilter;
@@ -575,14 +575,21 @@ export class ServiceService {
                 { $skip: skip },
                 { $limit: limit },
 
+                // 1. Unwind carefully
                 { $unwind: { path: "$subServices", preserveNullAndEmptyArrays: true } },
                 { $unwind: { path: "$subServices.variants", preserveNullAndEmptyArrays: true } },
 
+                // 2. Convert ID for lookup
                 {
                     $addFields: {
                         "subServices.variants.variantId": {
                             $cond: [
-                                { $ifNull: ["$subServices.variants.variantId", false] },
+                                {
+                                    $and: [
+                                        { $gt: ["$subServices.variants.variantId", null] },
+                                        { $ne: ["$subServices.variants.variantId", ""] }
+                                    ]
+                                },
                                 { $toObjectId: "$subServices.variants.variantId" },
                                 null
                             ]
@@ -590,6 +597,7 @@ export class ServiceService {
                     }
                 },
 
+                // 3. Lookup product info
                 {
                     $lookup: {
                         from: "products",
@@ -600,6 +608,7 @@ export class ServiceService {
                 },
                 { $unwind: { path: "$productInfo", preserveNullAndEmptyArrays: true } },
 
+                // 4. Map details back to the variant
                 {
                     $addFields: {
                         "subServices.variants.productDetails": {
@@ -619,14 +628,18 @@ export class ServiceService {
                     }
                 },
 
+                // 5. Group variants back into SubServices
                 {
                     $group: {
-                        _id: { serviceId: "$_id", subId: "$subServices._id" },
+                        _id: {
+                            serviceId: "$_id",
+                            subId: { $ifNull: ["$subServices._id", "no_sub"] }
+                        },
                         root: { $first: "$$ROOT" },
                         variants: {
                             $push: {
                                 $cond: [
-                                    { $ifNull: ["$subServices.variants.variantId", false] },
+                                    { $gt: ["$subServices.variants.variantId", null] },
                                     "$subServices.variants",
                                     "$$REMOVE"
                                 ]
@@ -635,6 +648,7 @@ export class ServiceService {
                     }
                 },
 
+                // 6. Group SubServices back into the Main Service
                 {
                     $group: {
                         _id: "$_id.serviceId",
@@ -644,10 +658,11 @@ export class ServiceService {
                         thumbnailImage: { $first: "$root.thumbnailImage" },
                         shortDescription: { $first: "$root.shortDescription" },
                         createdAt: { $first: "$root.createdAt" },
+                        isActive: { $first: "$root.isActive" },
                         subServices: {
                             $push: {
                                 $cond: [
-                                    { $ifNull: ["$_id.subId", false] },
+                                    { $ne: ["$_id.subId", "no_sub"] },
                                     {
                                         _id: "$_id.subId",
                                         name: "$root.subServices.name",
@@ -661,7 +676,7 @@ export class ServiceService {
                         }
                     }
                 },
-
+                // Re-sort because grouping loses order
                 { $sort: sortCriteria }
             ];
 
@@ -670,12 +685,7 @@ export class ServiceService {
                 Service.countDocuments(matchQuery)
             ]);
 
-            return {
-                data,
-                total,
-                page,
-                totalPages: Math.ceil(total / limit)
-            };
+            return { data, total, page, totalPages: Math.ceil(total / limit) };
 
         } catch (error: any) {
             throw new Error(`Service fetch failed: ${error.message}`);

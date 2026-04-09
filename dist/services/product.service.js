@@ -96,23 +96,23 @@ export class ProductService {
             throw new Error("Product not found");
         return product;
     }
-    static async FindProducts(searchTerm, categoryFilter, locationFilter, tierFilter, limit = 20, page = 1, isRemovable, isActive = true, sortBy = 'createdAt', sortOrder = 'desc') {
+    static async FindProducts(searchTerm, categoryFilter, locationFilter, tierFilter, limit = 20, page = 1, isRemovable, isActive, sortBy = 'createdAt', sortOrder = 'desc') {
         const skip = (page - 1) * limit;
-        const query = {
-            isActive
-        };
-        if (typeof isRemovable === 'boolean') {
+        const query = {};
+        if (typeof isActive === 'boolean')
+            query.isActive = isActive;
+        if (typeof isRemovable === 'boolean')
             query.isRemovable = isRemovable;
-        }
         if (searchTerm)
             query.$text = { $search: searchTerm };
         if (categoryFilter)
             query.categoryName = categoryFilter;
-        if (locationFilter || tierFilter) {
+        if (locationFilter || tierFilter || isActive !== undefined) {
             query.variants = {
                 $elemMatch: {
                     ...(locationFilter && { location: locationFilter }),
-                    ...(tierFilter && { tier: tierFilter })
+                    ...(tierFilter && { tier: tierFilter }),
+                    ...(isActive !== undefined && { isActive: isActive })
                 }
             };
         }
@@ -124,8 +124,6 @@ export class ProductService {
         }
         else {
             sortCriteria[sortBy] = sortOrder === "desc" ? -1 : 1;
-            if (sortBy !== 'createdAt')
-                sortCriteria['createdAt'] = -1;
         }
         try {
             const [products, total] = await Promise.all([
@@ -136,21 +134,19 @@ export class ProductService {
                     .lean(),
                 Product.countDocuments(query)
             ]);
-            const cleanedProducts = products
-                .map(product => {
-                let variants = product.variants.filter((v) => v.isActive);
+            const cleanedProducts = products.map(product => {
+                let variants = product.variants || [];
+                if (isActive !== undefined) {
+                    variants = variants.filter((v) => v.isActive === isActive);
+                }
                 if (locationFilter) {
-                    variants = variants.filter((v) => v.location.toLowerCase() === locationFilter.toLowerCase());
+                    variants = variants.filter((v) => v.location?.toLowerCase() === locationFilter.toLowerCase());
                 }
                 if (tierFilter) {
-                    variants = variants.filter((v) => v.tier.toLowerCase() === tierFilter.toLowerCase());
+                    variants = variants.filter((v) => v.tier?.toLowerCase() === tierFilter.toLowerCase());
                 }
-                return {
-                    ...product,
-                    variants
-                };
-            })
-                .filter(product => product.variants.length > 0);
+                return { ...product, variants };
+            });
             return {
                 data: cleanedProducts,
                 total,

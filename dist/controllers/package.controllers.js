@@ -83,10 +83,11 @@ export const updatePackageStatus = async (req, res) => {
 export const getPackages = async (req, res) => {
     try {
         const { page, limit, isActive, search, serviceId, location, sortBy, sortOrder } = req.query;
+        const activeBool = isActive === 'true' ? true : isActive === 'false' ? false : undefined;
         const result = await PackageService.getPackages({
             page: Number(page) || 1,
             limit: Number(limit) || 20,
-            isActive: isActive !== undefined ? isActive === "true" : true,
+            isActive: activeBool, // Pass undefined, true, or false
             search: search,
             serviceId: serviceId,
             location: location,

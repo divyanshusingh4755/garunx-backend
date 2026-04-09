@@ -261,7 +261,7 @@ export class PackageService {
         search,
         serviceId,
         location,
-        isActive = true,
+        isActive,
         page = 1,
         limit = 20,
         sortBy = "displayOrder",
@@ -270,7 +270,7 @@ export class PackageService {
         search?: string;
         serviceId?: string;
         location?: string;
-        isActive?: boolean;
+        isActive?: boolean | undefined;
         page?: number;
         limit?: number;
         sortBy?: string;
@@ -284,7 +284,6 @@ export class PackageService {
         }
 
         if (search) {
-            // Use text search
             query.$text = { $search: search };
         }
 
@@ -297,12 +296,10 @@ export class PackageService {
         }
 
         const sortCriteria: any = {};
-
         if (search && sortBy === "displayOrder") {
             sortCriteria.score = { $meta: "textScore" };
         } else {
             sortCriteria[sortBy] = sortOrder === "desc" ? -1 : 1;
-            if (sortBy !== "_id") sortCriteria["_id"] = 1;
         }
 
         try {

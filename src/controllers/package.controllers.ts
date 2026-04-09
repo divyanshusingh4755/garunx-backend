@@ -113,10 +113,12 @@ export const getPackages = async (req: Request, res: Response) => {
             sortOrder
         } = req.query;
 
+        const activeBool = isActive === 'true' ? true : isActive === 'false' ? false : undefined;
+
         const result = await PackageService.getPackages({
             page: Number(page) || 1,
             limit: Number(limit) || 20,
-            isActive: isActive !== undefined ? isActive === "true" : true,
+            isActive: activeBool, // Pass undefined, true, or false
             search: search as string,
             serviceId: serviceId as string,
             location: location as string,

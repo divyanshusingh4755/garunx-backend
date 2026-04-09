@@ -164,14 +164,13 @@ export class PackageService {
             throw new Error("Package not found");
         return pkg;
     }
-    static async getPackages({ search, serviceId, location, isActive = true, page = 1, limit = 20, sortBy = "displayOrder", sortOrder = "asc" }) {
+    static async getPackages({ search, serviceId, location, isActive, page = 1, limit = 20, sortBy = "displayOrder", sortOrder = "asc" }) {
         const skip = (page - 1) * limit;
         const query = {};
         if (typeof isActive === 'boolean') {
             query.isActive = isActive;
         }
         if (search) {
-            // Use text search
             query.$text = { $search: search };
         }
         if (serviceId) {
@@ -186,8 +185,6 @@ export class PackageService {
         }
         else {
             sortCriteria[sortBy] = sortOrder === "desc" ? -1 : 1;
-            if (sortBy !== "_id")
-                sortCriteria["_id"] = 1;
         }
         try {
             const [packages, total] = await Promise.all([

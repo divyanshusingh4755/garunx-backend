@@ -138,7 +138,7 @@ export declare class PackageService {
         search?: string;
         serviceId?: string;
         location?: string;
-        isActive?: boolean;
+        isActive?: boolean | undefined;
         page?: number;
         limit?: number;
         sortBy?: string;
