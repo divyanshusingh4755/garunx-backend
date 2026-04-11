@@ -2,11 +2,11 @@ import { PricingService } from "../services/pricing.service.js";
 const engine = new PricingService();
 export const calculatePrice = async (req, res) => {
     try {
-        const { targetId, type, location, tier, selectedOptionalVariantIds, } = req.body;
-        if (!targetId || !type || !location || !tier) {
+        const { targetId, type, selectedOptionalVariantIds, } = req.body;
+        if (!targetId || !type || !location) {
             return res.status(400).json({
                 success: false,
-                message: "Missing required fields: targetId, type, location and tier are required"
+                message: "Missing required fields: targetId and type are required"
             });
         }
         const pricingRequest = {

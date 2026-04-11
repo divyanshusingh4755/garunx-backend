@@ -8,15 +8,13 @@ export const calculatePrice = async (req: Request, res: Response) => {
         const {
             targetId,
             type,
-            location,
-            tier,
             selectedOptionalVariantIds,
         } = req.body;
 
-        if (!targetId || !type || !location || !tier) {
+        if (!targetId || !type || !location) {
             return res.status(400).json({
                 success: false,
-                message: "Missing required fields: targetId, type, location and tier are required"
+                message: "Missing required fields: targetId and type are required"
             })
         }
 
