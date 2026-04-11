@@ -158,6 +158,7 @@ export class ServiceService {
                         productId: product._id,
                         productName: product.name,
                         categoryName: product.categoryName,
+                        productImage: product.imageUrl,
                         ...variant,
                         availableVariants
                     });
