@@ -4,7 +4,8 @@ import { Schema } from "mongoose";
 export interface ICartItem {
     targetId: string;
     itemType: "SERVICE" | "PACKAGE";
-    selectedVariantIds: string[]
+    selectedVariantIds: string[];
+    itemKey: string;
 }
 
 export interface ICart extends Document {
@@ -31,11 +32,16 @@ const cartSchema: Schema<ICart> = new Schema({
         selectedVariantIds: {
             type: [String],
             default: []
+        },
+        itemKey: {
+            type: String,
+            required: true
         }
     }],
-    updatedAt: { type: Date, default: Date.now }
 }, {
     timestamps: true
 });
+
+cartSchema.index({ userId: 1, "items.itemKey": 1 });
 
 export const Cart: Model<ICart> = mongoose.model<ICart>("Cart", cartSchema);

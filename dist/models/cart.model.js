@@ -17,11 +17,15 @@ const cartSchema = new Schema({
             selectedVariantIds: {
                 type: [String],
                 default: []
+            },
+            itemKey: {
+                type: String,
+                required: true
             }
         }],
-    updatedAt: { type: Date, default: Date.now }
 }, {
     timestamps: true
 });
+cartSchema.index({ userId: 1, "items.itemKey": 1 });
 export const Cart = mongoose.model("Cart", cartSchema);
 //# sourceMappingURL=cart.model.js.map

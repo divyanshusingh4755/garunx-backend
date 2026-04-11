@@ -3,6 +3,7 @@ export interface ICartItem {
     targetId: string;
     itemType: "SERVICE" | "PACKAGE";
     selectedVariantIds: string[];
+    itemKey: string;
 }
 export interface ICart extends Document {
     userId: mongoose.Types.ObjectId;
