@@ -3,7 +3,7 @@ const engine = new PricingService();
 export const calculatePrice = async (req, res) => {
     try {
         const { targetId, type, selectedOptionalVariantIds, } = req.body;
-        if (!targetId || !type || !location) {
+        if (!targetId || !type) {
             return res.status(400).json({
                 success: false,
                 message: "Missing required fields: targetId and type are required"
