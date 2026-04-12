@@ -471,6 +471,27 @@ export class CartController {
         }
     };
 
+    getCartItemByTargetId = async (req: Request, res: Response) => {
+        try {
+            const { targetId } = req.params;
+
+            const result = await this.cartService.getCartItemByTargetId(targetId as string);
+
+            res.status(200).json({
+                success: true,
+                data: result
+            });
+
+        } catch (error: any) {
+            const status = error.message === "Item not found in cart" ? 404 : 500;
+
+            res.status(status).json({
+                success: false,
+                message: error.message
+            });
+        }
+    };
+
     validateCart = async (req: Request, res: Response) => {
         try {
             const { items } = req.body;

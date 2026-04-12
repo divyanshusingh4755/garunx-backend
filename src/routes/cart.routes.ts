@@ -44,6 +44,7 @@ const mergeValidation = [
 const router = Router();
 
 router.get('/', authenticate, cartController.getCart);
+router.get('/item/:targetId', cartController.getCartItemByTargetId);
 router.get('/count', authenticate, cartController.getCartCount);
 router.post('/details', optionalAuthenticate, cartController.getCartDetails);
 

@@ -210,8 +210,27 @@ export class CartService {
             $set: { items: [] }
         }, { new: true });
     }
+    async getCartItemByTargetId(targetId) {
+        const cart = await Cart.findOne({ "items.targetId": targetId }).lean();
+        if (!cart) {
+            throw new Error("Item not found in any cart");
+        }
+        const item = cart.items.find(i => i.targetId === targetId);
+        if (!item) {
+            throw new Error("Item not found in cart");
+        }
+        const result = await this.getCartDetails([item]);
+        return {
+            item: result.items[0],
+            grandTotal: result.grandTotal,
+        };
+    }
     async getCart(userId) {
-        return await Cart.findOne({ userId }).lean();
+        const cart = await Cart.findOne({ userId }).lean();
+        if (!cart || !cart.items.length) {
+            return { items: [], grandTotal: 0, hasChanges: false };
+        }
+        return await this.getCartDetails(cart.items);
     }
     async getCartCount(userId) {
         const cart = await Cart.findOne({ userId }, { items: 1 }).lean();

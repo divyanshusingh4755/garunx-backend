@@ -46,11 +46,15 @@ export declare class CartService {
         id: string;
     }) | null>;
     clearCart(userId: string): Promise<ICart | null>;
-    getCart(userId: string): Promise<(ICart & {
-        _id: mongoose.Types.ObjectId;
-    } & {
-        __v: number;
-    }) | null>;
+    getCartItemByTargetId(targetId: string): Promise<{
+        item: EnrichedCartItem | undefined;
+        grandTotal: number;
+    }>;
+    getCart(userId: string): Promise<{
+        items: EnrichedCartItem[];
+        grandTotal: number;
+        hasChanges: boolean;
+    }>;
     getCartCount(userId: string): Promise<number>;
     validateCart(items: ICartItem[]): Promise<{
         isValid: boolean;
