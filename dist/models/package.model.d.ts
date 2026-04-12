@@ -8,6 +8,7 @@ export interface IPackage extends Document {
     description?: string;
     services: IPackageService[];
     locations?: string[];
+    image?: string;
     pricing: {
         type: "DERIVED" | "FIXED";
         fixedPrice?: number;

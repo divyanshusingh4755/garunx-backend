@@ -11,6 +11,7 @@ export interface IPackage extends Document {
     description?: string;
     services: IPackageService[];
     locations?: string[];
+    image?: string;
     pricing: {
         type: "DERIVED" | "FIXED";
         fixedPrice?: number;
@@ -57,6 +58,9 @@ const packageSchema = new Schema<IPackage>({
             validator: (val: string[]) => val.length > 0,
             message: "At least one location is required"
         }
+    },
+    image: {
+        type: String
     },
     pricing: {
         type: {

@@ -2,6 +2,8 @@ import mongoose from "mongoose";
 import { Cart } from "../models/cart.model.js";
 import { Product } from "../models/product.model.js";
 import { PricingService } from "./pricing.service.js";
+import { Package } from "../models/package.model.js";
+import { Service } from "../models/service.model.js";
 export class CartService {
     pricingService;
     constructor() {
@@ -63,7 +65,10 @@ export class CartService {
             return { items: [], grandTotal: 0, hasChanges: false };
         }
         const allVariantIds = items.flatMap(i => i.selectedVariantIds);
-        const variantMap = await this.getVariantsByIds(allVariantIds);
+        const [variantMap, targetData] = await Promise.all([
+            this.getVariantsByIds(allVariantIds),
+            this.getTargetMetadata(items)
+        ]);
         const pricingResults = await Promise.allSettled(items.map(item => this.pricingService.calculate({
             targetId: item.targetId,
             type: item.itemType,
@@ -72,22 +77,19 @@ export class CartService {
         const validItems = [];
         items.forEach((item, index) => {
             const result = pricingResults[index];
-            if (!result) {
-                console.error(`Missing pricing result for ${item.targetId}`);
-                return;
-            }
-            if (result.status === "fulfilled") {
+            const metadata = targetData[item.targetId.toString()];
+            if (result && result.status === "fulfilled" && metadata) {
                 const variants = item.selectedVariantIds
                     .map(id => variantMap[id])
-                    .filter((v) => Boolean(v));
+                    .filter(Boolean);
                 validItems.push({
                     ...item,
+                    name: metadata.name,
+                    image: metadata.image,
+                    description: metadata.description,
                     variants,
                     breakdown: result.value
                 });
-            }
-            else {
-                console.error(`Pricing failed for ${item.targetId}:`, result.reason?.message);
             }
         });
         const grandTotal = validItems.reduce((sum, item) => sum + item.breakdown.total, 0);
@@ -96,6 +98,30 @@ export class CartService {
             grandTotal,
             hasChanges: validItems.length !== items.length
         };
+    }
+    async getTargetMetadata(items) {
+        const packageIds = items.filter(i => i.itemType === 'PACKAGE').map(i => i.targetId);
+        const serviceIds = items.filter(i => i.itemType === 'SERVICE').map(i => i.targetId);
+        const [packages, services] = await Promise.all([
+            Package.find({ _id: { $in: packageIds } }, { name: 1, description: 1, image: 1 }).lean(),
+            Service.find({ _id: { $in: serviceIds } }, { name: 1, shortDescription: 1, thumbnailImage: 1 }).lean()
+        ]);
+        const metadataMap = {};
+        packages.forEach(p => {
+            metadataMap[p._id.toString()] = {
+                name: p.name,
+                description: p.description,
+                image: p.image
+            };
+        });
+        services.forEach(s => {
+            metadataMap[s._id.toString()] = {
+                name: s.name,
+                description: s.shortDescription,
+                image: s.thumbnailImage
+            };
+        });
+        return metadataMap;
     }
     async mergeCarts(userId, guestItems) {
         let cart = await Cart.findOne({ userId });

@@ -21,7 +21,7 @@ export class PackageService {
         return services;
     }
     static async createPackage(payload) {
-        const { name, description, services, locations, pricing, createdBy } = payload;
+        const { name, description, image, services, locations, pricing, createdBy } = payload;
         const serviceIds = services.map(s => s.serviceId);
         const validatedServices = await this.validateServices(serviceIds);
         const servicePayload = validatedServices.map((s, index) => ({
@@ -37,6 +37,7 @@ export class PackageService {
             name,
             services: servicePayload,
             pricing: finalPricing,
+            ...(image !== undefined && { image }),
             ...(description !== undefined && { description }),
             ...(locations !== undefined && { locations }),
             ...(createdBy !== undefined && { createdBy }),
@@ -92,6 +93,7 @@ export class PackageService {
         const updatePayload = {
             ...(updateData.name && { name: updateData.name }),
             ...(updateData.description && { description: updateData.description }),
+            ...(updateData.image && { image: updateData.image }),
             ...(updateData.locations && { locations: updateData.locations }),
             ...(updateData.pricing && { pricing: updateData.pricing }),
             ...(updateData.isActive !== undefined && { isActive: updateData.isActive }),

@@ -35,6 +35,9 @@ const packageSchema = new Schema({
             message: "At least one location is required"
         }
     },
+    image: {
+        type: String
+    },
     pricing: {
         type: {
             type: String,

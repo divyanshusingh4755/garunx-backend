@@ -10,6 +10,7 @@ export declare class PackageService {
     static createPackage(payload: {
         name: string;
         description?: string;
+        image?: string;
         services: {
             serviceId: string;
             displayOrder: number;
@@ -31,6 +32,7 @@ export declare class PackageService {
     static updatePackage(packageId: string, updateData: {
         name?: string;
         description?: string;
+        image?: string;
         services?: string[];
         locations?: string[];
         pricing?: {
@@ -81,6 +83,7 @@ export declare class PackageService {
         name: string;
         description?: string;
         locations?: string[];
+        image?: string;
         pricing: {
             type: "DERIVED" | "FIXED";
             fixedPrice?: number;

@@ -1,20 +1,5 @@
 import mongoose from "mongoose";
 import { type ICart, type ICartItem } from "../models/cart.model.js";
-interface IPriceBreakdown {
-    total: number;
-}
-type VariantDetails = {
-    _id: string;
-    tier: string;
-    price: number;
-    location: string;
-    productId: string;
-    productName: string;
-};
-type EnrichedCartItem = ICartItem & {
-    variants: VariantDetails[];
-    breakdown: IPriceBreakdown;
-};
 export declare class CartService {
     private pricingService;
     constructor();
@@ -29,10 +14,11 @@ export declare class CartService {
         productName: string;
     }>>;
     getCartDetails(items: ICartItem[]): Promise<{
-        items: EnrichedCartItem[];
-        grandTotal: number;
+        items: any[];
+        grandTotal: any;
         hasChanges: boolean;
     }>;
+    getTargetMetadata(items: ICartItem[]): Promise<Record<string, any>>;
     mergeCarts(userId: string, guestItems: ICartItem[]): Promise<ICart>;
     generateItemKey(item: ICartItem): string;
     addItem(userId: string, newItem: ICartItem): Promise<ICart>;
@@ -47,12 +33,12 @@ export declare class CartService {
     }) | null>;
     clearCart(userId: string): Promise<ICart | null>;
     getCartItemByTargetId(targetId: string): Promise<{
-        item: EnrichedCartItem | undefined;
-        grandTotal: number;
+        item: any;
+        grandTotal: any;
     }>;
     getCart(userId: string): Promise<{
-        items: EnrichedCartItem[];
-        grandTotal: number;
+        items: any[];
+        grandTotal: any;
         hasChanges: boolean;
     }>;
     getCartCount(userId: string): Promise<number>;
@@ -64,18 +50,17 @@ export declare class CartService {
         status: string;
         message: string;
         data: {
-            items: EnrichedCartItem[];
-            grandTotal: number;
+            items: any[];
+            grandTotal: any;
             hasChanges: boolean;
         };
     } | {
         status: string;
         data: {
-            items: EnrichedCartItem[];
-            grandTotal: number;
+            items: any[];
+            grandTotal: any;
         };
         message?: never;
     }>;
 }
-export {};
 //# sourceMappingURL=cart.service.d.ts.map

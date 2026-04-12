@@ -2,6 +2,8 @@ import mongoose from "mongoose";
 import { Cart, type ICart, type ICartItem } from "../models/cart.model.js";
 import { Product } from "../models/product.model.js";
 import { PricingService } from "./pricing.service.js";
+import { Package } from "../models/package.model.js";
+import { Service } from "../models/service.model.js";
 
 interface IPriceBreakdown {
     total: number;
@@ -114,7 +116,11 @@ export class CartService {
         }
 
         const allVariantIds = items.flatMap(i => i.selectedVariantIds);
-        const variantMap = await this.getVariantsByIds(allVariantIds);
+
+        const [variantMap, targetData] = await Promise.all([
+            this.getVariantsByIds(allVariantIds),
+            this.getTargetMetadata(items)
+        ]);
 
         const pricingResults = await Promise.allSettled(
             items.map(item =>
@@ -126,42 +132,67 @@ export class CartService {
             )
         );
 
-        const validItems: EnrichedCartItem[] = [];
+        const validItems: any[] = [];
 
         items.forEach((item, index) => {
             const result = pricingResults[index];
+            const metadata = targetData[item.targetId.toString()];
 
-            if (!result) {
-                console.error(`Missing pricing result for ${item.targetId}`);
-                return;
-            }
-
-            if (result.status === "fulfilled") {
+            if (result && result.status === "fulfilled" && metadata) {
                 const variants = item.selectedVariantIds
                     .map(id => variantMap[id])
-                    .filter((v): v is VariantDetails => Boolean(v));
+                    .filter(Boolean);
 
                 validItems.push({
                     ...item,
+                    name: metadata.name,
+                    image: metadata.image,
+                    description: metadata.description,
                     variants,
                     breakdown: result.value
                 });
-            } else {
-                console.error(
-                    `Pricing failed for ${item.targetId}:`,
-                    result.reason?.message
-                );
             }
         });
 
-        const grandTotal = validItems.reduce((sum, item) => sum + item.breakdown.total, 0)
+        const grandTotal = validItems.reduce((sum, item) => sum + item.breakdown.total, 0);
 
         return {
             items: validItems,
             grandTotal,
             hasChanges: validItems.length !== items.length
-        }
+        };
     }
+
+    async getTargetMetadata(items: ICartItem[]) {
+        const packageIds = items.filter(i => i.itemType === 'PACKAGE').map(i => i.targetId);
+        const serviceIds = items.filter(i => i.itemType === 'SERVICE').map(i => i.targetId);
+
+        const [packages, services] = await Promise.all([
+            Package.find({ _id: { $in: packageIds } }, { name: 1, description: 1, image: 1 }).lean(),
+            Service.find({ _id: { $in: serviceIds } }, { name: 1, shortDescription: 1, thumbnailImage: 1 }).lean()
+        ]);
+
+        const metadataMap: Record<string, any> = {};
+
+        packages.forEach(p => {
+            metadataMap[p._id.toString()] = {
+                name: p.name,
+                description: p.description,
+                image: p.image
+            };
+        });
+
+        services.forEach(s => {
+            metadataMap[s._id.toString()] = {
+                name: s.name,
+                description: s.shortDescription,
+                image: s.thumbnailImage
+            };
+        });
+
+        return metadataMap;
+    }
+
 
     async mergeCarts(userId: string, guestItems: ICartItem[]): Promise<ICart> {
         let cart = await Cart.findOne({ userId });

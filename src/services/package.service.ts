@@ -32,6 +32,7 @@ export class PackageService {
     static async createPackage(payload: {
         name: string;
         description?: string;
+        image?: string;
         services: { serviceId: string; displayOrder: number }[];
         locations?: string[];
         pricing?: {
@@ -44,6 +45,7 @@ export class PackageService {
         const {
             name,
             description,
+            image,
             services,
             locations,
             pricing,
@@ -68,6 +70,7 @@ export class PackageService {
             name,
             services: servicePayload,
             pricing: finalPricing,
+            ...(image !== undefined && { image }),
             ...(description !== undefined && { description }),
             ...(locations !== undefined && { locations }),
             ...(createdBy !== undefined && { createdBy }),
@@ -81,6 +84,7 @@ export class PackageService {
         updateData: {
             name?: string;
             description?: string;
+            image?: string;
             services?: string[];
             locations?: string[];
             pricing?: {
@@ -157,6 +161,7 @@ export class PackageService {
         const updatePayload: any = {
             ...(updateData.name && { name: updateData.name }),
             ...(updateData.description && { description: updateData.description }),
+            ...(updateData.image && { image: updateData.image }),
             ...(updateData.locations && { locations: updateData.locations }),
             ...(updateData.pricing && { pricing: updateData.pricing }),
             ...(updateData.isActive !== undefined && { isActive: updateData.isActive }),
