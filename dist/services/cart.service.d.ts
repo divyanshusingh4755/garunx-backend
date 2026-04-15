@@ -10,6 +10,7 @@ export declare class CartService {
         tier: string;
         price: number;
         location: string;
+        description: string;
         productId: string;
         productName: string;
     }>>;

@@ -52,6 +52,7 @@ export class CartService {
                         tier: variant.tier,
                         price: variant.price,
                         location: variant.location,
+                        description: variant.description || "",
                         productId: product._id.toString(),
                         productName: product.name
                     };
