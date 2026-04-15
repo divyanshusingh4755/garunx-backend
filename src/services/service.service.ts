@@ -291,32 +291,32 @@ export class ServiceService {
 
 
     static async toggleSubServiceStatus(
-    serviceId: string,
-    subServiceId: string,
-    isActive: boolean
-) {
-    const service = await Service.findOneAndUpdate(
-        {
-            _id: serviceId,
-            "subServices._id": subServiceId
-        },
-        {
-            $set: {
-                "subServices.$.isActive": isActive
-            }
-        },
-        { new: true }
-    );
+        serviceId: string,
+        subServiceId: string,
+        isActive: boolean
+    ) {
+        const service = await Service.findOneAndUpdate(
+            {
+                _id: serviceId,
+                "subServices._id": subServiceId
+            },
+            {
+                $set: {
+                    "subServices.$.isActive": isActive
+                }
+            },
+            { new: true }
+        );
 
-    if (!service) {
-        throw new Error("Service or Sub-service not found");
+        if (!service) {
+            throw new Error("Service or Sub-service not found");
+        }
+
+        return {
+            success: true,
+            message: `Sub-service ${isActive ? "activated" : "deactivated"} successfully`
+        };
     }
-
-    return {
-        success: true,
-        message: `Sub-service ${isActive ? "activated" : "deactivated"} successfully`
-    };
-}
 
     static async addVariantsToSubService(
         serviceId: string,
@@ -449,30 +449,22 @@ export class ServiceService {
         subServiceId: string,
         variantId: string
     ) {
-        const service = await Service.findById(serviceId);
-
-        if (!service) {
-            throw new Error("Service not found");
-        }
-
-        const subService = service.subServices.find(v => v._id.toString() === subServiceId);
-        if (!subService) {
-            throw new Error("SubService not found");
-        }
-
-        const initialLength = subService.variants.length;
-
-        subService.variants = subService.variants.filter(
-            (v: any) => v.variantId.toString() !== variantId
+        const result = await Service.findOneAndUpdate(
+            {
+                _id: serviceId,
+                "subServices._id": subServiceId
+            },
+            {
+                $pull: { "subServices.$.variants": { variantId: variantId } }
+            },
+            { new: true }
         );
 
-        if (subService.variants.length === initialLength) {
-            throw new Error("Variant not found in subService");
+        if (!result) {
+            throw new Error("Service or SubService not found");
         }
 
-        await service.save();
-
-        return service;
+        return result;
     }
 
     static async getServiceWithProducts(serviceId: string, location: string) {

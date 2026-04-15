@@ -313,8 +313,10 @@ export class CartService {
             cart.items.splice(itemIndex, 1);
         } else {
             const newItemKey = this.generateItemKey({
-                ...item,
-                selectedVariantIds: updatedVariants
+                targetId: item.targetId,
+                itemType: item.itemType,
+                selectedVariantIds: updatedVariants,
+                itemKey: ""
             });
 
             cart.items[itemIndex] = {
@@ -357,8 +359,8 @@ export class CartService {
         );
     }
 
-    async getCartItemByTargetId(targetId: string) {
-        const cart = await Cart.findOne({ "items.targetId": targetId }).lean();
+    async getCartItemByTargetId(userId: string, targetId: string) {
+        const cart = await Cart.findOne({ userId: new mongoose.Types.ObjectId(userId), "items.targetId": targetId }).lean();
 
         if (!cart) {
             throw new Error("Item not found in any cart");

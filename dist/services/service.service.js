@@ -289,21 +289,16 @@ export class ServiceService {
         return service;
     }
     static async removeVariantFromSubService(serviceId, subServiceId, variantId) {
-        const service = await Service.findById(serviceId);
-        if (!service) {
-            throw new Error("Service not found");
+        const result = await Service.findOneAndUpdate({
+            _id: serviceId,
+            "subServices._id": subServiceId
+        }, {
+            $pull: { "subServices.$.variants": { variantId: variantId } }
+        }, { new: true });
+        if (!result) {
+            throw new Error("Service or SubService not found");
         }
-        const subService = service.subServices.find(v => v._id.toString() === subServiceId);
-        if (!subService) {
-            throw new Error("SubService not found");
-        }
-        const initialLength = subService.variants.length;
-        subService.variants = subService.variants.filter((v) => v.variantId.toString() !== variantId);
-        if (subService.variants.length === initialLength) {
-            throw new Error("Variant not found in subService");
-        }
-        await service.save();
-        return service;
+        return result;
     }
     static async getServiceWithProducts(serviceId, location) {
         const service = await Service.findById(serviceId).lean();

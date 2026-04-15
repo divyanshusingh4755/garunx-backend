@@ -12,7 +12,7 @@ export declare class CartController {
     getCartCount: (req: Request, res: Response) => Promise<Response<any, Record<string, any>> | undefined>;
     updateItem: (req: Request, res: Response) => Promise<Response<any, Record<string, any>> | undefined>;
     getCart: (req: Request, res: Response) => Promise<Response<any, Record<string, any>> | undefined>;
-    getCartItemByTargetId: (req: Request, res: Response) => Promise<void>;
+    getCartItemByTargetId: (req: Request, res: Response) => Promise<Response<any, Record<string, any>> | undefined>;
     validateCart: (req: Request, res: Response) => Promise<Response<any, Record<string, any>> | undefined>;
     prepareCheckout: (req: Request, res: Response) => Promise<Response<any, Record<string, any>> | undefined>;
 }

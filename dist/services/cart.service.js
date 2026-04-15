@@ -208,8 +208,10 @@ export class CartService {
         }
         else {
             const newItemKey = this.generateItemKey({
-                ...item,
-                selectedVariantIds: updatedVariants
+                targetId: item.targetId,
+                itemType: item.itemType,
+                selectedVariantIds: updatedVariants,
+                itemKey: ""
             });
             cart.items[itemIndex] = {
                 targetId: item.targetId,
@@ -237,8 +239,8 @@ export class CartService {
             $set: { items: [] }
         }, { new: true });
     }
-    async getCartItemByTargetId(targetId) {
-        const cart = await Cart.findOne({ "items.targetId": targetId }).lean();
+    async getCartItemByTargetId(userId, targetId) {
+        const cart = await Cart.findOne({ userId: new mongoose.Types.ObjectId(userId), "items.targetId": targetId }).lean();
         if (!cart) {
             throw new Error("Item not found in any cart");
         }

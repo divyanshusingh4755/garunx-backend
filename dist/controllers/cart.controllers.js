@@ -376,8 +376,15 @@ export class CartController {
     };
     getCartItemByTargetId = async (req, res) => {
         try {
+            const user = req.user;
             const { targetId } = req.params;
-            const result = await this.cartService.getCartItemByTargetId(targetId);
+            if (!user?.userId) {
+                return res.status(401).json({
+                    success: false,
+                    message: "Unauthorized"
+                });
+            }
+            const result = await this.cartService.getCartItemByTargetId(user.userId, targetId);
             res.status(200).json({
                 success: true,
                 data: result

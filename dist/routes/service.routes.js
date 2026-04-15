@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { body, param, query, validationResult } from "express-validator";
-import { addSubService, updateSubService, getServiceDetails, getAllServices, createService, updateService, getServiceById, getFilteredServices, toggleSubServiceStatus, toggleServiceStatus, addVariantsToSubService, updateVariantInSubService } from "../controllers/service.controllers.js";
+import { addSubService, updateSubService, getServiceDetails, getAllServices, createService, updateService, getServiceById, getFilteredServices, toggleSubServiceStatus, toggleServiceStatus, addVariantsToSubService, updateVariantInSubService, removeProductFromSubService } from "../controllers/service.controllers.js";
 import { authenticate } from "../middleware/authenticate.js";
 import { toggleVariantStatus } from "../controllers/product.controllers.js";
 const router = Router();
@@ -24,11 +24,6 @@ const serviceIdValidation = [
 const subServiceIdValidation = [
     param("subServiceId")
         .isMongoId().withMessage("Invalid subService ID"),
-    validate
-];
-const productIdValidation = [
-    param("productId")
-        .isMongoId().withMessage("Invalid product ID"),
     validate
 ];
 const subServiceValidation = [
@@ -101,7 +96,7 @@ router.post("/:serviceId/subservices", authenticate, serviceIdValidation, subSer
 router.put("/:serviceId/subservices/:subServiceId", authenticate, serviceIdValidation, subServiceIdValidation, updateSubService);
 router.patch("/:serviceId/subservices/:subServiceId/status", authenticate, serviceIdValidation, subServiceIdValidation, toggleSubServiceStatus);
 router.post("/:serviceId/subservices/:subServiceId/variants", authenticate, serviceIdValidation, subServiceIdValidation, addVariantsValidation, addVariantsToSubService);
-router.patch("/:serviceId/subservices/:subServiceId/products/:productId/status", authenticate, serviceIdValidation, subServiceIdValidation, productIdValidation, toggleVariantStatus);
+router.delete("/:serviceId/subservices/:subServiceId/variants/:variantId", authenticate, serviceIdValidation, subServiceIdValidation, removeProductFromSubService);
 router.patch("/:serviceId/subservices/:subServiceId/variants/:variantId", authenticate, serviceIdValidation, updateVariantValidation, updateVariantInSubService);
 export default router;
 //# sourceMappingURL=service.routes.js.map

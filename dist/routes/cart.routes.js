@@ -34,7 +34,7 @@ const mergeValidation = [
 ];
 const router = Router();
 router.get('/', authenticate, cartController.getCart);
-router.get('/item/:targetId', cartController.getCartItemByTargetId);
+router.get('/item/:targetId', authenticate, cartController.getCartItemByTargetId);
 router.get('/count', authenticate, cartController.getCartCount);
 router.post('/details', optionalAuthenticate, cartController.getCartDetails);
 router.post('/sync', authenticate, cartController.syncCart);
@@ -42,7 +42,7 @@ router.post('/merge', authenticate, mergeValidation, cartController.mergeCartOnL
 router.post('/item', authenticate, cartItemValidation, cartController.addItem);
 router.put('/item/:itemKey', authenticate, cartItemValidation, cartController.updateItem);
 router.delete('/item/:itemKey', authenticate, cartController.removeItem);
-router.patch('/item/:itemKey/variant/:variantId', authenticate, cartController.removeVariant);
+router.delete('/item/:itemKey/variant/:variantId', authenticate, cartController.removeVariant);
 router.delete('/', authenticate, cartController.clearCart);
 router.post('/validate', cartController.validateCart);
 router.post('/checkout', authenticate, cartController.prepareCheckout);

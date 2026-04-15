@@ -33,7 +33,7 @@ export declare class CartService {
         id: string;
     }) | null>;
     clearCart(userId: string): Promise<ICart | null>;
-    getCartItemByTargetId(targetId: string): Promise<{
+    getCartItemByTargetId(userId: string, targetId: string): Promise<{
         item: any;
         grandTotal: any;
     }>;

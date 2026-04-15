@@ -305,7 +305,7 @@ export class PackageService {
         try {
             const [packages, total] = await Promise.all([
                 Package.find(query)
-                    .select("name description services locations displayOrder isActive pricing")
+                    .select("name description image services locations displayOrder isActive pricing")
                     .sort(sortCriteria)
                     .skip(skip)
                     .limit(limit)
