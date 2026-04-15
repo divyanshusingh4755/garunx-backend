@@ -54,23 +54,20 @@ export class LocationService {
 
         if (typeof isActive === 'boolean') {
             query.isActive = isActive;
-        } else {
-            query.isActive = { $ne: false };
         }
 
         if (searchTerm) query.$text = { $search: searchTerm };
-        if (countryFilter) (query as any).country = this.applyFilter(countryFilter);
-        if (stateFilter) (query as any).state = this.applyFilter(stateFilter);
-        if (cityFilter) (query as any).city = this.applyFilter(cityFilter);
-        if (pincodeFilter) (query as any).pincode = this.applyFilter(pincodeFilter);
+        if (countryFilter) query.country = this.applyFilter(countryFilter);
+        if (stateFilter) query.state = this.applyFilter(stateFilter);
+        if (cityFilter) query.city = this.applyFilter(cityFilter);
+        if (pincodeFilter) query.pincode = this.applyFilter(pincodeFilter);
 
-        // Sorting
         let sortCriteria: any = {}
         if (searchTerm && sortBy === "relevance") {
             sortCriteria = { score: { $meta: 'textScore' } }
         } else {
             sortCriteria[sortBy] = sortOrder === 'desc' ? -1 : 1;
-            sortCriteria['createdAt'] = -1;
+            if (sortBy !== 'createdAt') sortCriteria['createdAt'] = -1;
         }
 
         try {

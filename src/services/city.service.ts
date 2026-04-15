@@ -43,14 +43,10 @@ export class CityService {
         const skip = (page - 1) * limit;
         const query: any = {};
 
-        // Handle Active Status
         if (typeof isActive === 'boolean') {
             query.isActive = isActive;
-        } else {
-            query.isActive = { $ne: false };
         }
 
-        // Filters (Fixed field name to 'city')
         if (searchTerm) query.$text = { $search: searchTerm };
         if (cityFilter) query.city = this.applyFilter(cityFilter);
         if (stateFilter) query.state = this.applyFilter(stateFilter);
@@ -64,7 +60,6 @@ export class CityService {
             sortCriteria = { score: { $meta: "textScore" } };
         } else {
             sortCriteria[sortBy] = sortOrder === "desc" ? -1 : 1;
-            // Secondary sort for consistency
             if (sortBy !== 'createdAt') sortCriteria['createdAt'] = -1;
         }
 

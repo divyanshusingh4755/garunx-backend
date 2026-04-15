@@ -61,7 +61,9 @@ export const getAllLocation = async (req: Request, res: Response) => {
             isActive,
             sortBy,
             sortOrder
-        } = req.query
+        } = req.query;
+
+        const activeStatus = isActive === 'true' ? true : isActive === 'false' ? false : undefined;
 
         const { data, total, page: CurrentPage, totalPages } = await LocationService.FindLocation(
             searchTerm as string,
@@ -71,18 +73,19 @@ export const getAllLocation = async (req: Request, res: Response) => {
             pincodeFilter as string,
             Number(limit) || 40,
             Number(page) || 1,
-            isActive === 'true' ? true : isActive === 'false' ? false : undefined,
-            (sortBy as string) || 'name',
-            (sortOrder as 'asc' | 'desc') || 'asc'
-        )
-        res.status(200).json({ success: true, data, total, CurrentPage, totalPages })
+            activeStatus,
+            (sortBy as string) || 'createdAt',
+            (sortOrder as 'asc' | 'desc') || 'desc'
+        );
+
+        res.status(200).json({ success: true, data, total, CurrentPage, totalPages });
     } catch (error: any) {
-        res.status(error.message === "Location not found" ? 404 : 400).json({
+        res.status(400).json({
             success: false,
             message: error.message
-        })
+        });
     }
-}
+};
 
 export const getLocationById = async (req: Request, res: Response) => {
     try {

@@ -26,9 +26,6 @@ export class LocationService {
         if (typeof isActive === 'boolean') {
             query.isActive = isActive;
         }
-        else {
-            query.isActive = { $ne: false };
-        }
         if (searchTerm)
             query.$text = { $search: searchTerm };
         if (countryFilter)
@@ -39,14 +36,14 @@ export class LocationService {
             query.city = this.applyFilter(cityFilter);
         if (pincodeFilter)
             query.pincode = this.applyFilter(pincodeFilter);
-        // Sorting
         let sortCriteria = {};
         if (searchTerm && sortBy === "relevance") {
             sortCriteria = { score: { $meta: 'textScore' } };
         }
         else {
             sortCriteria[sortBy] = sortOrder === 'desc' ? -1 : 1;
-            sortCriteria['createdAt'] = -1;
+            if (sortBy !== 'createdAt')
+                sortCriteria['createdAt'] = -1;
         }
         try {
             const [data, total] = await Promise.all([

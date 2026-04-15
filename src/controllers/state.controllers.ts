@@ -50,26 +50,37 @@ export const getAllState = async (req: Request, res: Response) => {
             isActive,
             sortBy,
             sortOrder
-        } = req.query
+        } = req.query;
 
-        const { data, total, page: CurrentPage, totalPages } = await StateService.FindState(
+        let activeStatus: boolean | undefined;
+        if (isActive === 'true') activeStatus = true;
+        else if (isActive === 'false') activeStatus = false;
+
+        const result = await StateService.FindState(
             searchTerm as string,
             countryFilter as string,
             stateFilter as string,
             Number(limit) || 40,
             Number(page) || 1,
-            isActive === 'true' ? true : isActive === 'false' ? false : undefined,
+            activeStatus,
             (sortBy as string) || 'state',
             (sortOrder as 'asc' | 'desc') || 'asc'
         );
-        res.status(200).json({ success: true, data, total, CurrentPage, totalPages })
+
+        res.status(200).json({
+            success: true,
+            data: result.data,
+            total: result.total,
+            currentPage: result.page,
+            totalPages: result.totalPages
+        });
     } catch (error: any) {
-        res.status(error.message === "State not found" ? 404 : 400).json({
+        res.status(500).json({
             success: false,
-            message: error.message
-        })
+            message: error.message || "Internal Server Error"
+        });
     }
-}
+};
 
 export const getStateById = async (req: Request, res: Response) => {
     try {

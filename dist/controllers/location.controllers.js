@@ -29,11 +29,12 @@ export const updateLocation = async (req, res) => {
 export const getAllLocation = async (req, res) => {
     try {
         const { searchTerm, countryFilter, stateFilter, cityFilter, pincodeFilter, limit, page, isActive, sortBy, sortOrder } = req.query;
-        const { data, total, page: CurrentPage, totalPages } = await LocationService.FindLocation(searchTerm, countryFilter, stateFilter, cityFilter, pincodeFilter, Number(limit) || 40, Number(page) || 1, isActive === 'true' ? true : isActive === 'false' ? false : undefined, sortBy || 'name', sortOrder || 'asc');
+        const activeStatus = isActive === 'true' ? true : isActive === 'false' ? false : undefined;
+        const { data, total, page: CurrentPage, totalPages } = await LocationService.FindLocation(searchTerm, countryFilter, stateFilter, cityFilter, pincodeFilter, Number(limit) || 40, Number(page) || 1, activeStatus, sortBy || 'createdAt', sortOrder || 'desc');
         res.status(200).json({ success: true, data, total, CurrentPage, totalPages });
     }
     catch (error) {
-        res.status(error.message === "Location not found" ? 404 : 400).json({
+        res.status(400).json({
             success: false,
             message: error.message
         });

@@ -22,9 +22,6 @@ export class StateService {
         if (typeof isActive === 'boolean') {
             query.isActive = isActive;
         }
-        else {
-            query.isActive = { $ne: false };
-        }
         if (searchTerm)
             query.$text = { $search: searchTerm };
         if (countryFilter)
