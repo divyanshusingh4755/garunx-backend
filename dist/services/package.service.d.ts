@@ -114,7 +114,36 @@ export declare class PackageService {
     }> & {
         __v: number;
     }>;
-    static getPackages({ search, serviceId, location, isActive, page, limit, sortBy, sortOrder }: {
+    static getFullPackageDetails(serviceIds: string[]): Promise<{
+        subServices: {
+            variants: any[];
+            _id: Types.ObjectId;
+            name: string;
+            description?: string;
+            displayOrder: number;
+        }[];
+        name: string;
+        locations: string[];
+        shortDescription: string;
+        fullDescription?: string;
+        category: string;
+        thumbnailImage?: string;
+        bannerImage?: string;
+        isActive: boolean;
+        isComplete: boolean;
+        _id: Types.ObjectId;
+        $locals: Record<string, unknown>;
+        $op: "save" | "validate" | "remove" | null;
+        $where: Record<string, unknown>;
+        baseModelName?: string;
+        collection: import("mongoose").Collection;
+        db: import("mongoose").Connection;
+        errors?: import("mongoose").Error.ValidationError;
+        isNew: boolean;
+        schema: import("mongoose").Schema;
+        __v: number;
+    }[]>;
+    static getPackages({ search, serviceId, location, isActive, page, limit, sortBy, sortOrder, }: {
         search?: string;
         serviceId?: string;
         location?: string;

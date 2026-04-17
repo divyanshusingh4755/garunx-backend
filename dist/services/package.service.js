@@ -1,37 +1,40 @@
 import { Types } from "mongoose";
 import { Package } from "../models/package.model.js";
 import { Service } from "../models/service.model.js";
+import { Product } from "../models/product.model.js";
 export class PackageService {
     static async validateServices(serviceIds) {
         if (!serviceIds || serviceIds.length === 0) {
             throw new Error("At least one service is required");
         }
         const uniqueIds = [...new Set(serviceIds)];
-        const objectIds = uniqueIds.map(id => new Types.ObjectId(id));
+        const objectIds = uniqueIds.map((id) => new Types.ObjectId(id));
         const services = await Service.find({
-            _id: { $in: objectIds }
+            _id: { $in: objectIds },
         });
         if (services.length !== objectIds.length) {
             throw new Error("One or more services are invalid");
         }
-        const inactive = services.find(s => !s.isActive);
+        const inactive = services.find((s) => !s.isActive);
         if (inactive) {
             throw new Error(`Service ${inactive.name} is inactive`);
         }
         return services;
     }
     static async createPackage(payload) {
-        const { name, description, image, services, locations, pricing, createdBy } = payload;
-        const serviceIds = services.map(s => s.serviceId);
+        const { name, description, image, services, locations, pricing, createdBy, } = payload;
+        const serviceIds = services.map((s) => s.serviceId);
         const validatedServices = await this.validateServices(serviceIds);
         const servicePayload = validatedServices.map((s, index) => ({
             serviceId: s._id,
-            displayOrder: index
+            displayOrder: index,
         }));
         const finalPricing = {
             type: pricing?.type || "DERIVED",
             discountPercentage: pricing?.discountPercentage || 0,
-            ...(pricing?.fixedPrice !== undefined && { fixedPrice: pricing.fixedPrice })
+            ...(pricing?.fixedPrice !== undefined && {
+                fixedPrice: pricing.fixedPrice,
+            }),
         };
         const pkg = await Package.create({
             name,
@@ -52,10 +55,12 @@ export class PackageService {
         let shouldIncrementVersion = false;
         let updatedServices = existing.services;
         if (updateData.services) {
-            const incomingServiceIds = updateData.services.map((s) => typeof s === 'string' ? s : s.serviceId);
+            const incomingServiceIds = updateData.services.map((s) => typeof s === "string" ? s : s.serviceId);
             const validated = await this.validateServices(incomingServiceIds);
-            const newServiceIds = validated.map(s => s._id.toString()).sort();
-            const oldServiceIds = existing.services.map(s => s.serviceId.toString()).sort();
+            const newServiceIds = validated.map((s) => s._id.toString()).sort();
+            const oldServiceIds = existing.services
+                .map((s) => s.serviceId.toString())
+                .sort();
             if (JSON.stringify(newServiceIds) !== JSON.stringify(oldServiceIds)) {
                 shouldIncrementVersion = true;
                 // 3. Map back to the required schema structure
@@ -64,7 +69,7 @@ export class PackageService {
                     const original = updateData.services.find((income) => (income.serviceId || income) === s._id.toString());
                     return {
                         serviceId: s._id,
-                        displayOrder: original?.displayOrder ?? index
+                        displayOrder: original?.displayOrder ?? index,
                     };
                 });
             }
@@ -87,7 +92,8 @@ export class PackageService {
         if (updateData.name && updateData.name !== existing.name) {
             shouldIncrementVersion = true;
         }
-        if (updateData.description && updateData.description !== existing.description) {
+        if (updateData.description &&
+            updateData.description !== existing.description) {
             shouldIncrementVersion = true;
         }
         const updatePayload = {
@@ -96,8 +102,12 @@ export class PackageService {
             ...(updateData.image && { image: updateData.image }),
             ...(updateData.locations && { locations: updateData.locations }),
             ...(updateData.pricing && { pricing: updateData.pricing }),
-            ...(updateData.isActive !== undefined && { isActive: updateData.isActive }),
-            ...(updateData.displayOrder !== undefined && { displayOrder: updateData.displayOrder }),
+            ...(updateData.isActive !== undefined && {
+                isActive: updateData.isActive,
+            }),
+            ...(updateData.displayOrder !== undefined && {
+                displayOrder: updateData.displayOrder,
+            }),
             ...(updateData.services && { services: updatedServices }),
         };
         if (shouldIncrementVersion) {
@@ -109,23 +119,26 @@ export class PackageService {
     static async getPackageDetails(packageId, location) {
         const pkg = await Package.findOne({
             _id: packageId,
-            isActive: true
+            isActive: true,
         }).lean();
         if (!pkg)
             throw new Error("Package not found");
-        const serviceIds = pkg.services.map(s => s.serviceId);
+        const serviceIds = pkg.services.map((s) => s.serviceId);
         const services = await Service.find({
             _id: { $in: serviceIds },
-            isActive: true
-        }).populate({
+            isActive: true,
+        })
+            .populate({
             path: "subServices.variants.variantId",
-            model: "Product"
-        }).lean();
-        const enrichedServices = services.map(service => ({
+            model: "Product",
+        })
+            .lean();
+        const enrichedServices = services.map((service) => ({
             ...service,
-            subServices: service.subServices.map(sub => ({
+            subServices: service.subServices.map((sub) => ({
                 ...sub,
-                products: sub.variants.map((vEntry) => {
+                products: sub.variants
+                    .map((vEntry) => {
                     const productDoc = vEntry.variantId;
                     if (!productDoc)
                         return null;
@@ -134,16 +147,17 @@ export class PackageService {
                         ...productDoc,
                         instanceDetails: {
                             isOptional: vEntry.isOptional,
-                            displayOrder: vEntry.displayOrder
+                            displayOrder: vEntry.displayOrder,
                         },
-                        variants: filteredVariants
+                        variants: filteredVariants,
                     };
-                }).filter(Boolean)
-            }))
+                })
+                    .filter(Boolean),
+            })),
         }));
         return {
             ...pkg,
-            services: enrichedServices
+            services: enrichedServices,
         };
     }
     static async updatePackageStatus(packageId, isActive) {
@@ -152,22 +166,62 @@ export class PackageService {
             throw new Error("Package not found");
         return {
             success: true,
-            message: `Package ${isActive ? "activated" : "deactivated"} successfully`
+            message: `Package ${isActive ? "activated" : "deactivated"} successfully`,
         };
     }
     static async getPackageById(packageId, isActive = true) {
         const pkg = await Package.findOne({
             _id: packageId,
-            isActive: isActive
+            isActive: isActive,
         }).lean();
         if (!pkg)
             throw new Error("Package not found");
         return pkg;
     }
-    static async getPackages({ search, serviceId, location, isActive, page = 1, limit = 20, sortBy = "displayOrder", sortOrder = "asc" }) {
+    static async getFullPackageDetails(serviceIds) {
+        const services = await Service.find({ _id: { $in: serviceIds } }).lean();
+        const allVariantIds = services.flatMap((service) => service.subServices.flatMap((sub) => sub.variants.map((v) => v.variantId)));
+        const products = await Product.find({
+            "variants._id": { $in: allVariantIds },
+            isActive: true,
+        }).lean();
+        const variantMap = new Map();
+        products.forEach((product) => {
+            product.variants.forEach((variant) => {
+                if (!variant.isActive)
+                    return;
+                const isSelected = allVariantIds.some((id) => id.toString() === variant._id.toString());
+                if (isSelected) {
+                    variantMap.set(variant._id.toString(), {
+                        productId: product._id,
+                        productName: product.name,
+                        categoryName: product.categoryName,
+                        productImage: product.imageUrl,
+                        ...variant,
+                        availableVariants: product.variants.filter((v) => v.isActive && v.location === variant.location),
+                    });
+                }
+            });
+        });
+        return services.map((service) => ({
+            ...service,
+            subServices: service.subServices.map((sub) => ({
+                ...sub,
+                variants: sub.variants
+                    .map((v) => {
+                    const data = variantMap.get(v.variantId.toString());
+                    return data
+                        ? { ...data, isOptional: v.isOptional, isEditable: v.isEditable }
+                        : null;
+                })
+                    .filter(Boolean),
+            })),
+        }));
+    }
+    static async getPackages({ search, serviceId, location, isActive, page = 1, limit = 20, sortBy = "displayOrder", sortOrder = "asc", }) {
         const skip = (page - 1) * limit;
         const query = {};
-        if (typeof isActive === 'boolean') {
+        if (typeof isActive === "boolean") {
             query.isActive = isActive;
         }
         if (search) {
@@ -194,7 +248,7 @@ export class PackageService {
                     .skip(skip)
                     .limit(limit)
                     .lean(),
-                Package.countDocuments(query)
+                Package.countDocuments(query),
             ]);
             return {
                 data: packages,
@@ -202,8 +256,8 @@ export class PackageService {
                     total,
                     page,
                     limit,
-                    pages: Math.ceil(total / limit)
-                }
+                    pages: Math.ceil(total / limit),
+                },
             };
         }
         catch (error) {

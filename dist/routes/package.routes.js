@@ -1,6 +1,6 @@
-import { Router } from "express";
+import { Router, } from "express";
 import { body, param, query, validationResult } from "express-validator";
-import { createPackage, updatePackage, getPackageDetails, updatePackageStatus, getPackageById, getPackages } from "../controllers/package.controllers.js";
+import { createPackage, updatePackage, getPackageDetails, updatePackageStatus, getPackageById, getPackages, getFullPackageDetails, } from "../controllers/package.controllers.js";
 import { authenticate } from "../middleware/authenticate.js";
 const router = Router();
 const validate = (req, res, next) => {
@@ -10,26 +10,21 @@ const validate = (req, res, next) => {
         return res.status(400).json({
             success: false,
             message: firstError?.msg,
-            error: firstError
+            error: firstError,
         });
     }
     next();
 };
 const packageIdValidation = [
-    param("id")
-        .isMongoId()
-        .withMessage("Invalid package ID"),
-    validate
+    param("id").isMongoId().withMessage("Invalid package ID"),
+    validate,
 ];
 const packageValidation = [
-    body("name")
-        .notEmpty().withMessage("Package name is required"),
+    body("name").notEmpty().withMessage("Package name is required"),
     body("services")
         .isArray({ min: 1 })
         .withMessage("At least one service is required"),
-    body("services.*.serviceId")
-        .isMongoId()
-        .withMessage("Invalid service ID"),
+    body("services.*.serviceId").isMongoId().withMessage("Invalid service ID"),
     body("services.*.displayOrder")
         .optional()
         .isInt({ min: 0 })
@@ -45,29 +40,18 @@ const packageValidation = [
         .optional()
         .isFloat({ min: 0 })
         .withMessage("Fixed price must be >= 0"),
-    validate
+    validate,
 ];
 const statusValidation = [
-    body("isActive")
-        .isBoolean()
-        .withMessage("isActive must be boolean"),
-    validate
+    body("isActive").isBoolean().withMessage("isActive must be boolean"),
+    validate,
 ];
 const packageQueryValidation = [
-    query("serviceId")
-        .optional()
-        .isMongoId()
-        .withMessage("Invalid serviceId"),
-    query("location")
-        .optional()
-        .isString(),
-    query("page")
-        .optional()
-        .isInt({ min: 1 }),
-    query("limit")
-        .optional()
-        .isInt({ min: 1 }),
-    validate
+    query("serviceId").optional().isMongoId().withMessage("Invalid serviceId"),
+    query("location").optional().isString(),
+    query("page").optional().isInt({ min: 1 }),
+    query("limit").optional().isInt({ min: 1 }),
+    validate,
 ];
 const adminQueryValidation = [
     query("search").optional().isString(),
@@ -75,13 +59,9 @@ const adminQueryValidation = [
         .optional()
         .isBoolean()
         .withMessage("isActive must be boolean"),
-    query("page")
-        .optional()
-        .isInt({ min: 1 }),
-    query("limit")
-        .optional()
-        .isInt({ min: 1 }),
-    validate
+    query("page").optional().isInt({ min: 1 }),
+    query("limit").optional().isInt({ min: 1 }),
+    validate,
 ];
 router.get("/", packageQueryValidation, getPackages);
 router.get("/:id/details", packageIdValidation, getPackageDetails);
@@ -89,5 +69,6 @@ router.post("/", authenticate, packageValidation, createPackage);
 router.patch("/:id", authenticate, packageIdValidation, packageValidation, updatePackage);
 router.patch("/:id/status", authenticate, packageIdValidation, statusValidation, updatePackageStatus);
 router.get("/:id", authenticate, packageIdValidation, getPackageById);
+router.post("/get-full-package-details", authenticate, getFullPackageDetails);
 export default router;
 //# sourceMappingURL=package.routes.js.map

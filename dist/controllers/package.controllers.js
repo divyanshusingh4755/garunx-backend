@@ -4,13 +4,13 @@ export const createPackage = async (req, res) => {
         const pkg = await PackageService.createPackage(req.body);
         res.status(201).json({
             success: true,
-            data: pkg
+            data: pkg,
         });
     }
     catch (error) {
         res.status(400).json({
             success: false,
-            message: error.message || "Failed to create package"
+            message: error.message || "Failed to create package",
         });
     }
 };
@@ -20,13 +20,13 @@ export const updatePackage = async (req, res) => {
         const pkg = await PackageService.updatePackage(id, req.body);
         res.status(200).json({
             success: true,
-            data: pkg
+            data: pkg,
         });
     }
     catch (error) {
         res.status(400).json({
             success: false,
-            message: error.message || "Failed to update package"
+            message: error.message || "Failed to update package",
         });
     }
 };
@@ -37,13 +37,13 @@ export const getPackageDetails = async (req, res) => {
         const pkg = await PackageService.getPackageDetails(id, location);
         res.status(200).json({
             success: true,
-            data: pkg
+            data: pkg,
         });
     }
     catch (error) {
         res.status(400).json({
             success: false,
-            message: error.message || "Failed to fetch package details"
+            message: error.message || "Failed to fetch package details",
         });
     }
 };
@@ -53,13 +53,34 @@ export const getPackageById = async (req, res) => {
         const pkg = await PackageService.getPackageById(id);
         res.status(200).json({
             success: true,
-            data: pkg
+            data: pkg,
         });
     }
     catch (error) {
         res.status(404).json({
             success: false,
-            message: error.message || "Package not found"
+            message: error.message || "Package not found",
+        });
+    }
+};
+export const getFullPackageDetails = async (req, res) => {
+    try {
+        const { serviceIds } = req.body;
+        if (!Array.isArray(serviceIds)) {
+            return res
+                .status(400)
+                .json({ success: false, message: "serviceIds must be an array" });
+        }
+        const pkg = await PackageService.getFullPackageDetails(serviceIds);
+        res.status(200).json({
+            success: true,
+            data: pkg,
+        });
+    }
+    catch (error) {
+        res.status(404).json({
+            success: false,
+            message: error.message || "Package not found",
         });
     }
 };
@@ -73,14 +94,14 @@ export const updatePackageStatus = async (req, res) => {
     catch (error) {
         res.status(400).json({
             success: false,
-            message: error.message || "Failed to update package status"
+            message: error.message || "Failed to update package status",
         });
     }
 };
 export const getPackages = async (req, res) => {
     try {
-        const { page, limit, isActive, search, serviceId, location, sortBy, sortOrder } = req.query;
-        const activeBool = isActive === 'true' ? true : isActive === 'false' ? false : undefined;
+        const { page, limit, isActive, search, serviceId, location, sortBy, sortOrder, } = req.query;
+        const activeBool = isActive === "true" ? true : isActive === "false" ? false : undefined;
         const result = await PackageService.getPackages({
             page: Number(page) || 1,
             limit: Number(limit) || 20,
@@ -89,17 +110,17 @@ export const getPackages = async (req, res) => {
             serviceId: serviceId,
             location: location,
             sortBy: sortBy || "displayOrder",
-            sortOrder: sortOrder || "asc"
+            sortOrder: sortOrder || "asc",
         });
         res.status(200).json({
             success: true,
-            ...result
+            ...result,
         });
     }
     catch (error) {
         res.status(400).json({
             success: false,
-            message: error.message || "Failed to fetch packages"
+            message: error.message || "Failed to fetch packages",
         });
     }
 };
