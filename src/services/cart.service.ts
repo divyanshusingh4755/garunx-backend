@@ -6,440 +6,453 @@ import { Package } from "../models/package.model.js";
 import { Service } from "../models/service.model.js";
 
 interface IPriceBreakdown {
-    total: number;
+  total: number;
 }
 
 type VariantDetails = {
-    _id: string;
-    tier: string;
-    price: number;
-    location: string;
-    productId: string;
-    productName: string;
+  _id: string;
+  tier: string;
+  price: number;
+  location: string;
+  productId: string;
+  productName: string;
+  description: string;
 };
 
 type EnrichedCartItem = ICartItem & {
-    variants: VariantDetails[];
-    breakdown: IPriceBreakdown;
+  variants: VariantDetails[];
+  breakdown: IPriceBreakdown;
 };
 
 export class CartService {
-    private pricingService: PricingService
+  private pricingService: PricingService;
 
-    constructor() {
-        this.pricingService = new PricingService();
+  constructor() {
+    this.pricingService = new PricingService();
+  }
+
+  async syncUserCart(
+    userId: string,
+    item: ICartItem,
+    cartId?: string,
+  ): Promise<ICart> {
+    const selectedVariantIds = [...new Set(item.selectedVariantIds)];
+    const itemKey = this.generateItemKey({ ...item, selectedVariantIds });
+    const queryUserId = new mongoose.Types.ObjectId(userId);
+
+    const cartData = {
+      userId: queryUserId,
+      items: { ...item, selectedVariantIds, itemKey },
+    };
+
+    let cart;
+    if (cartId) {
+      cart = await Cart.findByIdAndUpdate(
+        cartId,
+        { $set: cartData },
+        { new: true },
+      ).lean();
+    } else {
+      const existingCart = await Cart.findOne({
+        userId: queryUserId,
+        "items.itemKey": itemKey,
+      });
+
+      if (existingCart) {
+        cart = existingCart;
+      } else {
+        cart = await Cart.create(cartData);
+      }
     }
 
-    async syncUserCart(userId: string, items: ICartItem[]): Promise<ICart> {
-        if (!Array.isArray(items)) {
-            throw new Error("Invalid cart items");
+    if (!cart) throw new Error("Could not sync cart");
+    return cart;
+  }
+
+  async updateCustomerDetails(
+    cartId: string,
+    details: Partial<ICart["customerDetails"]>,
+  ): Promise<ICart | null> {
+    return await Cart.findByIdAndUpdate(
+      cartId,
+      { $set: { customerDetails: details } },
+      { new: true },
+    ).lean();
+  }
+
+  async getCartByUserId(userId: string): Promise<ICart[]> {
+    return await Cart.find({ userId }).sort({ updatedAt: -1 }).lean();
+  }
+
+  async getVariantsByIds(variantIds: string[]) {
+    if (!variantIds.length) return {};
+
+    const variantIdSet = new Set(variantIds);
+
+    const products = await Product.find(
+      { "variants._id": { $in: variantIds } },
+      { name: 1, variants: 1 },
+    ).lean();
+
+    const map: Record<string, VariantDetails> = {};
+
+    for (const product of products) {
+      for (const variant of product.variants) {
+        const id = variant._id.toString();
+
+        if (variantIdSet.has(id) && variant.isActive) {
+          map[id] = {
+            _id: id,
+            tier: variant.tier,
+            price: variant.price,
+            location: variant.location,
+            description: variant.description || "",
+            productId: product._id.toString(),
+            productName: product.name,
+          };
         }
-
-        const queryUserId =
-            typeof userId === "string"
-                ? new mongoose.Types.ObjectId(userId)
-                : userId;
-
-        const cleanedItems = items.map(item => {
-            const selectedVariantIds = [...new Set(item.selectedVariantIds)];
-
-            const itemKey = this.generateItemKey({
-                ...item,
-                selectedVariantIds
-            });
-
-            return {
-                ...item,
-                selectedVariantIds,
-                itemKey
-            };
-        });
-
-        const cart = await Cart.findOneAndUpdate(
-            { userId: queryUserId },
-            { items: cleanedItems },
-            { upsert: true, new: true }
-        ).lean();
-
-        if (!cart) throw new Error("Could not sync cart");
-
-        return cart;
+      }
     }
 
-    async getCartByUserId(userId: string): Promise<ICartItem[]> {
-        const cart = await Cart.findOne({ userId }).lean()
-        return cart ? cart.items : [];
+    return map;
+  }
+
+  async getCartDetails(cart: any) {
+    const cartItem = cart.items;
+    const selectedVariantIds = cartItem?.selectedVariantIds || [];
+
+    const [variantMap, targetData] = await Promise.all([
+      this.getVariantsByIds(selectedVariantIds),
+      this.getTargetMetadata([cartItem]),
+    ]);
+
+    let pricingResult;
+    try {
+      pricingResult = await this.pricingService.calculate({
+        targetId: cartItem.targetId,
+        type: cartItem.itemType,
+        selectedVariantIds: selectedVariantIds,
+      });
+    } catch (error) {
+      pricingResult = null;
     }
 
-    async getVariantsByIds(variantIds: string[]) {
-        if (!variantIds.length) return {};
+    const metadata = targetData[cartItem.targetId.toString()] || {};
 
-        const variantIdSet = new Set(variantIds);
+    const variants = selectedVariantIds
+      .map((id: string) => variantMap[id])
+      .filter(Boolean);
 
-        const products = await Product.find(
-            { "variants._id": { $in: variantIds } },
-            { name: 1, variants: 1 }
-        ).lean();
+    const isStillValid =
+      !!pricingResult &&
+      !!metadata.name &&
+      variants.length === selectedVariantIds.length;
 
-        const map: Record<string, {
-            _id: string;
-            tier: string;
-            price: number;
-            location: string;
-            description: string;
-            productId: string;
-            productName: string;
-        }> = {};
+    return {
+      _id: cart._id,
+      userId: cart.userId || null,
+      customerDetails: cart.customerDetails || {},
+      activeBookingId: cart.activeBookingId,
+      items: {
+        ...cartItem,
+        name: metadata.name || "Unknown Service",
+        image: metadata.image || null,
+        variants,
+        breakdown: pricingResult,
+      },
+      isValid: !!isStillValid,
+      updatedAt: cart.updatedAt || new Date(),
+      grandTotal: pricingResult?.total || 0,
+    };
+  }
 
-        for (const product of products) {
-            for (const variant of product.variants) {
-                const id = variant._id.toString();
+  async getTargetMetadata(items: ICartItem[]) {
+    const packageIds = items
+      .filter((i) => i.itemType === "PACKAGE")
+      .map((i) => i.targetId);
+    const serviceIds = items
+      .filter((i) => i.itemType === "SERVICE")
+      .map((i) => i.targetId);
 
-                if (variantIdSet.has(id) && variant.isActive) {
-                    map[id] = {
-                        _id: id,
-                        tier: variant.tier,
-                        price: variant.price,
-                        location: variant.location,
-                        description: variant.description || "",
-                        productId: product._id.toString(),
-                        productName: product.name
-                    };
-                }
-            }
-        }
+    const [packages, services] = await Promise.all([
+      Package.find(
+        { _id: { $in: packageIds } },
+        { name: 1, description: 1, image: 1 },
+      ).lean(),
+      Service.find(
+        { _id: { $in: serviceIds } },
+        { name: 1, shortDescription: 1, thumbnailImage: 1 },
+      ).lean(),
+    ]);
 
-        return map;
+    const metadataMap: Record<string, any> = {};
+
+    packages.forEach((p) => {
+      metadataMap[p._id.toString()] = {
+        name: p.name,
+        description: p.description,
+        image: p.image,
+      };
+    });
+
+    services.forEach((s) => {
+      metadataMap[s._id.toString()] = {
+        name: s.name,
+        description: s.shortDescription,
+        image: s.thumbnailImage,
+      };
+    });
+
+    return metadataMap;
+  }
+
+  async mergeCarts(userId: string, guestCartIds: string[]): Promise<any> {
+    if (!guestCartIds.length) return await this.getCart(userId);
+
+    const queryUserId = new mongoose.Types.ObjectId(userId);
+
+    await Cart.updateMany(
+      {
+        _id: { $in: guestCartIds },
+        userId: { $exists: false },
+      },
+      { $set: { userId: queryUserId } },
+    );
+
+    const allCarts = await Cart.find({ userId: queryUserId }).sort({
+      updatedAt: -1,
+    });
+    const seenItemkeys = new Set();
+    const idsToDelete: mongoose.Types.ObjectId[] = [];
+
+    for (const cart of allCarts) {
+      const key = cart.items.itemKey;
+
+      if (seenItemkeys.has(key)) {
+        idsToDelete.push(cart._id as mongoose.Types.ObjectId);
+      } else {
+        seenItemkeys.add(key);
+      }
     }
 
-    async getCartDetails(items: ICartItem[]) {
-        if (!items.length) {
-            return { items: [], grandTotal: 0, hasChanges: false }
-        }
+    if (idsToDelete.length > 0) {
+      await Cart.deleteMany({ _id: { $in: idsToDelete } });
+    }
+  }
 
-        const allVariantIds = items.flatMap(i => i.selectedVariantIds);
+  generateItemKey(item: ICartItem) {
+    const sortedVariants = [...item.selectedVariantIds].sort();
+    return `${item.itemType}_${item.targetId}_${sortedVariants.join("_")}`;
+  }
 
-        const [variantMap, targetData] = await Promise.all([
-            this.getVariantsByIds(allVariantIds),
-            this.getTargetMetadata(items)
-        ]);
+  async addItem(userId: string | null, newItem: ICartItem): Promise<any> {
+    const itemKey = this.generateItemKey(newItem);
+    const queryUserId = userId ? new mongoose.Types.ObjectId(userId) : null;
 
-        const pricingResults = await Promise.allSettled(
-            items.map(item =>
-                this.pricingService.calculate({
-                    targetId: item.targetId,
-                    type: item.itemType,
-                    selectedVariantIds: item.selectedVariantIds
-                })
-            )
-        );
+    if (queryUserId) {
+      const existingCart = await Cart.findOne({
+        userId: queryUserId,
+        "items.itemKey": itemKey,
+      });
 
-        const validItems: any[] = [];
-
-        items.forEach((item, index) => {
-            const result = pricingResults[index];
-            const metadata = targetData[item.targetId.toString()];
-
-            if (result && result.status === "fulfilled" && metadata) {
-                const variants = item.selectedVariantIds
-                    .map(id => variantMap[id])
-                    .filter(Boolean);
-
-                validItems.push({
-                    ...item,
-                    name: metadata.name,
-                    image: metadata.image,
-                    description: metadata.description,
-                    variants,
-                    breakdown: result.value
-                });
-            }
-        });
-
-        const grandTotal = validItems.reduce((sum, item) => sum + item.breakdown.total, 0);
-
-        return {
-            items: validItems,
-            grandTotal,
-            hasChanges: validItems.length !== items.length
-        };
+      if (existingCart) {
+        return await this.getCartDetails(existingCart as ICart);
+      }
     }
 
-    async getTargetMetadata(items: ICartItem[]) {
-        const packageIds = items.filter(i => i.itemType === 'PACKAGE').map(i => i.targetId);
-        const serviceIds = items.filter(i => i.itemType === 'SERVICE').map(i => i.targetId);
+    const newCart = await Cart.create({
+      userId: queryUserId,
+      items: {
+        ...newItem,
+        itemKey,
+      },
+    });
 
-        const [packages, services] = await Promise.all([
-            Package.find({ _id: { $in: packageIds } }, { name: 1, description: 1, image: 1 }).lean(),
-            Service.find({ _id: { $in: serviceIds } }, { name: 1, shortDescription: 1, thumbnailImage: 1 }).lean()
-        ]);
+    return await this.getCartDetails(newCart);
+  }
 
-        const metadataMap: Record<string, any> = {};
+  async removeItem(userId: string, itemKey: string): Promise<boolean> {
+    const queryUserId = new mongoose.Types.ObjectId(userId);
 
-        packages.forEach(p => {
-            metadataMap[p._id.toString()] = {
-                name: p.name,
-                description: p.description,
-                image: p.image
-            };
-        });
+    const deletedDoc = await Cart.findOneAndDelete({
+      userId,
+      "items.itemKey": itemKey,
+    });
 
-        services.forEach(s => {
-            metadataMap[s._id.toString()] = {
-                name: s.name,
-                description: s.shortDescription,
-                image: s.thumbnailImage
-            };
-        });
+    return !!deletedDoc;
+  }
 
-        return metadataMap;
+  async removeVariant(
+    userId: string,
+    itemKey: string,
+    variantId: string,
+  ): Promise<any | null> {
+    const queryUserId = new mongoose.Types.ObjectId(userId);
+
+    const currentCart = await Cart.findOne({
+      userId: queryUserId,
+      "items.itemKey": itemKey,
+    });
+    if (!currentCart) return null;
+
+    const updatedVariants = currentCart.items.selectedVariantIds.filter(
+      (id) => id !== variantId,
+    );
+
+    if (updatedVariants.length === 0) {
+      await Cart.findByIdAndDelete(currentCart._id);
+      return { deleted: true };
     }
 
+    const newItemKey = this.generateItemKey({
+      targetId: currentCart.items.targetId,
+      itemType: currentCart.items.itemType,
+      selectedVariantIds: updatedVariants,
+      itemKey: "",
+    });
 
-    async mergeCarts(userId: string, guestItems: ICartItem[]): Promise<ICart> {
-        let cart = await Cart.findOne({ userId });
+    const existingDuplicate = await Cart.findOne({
+      userId: queryUserId,
+      "items.itemKey": newItemKey,
+      _id: { $ne: currentCart._id },
+    });
 
-        if (!cart) {
-            return await this.syncUserCart(userId, guestItems);
-        }
-
-        const itemMap = new Map<string, ICartItem>();
-
-        cart.items.forEach(item => {
-            itemMap.set(item.itemKey, item);
-        });
-
-        guestItems.forEach(item => {
-            const selectedVariantIds = [...new Set(item.selectedVariantIds)];
-
-            const itemKey = this.generateItemKey({
-                ...item,
-                selectedVariantIds
-            });
-
-            const newItem = {
-                ...item,
-                selectedVariantIds,
-                itemKey
-            };
-
-            itemMap.set(itemKey, newItem);
-        });
-
-        cart.items = Array.from(itemMap.values());
-
-        return await cart.save();
+    if (existingDuplicate) {
+      await Cart.findByIdAndDelete(currentCart._id);
+      return await this.getCartDetails(existingDuplicate as ICart);
     }
 
-    generateItemKey(item: ICartItem) {
-        const sortedVariants = [...item.selectedVariantIds].sort();
-        return `${item.itemType}_${item.targetId}_${sortedVariants.join("_")}`;
+    currentCart.items.selectedVariantIds = updatedVariants;
+    currentCart.items.itemKey = newItemKey;
+    const savedCart = await currentCart.save();
+
+    return await this.getCartDetails(savedCart);
+  }
+
+  async updateItem(
+    userId: string,
+    oldItemKey: string,
+    updatedItem: ICartItem,
+  ): Promise<any> {
+    const queryuserId = new mongoose.Types.ObjectId(userId);
+    const newItemKey = this.generateItemKey(updatedItem);
+
+    const currentCart = await Cart.findOne({
+      userId: queryuserId,
+      "items.itemKey": oldItemKey,
+    });
+
+    if (!currentCart) return null;
+
+    if (newItemKey !== oldItemKey) {
+      const existingDuplicate = await Cart.findOne({
+        userId: queryuserId,
+        "items.itemKey": newItemKey,
+        _id: { $ne: currentCart._id },
+      });
+
+      if (existingDuplicate) {
+        await Cart.findByIdAndDelete(currentCart._id);
+        return await this.getCartDetails(existingDuplicate as ICart);
+      }
     }
 
-    async addItem(userId: string, newItem: ICartItem): Promise<ICart> {
-        const itemKey = this.generateItemKey(newItem);
+    currentCart.items = {
+      ...updatedItem,
+      itemKey: newItemKey,
+    };
 
-        const updatedCart = await Cart.findOneAndUpdate(
-            {
-                userId,
-                "items.itemKey": itemKey
-            },
-            {
-                $set: {
-                    "items.$": {
-                        ...newItem,
-                        itemKey
-                    }
-                }
-            },
-            {
-                new: true
-            }
-        );
+    const savedCart = await currentCart.save();
 
-        if (updatedCart) return updatedCart;
+    return await this.getCartDetails(savedCart);
+  }
 
-        return await Cart.findOneAndUpdate(
-            { userId },
-            {
-                $push: {
-                    items: {
-                        ...newItem,
-                        itemKey
-                    }
-                }
-            },
-            {
-                upsert: true,
-                new: true
-            }
-        );
+  async clearCart(userId: string): Promise<void> {
+    const queryUserId = new mongoose.Types.ObjectId(userId);
+
+    await Cart.deleteMany({ userId: queryUserId });
+  }
+
+  async getCartItemByTargetId(userId: string, targetId: string) {
+    const cart = await Cart.findOne({
+      userId: new mongoose.Types.ObjectId(userId),
+      "items.targetId": targetId,
+    }).lean();
+
+    if (!cart) {
+      throw new Error("Item not found in any cart");
     }
 
-    async removeItem(userId: string, itemKey: string): Promise<ICart> {
-        const cart = await Cart.findOneAndUpdate(
-            { userId },
-            {
-                $pull: {
-                    items: { itemKey }
-                }
-            },
-            { new: true }
-        );
+    return await this.getCartDetails(cart as unknown as ICart);
+  }
 
-        if (!cart) throw new Error("Cart not found");
+  async getCart(userId: string) {
+    const carts = await Cart.find({ userId }).sort({ createdAt: -1 }).lean();
 
-        return cart;
+    if (!carts || carts.length === 0) {
+      return { carts: [], grandTotal: 0 };
     }
 
-    async removeVariant(
-        userId: string,
-        itemKey: string,
-        variantId: string
-    ): Promise<ICart | null> {
+    const enrichedCarts = await Promise.all(
+      carts.map((cart) => this.getCartDetails(cart as unknown as ICart)),
+    );
 
-        const cart = await Cart.findOne({ userId });
-        if (!cart) return null;
+    const grandTotal = enrichedCarts.reduce(
+      (sum, cart) => sum + (cart.grandTotal || 0),
+      0,
+    );
 
-        const itemIndex = cart.items.findIndex(item => item.itemKey === itemKey);
-        if (itemIndex === -1) return cart;
+    return {
+      carts: enrichedCarts,
+      grandTotal,
+    };
+  }
 
-        const item = cart.items[itemIndex];
-        if (!item) return cart;
+  async getCartCount(userId: string): Promise<number> {
+    const queryUserId = new mongoose.Types.ObjectId(userId);
+    return await Cart.countDocuments({ userId: queryUserId });
+  }
 
-        const updatedVariants = item.selectedVariantIds.filter(id => id !== variantId);
+  async validateCart(carts: any[]) {
+    const enrichedResults = await Promise.all(
+      carts.map((cart) => this.getCartDetails(cart)),
+    );
 
-        if (updatedVariants.length === 0) {
-            cart.items.splice(itemIndex, 1);
-        } else {
-            const newItemKey = this.generateItemKey({
-                targetId: item.targetId,
-                itemType: item.itemType,
-                selectedVariantIds: updatedVariants,
-                itemKey: ""
-            });
+    const invalidItems = enrichedResults.filter((result) => !result.isValid);
 
-            cart.items[itemIndex] = {
-                targetId: item.targetId,
-                itemType: item.itemType,
-                selectedVariantIds: updatedVariants,
-                itemKey: newItemKey
-            };
-        }
+    return {
+      isValid: invalidItems.length === 0,
+      invalidItems,
+    };
+  }
 
-        return await cart.save();
+  async prepareCheckout(cartId: string, userId: string) {
+    const queryUserId = new mongoose.Types.ObjectId(userId);
+
+    const cart = await Cart.findOne({
+      _id: cartId,
+      userId: queryUserId,
+    }).lean();
+
+    if (!cart) {
+      throw new Error("Specific cart document not found");
     }
 
-    async updateItem(userId: string, itemKey: string, updatedItem: ICartItem) {
-        const newItemKey = this.generateItemKey(updatedItem);
+    const details = await this.getCartDetails(cart as ICart);
 
-        const cart = await Cart.findOneAndUpdate(
-            { userId, "items.itemKey": itemKey },
-            {
-                $set: {
-                    "items.$": {
-                        ...updatedItem,
-                        itemKey: newItemKey
-                    }
-                }
-            },
-            { new: true }
-        );
-
-        return cart;
+    if (!details.isValid) {
+      throw new Error(
+        "Item is not longer available in cart or price has changes",
+      );
     }
 
-    async clearCart(userId: string): Promise<ICart | null> {
-        return await Cart.findOneAndUpdate(
-            { userId },
-            {
-                $set: { items: [] }
-            },
-            { new: true }
-        );
-    }
-
-    async getCartItemByTargetId(userId: string, targetId: string) {
-        const cart = await Cart.findOne({ userId: new mongoose.Types.ObjectId(userId), "items.targetId": targetId }).lean();
-
-        if (!cart) {
-            throw new Error("Item not found in any cart");
-        }
-
-        const item = cart.items.find(i => i.targetId === targetId);
-
-        if (!item) {
-            throw new Error("Item not found in cart");
-        }
-
-        const result = await this.getCartDetails([item]);
-
-        return {
-            item: result.items[0],
-            grandTotal: result.grandTotal,
-        };
-    }
-
-    async getCart(userId: string) {
-        const cart = await Cart.findOne({ userId }).lean();
-
-        if (!cart || !cart.items.length) {
-            return { items: [], grandTotal: 0, hasChanges: false };
-        }
-
-        return await this.getCartDetails(cart.items);
-    }
-
-    async getCartCount(userId: string): Promise<number> {
-        const cart = await Cart.findOne({ userId }, { items: 1 }).lean();
-        return cart?.items.length || 0;
-    }
-
-    async validateCart(items: ICartItem[]) {
-        const allVariantIds = items.flatMap(i => i.selectedVariantIds);
-        const variantMap = await this.getVariantsByIds(allVariantIds);
-
-        const invalidItems = items.filter(item =>
-            item.selectedVariantIds.some(id => !variantMap[id])
-        );
-
-        return {
-            isValid: invalidItems.length === 0,
-            invalidItems
-        };
-    }
-
-    async prepareCheckout(userId: string) {
-        const cart = await Cart.findOne({ userId }).lean();
-
-        if (!cart) {
-            throw new Error("Cart not found");
-        }
-
-        if (!cart.items.length) {
-            throw new Error("Cart is empty");
-        }
-
-        const details = await this.getCartDetails(cart.items);
-
-        if (!details.items.length) {
-            throw new Error("No valid items in cart");
-        }
-
-        if (details.hasChanges) {
-            return {
-                status: "INVALID_CART",
-                message: "Some items in your cart have changed. Please review.",
-                data: details
-            };
-        }
-
-        return {
-            status: "READY",
-            data: {
-                items: details.items,
-                grandTotal: details.grandTotal
-            }
-        };
-    }
+    return {
+      status: "READY",
+      data: {
+        cartId: details._id,
+        item: details.items,
+        grandTotal: details.grandTotal,
+      },
+    };
+  }
 }

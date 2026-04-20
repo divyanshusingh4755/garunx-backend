@@ -125,6 +125,7 @@ export const getPackages = async (req: Request, res: Response) => {
       limit,
       isActive,
       search,
+      category,
       serviceId,
       location,
       sortBy,
@@ -139,6 +140,7 @@ export const getPackages = async (req: Request, res: Response) => {
       limit: Number(limit) || 20,
       isActive: activeBool, // Pass undefined, true, or false
       search: search as string,
+      category: category as string,
       serviceId: serviceId as string,
       location: location as string,
       sortBy: (sortBy as string) || "displayOrder",

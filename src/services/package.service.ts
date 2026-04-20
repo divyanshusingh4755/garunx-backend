@@ -40,6 +40,7 @@ export class PackageService {
       fixedPrice?: number;
       discountPercentage?: number;
     };
+    category: string;
     createdBy?: string;
   }) {
     const {
@@ -49,6 +50,7 @@ export class PackageService {
       services,
       locations,
       pricing,
+      category,
       createdBy,
     } = payload;
 
@@ -72,6 +74,7 @@ export class PackageService {
       name,
       services: servicePayload,
       pricing: finalPricing,
+      category,
       ...(image !== undefined && { image }),
       ...(description !== undefined && { description }),
       ...(locations !== undefined && { locations }),
@@ -94,6 +97,7 @@ export class PackageService {
         fixedPrice?: number;
         discountPercentage?: number;
       };
+      category: string;
       isActive?: boolean;
       displayOrder?: number;
     },
@@ -172,6 +176,7 @@ export class PackageService {
       ...(updateData.image && { image: updateData.image }),
       ...(updateData.locations && { locations: updateData.locations }),
       ...(updateData.pricing && { pricing: updateData.pricing }),
+      category: updateData.category,
       ...(updateData.isActive !== undefined && {
         isActive: updateData.isActive,
       }),
@@ -328,6 +333,7 @@ export class PackageService {
 
   static async getPackages({
     search,
+    category,
     serviceId,
     location,
     isActive,
@@ -337,6 +343,7 @@ export class PackageService {
     sortOrder = "asc",
   }: {
     search?: string;
+    category?: string;
     serviceId?: string;
     location?: string;
     isActive?: boolean | undefined;
@@ -358,6 +365,10 @@ export class PackageService {
 
     if (serviceId) {
       query["services.serviceId"] = new Types.ObjectId(serviceId);
+    }
+
+    if (category) {
+      query.category = category;
     }
 
     if (location) {
