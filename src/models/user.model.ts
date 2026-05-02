@@ -1,6 +1,6 @@
 import { Schema, Types, model, Document } from "mongoose";
 import { Role } from "../types/rbac.js";
-import { Counter } from "./Counter.js";
+import { Counter } from "./counter.model.js";
 
 export interface IUser extends Document {
   // Auth & Identity
@@ -91,7 +91,7 @@ const userSchema = new Schema<IUser>(
     profileImage: { type: String, default: null },
     isComplete: { type: Boolean, default: false },
     isResetVerified: { type: Boolean, default: false },
-    referralCode: { type: String, sparse: true },
+    referralCode: { type: String },
     referredBy: { type: Schema.Types.ObjectId, ref: "User", default: null },
     resetPasswordToken: { type: String, default: null },
     resetPasswordExpires: { type: Date, default: null },

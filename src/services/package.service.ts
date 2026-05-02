@@ -1,9 +1,21 @@
 import { Types } from "mongoose";
 import { Package } from "../models/package.model.js";
-import { Service } from "../models/service.model.js";
+import { Service, type IService } from "../models/service.model.js";
 import { Product } from "../models/product.model.js";
+import { PricingService } from "./pricing.service.js";
 
 export class PackageService {
+  static extractVariantIds(service: IService): string[] {
+    const ids: string[] = [];
+    service.subServices.forEach((sub) => {
+      if (sub.variants.length > 0) {
+        ids.push(sub.variants[0]?.variantId.toString());
+      }
+    });
+
+    return ids;
+  }
+
   static async validateServices(serviceIds: string[]) {
     if (!serviceIds || serviceIds.length === 0) {
       throw new Error("At least one service is required");
@@ -395,8 +407,59 @@ export class PackageService {
         Package.countDocuments(query),
       ]);
 
+      const serviceIds = packages.flatMap((p) =>
+        p.services.map((s) => s.serviceId),
+      );
+
+      const services = await Service.find({
+        _id: { $in: serviceIds },
+        isActive: true,
+      }).lean();
+
+      const serviceMap = new Map();
+      services.forEach((s) => serviceMap.set(s._id.toString(), s));
+
+      const pricingService = new PricingService();
+
+      const enrichedPackages = await Promise.all(
+        packages.map(async (pkg) => {
+          let computedPricing = null;
+
+          if (pkg.pricing.type === "FIXED") {
+            const price = pkg.pricing.fixedPrice || 0;
+
+            computedPricing = {
+              subTotal: price,
+              discount: 0,
+              discountPercentage: 0,
+              total: price,
+            };
+          } else {
+            let selectedVariantIds: string[] = [];
+
+            for (const svc of pkg.services) {
+              const service = serviceMap.get(svc.serviceId.toString());
+              if (!service) continue;
+              const variantIds = this.extractVariantIds(service);
+              selectedVariantIds.push(...variantIds);
+            }
+
+            computedPricing = await pricingService.calculate({
+              type: "PACKAGE",
+              targetId: pkg._id.toString(),
+              selectedVariantIds,
+            });
+          }
+
+          return {
+            ...pkg,
+            computedPricing,
+          };
+        }),
+      );
+
       return {
-        data: packages,
+        data: enrichedPackages,
         pagination: {
           total,
           page,

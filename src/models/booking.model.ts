@@ -1,5 +1,5 @@
 import { model, Schema, Types, Document } from "mongoose";
-import { Counter } from "./Counter.js";
+import { Counter } from "./counter.model.js";
 
 export interface IBooking extends Document {
   customerId: Types.ObjectId;

@@ -64,13 +64,13 @@ const statusUpdateValidation = [
 
 const router = Router();
 
-router.post("/payments/webhook", handleWebhook);
-router.get("/my-bookings", authenticate, getMyBookings);
+// router.post("/payments/webhook", handleWebhook);
+// router.get("/my-bookings", authenticate, getMyBookings);
 router.post("/", authenticate, createBookingValidation, createBooking);
-router.get("/:id", getBookingById);
-router.get("/", authenticate, getAllBookings);
-router.get("/stats", authenticate, getStats);
-router.patch("/:id/assign", authenticate, assignToSubAdmin);
-router.patch("/:id/status", authenticate, statusUpdateValidation, updateStatus);
+// router.get("/:id", getBookingById);
+// router.get("/", authenticate, getAllBookings);
+// router.get("/stats", authenticate, getStats);
+// router.patch("/:id/assign", authenticate, assignToSubAdmin);
+// router.patch("/:id/status", authenticate, statusUpdateValidation, updateStatus);
 
 export default router;
