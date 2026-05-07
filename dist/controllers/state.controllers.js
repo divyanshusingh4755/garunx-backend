@@ -1,14 +1,14 @@
 import { StateService } from "../services/state.service.js";
 export const createState = async (req, res) => {
     try {
-        const { state, country, image, description, location } = req.body;
-        await StateService.createState(state, country, image, description, location);
+        const { name, country, image, description, location } = req.body;
+        await StateService.createState(name, country, image, description, location);
         res.status(200).json({ success: true, data: "State created successfully" });
     }
     catch (error) {
         res.status(error.message === "State not found" ? 404 : 400).json({
             success: false,
-            message: error.message
+            message: error.message,
         });
     }
 };
@@ -21,31 +21,31 @@ export const updateState = async (req, res) => {
     catch (error) {
         res.status(error.message === "State not found" ? 404 : 400).json({
             success: false,
-            message: error.message
+            message: error.message,
         });
     }
 };
 export const getAllState = async (req, res) => {
     try {
-        const { searchTerm, stateFilter, countryFilter, limit, page, isActive, sortBy, sortOrder } = req.query;
+        const { searchTerm, stateFilter, countryFilter, limit, page, isActive, sortBy, sortOrder, } = req.query;
         let activeStatus;
-        if (isActive === 'true')
+        if (isActive === "true")
             activeStatus = true;
-        else if (isActive === 'false')
+        else if (isActive === "false")
             activeStatus = false;
-        const result = await StateService.FindState(searchTerm, countryFilter, stateFilter, Number(limit) || 40, Number(page) || 1, activeStatus, sortBy || 'state', sortOrder || 'asc');
+        const result = await StateService.FindState(searchTerm, countryFilter, stateFilter, Number(limit) || 40, Number(page) || 1, activeStatus, sortBy || "state", sortOrder || "asc");
         res.status(200).json({
             success: true,
             data: result.data,
             total: result.total,
             currentPage: result.page,
-            totalPages: result.totalPages
+            totalPages: result.totalPages,
         });
     }
     catch (error) {
         res.status(500).json({
             success: false,
-            message: error.message || "Internal Server Error"
+            message: error.message || "Internal Server Error",
         });
     }
 };
@@ -58,7 +58,7 @@ export const getStateById = async (req, res) => {
     catch (error) {
         res.status(error.message === "State not found" ? 404 : 400).json({
             success: false,
-            message: error.message
+            message: error.message,
         });
     }
 };
@@ -69,20 +69,20 @@ export const deleteState = async (req, res) => {
         if (!id || status === undefined) {
             return res.status(400).json({
                 success: false,
-                message: "User ID and status are required."
+                message: "User ID and status are required.",
             });
         }
         const state = await StateService.softDeleteState(id, status);
         res.status(200).json({
             success: true,
             message: `State marked as ${status}`,
-            data: state
+            data: state,
         });
     }
     catch (error) {
         res.status(error.message === "State not found" ? 404 : 400).json({
             success: false,
-            message: error.message
+            message: error.message,
         });
     }
 };

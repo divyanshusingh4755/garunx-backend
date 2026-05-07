@@ -15,5 +15,6 @@ export declare class CartController {
     getCartItemByTargetId: (req: Request, res: Response) => Promise<Response<any, Record<string, any>> | undefined>;
     validateCart: (req: Request, res: Response) => Promise<Response<any, Record<string, any>> | undefined>;
     prepareCheckout: (req: Request, res: Response) => Promise<Response<any, Record<string, any>> | undefined>;
+    updateCustomerDetails: (req: Request, res: Response) => Promise<Response<any, Record<string, any>> | undefined>;
 }
 //# sourceMappingURL=cart.controllers.d.ts.map

@@ -1,9 +1,16 @@
 import { type ICity } from "../models/city.model.js";
 export declare class CityService {
     private static applyFilter;
-    static createCity(state: String, city: String, image?: String, description?: String, location?: {
-        type: "Point";
-        coordinates: [number, number];
+    static createCity(params: {
+        name: string;
+        country: string;
+        stateId: string;
+        image?: string;
+        description?: string;
+        location?: {
+            type: "Point";
+            coordinates: [number, number];
+        };
     }): Promise<import("mongoose").Document<unknown, {}, ICity, {}, import("mongoose").DefaultSchemaOptions> & ICity & Required<{
         _id: import("mongoose").Types.ObjectId;
     }> & {
@@ -11,7 +18,17 @@ export declare class CityService {
     } & {
         id: string;
     }>;
-    static FindCity(searchTerm?: string, cityFilter?: string, stateFilter?: string, limit?: number, page?: number, isActive?: boolean, sortBy?: string, sortOrder?: 'asc' | 'desc'): Promise<{
+    static FindCity(params: {
+        searchTerm?: string;
+        cityFilter?: string;
+        stateIdFilter?: string;
+        countryFilter?: string;
+        limit?: number;
+        page?: number;
+        isActive?: boolean;
+        sortBy?: string;
+        sortOrder?: "asc" | "desc";
+    }): Promise<{
         data: (ICity & Required<{
             _id: import("mongoose").Types.ObjectId;
         }> & {

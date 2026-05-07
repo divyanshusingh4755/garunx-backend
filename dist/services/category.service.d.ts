@@ -33,7 +33,7 @@ export declare class CategoryService {
     } & {
         id: string;
     }>;
-    static FindCategories(searchTerm?: string, typeFilter?: 'service' | 'product', limit?: number, page?: number, isActive?: boolean, sortBy?: string, sortOrder?: 'asc' | 'desc'): Promise<{
+    static FindCategories(searchTerm?: string, typeFilter?: "service" | "product", limit?: number, page?: number, isActive?: boolean, sortBy?: string, sortOrder?: "asc" | "desc"): Promise<{
         data: (ICategory & {
             _id: import("mongoose").Types.ObjectId;
         } & {

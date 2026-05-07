@@ -1,5 +1,5 @@
 import { Package } from "../models/package.model.js";
-import { Product } from "../models/product.model.js";
+import { Component } from "../models/component.model.js";
 import { Service } from "../models/service.model.js";
 
 export interface IPricingRequest {
@@ -45,7 +45,7 @@ export class PricingService {
     const selectedIds = req.selectedVariantIds || [];
     if (selectedIds.length > 50) throw new Error("Too many items selected.");
 
-    const products = await Product.find({
+    const products = await Component.find({
       "variants._id": { $in: selectedIds },
       isActive: true,
     }).lean();
@@ -55,9 +55,6 @@ export class PricingService {
     let detectedLocation: string | null = null;
 
     const variantMap = new Map();
-    products.forEach((p) => {
-      p.variants.forEach((v) => variantMap.set(v._id.toString(), v));
-    });
 
     selectedIds.forEach((selectedId) => {
       const variantData = variantMap.get(selectedId.toString());

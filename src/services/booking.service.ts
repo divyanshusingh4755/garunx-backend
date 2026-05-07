@@ -2,7 +2,7 @@ import { Types } from "mongoose";
 import { Booking, type IBooking } from "../models/booking.model.js";
 import { Cart } from "../models/cart.model.js";
 import { Package } from "../models/package.model.js";
-import { Product } from "../models/product.model.js";
+import { Component } from "../models/component.model.js";
 import { Service } from "../models/service.model.js";
 import { PricingService } from "./pricing.service.js";
 
@@ -20,7 +20,7 @@ class BookingService {
     let snapshotName: string;
     let snapshotDescription: string;
     let snapshotImage: string;
-    let snapshotCategory: string;
+    let snapshotCategory: Types.ObjectId;
     let location: string;
 
     if (cart.items.itemType === "SERVICE") {
@@ -30,8 +30,8 @@ class BookingService {
       snapshotName = service.name;
       snapshotDescription = service.shortDescription;
       snapshotImage = service.thumbnailImage || "";
-      snapshotCategory = service.category;
-      location = service.locations[0] || "";
+      snapshotCategory = service.categoryId;
+      // location = service.locations[0] || [];
     } else {
       const pkg = await Package.findById(cart.items.targetId);
       if (!pkg) throw new Error("Package not found");
@@ -39,8 +39,8 @@ class BookingService {
       snapshotName = pkg.name;
       snapshotDescription = pkg.description || "";
       snapshotImage = pkg.image || "";
-      snapshotCategory = pkg.category;
-      location = pkg.locations[0] || "";
+      // snapshotCategory = pkg.category;
+      // location = pkg.locations[0] || [];
     }
 
     const pricingBreakdown = await this.pricingService.calculate({
@@ -49,7 +49,7 @@ class BookingService {
       selectedVariantIds: cart.items.selectedVariantIds,
     });
 
-    const products = await Product.find({
+    const products = await Component.find({
       "variants._id": { $in: cart.items.selectedVariantIds },
     });
 
@@ -58,33 +58,19 @@ class BookingService {
         "Could not find product variants associated with this selection",
       );
 
-    const variantForSnapShot = products.flatMap((p) =>
-      p.variants
-        .filter((v) => cart.items.selectedVariantIds.includes(v._id.toString()))
-        .map((v) => ({
-          variantId: v._id,
-          tier: v.tier,
-          price: v.price,
-          location: v.location,
-        })),
-    );
-
-    if (variantForSnapShot.length === 0)
-      throw new Error("No valid variants found in product");
-
-    const bookingData: Partial<IBooking> = {
-      customerId: new Types.ObjectId(cart.userId),
+    const bookingData: any = {
+      // customerId: new Types.ObjectId(cart.userId),
       items: {
         targetId: new Types.ObjectId(cart.items.targetId),
         productName: snapshotName,
         itemType: cart.items.itemType,
         description: snapshotDescription,
         imageUrl: snapshotImage,
-        categoryName: snapshotCategory,
-        priceAtBooking: basePrice,
-        selectedVariants: variantForSnapShot,
+        // categoryName: snapshotCategory,
+        priceAtBooking: 0,
+        selectedVariants: [],
       },
-      location: location,
+      // location: location,
       bookedBy: "CUSTOMER",
       customerDetails: cart.customerDetails,
       scheduledDate: cart.scheduledDate,

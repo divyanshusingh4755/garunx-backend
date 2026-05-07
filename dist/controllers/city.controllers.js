@@ -1,14 +1,21 @@
 import { CityService } from "../services/city.service.js";
 export const createCity = async (req, res) => {
     try {
-        const { state, city, image, description, location } = req.body;
-        await CityService.createCity(state, city, image, description, location);
+        const { name, country, stateId, image, description, location } = req.body;
+        await CityService.createCity({
+            name,
+            country,
+            stateId,
+            image,
+            description,
+            location,
+        });
         res.status(200).json({ success: true, data: "City created successfully" });
     }
     catch (error) {
         res.status(error.message === "City not found" ? 404 : 400).json({
             success: false,
-            message: error.message
+            message: error.message,
         });
     }
 };
@@ -21,15 +28,31 @@ export const updateCity = async (req, res) => {
     catch (error) {
         res.status(error.message === "City not found" ? 404 : 400).json({
             success: false,
-            message: error.message
+            message: error.message,
         });
     }
 };
 export const getAllCity = async (req, res) => {
     try {
-        const { searchTerm, stateFilter, cityFilter, limit, page, isActive, sortBy, sortOrder } = req.query;
-        const { data, total, page: CurrentPage, totalPages } = await CityService.FindCity(searchTerm, cityFilter, stateFilter, Number(limit) || 40, Number(page) || 1, isActive === 'true' ? true : isActive === 'false' ? false : undefined, sortBy || 'city', sortOrder || 'asc');
-        res.status(200).json({ success: true, data, total, CurrentPage, totalPages });
+        const { searchTerm, cityFilter, stateIdFilter, countryFilter, limit, page, isActive, sortBy, sortOrder, } = req.query;
+        const result = await CityService.FindCity({
+            searchTerm: searchTerm,
+            cityFilter: cityFilter,
+            stateIdFilter: stateIdFilter,
+            countryFilter: countryFilter,
+            limit: Number(limit) || 40,
+            page: Number(page) || 1,
+            ...(typeof isActive === "boolean" && { isActive: isActive }),
+            sortBy: sortBy || "createdAt",
+            sortOrder: sortOrder || "desc",
+        });
+        return res.status(200).json({
+            success: true,
+            data: result.data,
+            total: result.total,
+            currentPage: result.page,
+            totalPages: result.totalPages,
+        });
     }
     catch (error) {
         res.status(400).json({ success: false, message: error.message });
@@ -44,7 +67,7 @@ export const getCityById = async (req, res) => {
     catch (error) {
         res.status(error.message === "City not found" ? 404 : 400).json({
             success: false,
-            message: error.message
+            message: error.message,
         });
     }
 };
@@ -55,20 +78,20 @@ export const deleteCity = async (req, res) => {
         if (!id || status === undefined) {
             return res.status(400).json({
                 success: false,
-                message: "User ID and status are required."
+                message: "User ID and status are required.",
             });
         }
         const city = await CityService.softDeleteCity(id, status);
         res.status(200).json({
             success: true,
             message: `City marked as ${status}`,
-            data: city
+            data: city,
         });
     }
     catch (error) {
         res.status(error.message === "City not found" ? 404 : 400).json({
             success: false,
-            message: error.message
+            message: error.message,
         });
     }
 };

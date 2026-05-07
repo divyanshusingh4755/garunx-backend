@@ -3,23 +3,23 @@ export class StateService {
     static applyFilter(filterValue) {
         if (!filterValue)
             return undefined;
-        const values = filterValue.split(',').map(val => val.trim());
+        const values = filterValue.split(",").map((val) => val.trim());
         return { $in: values };
     }
-    static async createState(state, country, image, description, location) {
+    static async createState(name, country, image, description, location) {
         const newState = new State({
-            state,
+            name,
             country,
             image,
             description,
-            location
+            location,
         });
         return await newState.save();
     }
-    static async FindState(searchTerm, countryFilter, stateFilter, limit = 40, page = 1, isActive, sortBy = 'createdAt', sortOrder = 'desc') {
+    static async FindState(searchTerm, countryFilter, stateFilter, limit = 40, page = 1, isActive, sortBy = "createdAt", sortOrder = "desc") {
         const skip = limit * (page - 1);
         const query = {};
-        if (typeof isActive === 'boolean') {
+        if (typeof isActive === "boolean") {
             query.isActive = isActive;
         }
         if (searchTerm)
@@ -30,14 +30,14 @@ export class StateService {
             query.state = this.applyFilter(stateFilter);
         let sortCriteria = {};
         let projection = {};
-        if (searchTerm && sortBy === 'relevance') {
-            projection = { score: { $meta: 'textScore' } };
-            sortCriteria = { score: { $meta: 'textScore' } };
+        if (searchTerm && sortBy === "relevance") {
+            projection = { score: { $meta: "textScore" } };
+            sortCriteria = { score: { $meta: "textScore" } };
         }
         else {
-            sortCriteria[sortBy] = sortOrder === 'desc' ? -1 : 1;
-            if (sortBy !== 'createdAt')
-                sortCriteria['createdAt'] = -1;
+            sortCriteria[sortBy] = sortOrder === "desc" ? -1 : 1;
+            if (sortBy !== "createdAt")
+                sortCriteria["createdAt"] = -1;
         }
         try {
             const [data, total] = await Promise.all([
@@ -46,7 +46,7 @@ export class StateService {
                     .skip(skip)
                     .limit(limit)
                     .lean(),
-                State.countDocuments(query)
+                State.countDocuments(query),
             ]);
             return { data, total, page, totalPages: Math.ceil(total / limit) };
         }
@@ -58,13 +58,13 @@ export class StateService {
         try {
             if (updateData.location?.coordinates) {
                 updateData.location = {
-                    type: 'Point',
-                    coordinates: updateData.location.coordinates
+                    type: "Point",
+                    coordinates: updateData.location.coordinates,
                 };
             }
             const updatedState = await State.findByIdAndUpdate(stateId, { $set: updateData }, { new: true, runValidators: true }).lean();
             if (!updatedState) {
-                throw new Error('State not found');
+                throw new Error("State not found");
             }
             return updatedState;
         }

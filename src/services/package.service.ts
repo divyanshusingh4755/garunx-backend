@@ -1,18 +1,11 @@
 import { Types } from "mongoose";
 import { Package } from "../models/package.model.js";
 import { Service, type IService } from "../models/service.model.js";
-import { Product } from "../models/product.model.js";
 import { PricingService } from "./pricing.service.js";
 
 export class PackageService {
   static extractVariantIds(service: IService): string[] {
     const ids: string[] = [];
-    service.subServices.forEach((sub) => {
-      if (sub.variants.length > 0) {
-        ids.push(sub.variants[0]?.variantId.toString());
-      }
-    });
-
     return ids;
   }
 
@@ -227,40 +220,13 @@ export class PackageService {
     })
       .populate({
         path: "subServices.variants.variantId",
-        model: "Product",
+        model: "Component",
       })
       .lean();
 
-    const enrichedServices = services.map((service) => ({
-      ...service,
-      subServices: service.subServices.map((sub) => ({
-        ...sub,
-        products: sub.variants
-          .map((vEntry: any) => {
-            const productDoc = vEntry.variantId;
-
-            if (!productDoc) return null;
-
-            const filteredVariants = (productDoc.variants || []).filter(
-              (v: any) => v.location === location && v.isActive,
-            );
-
-            return {
-              ...productDoc,
-              instanceDetails: {
-                isOptional: vEntry.isOptional,
-                displayOrder: vEntry.displayOrder,
-              },
-              variants: filteredVariants,
-            };
-          })
-          .filter(Boolean),
-      })),
-    }));
-
     return {
       ...pkg,
-      services: enrichedServices,
+      services: [],
     };
   }
 
@@ -293,54 +259,8 @@ export class PackageService {
   static async getFullPackageDetails(serviceIds: string[]) {
     const services = await Service.find({ _id: { $in: serviceIds } }).lean();
 
-    const allVariantIds = services.flatMap((service) =>
-      service.subServices.flatMap((sub) =>
-        sub.variants.map((v) => v.variantId),
-      ),
-    );
-
-    const products = await Product.find({
-      "variants._id": { $in: allVariantIds },
-      isActive: true,
-    }).lean();
-
     const variantMap = new Map();
-    products.forEach((product) => {
-      product.variants.forEach((variant: any) => {
-        if (!variant.isActive) return;
-
-        const isSelected = allVariantIds.some(
-          (id) => id.toString() === variant._id.toString(),
-        );
-        if (isSelected) {
-          variantMap.set(variant._id.toString(), {
-            productId: product._id,
-            productName: product.name,
-            categoryName: product.categoryName,
-            productImage: product.imageUrl,
-            ...variant,
-            availableVariants: product.variants.filter(
-              (v: any) => v.isActive && v.location === variant.location,
-            ),
-          });
-        }
-      });
-    });
-
-    return services.map((service) => ({
-      ...service,
-      subServices: service.subServices.map((sub) => ({
-        ...sub,
-        variants: sub.variants
-          .map((v) => {
-            const data = variantMap.get(v.variantId.toString());
-            return data
-              ? { ...data, isOptional: v.isOptional, isEditable: v.isEditable }
-              : null;
-          })
-          .filter(Boolean),
-      })),
-    }));
+    return;
   }
 
   static async getPackages({

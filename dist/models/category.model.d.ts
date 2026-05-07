@@ -1,7 +1,7 @@
 export interface ICategory extends Document {
     label: string;
     value: string;
-    type: 'service' | 'product';
+    type: "service" | "product";
     image?: string;
     description?: string;
     isActive: boolean;

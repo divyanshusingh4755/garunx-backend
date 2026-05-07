@@ -1,23 +1,55 @@
-import { Schema, model, Types } from 'mongoose';
+import { Schema, model, Types } from "mongoose";
 const citySchema = new Schema({
-    city: { type: String, required: true },
-    state: { type: String, required: true },
-    image: { type: String },
-    description: { type: String },
-    isActive: { type: Boolean, default: true },
+    name: {
+        type: String,
+        required: true,
+        trim: true,
+        index: true,
+    },
+    country: {
+        type: String,
+        required: true,
+        index: true,
+    },
+    stateId: {
+        type: Schema.Types.ObjectId,
+        ref: "State",
+        required: true,
+        index: true,
+    },
+    image: {
+        type: String,
+    },
+    description: {
+        type: String,
+    },
+    isActive: {
+        type: Boolean,
+        default: true,
+        index: true,
+    },
     location: {
-        type: { type: String, enum: ['Point'] },
-        coordinates: { type: [Number] } // [Longitude, Latitude]
-    }
+        type: {
+            type: String,
+            enum: ["Point"],
+        },
+        coordinates: {
+            type: [Number], // [longitude, latitude]
+        },
+    },
 }, { timestamps: true });
-citySchema.index({ location: '2dsphere' });
-citySchema.index({ city: 1, state: 1 });
-citySchema.index({ city: 1 });
-citySchema.index({ state: 1 });
-citySchema.index({ isActive: 1, createdAt: -1 });
+citySchema.index({ location: "2dsphere" });
 citySchema.index({
-    city: 'text',
-    state: 'text',
-}, { name: 'CityTextSearchIndex' });
-export const City = model('City', citySchema);
+    country: 1,
+    stateId: 1,
+    name: 1,
+});
+citySchema.index({
+    isActive: 1,
+    createdAt: -1,
+});
+citySchema.index({
+    name: "text",
+}, { name: "CityTextSearchIndex" });
+export const City = model("City", citySchema);
 //# sourceMappingURL=city.model.js.map

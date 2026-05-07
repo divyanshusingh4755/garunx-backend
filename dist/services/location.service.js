@@ -1,61 +1,77 @@
+import { Types } from "mongoose";
 import { Location } from "../models/location.model.js";
 export class LocationService {
-    static async createLocation(name, country, state, city, fullAddress, pincode, image, description, location) {
-        const newLocation = new Location({
-            name,
-            country,
-            state,
-            city,
-            fullAddress,
-            pincode,
-            image,
-            description,
-            location
-        });
+    static async createLocation(data) {
+        const newLocation = new Location(data);
         return await newLocation.save();
     }
     static applyFilter(filterValue) {
         if (!filterValue)
             return undefined;
-        const values = filterValue.split(',').map(val => val.trim());
+        const values = filterValue.split(",").map((val) => val.trim());
         return { $in: values };
     }
-    static async FindLocation(searchTerm, countryFilter, stateFilter, cityFilter, pincodeFilter, limit = 40, page = 1, isActive, sortBy = 'createdAt', sortOrder = 'desc') {
+    static async FindLocation(params) {
+        const { searchTerm, countryFilter, stateIdFilter, cityIdFilter, pincodeFilter, limit = 40, page = 1, isActive, sortBy = "createdAt", sortOrder = "desc", } = params;
         const skip = limit * (page - 1);
         const query = {};
-        if (typeof isActive === 'boolean') {
+        if (typeof isActive === "boolean") {
             query.isActive = isActive;
         }
         if (searchTerm)
             query.$text = { $search: searchTerm };
         if (countryFilter)
             query.country = this.applyFilter(countryFilter);
-        if (stateFilter)
-            query.state = this.applyFilter(stateFilter);
-        if (cityFilter)
-            query.city = this.applyFilter(cityFilter);
+        if (stateIdFilter)
+            query.stateId = this.applyFilter(stateIdFilter);
+        if (cityIdFilter)
+            query.cityId = this.applyFilter(cityIdFilter);
         if (pincodeFilter)
             query.pincode = this.applyFilter(pincodeFilter);
         let sortCriteria = {};
         if (searchTerm && sortBy === "relevance") {
-            sortCriteria = { score: { $meta: 'textScore' } };
+            sortCriteria = { score: { $meta: "textScore" } };
         }
         else {
-            sortCriteria[sortBy] = sortOrder === 'desc' ? -1 : 1;
-            if (sortBy !== 'createdAt')
-                sortCriteria['createdAt'] = -1;
+            sortCriteria[sortBy] = sortOrder === "desc" ? -1 : 1;
+            if (sortBy !== "createdAt")
+                sortCriteria["createdAt"] = -1;
         }
         try {
             const [data, total] = await Promise.all([
                 Location.find(query)
+                    .populate("stateId", "name")
+                    .populate("cityId", "name")
                     .sort(sortCriteria)
                     .skip(skip)
                     .limit(limit)
                     .lean(),
-                Location.countDocuments(query)
+                Location.countDocuments(query),
             ]);
+            const formattedData = data.map((loc) => ({
+                id: loc._id,
+                name: loc.name,
+                country: loc.country,
+                state: {
+                    id: loc.stateId?._id,
+                    name: loc.stateId?.name,
+                },
+                city: {
+                    id: loc.cityId?._id,
+                    name: loc.cityId?.name,
+                },
+                pincode: loc.pincode,
+                fullAddress: loc.fullAddress,
+                isActive: loc.isActive,
+                image: loc.image,
+                description: loc.description,
+                location: loc.location,
+            }));
             return {
-                data, total, page, totalPages: Math.ceil(total / limit)
+                data: formattedData,
+                total,
+                page,
+                totalPages: Math.ceil(total / limit),
             };
         }
         catch (error) {
@@ -64,15 +80,9 @@ export class LocationService {
     }
     static async updateLocation(locationId, updateData) {
         try {
-            if (updateData.location?.coordinates) {
-                updateData.location = {
-                    type: 'Point',
-                    coordinates: updateData.location.coordinates
-                };
-            }
             const updatedLocation = await Location.findByIdAndUpdate(locationId, { $set: updateData }, { new: true, runValidators: true }).lean();
             if (!updatedLocation) {
-                throw new Error('Location not found');
+                throw new Error("Location not found");
             }
             return updatedLocation;
         }
@@ -107,38 +117,45 @@ export class LocationService {
     }
     static async getLocationByIds(locationIds) {
         try {
-            const locations = await Location.find({ _id: { $in: locationIds } }).lean().exec();
+            const validIds = locationIds.filter((id) => Types.ObjectId.isValid(id));
+            if (validIds.length === 0) {
+                throw new Error("No valid location IDs provided");
+            }
+            const locations = await Location.find({
+                _id: { $in: validIds },
+            })
+                .populate("stateId", "name")
+                .populate("cityId", "name")
+                .lean()
+                .exec();
             if (!locations || locations.length === 0) {
                 const error = new Error("Locations not found");
                 error.statusCode = 404;
                 throw error;
             }
-            return locations;
+            const formattedData = locations.map((loc) => ({
+                id: loc._id,
+                name: loc.name,
+                country: loc.country,
+                state: {
+                    id: loc.stateId?._id,
+                    name: loc.stateId?.name,
+                },
+                city: {
+                    id: loc.cityId?._id,
+                    name: loc.cityId?.name,
+                },
+                pincode: loc.pincode,
+                fullAddress: loc.fullAddress,
+                isActive: loc.isActive,
+                image: loc.image,
+                description: loc.description,
+                location: loc.location,
+            }));
+            return formattedData;
         }
         catch (error) {
             throw new Error(`Failed to get locations: ${error.message}`);
-        }
-    }
-    static async searchServicesyLocationDetails(searchQuery) {
-        try {
-            let locations = await Location.find({ $text: { $search: searchQuery }, isActive: true }, { score: { $meta: "textScore" } })
-                .sort({ score: { $meta: "textScore" } })
-                .select('_id name city state pincode fullAddress');
-            // Fallback if text search is empty
-            if (locations.length === 0) {
-                locations = await Location.find({
-                    $or: [
-                        { city: new RegExp(searchQuery, 'i') },
-                        { pincode: searchQuery },
-                        { state: new RegExp(searchQuery, 'i') }
-                    ],
-                    isActive: true
-                }).select('_id name city state pincode fullAddress');
-            }
-            return locations;
-        }
-        catch (error) {
-            throw new Error(error.message);
         }
     }
 }

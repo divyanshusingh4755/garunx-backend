@@ -1,6 +1,8 @@
 import { Types } from "mongoose";
+import { type IService } from "../models/service.model.js";
 export declare class PackageService {
-    static validateServices(serviceIds: string[]): Promise<(import("mongoose").Document<unknown, {}, import("../models/service.model.js").IService, {}, import("mongoose").DefaultSchemaOptions> & import("../models/service.model.js").IService & Required<{
+    static extractVariantIds(service: IService): string[];
+    static validateServices(serviceIds: string[]): Promise<(import("mongoose").Document<unknown, {}, IService, {}, import("mongoose").DefaultSchemaOptions> & IService & Required<{
         _id: Types.ObjectId;
     }> & {
         __v: number;
@@ -21,6 +23,7 @@ export declare class PackageService {
             fixedPrice?: number;
             discountPercentage?: number;
         };
+        category: string;
         createdBy?: string;
     }): Promise<import("mongoose").Document<unknown, {}, import("../models/package.model.js").IPackage, {}, import("mongoose").DefaultSchemaOptions> & import("../models/package.model.js").IPackage & Required<{
         _id: Types.ObjectId;
@@ -40,6 +43,7 @@ export declare class PackageService {
             fixedPrice?: number;
             discountPercentage?: number;
         };
+        category: string;
         isActive?: boolean;
         displayOrder?: number;
     }): Promise<(import("mongoose").Document<unknown, {}, import("../models/package.model.js").IPackage, {}, import("mongoose").DefaultSchemaOptions> & import("../models/package.model.js").IPackage & Required<{
@@ -50,36 +54,7 @@ export declare class PackageService {
         id: string;
     }) | null>;
     static getPackageDetails(packageId: string, location: string): Promise<{
-        services: {
-            subServices: {
-                products: any[];
-                _id: Types.ObjectId;
-                name: string;
-                description?: string;
-                displayOrder: number;
-                variants: import("../models/service.model.js").ISubServiceVariant[];
-            }[];
-            name: string;
-            locations: string[];
-            shortDescription: string;
-            fullDescription?: string;
-            category: string;
-            thumbnailImage?: string;
-            bannerImage?: string;
-            isActive: boolean;
-            isComplete: boolean;
-            _id: Types.ObjectId;
-            $locals: Record<string, unknown>;
-            $op: "save" | "validate" | "remove" | null;
-            $where: Record<string, unknown>;
-            baseModelName?: string;
-            collection: import("mongoose").Collection;
-            db: import("mongoose").Connection;
-            errors?: import("mongoose").Error.ValidationError;
-            isNew: boolean;
-            schema: import("mongoose").Schema;
-            __v: number;
-        }[];
+        services: never[];
         name: string;
         description?: string;
         locations?: string[];
@@ -89,6 +64,7 @@ export declare class PackageService {
             fixedPrice?: number;
             discountPercentage?: number;
         };
+        category: string;
         displayOrder?: number;
         isActive: boolean;
         createdBy?: Types.ObjectId;
@@ -114,37 +90,10 @@ export declare class PackageService {
     }> & {
         __v: number;
     }>;
-    static getFullPackageDetails(serviceIds: string[]): Promise<{
-        subServices: {
-            variants: any[];
-            _id: Types.ObjectId;
-            name: string;
-            description?: string;
-            displayOrder: number;
-        }[];
-        name: string;
-        locations: string[];
-        shortDescription: string;
-        fullDescription?: string;
-        category: string;
-        thumbnailImage?: string;
-        bannerImage?: string;
-        isActive: boolean;
-        isComplete: boolean;
-        _id: Types.ObjectId;
-        $locals: Record<string, unknown>;
-        $op: "save" | "validate" | "remove" | null;
-        $where: Record<string, unknown>;
-        baseModelName?: string;
-        collection: import("mongoose").Collection;
-        db: import("mongoose").Connection;
-        errors?: import("mongoose").Error.ValidationError;
-        isNew: boolean;
-        schema: import("mongoose").Schema;
-        __v: number;
-    }[]>;
-    static getPackages({ search, serviceId, location, isActive, page, limit, sortBy, sortOrder, }: {
+    static getFullPackageDetails(serviceIds: string[]): Promise<void>;
+    static getPackages({ search, category, serviceId, location, isActive, page, limit, sortBy, sortOrder, }: {
         search?: string;
+        category?: string;
         serviceId?: string;
         location?: string;
         isActive?: boolean | undefined;
@@ -153,11 +102,35 @@ export declare class PackageService {
         sortBy?: string;
         sortOrder?: "asc" | "desc";
     }): Promise<{
-        data: (import("../models/package.model.js").IPackage & Required<{
+        data: {
+            computedPricing: import("./pricing.service.js").PriceBreakdown;
+            name: string;
+            description?: string;
+            services: import("../models/package.model.js").IPackageService[];
+            locations?: string[];
+            image?: string;
+            pricing: {
+                type: "DERIVED" | "FIXED";
+                fixedPrice?: number;
+                discountPercentage?: number;
+            };
+            category: string;
+            displayOrder?: number;
+            isActive: boolean;
+            createdBy?: Types.ObjectId;
+            version: number;
             _id: Types.ObjectId;
-        }> & {
+            $locals: Record<string, unknown>;
+            $op: "save" | "validate" | "remove" | null;
+            $where: Record<string, unknown>;
+            baseModelName?: string;
+            collection: import("mongoose").Collection;
+            db: import("mongoose").Connection;
+            errors?: import("mongoose").Error.ValidationError;
+            isNew: boolean;
+            schema: import("mongoose").Schema;
             __v: number;
-        })[];
+        }[];
         pagination: {
             total: number;
             page: number;

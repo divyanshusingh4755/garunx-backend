@@ -1,37 +1,86 @@
-import { Schema, model, type Document, Types } from 'mongoose';
+import { Schema, model, type Document, Types } from "mongoose";
 
 export interface ICity extends Document {
-    city: String,
-    state: String,
-    image?: String,
-    description?: String,
-    isActive: Boolean,
-    location?: {
-        type: "Point",
-        coordinates: [number, number]
-    }
+  name: string;
+  country: string;
+  stateId: Types.ObjectId;
+  image?: string;
+  description?: string;
+  isActive: boolean;
+  location?: {
+    type: "Point";
+    coordinates: [number, number];
+  };
 }
 
-const citySchema = new Schema<ICity>({
-    city: { type: String, required: true },
-    state: { type: String, required: true },
-    image: { type: String },
-    description: { type: String },
-    isActive: { type: Boolean, default: true },
+const citySchema = new Schema<ICity>(
+  {
+    name: {
+      type: String,
+      required: true,
+      trim: true,
+      index: true,
+    },
+
+    country: {
+      type: String,
+      required: true,
+      index: true,
+    },
+
+    stateId: {
+      type: Schema.Types.ObjectId,
+      ref: "State",
+      required: true,
+      index: true,
+    },
+
+    image: {
+      type: String,
+    },
+
+    description: {
+      type: String,
+    },
+
+    isActive: {
+      type: Boolean,
+      default: true,
+      index: true,
+    },
+
     location: {
-        type: { type: String, enum: ['Point'] },
-        coordinates: { type: [Number] }   // [Longitude, Latitude]
-    }
-}, { timestamps: true });
+      type: {
+        type: String,
+        enum: ["Point"],
+      },
 
-citySchema.index({ location: '2dsphere' });
-citySchema.index({ city: 1, state: 1 });
-citySchema.index({ city: 1 });
-citySchema.index({ state: 1 });
-citySchema.index({ isActive: 1, createdAt: -1 });
+      coordinates: {
+        type: [Number], // [longitude, latitude]
+      },
+    },
+  },
+  { timestamps: true },
+);
+
+citySchema.index({ location: "2dsphere" });
+
 citySchema.index({
-    city: 'text',
-    state: 'text',
-}, { name: 'CityTextSearchIndex' });
+  country: 1,
+  stateId: 1,
+  name: 1,
+});
 
-export const City = model<ICity>('City', citySchema)
+citySchema.index({
+  isActive: 1,
+  createdAt: -1,
+});
+
+citySchema.index(
+  {
+    name: "text",
+  },
+  { name: "CityTextSearchIndex" },
+);
+
+export const City = model<ICity>("City", citySchema);

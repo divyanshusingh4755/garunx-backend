@@ -1,30 +1,48 @@
-import { Schema } from "mongoose";
+import { Types, Document } from "mongoose";
 export interface IBooking extends Document {
-    customerId: Schema.Types.ObjectId;
-    subAdminId: Schema.Types.ObjectId;
-    serviceId?: Schema.Types.ObjectId[];
-    packageId: Schema.Types.ObjectId;
-    locationId: Schema.Types.ObjectId;
-    bookedBy: 'USER' | 'COORDINATOR' | 'ADMIN';
-    customerDetails: {
-        name: string;
-        phone: string;
-        email?: string;
+    customerId: Types.ObjectId;
+    subAdminId?: Types.ObjectId;
+    items: {
+        targetId: Types.ObjectId;
+        productName: string;
+        itemType: "SERVICE" | "PACKAGE";
+        description?: string;
+        imageUrl?: string;
+        categoryName?: string;
+        priceAtBooking: number;
+        selectedVariants: {
+            variantId: Types.ObjectId;
+            tier: string;
+            price: number;
+            location: string;
+        }[];
     };
-    requirements: {
-        notes?: string;
-        attachments?: string[];
-        customInstructions?: string;
+    location: string;
+    bookedBy: string;
+    customerDetails: {
+        name?: string;
+        email?: string;
+        phone?: string;
+        address?: string;
+        caste?: string;
+        gotra?: string;
     };
     scheduledDate: Date;
-    finalPrice: number;
-    earnings: number;
-    isCustom: boolean;
-    status: 'Pending' | 'Completed' | 'Cancelled';
+    notes?: string;
+    pricing: {
+        basePrice: number;
+        discount: number;
+        finalPrice: number;
+        earnings: number;
+    };
+    status: "Pending" | "Confirmed" | "Completed" | "Cancelled";
+    paymentStatus: "Pending" | "Paid" | "Refunded";
+    transactionId?: string;
+    bookingReference: string;
 }
-export declare const Booking: import("mongoose").Model<IBooking, {}, {}, {}, import("mongoose").Document<unknown, {}, IBooking, {}, import("mongoose").DefaultSchemaOptions> & IBooking & {
-    _id: import("mongoose").Types.ObjectId;
-} & {
+export declare const Booking: import("mongoose").Model<IBooking, {}, {}, {}, Document<unknown, {}, IBooking, {}, import("mongoose").DefaultSchemaOptions> & IBooking & Required<{
+    _id: Types.ObjectId;
+}> & {
     __v: number;
 } & {
     id: string;

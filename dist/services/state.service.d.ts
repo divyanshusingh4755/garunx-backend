@@ -1,7 +1,7 @@
 import { type IState } from "../models/state.model.js";
 export declare class StateService {
     private static applyFilter;
-    static createState(state: String, country: String, image?: String, description?: String, location?: {
+    static createState(name: String, country: String, image?: String, description?: String, location?: {
         type: "Point";
         coordinates: [number, number];
     }): Promise<import("mongoose").Document<unknown, {}, IState, {}, import("mongoose").DefaultSchemaOptions> & IState & Required<{
@@ -11,7 +11,7 @@ export declare class StateService {
     } & {
         id: string;
     }>;
-    static FindState(searchTerm?: string, countryFilter?: string, stateFilter?: string, limit?: number, page?: number, isActive?: boolean, sortBy?: string, sortOrder?: 'asc' | 'desc'): Promise<{
+    static FindState(searchTerm?: string, countryFilter?: string, stateFilter?: string, limit?: number, page?: number, isActive?: boolean, sortBy?: string, sortOrder?: "asc" | "desc"): Promise<{
         data: (IState & Required<{
             _id: import("mongoose").Types.ObjectId;
         }> & {

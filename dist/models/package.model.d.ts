@@ -14,6 +14,7 @@ export interface IPackage extends Document {
         fixedPrice?: number;
         discountPercentage?: number;
     };
+    category: string;
     displayOrder?: number;
     isActive: boolean;
     createdBy?: Types.ObjectId;

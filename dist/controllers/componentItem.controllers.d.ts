@@ -1,0 +1,7 @@
+import type { Request, Response } from "express";
+export declare const createComponentItem: (req: Request, res: Response) => Promise<void>;
+export declare const updateComponentItem: (req: Request, res: Response) => Promise<void>;
+export declare const getComponentItemById: (req: Request, res: Response) => Promise<void>;
+export declare const getAllComponentItems: (req: Request, res: Response) => Promise<void>;
+export declare const updateComponentItemStatus: (req: Request, res: Response) => Promise<void>;
+//# sourceMappingURL=componentItem.controllers.d.ts.map

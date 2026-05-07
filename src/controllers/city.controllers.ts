@@ -1,109 +1,113 @@
-import { CityService } from "../services/city.service.js"
-import type { Request, Response } from 'express';
+import { CityService } from "../services/city.service.js";
+import type { Request, Response } from "express";
 
 export const createCity = async (req: Request, res: Response) => {
-    try {
-        const {
-            state,
-            city,
-            image,
-            description,
-            location } = req.body
+  try {
+    const { name, country, stateId, image, description, location } = req.body;
 
-        await CityService.createCity(
-            state,
-            city,
-            image,
-            description,
-            location
-        )
-        res.status(200).json({ success: true, data: "City created successfully" })
-    } catch (error: any) {
-        res.status(error.message === "City not found" ? 404 : 400).json({
-            success: false,
-            message: error.message
-        })
-    }
-}
+    await CityService.createCity({
+      name,
+      country,
+      stateId,
+      image,
+      description,
+      location,
+    });
+    res.status(200).json({ success: true, data: "City created successfully" });
+  } catch (error: any) {
+    res.status(error.message === "City not found" ? 404 : 400).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
 
 export const updateCity = async (req: Request, res: Response) => {
-    try {
-        const { id } = req.params
-        const result = await CityService.updateCity(id as string, req.body)
-        res.status(200).json({ success: true, data: result })
-    } catch (error: any) {
-        res.status(error.message === "City not found" ? 404 : 400).json({
-            success: false,
-            message: error.message
-        })
-    }
-}
+  try {
+    const { id } = req.params;
+    const result = await CityService.updateCity(id as string, req.body);
+    res.status(200).json({ success: true, data: result });
+  } catch (error: any) {
+    res.status(error.message === "City not found" ? 404 : 400).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
 
 export const getAllCity = async (req: Request, res: Response) => {
-    try {
-        const {
-            searchTerm,
-            stateFilter,
-            cityFilter,
-            limit,
-            page,
-            isActive,
-            sortBy,
-            sortOrder
-        } = req.query;
+  try {
+    const {
+      searchTerm,
+      cityFilter,
+      stateIdFilter,
+      countryFilter,
+      limit,
+      page,
+      isActive,
+      sortBy,
+      sortOrder,
+    } = req.query;
 
-        const { data, total, page: CurrentPage, totalPages } = await CityService.FindCity(
-            searchTerm as string,
-            cityFilter as string,
-            stateFilter as string,
-            Number(limit) || 40,
-            Number(page) || 1,
-            isActive === 'true' ? true : isActive === 'false' ? false : undefined,
-            (sortBy as string) || 'city',
-            (sortOrder as 'asc' | 'desc') || 'asc'
-        );
-        
-        res.status(200).json({ success: true, data, total, CurrentPage, totalPages });
-    } catch (error: any) {
-        res.status(400).json({ success: false, message: error.message });
-    }
+    const result = await CityService.FindCity({
+      searchTerm: searchTerm as string,
+      cityFilter: cityFilter as string,
+      stateIdFilter: stateIdFilter as string,
+      countryFilter: countryFilter as string,
+      limit: Number(limit) || 40,
+      page: Number(page) || 1,
+      ...(typeof isActive === "boolean" && { isActive: isActive }),
+      sortBy: (sortBy as string) || "createdAt",
+      sortOrder: (sortOrder as "asc" | "desc") || "desc",
+    });
+
+    return res.status(200).json({
+      success: true,
+      data: result.data,
+      total: result.total,
+      currentPage: result.page,
+      totalPages: result.totalPages,
+    });
+  } catch (error: any) {
+    res.status(400).json({ success: false, message: error.message });
+  }
 };
 
 export const getCityById = async (req: Request, res: Response) => {
-    try {
-        const { id } = req.params
-        const location = await CityService.getCityById(id as string)
-        res.status(200).json({ success: true, data: location })
-    } catch (error: any) {
-        res.status(error.message === "City not found" ? 404 : 400).json({
-            success: false,
-            message: error.message
-        })
-    }
-}
+  try {
+    const { id } = req.params;
+    const location = await CityService.getCityById(id as string);
+    res.status(200).json({ success: true, data: location });
+  } catch (error: any) {
+    res.status(error.message === "City not found" ? 404 : 400).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
 
 export const deleteCity = async (req: Request, res: Response) => {
-    try {
-        const { id } = req.params
-        const { status } = req.body
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
 
-        if (!id || status === undefined) {
-            return res.status(400).json({
-                success: false,
-                message: "User ID and status are required."
-            });
-        }
-
-        const city = await CityService.softDeleteCity(id as string, status)
-        res.status(200).json({
-            success: true,
-            message: `City marked as ${status}`,
-            data: city
-        })
-    } catch (error: any) {
-        res.status(error.message === "City not found" ? 404 : 400).json({
-            success: false,
-            message: error.message
-        })
+    if (!id || status === undefined) {
+      return res.status(400).json({
+        success: false,
+        message: "User ID and status are required.",
+      });
     }
-}
+
+    const city = await CityService.softDeleteCity(id as string, status);
+    res.status(200).json({
+      success: true,
+      message: `City marked as ${status}`,
+      data: city,
+    });
+  } catch (error: any) {
+    res.status(error.message === "City not found" ? 404 : 400).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};

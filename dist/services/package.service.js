@@ -1,8 +1,12 @@
 import { Types } from "mongoose";
 import { Package } from "../models/package.model.js";
 import { Service } from "../models/service.model.js";
-import { Product } from "../models/product.model.js";
+import { PricingService } from "./pricing.service.js";
 export class PackageService {
+    static extractVariantIds(service) {
+        const ids = [];
+        return ids;
+    }
     static async validateServices(serviceIds) {
         if (!serviceIds || serviceIds.length === 0) {
             throw new Error("At least one service is required");
@@ -22,7 +26,7 @@ export class PackageService {
         return services;
     }
     static async createPackage(payload) {
-        const { name, description, image, services, locations, pricing, createdBy, } = payload;
+        const { name, description, image, services, locations, pricing, category, createdBy, } = payload;
         const serviceIds = services.map((s) => s.serviceId);
         const validatedServices = await this.validateServices(serviceIds);
         const servicePayload = validatedServices.map((s, index) => ({
@@ -40,6 +44,7 @@ export class PackageService {
             name,
             services: servicePayload,
             pricing: finalPricing,
+            category,
             ...(image !== undefined && { image }),
             ...(description !== undefined && { description }),
             ...(locations !== undefined && { locations }),
@@ -102,6 +107,7 @@ export class PackageService {
             ...(updateData.image && { image: updateData.image }),
             ...(updateData.locations && { locations: updateData.locations }),
             ...(updateData.pricing && { pricing: updateData.pricing }),
+            category: updateData.category,
             ...(updateData.isActive !== undefined && {
                 isActive: updateData.isActive,
             }),
@@ -130,34 +136,12 @@ export class PackageService {
         })
             .populate({
             path: "subServices.variants.variantId",
-            model: "Product",
+            model: "Component",
         })
             .lean();
-        const enrichedServices = services.map((service) => ({
-            ...service,
-            subServices: service.subServices.map((sub) => ({
-                ...sub,
-                products: sub.variants
-                    .map((vEntry) => {
-                    const productDoc = vEntry.variantId;
-                    if (!productDoc)
-                        return null;
-                    const filteredVariants = (productDoc.variants || []).filter((v) => v.location === location && v.isActive);
-                    return {
-                        ...productDoc,
-                        instanceDetails: {
-                            isOptional: vEntry.isOptional,
-                            displayOrder: vEntry.displayOrder,
-                        },
-                        variants: filteredVariants,
-                    };
-                })
-                    .filter(Boolean),
-            })),
-        }));
         return {
             ...pkg,
-            services: enrichedServices,
+            services: [],
         };
     }
     static async updatePackageStatus(packageId, isActive) {
@@ -180,45 +164,10 @@ export class PackageService {
     }
     static async getFullPackageDetails(serviceIds) {
         const services = await Service.find({ _id: { $in: serviceIds } }).lean();
-        const allVariantIds = services.flatMap((service) => service.subServices.flatMap((sub) => sub.variants.map((v) => v.variantId)));
-        const products = await Product.find({
-            "variants._id": { $in: allVariantIds },
-            isActive: true,
-        }).lean();
         const variantMap = new Map();
-        products.forEach((product) => {
-            product.variants.forEach((variant) => {
-                if (!variant.isActive)
-                    return;
-                const isSelected = allVariantIds.some((id) => id.toString() === variant._id.toString());
-                if (isSelected) {
-                    variantMap.set(variant._id.toString(), {
-                        productId: product._id,
-                        productName: product.name,
-                        categoryName: product.categoryName,
-                        productImage: product.imageUrl,
-                        ...variant,
-                        availableVariants: product.variants.filter((v) => v.isActive && v.location === variant.location),
-                    });
-                }
-            });
-        });
-        return services.map((service) => ({
-            ...service,
-            subServices: service.subServices.map((sub) => ({
-                ...sub,
-                variants: sub.variants
-                    .map((v) => {
-                    const data = variantMap.get(v.variantId.toString());
-                    return data
-                        ? { ...data, isOptional: v.isOptional, isEditable: v.isEditable }
-                        : null;
-                })
-                    .filter(Boolean),
-            })),
-        }));
+        return;
     }
-    static async getPackages({ search, serviceId, location, isActive, page = 1, limit = 20, sortBy = "displayOrder", sortOrder = "asc", }) {
+    static async getPackages({ search, category, serviceId, location, isActive, page = 1, limit = 20, sortBy = "displayOrder", sortOrder = "asc", }) {
         const skip = (page - 1) * limit;
         const query = {};
         if (typeof isActive === "boolean") {
@@ -229,6 +178,9 @@ export class PackageService {
         }
         if (serviceId) {
             query["services.serviceId"] = new Types.ObjectId(serviceId);
+        }
+        if (category) {
+            query.category = category;
         }
         if (location) {
             query.locations = location;
@@ -250,8 +202,47 @@ export class PackageService {
                     .lean(),
                 Package.countDocuments(query),
             ]);
+            const serviceIds = packages.flatMap((p) => p.services.map((s) => s.serviceId));
+            const services = await Service.find({
+                _id: { $in: serviceIds },
+                isActive: true,
+            }).lean();
+            const serviceMap = new Map();
+            services.forEach((s) => serviceMap.set(s._id.toString(), s));
+            const pricingService = new PricingService();
+            const enrichedPackages = await Promise.all(packages.map(async (pkg) => {
+                let computedPricing = null;
+                if (pkg.pricing.type === "FIXED") {
+                    const price = pkg.pricing.fixedPrice || 0;
+                    computedPricing = {
+                        subTotal: price,
+                        discount: 0,
+                        discountPercentage: 0,
+                        total: price,
+                    };
+                }
+                else {
+                    let selectedVariantIds = [];
+                    for (const svc of pkg.services) {
+                        const service = serviceMap.get(svc.serviceId.toString());
+                        if (!service)
+                            continue;
+                        const variantIds = this.extractVariantIds(service);
+                        selectedVariantIds.push(...variantIds);
+                    }
+                    computedPricing = await pricingService.calculate({
+                        type: "PACKAGE",
+                        targetId: pkg._id.toString(),
+                        selectedVariantIds,
+                    });
+                }
+                return {
+                    ...pkg,
+                    computedPricing,
+                };
+            }));
             return {
-                data: packages,
+                data: enrichedPackages,
                 pagination: {
                     total,
                     page,

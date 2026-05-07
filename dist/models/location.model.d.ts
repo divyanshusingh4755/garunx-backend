@@ -1,9 +1,9 @@
-import { type Document, Types } from 'mongoose';
+import { type Document, Types } from "mongoose";
 export interface ILocation extends Document {
     name: string;
     country: string;
-    state: string;
-    city: string;
+    stateId: Types.ObjectId;
+    cityId: Types.ObjectId;
     fullAddress: string;
     pincode: string;
     image?: string;

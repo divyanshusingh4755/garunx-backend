@@ -1,10 +1,11 @@
-import { type Document, Types } from 'mongoose';
+import { type Document, Types } from "mongoose";
 export interface ICity extends Document {
-    city: String;
-    state: String;
-    image?: String;
-    description?: String;
-    isActive: Boolean;
+    name: string;
+    country: string;
+    stateId: Types.ObjectId;
+    image?: string;
+    description?: string;
+    isActive: boolean;
     location?: {
         type: "Point";
         coordinates: [number, number];

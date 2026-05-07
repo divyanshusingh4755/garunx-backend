@@ -1,6 +1,6 @@
 import mongoose from "mongoose";
 import { Cart, type ICart, type ICartItem } from "../models/cart.model.js";
-import { Product } from "../models/product.model.js";
+import { Component } from "../models/component.model.js";
 import { PricingService } from "./pricing.service.js";
 import { Package } from "../models/package.model.js";
 import { Service } from "../models/service.model.js";
@@ -89,30 +89,12 @@ export class CartService {
 
     const variantIdSet = new Set(variantIds);
 
-    const products = await Product.find(
+    const products = await Component.find(
       { "variants._id": { $in: variantIds } },
       { name: 1, variants: 1 },
     ).lean();
 
     const map: Record<string, VariantDetails> = {};
-
-    for (const product of products) {
-      for (const variant of product.variants) {
-        const id = variant._id.toString();
-
-        if (variantIdSet.has(id) && variant.isActive) {
-          map[id] = {
-            _id: id,
-            tier: variant.tier,
-            price: variant.price,
-            location: variant.location,
-            description: variant.description || "",
-            productId: product._id.toString(),
-            productName: product.name,
-          };
-        }
-      }
-    }
 
     return map;
   }

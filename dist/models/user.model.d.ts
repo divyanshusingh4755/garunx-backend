@@ -1,5 +1,5 @@
-import { Types, type Document } from 'mongoose';
-import { Role } from '../types/rbac.js';
+import { Types, Document } from "mongoose";
+import { Role } from "../types/rbac.js";
 export interface IUser extends Document {
     phoneNumber?: string;
     email?: string;
@@ -11,7 +11,7 @@ export interface IUser extends Document {
     isActive: boolean;
     fullName?: string;
     dob?: Date;
-    gender?: 'Male' | 'Female' | 'Other';
+    gender?: "Male" | "Female" | "Other";
     profileImage?: string;
     isComplete: boolean;
     isResetVerified: boolean;
@@ -28,7 +28,7 @@ export interface IUser extends Document {
     documentVerification: {
         aadharCard?: string;
         panCard?: string;
-        status: 'PENDING' | 'APPROVED' | 'REJECTED';
+        status: "PENDING" | "APPROVED" | "REJECTED";
         rejectionReason?: string;
     };
     bankDocumentVerification: {
@@ -37,13 +37,14 @@ export interface IUser extends Document {
         accountName?: string;
         bankName?: string;
         ifscCode?: string;
-        status: 'PENDING' | 'APPROVED' | 'REJECTED';
+        status: "PENDING" | "APPROVED" | "REJECTED";
         rejectionReason?: string;
     };
-    caste?: 'SC' | 'ST' | 'OBC' | 'GENERAL';
-    gotra?: 'Bharadvaja' | 'Kashyapa' | 'Vashistha' | 'Vishvamitra' | 'Gautama' | 'Atri' | 'Jamadagni' | 'Agastya';
+    caste?: "SC" | "ST" | "OBC" | "GENERAL";
+    gotra?: "Bharadvaja" | "Kashyapa" | "Vashistha" | "Vishvamitra" | "Gautama" | "Atri" | "Jamadagni" | "Agastya";
     isDocumentVerified: boolean;
     isBankDocumentVerified: boolean;
+    userReference: string;
 }
 export declare const User: import("mongoose").Model<IUser, {}, {}, {}, Document<unknown, {}, IUser, {}, import("mongoose").DefaultSchemaOptions> & IUser & Required<{
     _id: Types.ObjectId;

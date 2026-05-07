@@ -1,27 +1,24 @@
 import { Types, Document } from "mongoose";
-export interface ISubServiceVariant {
-    variantId: Types.ObjectId;
-    displayOrder?: number;
-    isOptional?: boolean;
-    isEditable?: boolean;
-}
-interface ISubService {
-    _id: Types.ObjectId;
+export interface ILocationService {
     name: string;
-    description?: string;
-    displayOrder: number;
-    variants: ISubServiceVariant[];
+    isActive: boolean;
+    locationId: Types.ObjectId;
+}
+export interface IServiceTier {
+    name: string;
+    tierId: Types.ObjectId;
 }
 export interface IService extends Document {
     name: string;
-    locations: string[];
     shortDescription: string;
     fullDescription?: string;
-    category: string;
+    categoryId: Types.ObjectId;
     thumbnailImage?: string;
     bannerImage?: string;
-    subServices: ISubService[];
     isActive: boolean;
+    serviceReference: string;
+    locations: ILocationService[];
+    tiers: IServiceTier[];
     isComplete: boolean;
 }
 export declare const Service: import("mongoose").Model<IService, {}, {}, {}, Document<unknown, {}, IService, {}, import("mongoose").DefaultSchemaOptions> & IService & Required<{
@@ -31,5 +28,4 @@ export declare const Service: import("mongoose").Model<IService, {}, {}, {}, Doc
 } & {
     id: string;
 }, any, IService>;
-export {};
 //# sourceMappingURL=service.model.d.ts.map

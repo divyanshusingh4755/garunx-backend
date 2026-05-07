@@ -1,163 +1,112 @@
-import { Types } from 'mongoose';
+import { Types } from "mongoose";
 export declare class ServiceService {
-    static createService(payload: {
-        name: string;
-        shortDescription: string;
-        fullDescription: string;
-        category: string;
-        locations: string[];
-        thumbnailImage: string;
-        bannerImage?: string;
-    }): Promise<import("mongoose").Document<unknown, {}, import("../models/service.model.js").IService, {}, import("mongoose").DefaultSchemaOptions> & import("../models/service.model.js").IService & Required<{
+    static createService(payload: any): Promise<import("mongoose").Document<unknown, {}, import("../models/service.model.js").IService, {}, import("mongoose").DefaultSchemaOptions> & import("../models/service.model.js").IService & Required<{
         _id: Types.ObjectId;
     }> & {
         __v: number;
     } & {
         id: string;
     }>;
-    static updateService(serviceId: string, updateData: {
-        name?: string;
-        shortDescription?: string;
-        fullDescription?: string;
-        category?: string;
-        locations?: string[];
-        thumbnailImage?: string;
-        bannerImage?: string;
-    }): Promise<import("mongoose").Document<unknown, {}, import("../models/service.model.js").IService, {}, import("mongoose").DefaultSchemaOptions> & import("../models/service.model.js").IService & Required<{
+    static updateService(serviceId: string, payload: any): Promise<import("mongoose").Document<unknown, {}, import("../models/service.model.js").IService, {}, import("mongoose").DefaultSchemaOptions> & import("../models/service.model.js").IService & Required<{
         _id: Types.ObjectId;
     }> & {
         __v: number;
     } & {
         id: string;
+    }>;
+    static getServiceById(serviceId: string): Promise<import("../models/service.model.js").IService & Required<{
+        _id: Types.ObjectId;
+    }> & {
+        __v: number;
     }>;
     static toggleServiceStatus(serviceId: string, isActive: boolean): Promise<{
         success: boolean;
         message: string;
     }>;
-    static getServiceById(serviceId: string): Promise<{
-        subServices: {
-            variants: any[];
+    static FindServices(searchTerm?: string, categoryId?: string, limit?: number, page?: number, isActive?: boolean, isComplete?: boolean, sortBy?: string, sortOrder?: "asc" | "desc"): Promise<{
+        data: (import("../models/service.model.js").IService & Required<{
             _id: Types.ObjectId;
-            name: string;
-            description?: string;
-            displayOrder: number;
-        }[];
-        name: string;
-        locations: string[];
-        shortDescription: string;
-        fullDescription?: string;
-        category: string;
-        thumbnailImage?: string;
-        bannerImage?: string;
-        isActive: boolean;
-        isComplete: boolean;
-        _id: Types.ObjectId;
-        $locals: Record<string, unknown>;
-        $op: "save" | "validate" | "remove" | null;
-        $where: Record<string, unknown>;
-        baseModelName?: string;
-        collection: import("mongoose").Collection;
-        db: import("mongoose").Connection;
-        errors?: import("mongoose").Error.ValidationError;
-        isNew: boolean;
-        schema: import("mongoose").Schema;
-        __v: number;
-    }>;
-    static addSubService(serviceId: string, payload: {
-        name: string;
-        description?: string;
-        displayOrder?: number;
-    }): Promise<import("mongoose").Document<unknown, {}, import("../models/service.model.js").IService, {}, import("mongoose").DefaultSchemaOptions> & import("../models/service.model.js").IService & Required<{
-        _id: Types.ObjectId;
-    }> & {
-        __v: number;
-    } & {
-        id: string;
-    }>;
-    static updateSubService(serviceId: string, subServiceId: string, updateData: {
-        name?: string;
-        description?: string;
-        displayOrder?: number;
-    }): Promise<import("mongoose").Document<unknown, {}, import("../models/service.model.js").IService, {}, import("mongoose").DefaultSchemaOptions> & import("../models/service.model.js").IService & Required<{
-        _id: Types.ObjectId;
-    }> & {
-        __v: number;
-    } & {
-        id: string;
-    }>;
-    static toggleSubServiceStatus(serviceId: string, subServiceId: string, isActive: boolean): Promise<{
-        success: boolean;
-        message: string;
-    }>;
-    static addVariantsToSubService(serviceId: string, subServiceId: string, isComplete: boolean, variants: {
-        variantId: string;
-        isOptional?: boolean;
-        isEditable?: boolean;
-        displayOrder?: number;
-    }[]): Promise<import("mongoose").Document<unknown, {}, import("../models/service.model.js").IService, {}, import("mongoose").DefaultSchemaOptions> & import("../models/service.model.js").IService & Required<{
-        _id: Types.ObjectId;
-    }> & {
-        __v: number;
-    } & {
-        id: string;
-    }>;
-    static updateVariantInSubService(serviceId: string, subServiceId: string, variantId: string, isComplete: boolean, updateData: {
-        isOptional?: boolean;
-        isEditable?: boolean;
-        displayOrder?: number;
-    }): Promise<import("mongoose").Document<unknown, {}, import("../models/service.model.js").IService, {}, import("mongoose").DefaultSchemaOptions> & import("../models/service.model.js").IService & Required<{
-        _id: Types.ObjectId;
-    }> & {
-        __v: number;
-    } & {
-        id: string;
-    }>;
-    static removeVariantFromSubService(serviceId: string, subServiceId: string, variantId: string): Promise<import("mongoose").Document<unknown, {}, import("../models/service.model.js").IService, {}, import("mongoose").DefaultSchemaOptions> & import("../models/service.model.js").IService & Required<{
-        _id: Types.ObjectId;
-    }> & {
-        __v: number;
-    } & {
-        id: string;
-    }>;
-    static getServiceWithProducts(serviceId: string, location: string): Promise<{
-        subServices: {
-            products: any[];
-            _id: Types.ObjectId;
-            name: string;
-            description?: string;
-            displayOrder: number;
-            variants: import("../models/service.model.js").ISubServiceVariant[];
-        }[];
-        name: string;
-        locations: string[];
-        shortDescription: string;
-        fullDescription?: string;
-        category: string;
-        thumbnailImage?: string;
-        bannerImage?: string;
-        isActive: boolean;
-        isComplete: boolean;
-        _id: Types.ObjectId;
-        $locals: Record<string, unknown>;
-        $op: "save" | "validate" | "remove" | null;
-        $where: Record<string, unknown>;
-        baseModelName?: string;
-        collection: import("mongoose").Collection;
-        db: import("mongoose").Connection;
-        errors?: import("mongoose").Error.ValidationError;
-        isNew: boolean;
-        schema: import("mongoose").Schema;
-        __v: number;
-    }>;
-    static FindServices(searchTerm?: string, locationFilter?: string, categoryFilter?: string, limit?: number, page?: number, isActive?: boolean, isComplete?: boolean, sortBy?: string, sortOrder?: 'asc' | 'desc'): Promise<{
-        data: any[];
+        }> & {
+            __v: number;
+        })[];
         total: number;
         page: number;
         totalPages: number;
     }>;
-    static getServicesByFilters(categories?: string | string[], locations?: string | string[], page?: number, limit?: number): Promise<{
-        services: any[];
+    static updateServiceLocations(serviceId: string, locations: {
+        locationId: string;
+    }[]): Promise<{
+        success: boolean;
+        message: string;
+        locations: {
+            locationId: any;
+            name: any;
+            isActive: boolean;
+        }[];
+    }>;
+    static removeServiceLocation(serviceId: string, locationId: string): Promise<{
+        success: boolean;
+        message: string;
+        locations: import("../models/service.model.js").ILocationService[];
+    }>;
+    static updateServiceTiers(serviceId: string, tiers: {
+        tierId: string;
+    }[]): Promise<{
+        success: boolean;
+        message: string;
+        tiers?: never;
+    } | {
+        success: boolean;
+        message: string;
+        tiers: import("../models/service.model.js").IServiceTier[];
+    }>;
+    static removeServiceTier(serviceId: string, tierId: string): Promise<{
+        success: boolean;
+        message: string;
+        tiers?: never;
+    } | {
+        success: boolean;
+        message: string;
+        tiers: import("../models/service.model.js").IServiceTier[];
+    }>;
+    static getFullService(serviceId: string): Promise<{
+        service: {
+            id: Types.ObjectId;
+            name: string;
+            shortDescription: string;
+            fullDescription: string | undefined;
+            thumbnailImage: string | undefined;
+            bannerImage: string | undefined;
+            isActive: boolean;
+            serviceReference: string;
+        };
+        locations: import("../models/service.model.js").ILocationService[];
+        tiers: {
+            tierId: Types.ObjectId;
+            name: string;
+        }[];
+        components: Record<string, any>;
+    }>;
+    static updateServiceStartingPrice(serviceId: string): Promise<void>;
+    static getRuntimeServices({ categoryId, locationId, searchTerm, page, limit, sortBy, sortOrder, }: any): Promise<{
+        services: {
+            id: any;
+            name: any;
+            shortDescription: any;
+            thumbnailImage: any;
+            bannerImage: any;
+            startingPrice: any;
+            serviceReference: any;
+            locations: any;
+            tiers: any;
+        }[];
         total: number;
+        page: any;
+        totalPages: number;
+    }>;
+    static validateServiceConfiguration(serviceId: string): Promise<{
+        isComplete: boolean;
+        issues: string[];
     }>;
 }
 //# sourceMappingURL=service.service.d.ts.map

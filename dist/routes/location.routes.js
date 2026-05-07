@@ -1,18 +1,29 @@
-import { Router } from 'express';
-import { body, validationResult } from 'express-validator';
-import { authenticate } from '../middleware/authenticate.js';
-import { createLocation, deleteLocation, getAllLocation, getLocationById, getLocationIds, searchServicesByLocationDetails, updateLocation } from '../controllers/location.controllers.js';
+import { Router, } from "express";
+import { body, validationResult } from "express-validator";
+import { authenticate } from "../middleware/authenticate.js";
+import { createLocation, deleteLocation, getAllLocation, getLocationById, getLocationIds, updateLocation, } from "../controllers/location.controllers.js";
 const router = Router();
 // Validation Middleware
 const locationValidation = [
-    body('country').notEmpty().trim(),
-    body('state').notEmpty().trim(),
-    body('city').notEmpty().trim(),
-    body('fullAddress').isLength({ min: 10 }).withMessage("Address is too short"),
-    body('pincode').isPostalCode('IN').withMessage("Invalid Indian Pincode"),
-    body('image').optional().isURL().withMessage("Image must be a valid URL"),
-    body('description').optional().isString().trim(),
-    body('location.coordinates').optional().isArray({ min: 2, max: 2 }).withMessage("Coordinates must be [longitude, latitude]"),
+    body("country").notEmpty().withMessage("country is required"),
+    body("stateId")
+        .notEmpty()
+        .withMessage("stateId is required")
+        .isMongoId()
+        .withMessage("Invalid stateId"),
+    body("cityId")
+        .notEmpty()
+        .withMessage("cityId is required")
+        .isMongoId()
+        .withMessage("Invalid cityId"),
+    body("fullAddress").isLength({ min: 10 }).withMessage("Address is too short"),
+    body("pincode").isPostalCode("IN").withMessage("Invalid Indian Pincode"),
+    body("image").optional().isURL().withMessage("Image must be a valid URL"),
+    body("description").optional().isString().trim(),
+    body("location.coordinates")
+        .optional()
+        .isArray({ min: 2, max: 2 })
+        .withMessage("Coordinates must be [longitude, latitude]"),
     (req, res, next) => {
         const errors = validationResult(req);
         if (!errors.isEmpty()) {
@@ -20,18 +31,17 @@ const locationValidation = [
             return res.status(400).json({
                 success: false,
                 message: firstError?.msg,
-                error: firstError
+                error: firstError,
             });
         }
         next();
-    }
+    },
 ];
-router.get('/get-all-location', getAllLocation);
-router.post('/get-location-by-ids', getLocationIds);
-router.post('/create-location', authenticate, locationValidation, createLocation);
-router.patch('/update-location/:id', authenticate, locationValidation, updateLocation);
-router.get('/:id', authenticate, getLocationById);
-router.patch('/:id', authenticate, deleteLocation);
-router.post('/discovery', searchServicesByLocationDetails);
+router.get("/get-all-location", getAllLocation);
+router.post("/get-location-by-ids", getLocationIds);
+router.post("/create-location", authenticate, locationValidation, createLocation);
+router.patch("/update-location/:id", authenticate, locationValidation, updateLocation);
+router.patch("/:id/status", authenticate, deleteLocation);
+router.get("/:id", authenticate, getLocationById);
 export default router;
 //# sourceMappingURL=location.routes.js.map

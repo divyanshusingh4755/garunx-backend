@@ -1,495 +1,181 @@
-import { Types } from 'mongoose';
-import { Service } from '../models/service.model.js';
-import { Product } from '../models/product.model.js';
+import { Types } from "mongoose";
+import { Service } from "../models/service.model.js";
+import { Category } from "../models/category.model.js";
+import { generateSlug } from "../utils/generateSlug.js";
+import { getNextSequence } from "../utils/getNextSequence.js";
+import { Tier } from "../models/tier.model.js";
+import { ServiceComponent } from "../models/servicecomponent.model.js";
+import { ServicePricing } from "../models/servicepricing.model.js";
+import { Location } from "../models/location.model.js";
+import { ServiceCascadingEngine } from "./cascading-engine.service.js";
 export class ServiceService {
     static async createService(payload) {
-        if (!payload.name?.trim())
-            throw new Error("Service name is required");
-        if (!payload.shortDescription?.trim())
-            throw new Error("Short description is required");
-        if (!payload.fullDescription?.trim())
-            throw new Error("Full description is required");
-        if (!payload.category?.trim())
-            throw new Error("Category is required");
-        if (!payload.locations?.length)
-            throw new Error("At least one location is required");
-        if (!payload.thumbnailImage?.trim())
-            throw new Error("Thumbnail image is required");
-        const serviceData = {
-            name: payload.name.trim(),
-            shortDescription: payload.shortDescription.trim(),
-            fullDescription: payload.fullDescription.trim(),
-            category: payload.category.trim(),
-            locations: payload.locations,
-            thumbnailImage: payload.thumbnailImage.trim(),
-            isActive: true,
-        };
-        if (payload.bannerImage?.trim()) {
-            serviceData.bannerImage = payload.bannerImage.trim();
+        let { name, shortDescription, fullDescription, categoryId, thumbnailImage, bannerImage, } = payload;
+        name = name?.trim();
+        shortDescription = shortDescription?.trim();
+        fullDescription = fullDescription?.trim();
+        if (!name || !shortDescription || !categoryId) {
+            throw new Error("Missing required fields");
         }
-        const service = await Service.create(serviceData);
+        if (!Types.ObjectId.isValid(categoryId)) {
+            throw new Error("Invalid categoryId format");
+        }
+        const categoryExists = await Category.exists({ _id: categoryId });
+        if (!categoryExists) {
+            throw new Error("Invalid categoryId");
+        }
+        const slug = generateSlug(name);
+        const seq = await getNextSequence(`service_${slug}`);
+        const serviceReference = `${slug}_${String(seq).padStart(4, "0")}`;
+        const service = await Service.create({
+            name,
+            shortDescription,
+            fullDescription,
+            categoryId,
+            thumbnailImage,
+            bannerImage,
+            locations: [],
+            tiers: [],
+            serviceReference,
+            isActive: false,
+            isComplete: false,
+        });
         return service;
     }
-    static async updateService(serviceId, updateData) {
-        const updateFields = {};
-        if (updateData.name !== undefined) {
-            if (!updateData.name.trim()) {
+    static async updateService(serviceId, payload) {
+        const { name, shortDescription, fullDescription, categoryId, thumbnailImage, bannerImage, } = payload;
+        if (!Types.ObjectId.isValid(serviceId)) {
+            throw new Error("Invalid serviceId");
+        }
+        const service = await Service.findById(serviceId);
+        if (!service) {
+            throw new Error("Service not found");
+        }
+        const updateData = {};
+        if (name !== undefined) {
+            if (!name.trim()) {
                 throw new Error("Service name cannot be empty");
             }
-            updateFields.name = updateData.name.trim();
+            updateData.name = name.trim();
         }
-        if (updateData.shortDescription !== undefined) {
-            if (!updateData.shortDescription.trim()) {
+        if (shortDescription !== undefined) {
+            if (!shortDescription.trim()) {
                 throw new Error("Short description cannot be empty");
             }
-            updateFields.shortDescription = updateData.shortDescription.trim();
+            updateData.shortDescription = shortDescription.trim();
         }
-        if (updateData.fullDescription !== undefined) {
-            updateFields.fullDescription = updateData.fullDescription;
-        }
-        if (updateData.category !== undefined) {
-            updateFields.category = updateData.category;
-        }
-        if (updateData.locations !== undefined) {
-            if (!Array.isArray(updateData.locations) || updateData.locations.length === 0) {
-                throw new Error("At least one location is required");
+        if (fullDescription !== undefined) {
+            if (fullDescription && typeof fullDescription === "string") {
+                updateData.fullDescription = fullDescription.trim();
             }
-            updateFields.locations = updateData.locations;
+            else {
+                throw new Error("Invalid fullDescription");
+            }
         }
-        if (updateData.thumbnailImage !== undefined) {
-            updateFields.thumbnailImage = updateData.thumbnailImage;
+        if (thumbnailImage !== undefined) {
+            updateData.thumbnailImage = thumbnailImage;
         }
-        if (updateData.bannerImage !== undefined) {
-            updateFields.bannerImage = updateData.bannerImage;
+        if (bannerImage !== undefined) {
+            updateData.bannerImage = bannerImage;
         }
-        if ("subServices" in updateData) {
-            throw new Error("SubServices cannot be updated via updateService API");
+        if (categoryId !== undefined) {
+            if (!Types.ObjectId.isValid(categoryId)) {
+                throw new Error("Invalid categoryId format");
+            }
+            const categoryExists = await Category.exists({ _id: categoryId });
+            if (!categoryExists) {
+                throw new Error("Invalid CategoryId");
+            }
+            updateData.categoryId = categoryId;
         }
-        if ("isActive" in updateData) {
-            throw new Error("Use toggleServiceStatus API to update status");
-        }
-        if (Object.keys(updateFields).length === 0) {
+        if (Object.keys(updateData).length === 0) {
             throw new Error("No valid fields provided for update");
         }
-        const service = await Service.findByIdAndUpdate(serviceId, { $set: updateFields }, { new: true, runValidators: true });
+        const updatedService = await Service.findByIdAndUpdate(serviceId, { $set: updateData }, { new: true, runValidators: true });
+        if (!updatedService)
+            throw new Error("Service not found");
+        return updatedService;
+    }
+    static async getServiceById(serviceId) {
+        if (!Types.ObjectId.isValid(serviceId)) {
+            throw new Error("Invalid serviceId");
+        }
+        const service = await Service.findById(serviceId).lean();
         if (!service)
             throw new Error("Service not found");
         return service;
     }
     static async toggleServiceStatus(serviceId, isActive) {
-        const service = await Service.findByIdAndUpdate(serviceId, { isActive }, { new: true });
-        if (!service)
-            throw new Error("Service not found");
-        return {
-            success: true,
-            message: `Service ${isActive ? "activated" : "deactivated"} successfully`
-        };
-    }
-    static async getServiceById(serviceId) {
-        const service = await Service.findById(serviceId).lean();
-        if (!service)
-            throw new Error("Service not found");
-        const allVariantIds = service.subServices.flatMap(sub => sub.variants.map(v => v.variantId));
-        // Fetch products that contain any of the variants in the service
-        const products = await Product.find({
-            "variants._id": { $in: allVariantIds },
-            isActive: true
-        }).lean();
-        const variantMap = new Map();
-        products.forEach(product => {
-            product.variants.forEach((variant) => {
-                if (!variant.isActive)
-                    return;
-                const isSelected = allVariantIds.some(id => id.toString() === variant._id.toString());
-                if (isSelected) {
-                    // 2. Filter ALL variants in this product that share the same location
-                    const availableVariants = product.variants.filter((v) => v.isActive && v.location === variant.location);
-                    variantMap.set(variant._id.toString(), {
-                        productId: product._id,
-                        productName: product.name,
-                        categoryName: product.categoryName,
-                        productImage: product.imageUrl,
-                        ...variant,
-                        availableVariants
-                    });
-                }
-            });
-        });
-        const enrichedSubServices = service.subServices
-            .map(sub => {
-            const variants = sub.variants
-                .map(v => {
-                const variantData = variantMap.get(v.variantId.toString());
-                if (!variantData)
-                    return null;
-                return {
-                    ...variantData,
-                    isOptional: v.isOptional,
-                    isEditable: v.isEditable,
-                    displayOrder: v.displayOrder
-                };
-            })
-                .filter(Boolean);
-            return { ...sub, variants };
-        })
-            .filter(sub => sub.variants.length > 0);
-        return { ...service, subServices: enrichedSubServices };
-    }
-    static async addSubService(serviceId, payload) {
-        if (!payload.name || !payload.name.trim()) {
-            throw new Error("SubService name is required");
+        if (!Types.ObjectId.isValid(serviceId)) {
+            throw new Error("Invalid serviceId");
         }
-        const existing = await Service.findOne({
-            _id: serviceId,
-            "subServices.name": payload.name.trim()
-        });
-        if (existing) {
-            throw new Error("A sub-service with this name already exists in this service");
-        }
-        if (payload.displayOrder !== undefined && payload.displayOrder < 0) {
-            throw new Error("Display order must be >= 0");
-        }
-        const subService = {
-            name: payload.name.trim(),
-            description: payload.description,
-            displayOrder: payload.displayOrder ?? 0,
-            variants: []
-        };
-        const service = await Service.findByIdAndUpdate(serviceId, { $push: { subServices: subService } }, { new: true, runValidators: true });
-        if (!service)
-            throw new Error("Service not found");
-        return service;
-    }
-    static async updateSubService(serviceId, subServiceId, updateData) {
-        const updateFields = {};
-        if (updateData.name !== undefined) {
-            const trimmedName = updateData.name.trim();
-            if (!trimmedName) {
-                throw new Error("SubService name cannot be empty");
-            }
-            const existing = await Service.findOne({
-                _id: serviceId,
-                "subServices.name": trimmedName,
-                "subServices._id": { $ne: subServiceId }
-            });
-            if (existing) {
-                throw new Error("A sub-service with this name already exists in this service");
-            }
-            updateFields["subServices.$.name"] = trimmedName;
-        }
-        if (updateData.description !== undefined) {
-            updateFields["subServices.$.description"] = updateData.description;
-        }
-        if (updateData.displayOrder !== undefined) {
-            if (updateData.displayOrder < 0) {
-                throw new Error("Display order must be >= 0");
-            }
-            updateFields["subServices.$.displayOrder"] = updateData.displayOrder;
-        }
-        if (Object.keys(updateFields).length === 0) {
-            throw new Error("No valid fields provided for update");
-        }
-        const service = await Service.findOneAndUpdate({ _id: serviceId, "subServices._id": subServiceId }, { $set: updateFields }, { new: true, runValidators: true });
-        if (!service)
-            throw new Error("Service or SubService not found");
-        return service;
-    }
-    static async toggleSubServiceStatus(serviceId, subServiceId, isActive) {
-        const service = await Service.findOneAndUpdate({
-            _id: serviceId,
-            "subServices._id": subServiceId
-        }, {
-            $set: {
-                "subServices.$.isActive": isActive
-            }
-        }, { new: true });
+        const service = await Service.findById(serviceId);
         if (!service) {
-            throw new Error("Service or Sub-service not found");
+            throw new Error("Service not found");
         }
+        if (service.isActive === isActive) {
+            return {
+                success: true,
+                message: `Service already ${isActive ? "active" : "inactive"}`,
+            };
+        }
+        if (isActive) {
+            const validation = await ServiceService.validateServiceConfiguration(serviceId);
+            if (!validation.isComplete) {
+                throw new Error("Service configuration incomplete. Cannot activate.");
+            }
+        }
+        service.isActive = isActive;
+        await service.save();
+        await ServiceCascadingEngine.run(serviceId);
         return {
             success: true,
-            message: `Sub-service ${isActive ? "activated" : "deactivated"} successfully`
+            message: `Service ${isActive ? "activated" : "deactivated"} successfully`,
         };
     }
-    static async addVariantsToSubService(serviceId, subServiceId, isComplete, variants) {
-        if (!variants || variants.length === 0) {
-            throw new Error("Variants array is required");
-        }
-        const variantIds = variants.map(v => v.variantId);
-        const uniqueIds = [...new Set(variantIds)];
-        const products = await Product.find({
-            "variants._id": { $in: uniqueIds }
-        }).lean();
-        const variantMap = new Map();
-        for (const product of products) {
-            for (const variant of product.variants) {
-                variantMap.set(variant._id.toString(), variant);
-            }
-        }
-        for (const id of uniqueIds) {
-            if (!variantMap.has(id)) {
-                throw new Error(`Invalid variantId: ${id}`);
-            }
-        }
-        const service = await Service.findById(serviceId);
-        if (!service)
-            throw new Error("Service not found");
-        const subService = service.subServices.find(v => v._id.toString() === subServiceId);
-        if (!subService)
-            throw new Error("SubService not found");
-        // 6. Validate location + active
-        for (const input of variants) {
-            const variant = variantMap.get(input.variantId);
-            if (!variant.isActive) {
-                throw new Error(`Variant ${input.variantId} is inactive`);
-            }
-            if (!service.locations.includes(variant.location)) {
-                throw new Error(`Variant ${input.variantId} does not belong to service location`);
-            }
-        }
-        const existingIds = new Set(subService.variants.map(v => v.variantId.toString()));
-        for (const input of variants) {
-            if (existingIds.has(input.variantId)) {
-                throw new Error(`Variant already exists: ${input.variantId}`);
-            }
-        }
-        const newVariants = variants.map(v => ({
-            variantId: new Types.ObjectId(v.variantId),
-            displayOrder: v.displayOrder ?? 0,
-            isOptional: v.isOptional ?? false,
-            isEditable: v.isEditable ?? true,
-        }));
-        subService.variants.push(...newVariants);
-        service.isComplete = isComplete;
-        await service.save();
-        return service;
-    }
-    static async updateVariantInSubService(serviceId, subServiceId, variantId, isComplete, updateData) {
-        const service = await Service.findById(serviceId);
-        if (!service)
-            throw new Error("Service not found");
-        const subService = service.subServices.find(v => v._id.toString() === subServiceId);
-        if (!subService)
-            throw new Error("SubService not found");
-        const variant = subService.variants.find(v => v.variantId.toString() === variantId);
-        if (!variant) {
-            throw new Error("Variant not found in subService");
-        }
-        if (updateData.isOptional !== undefined) {
-            variant.isOptional = updateData.isOptional;
-        }
-        if (updateData.isEditable !== undefined) {
-            variant.isEditable = updateData.isEditable;
-        }
-        if (updateData.displayOrder !== undefined) {
-            variant.displayOrder = updateData.displayOrder;
-        }
-        service.isComplete = isComplete;
-        await service.save();
-        return service;
-    }
-    static async removeVariantFromSubService(serviceId, subServiceId, variantId) {
-        const result = await Service.findOneAndUpdate({
-            _id: serviceId,
-            "subServices._id": subServiceId
-        }, {
-            $pull: { "subServices.$.variants": { variantId: variantId } }
-        }, { new: true });
-        if (!result) {
-            throw new Error("Service or SubService not found");
-        }
-        return result;
-    }
-    static async getServiceWithProducts(serviceId, location) {
-        const service = await Service.findById(serviceId).lean();
-        if (!service)
-            throw new Error("Service not found");
-        const allVariantIds = service.subServices.flatMap(sub => sub.variants.map(v => v.variantId));
-        const products = await Product.find({
-            "variants._id": { $in: allVariantIds },
-            "variants.location": location,
-            isActive: true
-        }).lean();
-        const variantMap = new Map();
-        for (const product of products) {
-            for (const variant of product.variants) {
-                if (variant.location === location && variant.isActive) {
-                    variantMap.set(variant._id.toString(), {
-                        productId: product._id,
-                        productName: product.name,
-                        categoryName: product.categoryName,
-                        variant
-                    });
-                }
-            }
-        }
-        const updatedSubServices = service.subServices.map(sub => {
-            const productsMap = new Map();
-            sub.variants.forEach(config => {
-                const data = variantMap.get(config.variantId.toString());
-                if (!data)
-                    return;
-                const key = data.productId.toString();
-                if (!productsMap.has(key)) {
-                    productsMap.set(key, {
-                        _id: data.productId,
-                        name: data.productName,
-                        categoryName: data.categoryName,
-                        variants: []
-                    });
-                }
-                productsMap.get(key).variants.push({
-                    _id: data.variant._id,
-                    tier: data.variant.tier,
-                    price: data.variant.price,
-                    location: data.variant.location,
-                    description: data.variant.description,
-                    isOptional: config.isOptional,
-                    isEditable: config.isEditable,
-                    displayOrder: config.displayOrder
-                });
-            });
-            return {
-                ...sub,
-                products: Array.from(productsMap.values())
-            };
-        }).filter(sub => sub.products.length > 0);
-        return {
-            ...service,
-            subServices: updatedSubServices
-        };
-    }
-    static async FindServices(searchTerm, locationFilter, categoryFilter, limit = 20, page = 1, isActive, isComplete, sortBy = 'createdAt', sortOrder = 'desc') {
+    static async FindServices(searchTerm, categoryId, limit = 20, page = 1, isActive, isComplete, sortBy = "createdAt", sortOrder = "desc") {
         const skip = (page - 1) * limit;
         const matchQuery = {};
         if (isActive !== undefined)
             matchQuery.isActive = isActive;
         if (isComplete !== undefined)
             matchQuery.isComplete = isComplete;
+        if (categoryId) {
+            if (!Types.ObjectId.isValid(categoryId)) {
+                throw new Error("Invalid categoryId");
+            }
+            matchQuery.categoryId = categoryId;
+        }
         if (searchTerm)
             matchQuery.$text = { $search: searchTerm };
-        if (locationFilter)
-            matchQuery.locations = locationFilter;
-        if (categoryFilter)
-            matchQuery.category = categoryFilter;
         let sortCriteria = {};
-        if (searchTerm && sortBy === 'relevance') {
+        if (searchTerm && sortBy === "relevance") {
             sortCriteria = { score: { $meta: "textScore" } };
         }
         else {
             sortCriteria[sortBy] = sortOrder === "desc" ? -1 : 1;
         }
         try {
-            const pipeline = [
-                { $match: matchQuery },
-                ...(searchTerm ? [{ $addFields: { score: { $meta: "textScore" } } }] : []),
-                { $sort: sortCriteria },
-                { $skip: skip },
-                { $limit: limit },
-                // 1. Unwind carefully
-                { $unwind: { path: "$subServices", preserveNullAndEmptyArrays: true } },
-                { $unwind: { path: "$subServices.variants", preserveNullAndEmptyArrays: true } },
-                // 2. Convert ID for lookup
-                {
-                    $addFields: {
-                        "subServices.variants.variantId": {
-                            $cond: [
-                                {
-                                    $and: [
-                                        { $gt: ["$subServices.variants.variantId", null] },
-                                        { $ne: ["$subServices.variants.variantId", ""] }
-                                    ]
-                                },
-                                { $toObjectId: "$subServices.variants.variantId" },
-                                null
-                            ]
-                        }
-                    }
-                },
-                // 3. Lookup product info
-                {
-                    $lookup: {
-                        from: "products",
-                        localField: "subServices.variants.variantId",
-                        foreignField: "variants._id",
-                        as: "productInfo"
-                    }
-                },
-                { $unwind: { path: "$productInfo", preserveNullAndEmptyArrays: true } },
-                // 4. Map details back to the variant
-                {
-                    $addFields: {
-                        "subServices.variants.productDetails": {
-                            $arrayElemAt: [
-                                {
-                                    $filter: {
-                                        input: "$productInfo.variants",
-                                        as: "v",
-                                        cond: { $eq: ["$$v._id", "$subServices.variants.variantId"] }
-                                    }
-                                },
-                                0
-                            ]
-                        },
-                        "subServices.variants.productName": "$productInfo.name",
-                        "subServices.variants.productImage": "$productInfo.imageUrl"
-                    }
-                },
-                // 5. Group variants back into SubServices
-                {
-                    $group: {
-                        _id: {
-                            serviceId: "$_id",
-                            subId: { $ifNull: ["$subServices._id", "no_sub"] }
-                        },
-                        root: { $first: "$$ROOT" },
-                        variants: {
-                            $push: {
-                                $cond: [
-                                    { $gt: ["$subServices.variants.variantId", null] },
-                                    "$subServices.variants",
-                                    "$$REMOVE"
-                                ]
-                            }
-                        }
-                    }
-                },
-                // 6. Group SubServices back into the Main Service
-                {
-                    $group: {
-                        _id: "$_id.serviceId",
-                        name: { $first: "$root.name" },
-                        category: { $first: "$root.category" },
-                        locations: { $first: "$root.locations" },
-                        thumbnailImage: { $first: "$root.thumbnailImage" },
-                        bannerImage: { $first: "$root.bannerImage" },
-                        shortDescription: { $first: "$root.shortDescription" },
-                        fullDescription: { $first: "$root.fullDescription" },
-                        createdAt: { $first: "$root.createdAt" },
-                        isActive: { $first: "$root.isActive" },
-                        subServices: {
-                            $push: {
-                                $cond: [
-                                    { $ne: ["$_id.subId", "no_sub"] },
-                                    {
-                                        _id: "$_id.subId",
-                                        name: "$root.subServices.name",
-                                        description: "$root.subServices.description",
-                                        displayOrder: "$root.subServices.displayOrder",
-                                        variants: "$variants"
-                                    },
-                                    "$$REMOVE"
-                                ]
-                            }
-                        }
-                    }
-                },
-                // Re-sort because grouping loses order
-                { $sort: sortCriteria }
-            ];
             const [data, total] = await Promise.all([
-                Service.aggregate(pipeline),
-                Service.countDocuments(matchQuery)
+                Service.find(matchQuery)
+                    .select({
+                    name: 1,
+                    shortDescription: 1,
+                    thumbnailImage: 1,
+                    categoryId: 1,
+                    isActive: 1,
+                    serviceReference: 1,
+                    createdAt: 1,
+                    isComplete: 1,
+                    locations: 1,
+                    tiers: 1,
+                    ...(searchTerm && { score: { $meta: "textScore" } }),
+                })
+                    .sort(sortCriteria)
+                    .skip(skip)
+                    .limit(limit)
+                    .lean(),
+                Service.countDocuments(matchQuery),
             ]);
             return { data, total, page, totalPages: Math.ceil(total / limit) };
         }
@@ -497,88 +183,412 @@ export class ServiceService {
             throw new Error(`Service fetch failed: ${error.message}`);
         }
     }
-    static async getServicesByFilters(categories, locations, page = 1, limit = 10) {
-        const skip = (page - 1) * limit;
-        const matchQuery = { isActive: true };
-        if (categories) {
-            matchQuery.category = { $in: Array.isArray(categories) ? categories : [categories] };
+    static async updateServiceLocations(serviceId, locations) {
+        if (!Types.ObjectId.isValid(serviceId)) {
+            throw new Error("Invalid serviceId");
         }
-        if (locations) {
-            matchQuery.locations = { $in: Array.isArray(locations) ? locations : [locations] };
+        const service = await Service.findById(serviceId);
+        if (!service) {
+            throw new Error("Service not found");
         }
-        const pipeline = [
-            { $match: matchQuery },
-            { $sort: { createdAt: -1 } },
-            { $skip: skip },
-            { $limit: limit },
-            { $unwind: { path: "$subServices", preserveNullAndEmptyArrays: true } },
-            { $unwind: { path: "$subServices.variants", preserveNullAndEmptyArrays: true } },
-            {
-                $lookup: {
-                    from: "products",
-                    localField: "subServices.variants.variantId",
-                    foreignField: "variants._id",
-                    as: "productInfo"
-                }
+        if (!Array.isArray(locations) || locations.length === 0) {
+            throw new Error("At least one location is required");
+        }
+        const uniqueIds = [...new Set(locations.map((l) => l.locationId))];
+        const objectIds = [];
+        for (const id of uniqueIds) {
+            if (!Types.ObjectId.isValid(id)) {
+                throw new Error(`Invalid locationId: ${id}`);
+            }
+            objectIds.push(new Types.ObjectId(id));
+        }
+        const validLocations = await Location.find({
+            _id: { $in: objectIds },
+        }).select("_id name");
+        if (validLocations.length !== objectIds.length) {
+            throw new Error("One or more locationIds are Invalid");
+        }
+        const formattedLocations = validLocations.map((loc) => ({
+            locationId: loc._id,
+            name: loc.name,
+            isActive: true,
+        }));
+        service.locations = formattedLocations;
+        await service.save();
+        await ServiceCascadingEngine.run(serviceId);
+        return {
+            success: true,
+            message: "Service locationIds updated successfully",
+            locations: formattedLocations,
+        };
+    }
+    static async removeServiceLocation(serviceId, locationId) {
+        if (!Types.ObjectId.isValid(serviceId)) {
+            throw new Error("Invalid serviceId");
+        }
+        if (!Types.ObjectId.isValid(locationId)) {
+            throw new Error("Invalid locationId");
+        }
+        const service = await Service.findById(serviceId);
+        if (!service) {
+            throw new Error("Service not found");
+        }
+        const exists = service.locations.some((loc) => loc.locationId.toString() === locationId);
+        if (!exists) {
+            return {
+                success: true,
+                message: "Location already not present",
+                locations: service.locations,
+            };
+        }
+        if (service.locations.length === 1) {
+            throw new Error("Service must have at least one location");
+        }
+        service.locations = service.locations.filter((loc) => loc.locationId.toString() !== locationId);
+        await service.save();
+        await ServiceCascadingEngine.run(serviceId);
+        return {
+            success: true,
+            message: "Location removed successfully",
+            locations: service.locations,
+        };
+    }
+    static async updateServiceTiers(serviceId, tiers) {
+        if (!Types.ObjectId.isValid(serviceId)) {
+            throw new Error("Invalid serviceId");
+        }
+        const service = await Service.findById(serviceId);
+        if (!service) {
+            throw new Error("Service not found");
+        }
+        if (!Array.isArray(tiers) || tiers.length === 0) {
+            throw new Error("At least one tier is required");
+        }
+        const uniqueIds = [...new Set(tiers.map((t) => t.tierId))];
+        const objectIds = [];
+        for (const id of uniqueIds) {
+            if (!Types.ObjectId.isValid(id)) {
+                throw new Error(`Invalid tierId: ${id}`);
+            }
+            objectIds.push(new Types.ObjectId(id));
+        }
+        const validTiers = await Tier.find({
+            _id: { $in: objectIds },
+        }).select("_id name");
+        if (validTiers.length !== objectIds.length) {
+            throw new Error("One or more tierIds are invalid");
+        }
+        const currentIds = service.tiers.map((t) => t.tierId.toString());
+        const newIds = objectIds.map((id) => id.toString());
+        const isSame = currentIds.length === newIds.length &&
+            currentIds.every((id) => newIds.includes(id));
+        if (isSame) {
+            return {
+                success: true,
+                message: "No changes in tiers",
+            };
+        }
+        service.tiers = validTiers.map((t) => ({
+            tierId: t._id,
+            name: t.name,
+        }));
+        await service.save();
+        await ServiceCascadingEngine.run(serviceId);
+        return {
+            success: true,
+            message: "Service tiers updated successfully",
+            tiers: service.tiers,
+        };
+    }
+    static async removeServiceTier(serviceId, tierId) {
+        if (!Types.ObjectId.isValid(serviceId)) {
+            throw new Error("Invalid serviceId");
+        }
+        if (!Types.ObjectId.isValid(tierId)) {
+            throw new Error("Invalid tierId");
+        }
+        const service = await Service.findById(serviceId);
+        if (!service) {
+            throw new Error("Service not found");
+        }
+        const exists = service.tiers.some((t) => t.tierId.toString() === tierId);
+        if (!exists) {
+            return {
+                success: true,
+                message: "Tier already not present",
+            };
+        }
+        if (service.tiers.length === 1) {
+            throw new Error("Service must have at least one tier");
+        }
+        service.tiers = service.tiers.filter((t) => t.tierId.toString() !== tierId);
+        await service.save();
+        await ServiceCascadingEngine.run(serviceId);
+        return {
+            success: true,
+            message: "Tier removed successfully",
+            tiers: service.tiers,
+        };
+    }
+    static async getFullService(serviceId) {
+        if (!Types.ObjectId.isValid(serviceId)) {
+            throw new Error("Invalid serviceId");
+        }
+        const service = await Service.findById(serviceId).lean();
+        if (!service) {
+            throw new Error("Service not found");
+        }
+        const [components, pricing] = await Promise.all([
+            ServiceComponent.find({ serviceId }).lean(),
+            ServicePricing.find({ serviceId }).lean(),
+        ]);
+        const pricingMap = new Map();
+        for (const p of pricing) {
+            const key = `${p.tierId}_${p.componentId}`;
+            if (!pricingMap.has(key)) {
+                pricingMap.set(key, []);
+            }
+            pricingMap.get(key).push({
+                locationId: p.locationId,
+                price: p.price,
+            });
+        }
+        const grouped = {};
+        for (const comp of components) {
+            const tierId = comp.tierId.toString();
+            if (!grouped[tierId]) {
+                grouped[tierId] = {
+                    tierId: comp.tierId,
+                    components: [],
+                };
+            }
+            const pricingKey = `${comp.tierId}_${comp.componentId}`;
+            grouped[tierId].components.push({
+                componentId: comp.componentId,
+                name: comp.name,
+                isRequired: comp.isRequired,
+                items: comp.items || [],
+                pricing: pricingMap.get(pricingKey) || [],
+            });
+        }
+        return {
+            service: {
+                id: service._id,
+                name: service.name,
+                shortDescription: service.shortDescription,
+                fullDescription: service.fullDescription,
+                thumbnailImage: service.thumbnailImage,
+                bannerImage: service.bannerImage,
+                isActive: service.isActive,
+                serviceReference: service.serviceReference,
             },
-            { $unwind: { path: "$productInfo", preserveNullAndEmptyArrays: true } },
-            {
-                $addFields: {
-                    "subServices.variants.productDetails": {
-                        $filter: {
-                            input: "$productInfo.variants",
-                            as: "v",
-                            cond: { $eq: ["$$v._id", "$subServices.variants.variantId"] }
-                        }
-                    },
-                    "subServices.variants.productName": "$productInfo.name",
-                    "subServices.variants.productImage": "$productInfo.imageUrl"
-                }
-            },
-            {
-                $addFields: {
-                    "subServices.variants.productDetails": { $arrayElemAt: ["$subServices.variants.productDetails", 0] }
-                }
-            },
-            {
-                $group: {
-                    _id: { serviceId: "$_id", subServiceId: "$subServices._id" },
-                    serviceDoc: { $first: "$$ROOT" },
-                    subServiceName: { $first: "$subServices.name" },
-                    subServiceDesc: { $first: "$subServices.description" },
-                    variants: { $push: "$subServices.variants" }
-                }
-            },
-            {
-                $group: {
-                    _id: "$_id.serviceId",
-                    name: { $first: "$serviceDoc.name" },
-                    category: { $first: "$serviceDoc.category" },
-                    locations: { $first: "$serviceDoc.locations" },
-                    thumbnailImage: { $first: "$serviceDoc.thumbnailImage" },
-                    subServices: {
-                        $push: {
-                            _id: "$_id.subServiceId",
-                            name: "$subServiceName",
-                            description: "$subServiceDesc",
-                            variants: {
-                                $filter: {
-                                    input: "$variants",
-                                    as: "v",
-                                    cond: { $ne: ["$$v", {}] }
-                                }
-                            }
-                        }
+            locations: service.locations,
+            tiers: service.tiers.map((t) => ({
+                tierId: t.tierId,
+                name: t.name,
+            })),
+            components: grouped,
+        };
+    }
+    static async updateServiceStartingPrice(serviceId) {
+        // fetch all required component mappings
+        const components = await ServiceComponent.find({
+            serviceId,
+            isRequired: true,
+        }).lean();
+        if (!components.length) {
+            await Service.findByIdAndUpdate(serviceId, {
+                startingPrice: 0,
+            });
+            return;
+        }
+        // group required components by tier
+        const tierComponentMap = new Map();
+        for (const component of components) {
+            const tierId = component.tierId.toString();
+            if (!tierComponentMap.has(tierId)) {
+                tierComponentMap.set(tierId, []);
+            }
+            tierComponentMap.get(tierId).push(component.componentId.toString());
+        }
+        // fetch all pricing
+        const pricing = await ServicePricing.find({
+            serviceId,
+        }).lean();
+        // build pricing lookup
+        const pricingMap = new Map();
+        for (const p of pricing) {
+            const key = `${p.tierId}_${p.locationId}_${p.componentId}`;
+            pricingMap.set(key, p.price);
+        }
+        let minimumPrice = Infinity;
+        // calculate each tier/location combination
+        for (const [tierId, componentIds] of tierComponentMap.entries()) {
+            const locationIds = [
+                ...new Set(pricing
+                    .filter((p) => p.tierId.toString() === tierId)
+                    .map((p) => p.locationId.toString())),
+            ];
+            for (const locationId of locationIds) {
+                let total = 0;
+                let valid = true;
+                for (const componentId of componentIds) {
+                    const key = `${tierId}_${locationId}_${componentId}`;
+                    const price = pricingMap.get(key);
+                    if (price == null) {
+                        valid = false;
+                        break;
                     }
+                    total += price;
+                }
+                if (valid) {
+                    minimumPrice = Math.min(minimumPrice, total);
                 }
             }
-        ];
+        }
+        await Service.findByIdAndUpdate(serviceId, {
+            startingPrice: minimumPrice === Infinity ? 0 : minimumPrice,
+        });
+    }
+    static async getRuntimeServices({ categoryId, locationId, searchTerm, page = 1, limit = 10, sortBy = "createdAt", sortOrder = "desc", }) {
+        const skip = (page - 1) * limit;
+        const matchQuery = {
+            isActive: true,
+        };
+        if (categoryId) {
+            if (!Types.ObjectId.isValid(categoryId)) {
+                throw new Error("Invalid categoryId");
+            }
+            matchQuery.categoryId = new Types.ObjectId(categoryId);
+        }
+        if (locationId) {
+            if (!Types.ObjectId.isValid(locationId)) {
+                throw new Error("Invalid locationId");
+            }
+            matchQuery.locations = {
+                $elemMatch: {
+                    locationId: new Types.ObjectId(locationId),
+                    isActive: true,
+                },
+            };
+        }
+        if (searchTerm?.trim()) {
+            matchQuery.$text = {
+                $search: searchTerm.trim(),
+            };
+        }
+        let sortCriteria = {};
+        if (searchTerm && sortBy === "relevance") {
+            sortCriteria = {
+                score: { $meta: "textScore" },
+            };
+        }
+        else {
+            sortCriteria[sortBy] = sortOrder === "asc" ? 1 : -1;
+        }
+        const baseQuery = Service.find(matchQuery)
+            .select({
+            name: 1,
+            shortDescription: 1,
+            thumbnailImage: 1,
+            bannerImage: 1,
+            startingPrice: 1,
+            locations: 1,
+            tiers: 1,
+            serviceReference: 1,
+            ...(searchTerm ? { score: { $meta: "textScore" } } : {}),
+        })
+            .sort(sortCriteria)
+            .skip(skip)
+            .limit(limit)
+            .lean();
         const [services, total] = await Promise.all([
-            Service.aggregate(pipeline),
-            Service.countDocuments(matchQuery)
+            baseQuery,
+            Service.countDocuments(matchQuery),
         ]);
-        return { services, total };
+        const formattedServices = services.map((service) => ({
+            id: service._id,
+            name: service.name,
+            shortDescription: service.shortDescription,
+            thumbnailImage: service.thumbnailImage,
+            bannerImage: service.bannerImage,
+            startingPrice: service.startingPrice || 0,
+            serviceReference: service.serviceReference,
+            locations: (service.locations || []).filter((l) => l.isActive),
+            tiers: service.tiers || [],
+        }));
+        return {
+            services: formattedServices,
+            total,
+            page,
+            totalPages: Math.ceil(total / limit),
+        };
+    }
+    static async validateServiceConfiguration(serviceId) {
+        if (!Types.ObjectId.isValid(serviceId)) {
+            throw new Error("Invalid serviceId");
+        }
+        const service = await Service.findById(serviceId).lean();
+        if (!service) {
+            throw new Error("Service not found");
+        }
+        const issues = [];
+        if (!service.isActive) {
+            issues.push("Service is inactive");
+        }
+        const activeLocations = service.locations.filter((l) => l.isActive);
+        if (activeLocations.length === 0) {
+            issues.push("No active locations configured");
+        }
+        if (!service.tiers.length) {
+            issues.push("No tiers configured");
+        }
+        const requiredComponents = await ServiceComponent.find({
+            serviceId,
+            isRequired: true,
+        }).lean();
+        if (requiredComponents.length === 0) {
+            issues.push("No required components configured");
+        }
+        const pricing = await ServicePricing.find({
+            serviceId,
+        }).lean();
+        const pricingMap = new Set(pricing.map((p) => `${p.tierId}_${p.locationId}_${p.componentId}`));
+        const tierComponentMap = new Map();
+        for (const c of requiredComponents) {
+            const tierId = c.tierId.toString();
+            if (!tierComponentMap.has(tierId)) {
+                tierComponentMap.set(tierId, []);
+            }
+            tierComponentMap.get(tierId).push(c);
+        }
+        let hasValidCombination = false;
+        // now iterate efficiently
+        for (const [tierId, tierComponents] of tierComponentMap.entries()) {
+            for (const location of activeLocations) {
+                const allPriced = tierComponents.every((c) => {
+                    const key = `${tierId}_${location.locationId.toString()}_${c.componentId.toString()}`;
+                    return pricingMap.has(key);
+                });
+                if (allPriced) {
+                    hasValidCombination = true;
+                    break;
+                }
+            }
+            if (hasValidCombination)
+                break;
+        }
+        if (!hasValidCombination) {
+            issues.push("No fully priced tier/location combination exists");
+        }
+        const isComplete = issues.length === 0;
+        await Service.findByIdAndUpdate(serviceId, {
+            isComplete,
+        });
+        return {
+            isComplete,
+            issues,
+        };
     }
 }
-;
 //# sourceMappingURL=service.service.js.map

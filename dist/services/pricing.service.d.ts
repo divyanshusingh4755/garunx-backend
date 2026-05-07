@@ -1,6 +1,6 @@
 export interface IPricingRequest {
     targetId: string;
-    type: 'SERVICE' | 'PACKAGE';
+    type: "SERVICE" | "PACKAGE";
     selectedVariantIds?: string[];
 }
 export interface PriceBreakdown {

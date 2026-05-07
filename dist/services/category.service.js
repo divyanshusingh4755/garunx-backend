@@ -1,11 +1,13 @@
 import { Category } from "../models/category.model.js";
-import { Product } from "../models/product.model.js";
+import { Component } from "../models/component.model.js";
 export class CategoryService {
     static async createCategory(categoryData) {
         if (!categoryData.value) {
             throw new Error("Category value is required");
         }
-        const existingCategory = await Category.findOne({ value: categoryData.value });
+        const existingCategory = await Category.findOne({
+            value: categoryData.value,
+        });
         if (existingCategory) {
             throw new Error(`Category with value '${categoryData.value}' already exists`);
         }
@@ -16,7 +18,7 @@ export class CategoryService {
         if (updateData.value) {
             const existing = await Category.findOne({
                 value: updateData.value,
-                _id: { $ne: id }
+                _id: { $ne: id },
             });
             if (existing) {
                 throw new Error(`Category with value '${updateData.value}' already exists`);
@@ -39,7 +41,9 @@ export class CategoryService {
         if (!category) {
             throw new Error("Category not found");
         }
-        const hasProducts = await Product.exists({ categoryName: category.value });
+        const hasProducts = await Component.exists({
+            categoryName: category.value,
+        });
         if (hasProducts)
             throw new Error("Cannot delete category being used by products");
         return await Category.findByIdAndDelete(id);
@@ -52,7 +56,7 @@ export class CategoryService {
         category.isActive = !category.isActive;
         return await category.save();
     }
-    static async FindCategories(searchTerm, typeFilter, limit = 40, page = 1, isActive, sortBy = 'displayOrder', sortOrder = 'asc') {
+    static async FindCategories(searchTerm, typeFilter, limit = 40, page = 1, isActive, sortBy = "displayOrder", sortOrder = "asc") {
         const skip = limit * (page - 1);
         const query = {};
         if (typeof isActive == "boolean") {
@@ -65,18 +69,17 @@ export class CategoryService {
         let sortCriteria = {};
         let projection = {};
         if (searchTerm && sortBy === "relevance") {
-            projection = { score: { $meta: 'textScore' } };
+            projection = { score: { $meta: "textScore" } };
             sortCriteria: {
                 score: {
-                    $meta: 'textScore';
+                    $meta: "textScore";
                 }
             }
-            ;
         }
         else {
-            sortCriteria[sortBy] = sortOrder === 'desc' ? -1 : 1;
-            if (sortBy == 'createdAt')
-                sortCriteria['createdAt'] = -1;
+            sortCriteria[sortBy] = sortOrder === "desc" ? -1 : 1;
+            if (sortBy == "createdAt")
+                sortCriteria["createdAt"] = -1;
         }
         try {
             const [data, total] = await Promise.all([
@@ -85,7 +88,7 @@ export class CategoryService {
                     .skip(skip)
                     .limit(limit)
                     .lean(),
-                Category.countDocuments(query)
+                Category.countDocuments(query),
             ]);
             return { data, total, page, totalPages: Math.ceil(total / limit) };
         }

@@ -1,67 +1,83 @@
-import mongoose from "mongoose";
 import { type ICart, type ICartItem } from "../models/cart.model.js";
+type VariantDetails = {
+    _id: string;
+    tier: string;
+    price: number;
+    location: string;
+    productId: string;
+    productName: string;
+    description: string;
+};
 export declare class CartService {
     private pricingService;
     constructor();
-    syncUserCart(userId: string, items: ICartItem[]): Promise<ICart>;
-    getCartByUserId(userId: string): Promise<ICartItem[]>;
-    getVariantsByIds(variantIds: string[]): Promise<Record<string, {
-        _id: string;
-        tier: string;
-        price: number;
-        location: string;
-        description: string;
-        productId: string;
-        productName: string;
-    }>>;
-    getCartDetails(items: ICartItem[]): Promise<{
-        items: any[];
-        grandTotal: any;
-        hasChanges: boolean;
+    syncUserCart(userId: string, item: ICartItem, cartId?: string): Promise<ICart>;
+    updateCustomerDetails(cartId: string, details: Partial<ICart["customerDetails"]>): Promise<ICart | null>;
+    getCartByUserId(userId: string): Promise<ICart[]>;
+    getVariantsByIds(variantIds: string[]): Promise<Record<string, VariantDetails>>;
+    getCartDetails(cart: any): Promise<{
+        _id: any;
+        userId: any;
+        customerDetails: any;
+        activeBookingId: any;
+        items: any;
+        isValid: boolean;
+        updatedAt: any;
+        grandTotal: number;
     }>;
     getTargetMetadata(items: ICartItem[]): Promise<Record<string, any>>;
-    mergeCarts(userId: string, guestItems: ICartItem[]): Promise<ICart>;
+    mergeCarts(userId: string, guestCartIds: string[]): Promise<any>;
     generateItemKey(item: ICartItem): string;
-    addItem(userId: string, newItem: ICartItem): Promise<ICart>;
-    removeItem(userId: string, itemKey: string): Promise<ICart>;
-    removeVariant(userId: string, itemKey: string, variantId: string): Promise<ICart | null>;
-    updateItem(userId: string, itemKey: string, updatedItem: ICartItem): Promise<(mongoose.Document<unknown, {}, ICart, {}, mongoose.DefaultSchemaOptions> & ICart & {
-        _id: mongoose.Types.ObjectId;
-    } & {
-        __v: number;
-    } & {
-        id: string;
-    }) | null>;
-    clearCart(userId: string): Promise<ICart | null>;
+    addItem(userId: string | null, newItem: ICartItem): Promise<any>;
+    removeItem(userId: string, itemKey: string): Promise<boolean>;
+    removeVariant(userId: string, itemKey: string, variantId: string): Promise<any | null>;
+    updateItem(userId: string, oldItemKey: string, updatedItem: ICartItem): Promise<any>;
+    clearCart(userId: string): Promise<void>;
     getCartItemByTargetId(userId: string, targetId: string): Promise<{
-        item: any;
-        grandTotal: any;
+        _id: any;
+        userId: any;
+        customerDetails: any;
+        activeBookingId: any;
+        items: any;
+        isValid: boolean;
+        updatedAt: any;
+        grandTotal: number;
     }>;
     getCart(userId: string): Promise<{
-        items: any[];
-        grandTotal: any;
-        hasChanges: boolean;
+        carts: {
+            _id: any;
+            userId: any;
+            customerDetails: any;
+            activeBookingId: any;
+            items: any;
+            isValid: boolean;
+            updatedAt: any;
+            grandTotal: number;
+        }[];
+        grandTotal: number;
     }>;
     getCartCount(userId: string): Promise<number>;
-    validateCart(items: ICartItem[]): Promise<{
+    validateCart(carts: any[]): Promise<{
         isValid: boolean;
-        invalidItems: ICartItem[];
+        invalidItems: {
+            _id: any;
+            userId: any;
+            customerDetails: any;
+            activeBookingId: any;
+            items: any;
+            isValid: boolean;
+            updatedAt: any;
+            grandTotal: number;
+        }[];
     }>;
-    prepareCheckout(userId: string): Promise<{
-        status: string;
-        message: string;
-        data: {
-            items: any[];
-            grandTotal: any;
-            hasChanges: boolean;
-        };
-    } | {
+    prepareCheckout(cartId: string, userId: string): Promise<{
         status: string;
         data: {
-            items: any[];
-            grandTotal: any;
+            cartId: any;
+            item: any;
+            grandTotal: number;
         };
-        message?: never;
     }>;
 }
+export {};
 //# sourceMappingURL=cart.service.d.ts.map

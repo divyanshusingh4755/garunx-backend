@@ -1,7 +1,7 @@
-import { type Document } from 'mongoose';
+import { type Document } from "mongoose";
 export interface IState extends Document {
     country: String;
-    state: String;
+    name: String;
     image?: String;
     description?: String;
     isActive: Boolean;

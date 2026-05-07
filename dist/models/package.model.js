@@ -3,85 +3,88 @@ const packageSchema = new Schema({
     name: {
         type: String,
         required: true,
-        trim: true
+        trim: true,
     },
     description: {
-        type: String
+        type: String,
     },
     services: {
-        type: [{
+        type: [
+            {
                 serviceId: {
                     type: Schema.Types.ObjectId,
                     ref: "Service",
-                    required: true
+                    required: true,
                 },
                 displayOrder: {
                     type: Number,
-                    default: 0
-                }
-            }],
+                    default: 0,
+                },
+            },
+        ],
         validate: {
             validator: function (services) {
                 return services && services.length > 0;
             },
-            message: "Package must contain at least on service"
-        }
+            message: "Package must contain at least on service",
+        },
     },
     locations: {
         type: [String],
         required: true,
         validate: {
             validator: (val) => val.length > 0,
-            message: "At least one location is required"
-        }
+            message: "At least one location is required",
+        },
     },
     image: {
-        type: String
+        type: String,
     },
     pricing: {
         type: {
             type: String,
             enum: ["DERIVED", "FIXED"],
-            default: "DERIVED"
+            default: "DERIVED",
         },
         fixedPrice: {
             type: Number,
-            min: 0
+            min: 0,
         },
         discountPercentage: {
             type: Number,
             min: 0,
-            max: 100
-        }
+            max: 100,
+        },
     },
+    category: { type: String, required: true, index: true },
     isActive: {
         type: Boolean,
         default: true,
-        index: true
+        index: true,
     },
     displayOrder: {
         type: Number,
-        default: 0
+        default: 0,
     },
     version: {
         type: Number,
-        default: 1
+        default: 1,
     },
     createdBy: {
         type: Schema.Types.ObjectId,
-        ref: "User"
-    }
+        ref: "User",
+    },
 }, { timestamps: true });
 packageSchema.index({
     locations: 1,
     isActive: 1,
     isDeleted: 1,
-    displayOrder: 1
+    displayOrder: 1,
 });
 packageSchema.index({ "services.serviceId": 1 });
 packageSchema.index({
     name: "text",
-    description: "text"
+    description: "text",
 });
 packageSchema.pre("save", async function () {
     if (this.pricing.type === "FIXED") {
@@ -93,10 +96,10 @@ packageSchema.pre("save", async function () {
     if (this.pricing.type === "DERIVED") {
         delete this.pricing.fixedPrice;
     }
-    const serviceIds = this.services.map(s => s.serviceId.toString());
+    const serviceIds = this.services.map((s) => s.serviceId.toString());
     if (new Set(serviceIds).size !== serviceIds.length) {
         throw new Error("Duplicate services are not allowed in package");
     }
 });
-export const Package = model('Package', packageSchema);
+export const Package = model("Package", packageSchema);
 //# sourceMappingURL=package.model.js.map

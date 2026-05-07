@@ -1,5 +1,5 @@
 import { Package } from "../models/package.model.js";
-import { Product } from "../models/product.model.js";
+import { Component } from "../models/component.model.js";
 import { Service } from "../models/service.model.js";
 export class PricingService {
     async calculate(request) {
@@ -9,7 +9,7 @@ export class PricingService {
                 subTotal: serviceRes.total,
                 discount: 0,
                 discountPercentage: 0,
-                total: serviceRes.total
+                total: serviceRes.total,
             };
         }
         else if (request.type === "PACKAGE") {
@@ -18,23 +18,29 @@ export class PricingService {
         throw new Error("Invalid calculation type");
     }
     async calculateService(req) {
-        const serviceDoc = await Service.findOne({ _id: req.targetId, isActive: true }).lean();
+        const serviceDoc = await Service.findOne({
+            _id: req.targetId,
+            isActive: true,
+        }).lean();
         if (!serviceDoc)
             throw new Error(`Service ${req.targetId} is not available or inactive`);
         const selectedIds = req.selectedVariantIds || [];
         if (selectedIds.length > 50)
             throw new Error("Too many items selected.");
-        const products = await Product.find({
+        const products = await Component.find({
             "variants._id": { $in: selectedIds },
-            isActive: true
+            isActive: true,
         }).lean();
         let total = 0;
         let itemsProcessed = 0;
         let detectedLocation = null;
+        const variantMap = new Map();
         selectedIds.forEach((selectedId) => {
-            const product = products.find(p => p.variants.some(v => v._id.toString() === selectedId.toString()));
-            const variantData = product?.variants.find(v => v._id.toString() === selectedId.toString() && v.isActive);
-            if (variantData) {
+            const variantData = variantMap.get(selectedId.toString());
+            if (!variantData) {
+                throw new Error(`Variant ${selectedId} not found or belongs to an inactive product.`);
+            }
+            if (variantData.isActive) {
                 if (!detectedLocation) {
                     detectedLocation = variantData.location;
                 }
@@ -54,19 +60,27 @@ export class PricingService {
         return { total };
     }
     async calculatePackage(req) {
-        const packageDoc = await Package.findOne({ _id: req.targetId, isActive: true }).lean();
+        const packageDoc = await Package.findOne({
+            _id: req.targetId,
+            isActive: true,
+        }).lean();
         if (!packageDoc)
             throw new Error(`Package ${req.targetId} is not available or inactive`);
         // Parallel execution for faster performance
-        const serviceCalculations = await Promise.all(packageDoc.services.map(pService => this.calculateService({ ...req, targetId: pService.serviceId.toString() })));
+        const serviceCalculations = await Promise.all(packageDoc.services.map((pService) => this.calculateService({
+            ...req,
+            targetId: pService.serviceId.toString(),
+        })));
         const subTotal = serviceCalculations.reduce((sum, res) => sum + res.total, 0);
         if (packageDoc.pricing.type === "FIXED") {
             const finalTotal = packageDoc.pricing.fixedPrice || 0;
             return {
                 subTotal,
                 discount: Math.max(0, subTotal - finalTotal),
-                discountPercentage: subTotal > 0 ? Math.round(((subTotal - finalTotal) / subTotal) * 100) : 0,
-                total: finalTotal
+                discountPercentage: subTotal > 0
+                    ? Math.round(((subTotal - finalTotal) / subTotal) * 100)
+                    : 0,
+                total: finalTotal,
             };
         }
         const pct = packageDoc.pricing.discountPercentage || 0;
@@ -75,7 +89,7 @@ export class PricingService {
             subTotal,
             discount: discountAmount,
             discountPercentage: pct,
-            total: subTotal - discountAmount
+            total: subTotal - discountAmount,
         };
     }
 }
