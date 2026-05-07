@@ -81,15 +81,12 @@ const serviceValidation = [
     .isURL()
     .withMessage("Banner image must be valid URL"),
 
-  body("locations")
-    .isArray({ min: 1 })
-    .withMessage("At least one location is required"),
+  body("locations").optional().isArray().withMessage("locations must be array"),
 
-  body("locations.*.name").notEmpty().withMessage("Location name is required"),
+  body("locations.*.name").optional().isString().trim(),
 
   body("locations.*.locationId")
-    .notEmpty()
-    .withMessage("Location ID is required")
+    .optional()
     .isMongoId()
     .withMessage("Invalid location ID"),
 
