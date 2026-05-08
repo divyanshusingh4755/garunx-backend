@@ -1,6 +1,7 @@
 import { Document, type Types } from "mongoose";
 export interface IServiceComponent extends Document {
     name: string;
+    description: string;
     serviceId: Types.ObjectId;
     componentId: Types.ObjectId;
     tierId: Types.ObjectId;

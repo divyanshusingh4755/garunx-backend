@@ -516,6 +516,7 @@ export class ServiceService {
         thumbnailImage: service.thumbnailImage,
         bannerImage: service.bannerImage,
         isActive: service.isActive,
+        isComplete: service.isComplete,
         serviceReference: service.serviceReference,
       },
 

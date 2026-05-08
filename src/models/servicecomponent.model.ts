@@ -2,6 +2,7 @@ import { model, Schema, Document, type Types } from "mongoose";
 
 export interface IServiceComponent extends Document {
   name: string;
+  description: string;
   serviceId: Types.ObjectId;
   componentId: Types.ObjectId;
   tierId: Types.ObjectId;
@@ -16,6 +17,7 @@ export interface IServiceComponent extends Document {
 const serviceComponentSchema = new Schema<IServiceComponent>(
   {
     name: { type: String, required: true },
+    description: { type: String, required: true },
     serviceId: {
       type: Schema.Types.ObjectId,
       ref: "Service",

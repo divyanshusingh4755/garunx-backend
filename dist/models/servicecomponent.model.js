@@ -1,6 +1,7 @@
 import { model, Schema, Document } from "mongoose";
 const serviceComponentSchema = new Schema({
     name: { type: String, required: true },
+    description: { type: String, required: true },
     serviceId: {
         type: Schema.Types.ObjectId,
         ref: "Service",

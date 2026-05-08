@@ -172,27 +172,40 @@ export class ServiceCascadingEngine {
       .session(session)
       .lean();
 
+    // 1. Filter for active locations only
+    const activeLocations = service.locations.filter((l: any) => l.isActive);
+
+    // 2. Initial Guards
+    if (!activeLocations.length) return false;
     if (!service.tiers.length) return false;
-    if (!service.locations.length) return false;
 
     const requiredComponents = components.filter((c) => c.isRequired);
-
     if (!requiredComponents.length) return false;
 
+    // 3. Build the price set with explicit strings
     const priceSet = new Set(
-      pricing.map((p) => `${p.tierId}_${p.locationId}_${p.componentId}`),
+      pricing.map(
+        (p) =>
+          `${p.tierId.toString()}_${p.locationId.toString()}_${p.componentId.toString()}`,
+      ),
     );
 
+    // 4. Check for completion
     for (const tier of service.tiers) {
       const tierRequiredComponents = requiredComponents.filter(
         (c) => c.tierId.toString() === tier.tierId.toString(),
       );
 
-      for (const loc of service.locations) {
+      // Skip tiers that have no required components defined (optional)
+      if (tierRequiredComponents.length === 0) continue;
+
+      // Use activeLocations here, NOT service.locations
+      for (const loc of activeLocations) {
         for (const comp of tierRequiredComponents) {
-          const key = `${tier.tierId}_${loc.locationId}_${comp.componentId}`;
+          const key = `${tier.tierId.toString()}_${loc.locationId.toString()}_${comp.componentId.toString()}`;
 
           if (!priceSet.has(key)) {
+            console.log(`Missing pricing for: ${key}`);
             return false;
           }
         }

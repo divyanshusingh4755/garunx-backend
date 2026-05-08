@@ -116,13 +116,13 @@ export class ServicePricingService {
       }
     }
 
-    const norConditions = Array.from(requestKeys)
-      .map((key) => {
-        const [locationId, componentId] = key.split("_");
-        if (!locationId || !componentId) return null;
-        return { locationId, componentId };
-      })
-      .filter(Boolean);
+    const norConditions = Array.from(requestKeys).map((key) => {
+      const [locationId, componentId] = key.split("_");
+      return {
+        locationId: new Types.ObjectId(locationId),
+        componentId: new Types.ObjectId(componentId),
+      };
+    });
 
     await ServicePricing.deleteMany({
       serviceId,
@@ -133,6 +133,9 @@ export class ServicePricingService {
     if (bulkOps.length > 0) {
       await ServicePricing.bulkWrite(bulkOps);
     }
+
+    const count = await ServicePricing.countDocuments({ serviceId });
+    console.log(`Current pricing records before check: ${count}`);
 
     await ServiceCascadingEngine.run(serviceId);
 

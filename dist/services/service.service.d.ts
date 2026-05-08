@@ -78,6 +78,7 @@ export declare class ServiceService {
             thumbnailImage: string | undefined;
             bannerImage: string | undefined;
             isActive: boolean;
+            isComplete: boolean;
             serviceReference: string;
         };
         locations: import("../models/service.model.js").ILocationService[];
