@@ -23,6 +23,7 @@ export interface IService extends Document {
   locations: ILocationService[];
   tiers: IServiceTier[];
   isComplete: boolean;
+  subServiceComponents?: any[];
 }
 
 const locationSchema = new Schema<ILocationService>(
@@ -77,8 +78,18 @@ const serviceSchema = new Schema<IService>(
       index: true,
     },
   },
-  { timestamps: true },
+  {
+    timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true },
+  },
 );
+
+serviceSchema.virtual("subServiceComponents", {
+  ref: "SubServiceComponent",
+  localField: "_id",
+  foreignField: "serviceId",
+});
 
 serviceSchema.index({
   categoryId: 1,

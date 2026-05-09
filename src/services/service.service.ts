@@ -219,6 +219,11 @@ export class ServiceService {
     try {
       const [data, total] = await Promise.all([
         Service.find(matchQuery)
+          .populate({
+            path: "subServiceComponents",
+            match: { isActive: true },
+            select: "name description image isActive",
+          })
           .select({
             name: 1,
             shortDescription: 1,
@@ -235,7 +240,7 @@ export class ServiceService {
           .sort(sortCriteria)
           .skip(skip)
           .limit(limit)
-          .lean(),
+          .lean({ virtuals: true }),
         Service.countDocuments(matchQuery),
       ]);
 
@@ -458,7 +463,14 @@ export class ServiceService {
       throw new Error("Invalid serviceId");
     }
 
-    const service = await Service.findById(serviceId).lean();
+    const service = await Service.findById(serviceId)
+      .populate({
+        path: "subServiceComponents",
+        match: { isActive: true },
+        select: "name description image isActive",
+        options: { sort: { createdAt: -1 } },
+      })
+      .lean({ virtuals: true });
 
     if (!service) {
       throw new Error("Service not found");
@@ -519,9 +531,8 @@ export class ServiceService {
         isComplete: service.isComplete,
         serviceReference: service.serviceReference,
       },
-
+      subServiceComponents: service.subServiceComponents || [],
       locations: service.locations,
-
       tiers: service.tiers.map((t) => ({
         tierId: t.tierId,
         name: t.name,
@@ -626,6 +637,7 @@ export class ServiceService {
 
     const matchQuery: any = {
       isActive: true,
+      isComplete: true,
     };
 
     if (categoryId) {
@@ -666,6 +678,12 @@ export class ServiceService {
     }
 
     const baseQuery = Service.find(matchQuery)
+      .populate({
+        path: "subServiceComponents",
+        match: { isActive: true },
+        select: "name description image isActive",
+        options: { sort: { createdAt: -1 } },
+      })
       .select({
         name: 1,
         shortDescription: 1,
@@ -680,7 +698,7 @@ export class ServiceService {
       .sort(sortCriteria)
       .skip(skip)
       .limit(limit)
-      .lean();
+      .lean({ virtuals: true });
 
     const [services, total] = await Promise.all([
       baseQuery,
@@ -697,6 +715,7 @@ export class ServiceService {
       serviceReference: service.serviceReference,
       locations: (service.locations || []).filter((l: any) => l.isActive),
       tiers: service.tiers || [],
+      subServiceComponents: service.subServiceComponents || [],
     }));
 
     return {

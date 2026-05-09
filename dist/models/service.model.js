@@ -39,7 +39,16 @@ const serviceSchema = new Schema({
         default: false,
         index: true,
     },
-}, { timestamps: true });
+}, {
+    timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true },
+});
+serviceSchema.virtual("subServiceComponents", {
+    ref: "SubServiceComponent",
+    localField: "_id",
+    foreignField: "serviceId",
+});
 serviceSchema.index({
     categoryId: 1,
     isActive: 1,

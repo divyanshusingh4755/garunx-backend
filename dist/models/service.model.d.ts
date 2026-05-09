@@ -20,6 +20,7 @@ export interface IService extends Document {
     locations: ILocationService[];
     tiers: IServiceTier[];
     isComplete: boolean;
+    subServiceComponents?: any[];
 }
 export declare const Service: import("mongoose").Model<IService, {}, {}, {}, Document<unknown, {}, IService, {}, import("mongoose").DefaultSchemaOptions> & IService & Required<{
     _id: Types.ObjectId;

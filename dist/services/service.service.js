@@ -158,6 +158,11 @@ export class ServiceService {
         try {
             const [data, total] = await Promise.all([
                 Service.find(matchQuery)
+                    .populate({
+                    path: "subServiceComponents",
+                    match: { isActive: true },
+                    select: "name description image isActive",
+                })
                     .select({
                     name: 1,
                     shortDescription: 1,
@@ -174,7 +179,7 @@ export class ServiceService {
                     .sort(sortCriteria)
                     .skip(skip)
                     .limit(limit)
-                    .lean(),
+                    .lean({ virtuals: true }),
                 Service.countDocuments(matchQuery),
             ]);
             return { data, total, page, totalPages: Math.ceil(total / limit) };
@@ -334,7 +339,14 @@ export class ServiceService {
         if (!Types.ObjectId.isValid(serviceId)) {
             throw new Error("Invalid serviceId");
         }
-        const service = await Service.findById(serviceId).lean();
+        const service = await Service.findById(serviceId)
+            .populate({
+            path: "subServiceComponents",
+            match: { isActive: true },
+            select: "name description image isActive",
+            options: { sort: { createdAt: -1 } },
+        })
+            .lean({ virtuals: true });
         if (!service) {
             throw new Error("Service not found");
         }
@@ -383,6 +395,7 @@ export class ServiceService {
                 isComplete: service.isComplete,
                 serviceReference: service.serviceReference,
             },
+            subServiceComponents: service.subServiceComponents || [],
             locations: service.locations,
             tiers: service.tiers.map((t) => ({
                 tierId: t.tierId,
@@ -455,6 +468,7 @@ export class ServiceService {
         const skip = (page - 1) * limit;
         const matchQuery = {
             isActive: true,
+            isComplete: true,
         };
         if (categoryId) {
             if (!Types.ObjectId.isValid(categoryId)) {
@@ -488,6 +502,12 @@ export class ServiceService {
             sortCriteria[sortBy] = sortOrder === "asc" ? 1 : -1;
         }
         const baseQuery = Service.find(matchQuery)
+            .populate({
+            path: "subServiceComponents",
+            match: { isActive: true },
+            select: "name description image isActive",
+            options: { sort: { createdAt: -1 } },
+        })
             .select({
             name: 1,
             shortDescription: 1,
@@ -502,7 +522,7 @@ export class ServiceService {
             .sort(sortCriteria)
             .skip(skip)
             .limit(limit)
-            .lean();
+            .lean({ virtuals: true });
         const [services, total] = await Promise.all([
             baseQuery,
             Service.countDocuments(matchQuery),
@@ -517,6 +537,7 @@ export class ServiceService {
             serviceReference: service.serviceReference,
             locations: (service.locations || []).filter((l) => l.isActive),
             tiers: service.tiers || [],
+            subServiceComponents: service.subServiceComponents || [],
         }));
         return {
             services: formattedServices,

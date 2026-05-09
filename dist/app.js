@@ -18,6 +18,7 @@ import cartRoutes from "./routes/cart.routes.js";
 import categoryRoutes from "./routes/category.routes.js";
 import bookingRoutes from "./routes/booking.routes.js";
 import tierRoutes from "./routes/tier.routes.js";
+import subServices from "./routes/subservices.routes.js";
 const app = express();
 // Connect DB
 ConnectDB();
@@ -69,6 +70,7 @@ app.use("/api/tier", tierRoutes);
 app.use("/api/pricing", pricingRoutes);
 app.use("/api/cart", cartRoutes);
 app.use("/api/bookings", bookingRoutes);
+app.use("/api/sub-services", subServices);
 // Routes
 app.get("/health", (req, res) => {
     res.status(200).json({ status: "ok", uptime: process.uptime() });

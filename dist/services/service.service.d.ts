@@ -81,6 +81,7 @@ export declare class ServiceService {
             isComplete: boolean;
             serviceReference: string;
         };
+        subServiceComponents: any[];
         locations: import("../models/service.model.js").ILocationService[];
         tiers: {
             tierId: Types.ObjectId;
@@ -100,6 +101,7 @@ export declare class ServiceService {
             serviceReference: any;
             locations: any;
             tiers: any;
+            subServiceComponents: any;
         }[];
         total: number;
         page: any;
