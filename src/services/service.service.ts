@@ -8,6 +8,7 @@ import { ServiceComponent } from "../models/servicecomponent.model.js";
 import { ServicePricing } from "../models/servicepricing.model.js";
 import { Location } from "../models/location.model.js";
 import { ServiceCascadingEngine } from "./cascading-engine.service.js";
+import { Component } from "../models/component.model.js";
 
 export class ServiceService {
   static async createService(payload: any) {
@@ -186,9 +187,126 @@ export class ServiceService {
     };
   }
 
+  static async getServicesByLocation(
+    cityIds: string[],
+    limit: number = 20,
+    page: number = 1,
+    isActive?: boolean,
+    isComplete?: boolean,
+    sortBy: string = "createdAt",
+    sortOrder: "asc" | "desc" = "desc",
+  ) {
+    const skip = (page - 1) * limit;
+
+    if (!Array.isArray(cityIds) || cityIds.length === 0) {
+      throw new Error("cityIds must be a non-empty array");
+    }
+
+    const invalidIds = cityIds.filter((id) => !Types.ObjectId.isValid(id));
+
+    if (invalidIds.length > 0) {
+      throw new Error(`Invalid cityIds: ${invalidIds.join(", ")}`);
+    }
+
+    try {
+      const locations = await Location.find({
+        cityId: {
+          $in: cityIds.map((id) => new Types.ObjectId(id)),
+        },
+        isActive: true,
+      })
+        .populate({
+          path: "cityId",
+          select: "name",
+        })
+        .select("_id cityId name")
+        .lean();
+
+      const locationIds = locations.map((loc) => loc._id);
+
+      const locationMap = new Map(
+        locations.map((loc: any) => [
+          loc._id.toString(),
+          {
+            locationId: loc._id,
+            locationName: loc.name,
+            city: loc.cityId,
+          },
+        ]),
+      );
+
+      const matchQuery: any = {
+        "locations.locationId": {
+          $in: locationIds,
+        },
+      };
+
+      if (isActive !== undefined) {
+        matchQuery.isActive = isActive;
+      }
+
+      if (isComplete !== undefined) {
+        matchQuery.isComplete = isComplete;
+      }
+
+      const sortCriteria: any = {
+        [sortBy]: sortOrder === "desc" ? -1 : 1,
+      };
+
+      const [services, total] = await Promise.all([
+        Service.find(matchQuery)
+          .populate({
+            path: "subServiceComponents",
+            match: { isActive: true },
+            select: "name description image isActive",
+          })
+          .select({
+            name: 1,
+            shortDescription: 1,
+            thumbnailImage: 1,
+            categoryId: 1,
+            isActive: 1,
+            serviceReference: 1,
+            createdAt: 1,
+            isComplete: 1,
+            locations: 1,
+            tiers: 1,
+          })
+          .sort(sortCriteria)
+          .skip(skip)
+          .limit(limit)
+          .lean({ virtuals: true }),
+
+        Service.countDocuments(matchQuery),
+      ]);
+
+      const data = services.map((service: any) => ({
+        ...service,
+        locations: service.locations.map((loc: any) => {
+          const mappedLocation = locationMap.get(loc.locationId.toString());
+
+          return {
+            ...loc,
+            locationDetails: mappedLocation || null,
+          };
+        }),
+      }));
+
+      return {
+        data,
+        total,
+        page,
+        totalPages: Math.ceil(total / limit),
+      };
+    } catch (error: any) {
+      throw new Error(`Fetching services by location failed: ${error.message}`);
+    }
+  }
+
   static async FindServices(
     searchTerm?: string,
     categoryId?: string,
+    locationId?: string,
     limit: number = 20,
     page: number = 1,
     isActive?: boolean,
@@ -207,6 +325,14 @@ export class ServiceService {
       }
       matchQuery.categoryId = categoryId;
     }
+
+    if (locationId) {
+      if (!Types.ObjectId.isValid(locationId)) {
+        throw new Error("Invalid locationId");
+      }
+      matchQuery.locationId = locationId;
+    }
+
     if (searchTerm) matchQuery.$text = { $search: searchTerm };
 
     let sortCriteria: any = {};
@@ -515,6 +641,7 @@ export class ServiceService {
         name: comp.name,
         isRequired: comp.isRequired,
         items: comp.items || [],
+
         pricing: pricingMap.get(pricingKey) || [],
       });
     }
@@ -534,6 +661,173 @@ export class ServiceService {
       subServiceComponents: service.subServiceComponents || [],
       locations: service.locations,
       tiers: service.tiers.map((t) => ({
+        tierId: t.tierId,
+        name: t.name,
+      })),
+
+      components: grouped,
+    };
+  }
+
+  static async getFullServiceByCities(serviceId: string, cityIds: string[]) {
+    if (!Types.ObjectId.isValid(serviceId)) {
+      throw new Error("Invalid serviceId");
+    }
+
+    if (!Array.isArray(cityIds) || cityIds.length === 0) {
+      throw new Error("cityIds must be a non-empty array");
+    }
+
+    const invalidCityIds = cityIds.filter((id) => !Types.ObjectId.isValid(id));
+
+    if (invalidCityIds.length > 0) {
+      throw new Error(`Invalid cityIds: ${invalidCityIds.join(", ")}`);
+    }
+
+    const locations = await Location.find({
+      cityId: {
+        $in: cityIds.map((id) => new Types.ObjectId(id)),
+      },
+      isActive: true,
+    })
+      .populate({
+        path: "cityId",
+        select: "name",
+      })
+      .select("_id name cityId")
+      .lean();
+
+    const locationIds = locations.map((loc) => loc._id);
+
+    const locationMap = new Map(
+      locations.map((loc: any) => [
+        loc._id.toString(),
+        {
+          locationId: loc._id,
+          locationName: loc.name,
+          city: loc.cityId,
+        },
+      ]),
+    );
+
+    const service = await Service.findById(serviceId)
+      .populate({
+        path: "subServiceComponents",
+        match: { isActive: true },
+        select: "name description image isActive",
+        options: { sort: { createdAt: -1 } },
+      })
+      .lean({ virtuals: true });
+
+    if (!service) {
+      throw new Error("Service not found");
+    }
+
+    const filteredLocations = service.locations
+      .filter((loc: any) =>
+        locationIds.some((id) => id.toString() === loc.locationId.toString()),
+      )
+      .map((loc: any) => ({
+        ...loc,
+        locationDetails: locationMap.get(loc.locationId.toString()) || null,
+      }));
+
+    const [components, pricing, componentDetails] = await Promise.all([
+      ServiceComponent.find({ serviceId }).lean(),
+
+      ServicePricing.find({
+        serviceId,
+        locationId: { $in: locationIds },
+      }).lean(),
+
+      Component.find({
+        isActive: true,
+      })
+        .select("name imageUrl")
+        .lean(),
+    ]);
+
+    const componentMap = new Map(
+      componentDetails.map((comp: any) => [
+        comp._id.toString(),
+        {
+          imageUrl: comp.imageUrl || null,
+          name: comp.name,
+        },
+      ]),
+    );
+
+    const pricingMap = new Map<string, any[]>();
+
+    for (const p of pricing) {
+      const key = `${p.tierId}_${p.componentId}`;
+
+      if (!pricingMap.has(key)) {
+        pricingMap.set(key, []);
+      }
+
+      pricingMap.get(key)!.push({
+        locationId: p.locationId,
+        locationDetails: locationMap.get(p.locationId.toString()) || null,
+        price: p.price,
+      });
+    }
+
+    const grouped: Record<string, any> = {};
+
+    for (const comp of components) {
+      const tierId = comp.tierId.toString();
+
+      const pricingKey = `${comp.tierId}_${comp.componentId}`;
+
+      const componentPricing = pricingMap.get(pricingKey) || [];
+
+      if (componentPricing.length === 0) {
+        continue;
+      }
+
+      if (!grouped[tierId]) {
+        grouped[tierId] = {
+          tierId: comp.tierId,
+          components: [],
+        };
+      }
+
+      const componentInfo = componentMap.get(comp.componentId.toString());
+
+      grouped[tierId].components.push({
+        componentId: comp.componentId,
+        name: comp.name,
+        description: comp.description,
+        isRequired: comp.isRequired,
+        imageUrl: componentInfo?.imageUrl || null,
+        items: comp.items || [],
+        pricing: componentPricing,
+      });
+    }
+
+    const filteredTiers = service.tiers.filter(
+      (tier) => grouped[tier.tierId.toString()],
+    );
+
+    return {
+      service: {
+        id: service._id,
+        name: service.name,
+        shortDescription: service.shortDescription,
+        fullDescription: service.fullDescription,
+        thumbnailImage: service.thumbnailImage,
+        bannerImage: service.bannerImage,
+        isActive: service.isActive,
+        isComplete: service.isComplete,
+        serviceReference: service.serviceReference,
+      },
+
+      subServiceComponents: service.subServiceComponents || [],
+
+      locations: filteredLocations,
+
+      tiers: filteredTiers.map((t) => ({
         tierId: t.tierId,
         name: t.name,
       })),
@@ -622,108 +916,6 @@ export class ServiceService {
     await Service.findByIdAndUpdate(serviceId, {
       startingPrice: minimumPrice === Infinity ? 0 : minimumPrice,
     });
-  }
-
-  static async getRuntimeServices({
-    categoryId,
-    locationId,
-    searchTerm,
-    page = 1,
-    limit = 10,
-    sortBy = "createdAt",
-    sortOrder = "desc",
-  }: any) {
-    const skip = (page - 1) * limit;
-
-    const matchQuery: any = {
-      isActive: true,
-      isComplete: true,
-    };
-
-    if (categoryId) {
-      if (!Types.ObjectId.isValid(categoryId)) {
-        throw new Error("Invalid categoryId");
-      }
-
-      matchQuery.categoryId = new Types.ObjectId(categoryId);
-    }
-
-    if (locationId) {
-      if (!Types.ObjectId.isValid(locationId)) {
-        throw new Error("Invalid locationId");
-      }
-
-      matchQuery.locations = {
-        $elemMatch: {
-          locationId: new Types.ObjectId(locationId),
-          isActive: true,
-        },
-      };
-    }
-
-    if (searchTerm?.trim()) {
-      matchQuery.$text = {
-        $search: searchTerm.trim(),
-      };
-    }
-
-    let sortCriteria: any = {};
-
-    if (searchTerm && sortBy === "relevance") {
-      sortCriteria = {
-        score: { $meta: "textScore" },
-      };
-    } else {
-      sortCriteria[sortBy] = sortOrder === "asc" ? 1 : -1;
-    }
-
-    const baseQuery = Service.find(matchQuery)
-      .populate({
-        path: "subServiceComponents",
-        match: { isActive: true },
-        select: "name description image isActive",
-        options: { sort: { createdAt: -1 } },
-      })
-      .select({
-        name: 1,
-        shortDescription: 1,
-        thumbnailImage: 1,
-        bannerImage: 1,
-        startingPrice: 1,
-        locations: 1,
-        tiers: 1,
-        serviceReference: 1,
-        ...(searchTerm ? { score: { $meta: "textScore" } } : {}),
-      })
-      .sort(sortCriteria)
-      .skip(skip)
-      .limit(limit)
-      .lean({ virtuals: true });
-
-    const [services, total] = await Promise.all([
-      baseQuery,
-      Service.countDocuments(matchQuery),
-    ]);
-
-    const formattedServices = services.map((service: any) => ({
-      id: service._id,
-      name: service.name,
-      shortDescription: service.shortDescription,
-      thumbnailImage: service.thumbnailImage,
-      bannerImage: service.bannerImage,
-      startingPrice: service.startingPrice || 0,
-      serviceReference: service.serviceReference,
-      locations: (service.locations || []).filter((l: any) => l.isActive),
-      tiers: service.tiers || [],
-      subServiceComponents: service.subServiceComponents || [],
-    }));
-
-    return {
-      services: formattedServices,
-      total,
-      page,
-      totalPages: Math.ceil(total / limit),
-    };
   }
 
   static async validateServiceConfiguration(serviceId: string) {

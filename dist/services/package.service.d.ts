@@ -56,19 +56,21 @@ export declare class PackageService {
     static getPackageDetails(packageId: string, location: string): Promise<{
         services: never[];
         name: string;
+        shortDescription?: string;
         description?: string;
-        locations?: string[];
+        packageReference: string;
+        categoryId: Types.ObjectId;
+        locations: Types.ObjectId[];
         image?: string;
         pricing: {
             type: "DERIVED" | "FIXED";
             fixedPrice?: number;
             discountPercentage?: number;
         };
-        category: string;
         displayOrder?: number;
         isActive: boolean;
-        createdBy?: Types.ObjectId;
         version: number;
+        createdBy?: Types.ObjectId;
         _id: Types.ObjectId;
         $locals: Record<string, unknown>;
         $op: "save" | "validate" | "remove" | null;
@@ -105,20 +107,22 @@ export declare class PackageService {
         data: {
             computedPricing: import("./pricing.service.js").PriceBreakdown;
             name: string;
+            shortDescription?: string;
             description?: string;
+            packageReference: string;
+            categoryId: Types.ObjectId;
             services: import("../models/package.model.js").IPackageService[];
-            locations?: string[];
+            locations: Types.ObjectId[];
             image?: string;
             pricing: {
                 type: "DERIVED" | "FIXED";
                 fixedPrice?: number;
                 discountPercentage?: number;
             };
-            category: string;
             displayOrder?: number;
             isActive: boolean;
-            createdBy?: Types.ObjectId;
             version: number;
+            createdBy?: Types.ObjectId;
             _id: Types.ObjectId;
             $locals: Record<string, unknown>;
             $op: "save" | "validate" | "remove" | null;

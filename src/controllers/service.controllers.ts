@@ -89,11 +89,53 @@ export const getServiceById = async (req: Request, res: Response) => {
   }
 };
 
+export const getServicesByLocation = async (req: Request, res: Response) => {
+  try {
+    const { cityIds, limit, page, isActive, isComplete, sortBy, sortOrder } =
+      req.body;
+
+    const activeBool =
+      isActive === "true" ? true : isActive === "false" ? false : undefined;
+
+    const completeBool =
+      isComplete === "true" ? true : isComplete === "false" ? false : undefined;
+
+    const {
+      data,
+      total,
+      page: currentPage,
+      totalPages,
+    } = await ServiceService.getServicesByLocation(
+      cityIds as string[],
+      Number(limit) || 20,
+      Number(page) || 1,
+      activeBool,
+      completeBool,
+      (sortBy as string) || "name",
+      (sortOrder as "asc" | "desc") || "asc",
+    );
+
+    return res.status(200).json({
+      success: true,
+      data,
+      total,
+      page: currentPage,
+      totalPages,
+    });
+  } catch (error: any) {
+    return res.status(400).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
 export const getAllServices = async (req: Request, res: Response) => {
   try {
     const {
       searchTerm,
       categoryId,
+      locationId,
       limit,
       page,
       isActive,
@@ -116,6 +158,7 @@ export const getAllServices = async (req: Request, res: Response) => {
     } = await ServiceService.FindServices(
       searchTerm as string,
       categoryId as string,
+      locationId as string,
       Number(limit) || 20,
       Number(page) || 1,
       activeBool,
@@ -251,43 +294,29 @@ export const getFullService = async (req: Request, res: Response) => {
   }
 };
 
-export const getRuntimeServices = async (req: Request, res: Response) => {
+export const getFullServiceByCities = async (req: Request, res: Response) => {
   try {
-    const {
-      categoryId,
-      locationId,
-      searchTerm,
-      page,
-      limit,
-      sortBy,
-      sortOrder,
-    } = req.query;
+    const { serviceId } = req.params;
+    const { cityIds } = req.body;
 
-    const pageNum = Number(page) || 1;
-    const limitNum = Number(limit) || 10;
+    if (!Array.isArray(cityIds) || cityIds.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "cityIds must be a non-empty array",
+      });
+    }
 
-    const result = await ServiceService.getRuntimeServices({
-      categoryId,
-      locationId,
-      searchTerm,
-      page: pageNum,
-      limit: limitNum,
-      sortBy,
-      sortOrder,
-    });
+    const data = await ServiceService.getFullServiceByCities(
+      serviceId as string,
+      cityIds as string[],
+    );
 
     return res.status(200).json({
       success: true,
-      pagination: {
-        total: result.total,
-        page: result.page,
-        limit: limitNum,
-        totalPages: result.totalPages,
-      },
-      data: result.services,
+      data,
     });
   } catch (error: any) {
-    return res.status(500).json({
+    return res.status(400).json({
       success: false,
       message: error.message,
     });

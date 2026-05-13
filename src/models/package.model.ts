@@ -1,28 +1,100 @@
 import { model, Schema, Types, Document } from "mongoose";
+
 import type { HydratedDocument } from "mongoose";
 
 export interface IPackageService {
   serviceId: Types.ObjectId;
+
+  name: string;
+
+  serviceRole: "INCLUDED" | "OPTIONAL";
+
+  defaultTierId?: Types.ObjectId;
+
+  allowedTierIds?: Types.ObjectId[];
+
   displayOrder?: number;
+
+  isActive?: boolean;
 }
 
 export interface IPackage extends Document {
   name: string;
+
+  shortDescription?: string;
+
   description?: string;
+
+  packageReference: string;
+
+  categoryId: Types.ObjectId;
+
   services: IPackageService[];
-  locations?: string[];
+
+  locations: Types.ObjectId[];
+
   image?: string;
+
   pricing: {
     type: "DERIVED" | "FIXED";
+
     fixedPrice?: number;
+
     discountPercentage?: number;
   };
-  category: string;
+
   displayOrder?: number;
+
   isActive: boolean;
-  createdBy?: Types.ObjectId;
+
   version: number;
+
+  createdBy?: Types.ObjectId;
 }
+
+const packageServiceSchema = new Schema<IPackageService>(
+  {
+    serviceId: {
+      type: Schema.Types.ObjectId,
+      ref: "Service",
+      required: true,
+    },
+
+    name: {
+      type: String,
+      required: true,
+    },
+
+    serviceRole: {
+      type: String,
+      enum: ["INCLUDED", "OPTIONAL"],
+      default: "INCLUDED",
+    },
+
+    defaultTierId: {
+      type: Schema.Types.ObjectId,
+      ref: "Tier",
+    },
+
+    allowedTierIds: [
+      {
+        type: Schema.Types.ObjectId,
+        ref: "Tier",
+      },
+    ],
+
+    displayOrder: {
+      type: Number,
+      default: 0,
+    },
+
+    isActive: {
+      type: Boolean,
+      default: true,
+    },
+  },
+  { _id: false },
+);
 
 const packageSchema = new Schema<IPackage>(
   {
@@ -31,66 +103,83 @@ const packageSchema = new Schema<IPackage>(
       required: true,
       trim: true,
     },
+
+    shortDescription: {
+      type: String,
+      maxlength: 200,
+    },
+
     description: {
       type: String,
     },
+
+    packageReference: {
+      type: String,
+      required: true,
+      unique: true,
+      index: true,
+    },
+
+    categoryId: {
+      type: Schema.Types.ObjectId,
+      ref: "Category",
+      required: true,
+      index: true,
+    },
+
     services: {
-      type: [
-        {
-          serviceId: {
-            type: Schema.Types.ObjectId,
-            ref: "Service",
-            required: true,
-          },
-          displayOrder: {
-            type: Number,
-            default: 0,
-          },
-        },
-      ],
+      type: [packageServiceSchema],
+
       validate: {
         validator: function (services: IPackageService[]) {
           return services && services.length > 0;
         },
-        message: "Package must contain at least on service",
+
+        message: "Package must contain at least one service",
       },
     },
-    locations: {
-      type: [String],
-      required: true,
-      validate: {
-        validator: (val: string[]) => val.length > 0,
-        message: "At least one location is required",
+
+    locations: [
+      {
+        type: Schema.Types.ObjectId,
+        ref: "Location",
       },
-    },
+    ],
+
     image: {
       type: String,
     },
+
     pricing: {
       type: {
         type: String,
+
         enum: ["DERIVED", "FIXED"],
+
         default: "DERIVED",
       },
+
       fixedPrice: {
         type: Number,
         min: 0,
       },
+
       discountPercentage: {
         type: Number,
         min: 0,
         max: 100,
       },
     },
-    category: { type: String, required: true, index: true },
+
+    displayOrder: {
+      type: Number,
+      default: 0,
+    },
+
     isActive: {
       type: Boolean,
       default: true,
       index: true,
-    },
-    displayOrder: {
-      type: Number,
-      default: 0,
     },
 
     version: {
@@ -103,28 +192,40 @@ const packageSchema = new Schema<IPackage>(
       ref: "User",
     },
   },
-  { timestamps: true },
+  {
+    timestamps: true,
+  },
 );
 
 packageSchema.index({
-  locations: 1,
   isActive: 1,
-  isDeleted: 1,
-  displayOrder: 1,
+  categoryId: 1,
 });
 
-packageSchema.index({ "services.serviceId": 1 });
+packageSchema.index({
+  locations: 1,
+});
+
+packageSchema.index({
+  "services.serviceId": 1,
+});
+
+packageSchema.index({
+  createdAt: -1,
+});
 
 packageSchema.index({
   name: "text",
+  shortDescription: "text",
   description: "text",
 });
 
 packageSchema.pre("save", async function (this: HydratedDocument<IPackage>) {
   if (this.pricing.type === "FIXED") {
-    if (!this.pricing.fixedPrice) {
+    if (this.pricing.fixedPrice === undefined) {
       throw new Error("Fixed price is required when pricing type is FIXED");
     }
+
     delete this.pricing.discountPercentage;
   }
 
@@ -132,7 +233,10 @@ packageSchema.pre("save", async function (this: HydratedDocument<IPackage>) {
     delete this.pricing.fixedPrice;
   }
 
-  const serviceIds = this.services.map((s) => s.serviceId.toString());
+  const serviceIds = this.services.map((service) =>
+    service.serviceId.toString(),
+  );
+
   if (new Set(serviceIds).size !== serviceIds.length) {
     throw new Error("Duplicate services are not allowed in package");
   }

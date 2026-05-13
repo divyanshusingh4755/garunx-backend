@@ -1,42 +1,78 @@
 import { model, Schema, Types, Document } from "mongoose";
+const packageServiceSchema = new Schema({
+    serviceId: {
+        type: Schema.Types.ObjectId,
+        ref: "Service",
+        required: true,
+    },
+    name: {
+        type: String,
+        required: true,
+    },
+    serviceRole: {
+        type: String,
+        enum: ["INCLUDED", "OPTIONAL"],
+        default: "INCLUDED",
+    },
+    defaultTierId: {
+        type: Schema.Types.ObjectId,
+        ref: "Tier",
+    },
+    allowedTierIds: [
+        {
+            type: Schema.Types.ObjectId,
+            ref: "Tier",
+        },
+    ],
+    displayOrder: {
+        type: Number,
+        default: 0,
+    },
+    isActive: {
+        type: Boolean,
+        default: true,
+    },
+}, { _id: false });
 const packageSchema = new Schema({
     name: {
         type: String,
         required: true,
         trim: true,
     },
+    shortDescription: {
+        type: String,
+        maxlength: 200,
+    },
     description: {
         type: String,
     },
+    packageReference: {
+        type: String,
+        required: true,
+        unique: true,
+        index: true,
+    },
+    categoryId: {
+        type: Schema.Types.ObjectId,
+        ref: "Category",
+        required: true,
+        index: true,
+    },
     services: {
-        type: [
-            {
-                serviceId: {
-                    type: Schema.Types.ObjectId,
-                    ref: "Service",
-                    required: true,
-                },
-                displayOrder: {
-                    type: Number,
-                    default: 0,
-                },
-            },
-        ],
+        type: [packageServiceSchema],
         validate: {
             validator: function (services) {
                 return services && services.length > 0;
             },
-            message: "Package must contain at least on service",
+            message: "Package must contain at least one service",
         },
     },
-    locations: {
-        type: [String],
-        required: true,
-        validate: {
-            validator: (val) => val.length > 0,
-            message: "At least one location is required",
+    locations: [
+        {
+            type: Schema.Types.ObjectId,
+            ref: "Location",
         },
-    },
+    ],
     image: {
         type: String,
     },
@@ -56,15 +92,14 @@ const packageSchema = new Schema({
             max: 100,
         },
     },
-    category: { type: String, required: true, index: true },
+    displayOrder: {
+        type: Number,
+        default: 0,
+    },
     isActive: {
         type: Boolean,
         default: true,
         index: true,
-    },
-    displayOrder: {
-        type: Number,
-        default: 0,
     },
     version: {
         type: Number,
@@ -74,21 +109,30 @@ const packageSchema = new Schema({
         type: Schema.Types.ObjectId,
         ref: "User",
     },
-}, { timestamps: true });
+}, {
+    timestamps: true,
+});
+packageSchema.index({
+    isActive: 1,
+    categoryId: 1,
+});
 packageSchema.index({
     locations: 1,
-    isActive: 1,
-    isDeleted: 1,
-    displayOrder: 1,
 });
-packageSchema.index({ "services.serviceId": 1 });
+packageSchema.index({
+    "services.serviceId": 1,
+});
+packageSchema.index({
+    createdAt: -1,
+});
 packageSchema.index({
     name: "text",
+    shortDescription: "text",
     description: "text",
 });
 packageSchema.pre("save", async function () {
     if (this.pricing.type === "FIXED") {
-        if (!this.pricing.fixedPrice) {
+        if (this.pricing.fixedPrice === undefined) {
             throw new Error("Fixed price is required when pricing type is FIXED");
         }
         delete this.pricing.discountPercentage;
@@ -96,7 +140,7 @@ packageSchema.pre("save", async function () {
     if (this.pricing.type === "DERIVED") {
         delete this.pricing.fixedPrice;
     }
-    const serviceIds = this.services.map((s) => s.serviceId.toString());
+    const serviceIds = this.services.map((service) => service.serviceId.toString());
     if (new Set(serviceIds).size !== serviceIds.length) {
         throw new Error("Duplicate services are not allowed in package");
     }

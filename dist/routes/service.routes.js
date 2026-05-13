@@ -1,6 +1,6 @@
 import { Router, } from "express";
 import { body, param, validationResult } from "express-validator";
-import { getAllServices, createService, updateService, getServiceById, toggleServiceStatus, getRuntimeServices, getFullService, updateServiceLocations, removeServiceLocation, updateServiceTiers, removeServiceTier, } from "../controllers/service.controllers.js";
+import { getAllServices, createService, updateService, getServiceById, toggleServiceStatus, getFullService, updateServiceLocations, removeServiceLocation, updateServiceTiers, removeServiceTier, getServicesByLocation, getFullServiceByCities, } from "../controllers/service.controllers.js";
 import { authenticate } from "../middleware/authenticate.js";
 const router = Router();
 const validate = (req, res, next) => {
@@ -146,10 +146,11 @@ const removeTierValidation = [
     validate,
 ];
 router.get("/", getAllServices);
-router.get("/runtime", getRuntimeServices);
 router.get("/:serviceId/full", serviceIdValidation, getFullService);
 router.get("/:serviceId", serviceIdValidation, getServiceById);
 router.post("/", authenticate, serviceValidation, createService);
+router.post("/getServicesByLocation", authenticate, getServicesByLocation);
+router.post("/:serviceId/getFullServiceByCities", serviceIdValidation, getFullServiceByCities);
 router.patch("/:serviceId", authenticate, updateServiceValidation, updateService);
 router.patch("/:serviceId/status", authenticate, serviceStatusValidation, toggleServiceStatus);
 router.post("/:id/locations", authenticate, updateLocationsValidation, updateServiceLocations);

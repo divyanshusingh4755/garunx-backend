@@ -79,7 +79,6 @@ export class PackageService {
       name,
       services: servicePayload,
       pricing: finalPricing,
-      category,
       ...(image !== undefined && { image }),
       ...(description !== undefined && { description }),
       ...(locations !== undefined && { locations }),
@@ -126,22 +125,6 @@ export class PackageService {
       const oldServiceIds = existing.services
         .map((s) => s.serviceId.toString())
         .sort();
-
-      if (JSON.stringify(newServiceIds) !== JSON.stringify(oldServiceIds)) {
-        shouldIncrementVersion = true;
-
-        // 3. Map back to the required schema structure
-        updatedServices = validated.map((s, index) => {
-          // Find the original displayOrder if provided, otherwise use index
-          const original = (updateData.services as any).find(
-            (income: any) => (income.serviceId || income) === s._id.toString(),
-          );
-          return {
-            serviceId: s._id,
-            displayOrder: original?.displayOrder ?? index,
-          };
-        });
-      }
     }
 
     if (updateData.locations) {

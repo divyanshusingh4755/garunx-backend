@@ -13,12 +13,13 @@ import {
   updateService,
   getServiceById,
   toggleServiceStatus,
-  getRuntimeServices,
   getFullService,
   updateServiceLocations,
   removeServiceLocation,
   updateServiceTiers,
   removeServiceTier,
+  getServicesByLocation,
+  getFullServiceByCities,
 } from "../controllers/service.controllers.js";
 
 import { authenticate } from "../middleware/authenticate.js";
@@ -223,13 +224,19 @@ const removeTierValidation = [
 
 router.get("/", getAllServices);
 
-router.get("/runtime", getRuntimeServices);
-
 router.get("/:serviceId/full", serviceIdValidation, getFullService);
 
 router.get("/:serviceId", serviceIdValidation, getServiceById);
 
 router.post("/", authenticate, serviceValidation, createService);
+
+router.post("/getServicesByLocation", authenticate, getServicesByLocation);
+
+router.post(
+  "/:serviceId/getFullServiceByCities",
+  serviceIdValidation,
+  getFullServiceByCities,
+);
 
 router.patch(
   "/:serviceId",

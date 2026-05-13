@@ -62,6 +62,7 @@ app.use("/api/state", stateRoutes);
 app.use("/api/component", componentRoutes);
 app.use("/api/component-item", componentItemRoutes);
 app.use("/api/service", serviceRoutes);
+app.use("/api/sub-services", subServices);
 app.use("/api/service-component", serviceComponentRoutes);
 app.use("/api/service-pricing", servicePricingRoutes);
 app.use("/api/package", packageRoutes);
@@ -70,7 +71,6 @@ app.use("/api/tier", tierRoutes);
 app.use("/api/pricing", pricingRoutes);
 app.use("/api/cart", cartRoutes);
 app.use("/api/bookings", bookingRoutes);
-app.use("/api/sub-services", subServices);
 // Routes
 app.get("/health", (req, res) => {
     res.status(200).json({ status: "ok", uptime: process.uptime() });

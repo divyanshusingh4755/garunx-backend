@@ -72,12 +72,33 @@ export const getServiceById = async (req, res) => {
         });
     }
 };
-export const getAllServices = async (req, res) => {
+export const getServicesByLocation = async (req, res) => {
     try {
-        const { searchTerm, categoryId, limit, page, isActive, isComplete, sortBy, sortOrder, } = req.query;
+        const { cityIds, limit, page, isActive, isComplete, sortBy, sortOrder } = req.body;
         const activeBool = isActive === "true" ? true : isActive === "false" ? false : undefined;
         const completeBool = isComplete === "true" ? true : isComplete === "false" ? false : undefined;
-        const { data, total, page: CurrentPage, totalPages, } = await ServiceService.FindServices(searchTerm, categoryId, Number(limit) || 20, Number(page) || 1, activeBool, completeBool, sortBy || "name", sortOrder || "asc");
+        const { data, total, page: currentPage, totalPages, } = await ServiceService.getServicesByLocation(cityIds, Number(limit) || 20, Number(page) || 1, activeBool, completeBool, sortBy || "name", sortOrder || "asc");
+        return res.status(200).json({
+            success: true,
+            data,
+            total,
+            page: currentPage,
+            totalPages,
+        });
+    }
+    catch (error) {
+        return res.status(400).json({
+            success: false,
+            message: error.message,
+        });
+    }
+};
+export const getAllServices = async (req, res) => {
+    try {
+        const { searchTerm, categoryId, locationId, limit, page, isActive, isComplete, sortBy, sortOrder, } = req.query;
+        const activeBool = isActive === "true" ? true : isActive === "false" ? false : undefined;
+        const completeBool = isComplete === "true" ? true : isComplete === "false" ? false : undefined;
+        const { data, total, page: CurrentPage, totalPages, } = await ServiceService.FindServices(searchTerm, categoryId, locationId, Number(limit) || 20, Number(page) || 1, activeBool, completeBool, sortBy || "name", sortOrder || "asc");
         res.status(200).json({
             success: true,
             data,
@@ -187,33 +208,24 @@ export const getFullService = async (req, res) => {
         });
     }
 };
-export const getRuntimeServices = async (req, res) => {
+export const getFullServiceByCities = async (req, res) => {
     try {
-        const { categoryId, locationId, searchTerm, page, limit, sortBy, sortOrder, } = req.query;
-        const pageNum = Number(page) || 1;
-        const limitNum = Number(limit) || 10;
-        const result = await ServiceService.getRuntimeServices({
-            categoryId,
-            locationId,
-            searchTerm,
-            page: pageNum,
-            limit: limitNum,
-            sortBy,
-            sortOrder,
-        });
+        const { serviceId } = req.params;
+        const { cityIds } = req.body;
+        if (!Array.isArray(cityIds) || cityIds.length === 0) {
+            return res.status(400).json({
+                success: false,
+                message: "cityIds must be a non-empty array",
+            });
+        }
+        const data = await ServiceService.getFullServiceByCities(serviceId, cityIds);
         return res.status(200).json({
             success: true,
-            pagination: {
-                total: result.total,
-                page: result.page,
-                limit: limitNum,
-                totalPages: result.totalPages,
-            },
-            data: result.services,
+            data,
         });
     }
     catch (error) {
-        return res.status(500).json({
+        return res.status(400).json({
             success: false,
             message: error.message,
         });

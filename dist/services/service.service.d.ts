@@ -23,7 +23,13 @@ export declare class ServiceService {
         success: boolean;
         message: string;
     }>;
-    static FindServices(searchTerm?: string, categoryId?: string, limit?: number, page?: number, isActive?: boolean, isComplete?: boolean, sortBy?: string, sortOrder?: "asc" | "desc"): Promise<{
+    static getServicesByLocation(cityIds: string[], limit?: number, page?: number, isActive?: boolean, isComplete?: boolean, sortBy?: string, sortOrder?: "asc" | "desc"): Promise<{
+        data: any[];
+        total: number;
+        page: number;
+        totalPages: number;
+    }>;
+    static FindServices(searchTerm?: string, categoryId?: string, locationId?: string, limit?: number, page?: number, isActive?: boolean, isComplete?: boolean, sortBy?: string, sortOrder?: "asc" | "desc"): Promise<{
         data: (import("../models/service.model.js").IService & Required<{
             _id: Types.ObjectId;
         }> & {
@@ -89,24 +95,27 @@ export declare class ServiceService {
         }[];
         components: Record<string, any>;
     }>;
-    static updateServiceStartingPrice(serviceId: string): Promise<void>;
-    static getRuntimeServices({ categoryId, locationId, searchTerm, page, limit, sortBy, sortOrder, }: any): Promise<{
-        services: {
-            id: any;
-            name: any;
-            shortDescription: any;
-            thumbnailImage: any;
-            bannerImage: any;
-            startingPrice: any;
-            serviceReference: any;
-            locations: any;
-            tiers: any;
-            subServiceComponents: any;
+    static getFullServiceByCities(serviceId: string, cityIds: string[]): Promise<{
+        service: {
+            id: Types.ObjectId;
+            name: string;
+            shortDescription: string;
+            fullDescription: string | undefined;
+            thumbnailImage: string | undefined;
+            bannerImage: string | undefined;
+            isActive: boolean;
+            isComplete: boolean;
+            serviceReference: string;
+        };
+        subServiceComponents: any[];
+        locations: any[];
+        tiers: {
+            tierId: Types.ObjectId;
+            name: string;
         }[];
-        total: number;
-        page: any;
-        totalPages: number;
+        components: Record<string, any>;
     }>;
+    static updateServiceStartingPrice(serviceId: string): Promise<void>;
     static validateServiceConfiguration(serviceId: string): Promise<{
         isComplete: boolean;
         issues: string[];

@@ -1,486 +1,405 @@
 import { CartService } from "../services/cart.service.js";
-import mongoose from "mongoose";
 export class CartController {
     cartService;
     constructor() {
         this.cartService = new CartService();
     }
-    syncCart = async (req, res) => {
+    createCart = async (req, res) => {
         try {
             const user = req.user;
-            if (!user?.userId) {
-                return res.status(401).json({
-                    success: false,
-                    message: "Unauthorized",
-                });
-            }
-            const { item, cartId } = req.body;
-            if (!item || typeof item !== "object") {
-                return res.status(400).json({
-                    success: false,
-                    message: "A valid item object is required",
-                });
-            }
-            const cart = await this.cartService.syncUserCart(user.userId, item, cartId);
-            res.status(200).json({
+            const cart = await this.cartService.createCart({
+                userId: user?.userId,
+                ...req.body,
+            });
+            return res.status(201).json({
+                success: true,
+                message: "Cart create successfully",
+                data: cart,
+            });
+        }
+        catch (error) {
+            return res.status(500).json({
+                success: false,
+                message: error.message || "Failed to create cart",
+            });
+        }
+    };
+    getUserCarts = async (req, res) => {
+        try {
+            const user = req.user;
+            const carts = await this.cartService.getUserCarts(user.userId, req.query);
+            return res.status(200).json({
+                success: true,
+                data: carts,
+            });
+        }
+        catch (error) {
+            return res.status(500).json({
+                success: false,
+                message: error.message || "Failed to fetch carts",
+            });
+        }
+    };
+    getCartById = async (req, res) => {
+        try {
+            const user = req.user;
+            const { cartId } = req.params;
+            const cart = await this.cartService.getCartById(cartId, user.userId);
+            return res.status(200).json({
                 success: true,
                 data: cart,
             });
         }
         catch (error) {
-            console.error("Sync cart error:", error);
-            res.status(500).json({
-                success: false,
-                message: error.message || "Sync failed",
-            });
-        }
-    };
-    getCartDetails = async (req, res) => {
-        try {
-            const user = req.user;
-            let rawCarts = [];
-            if (user?.userId) {
-                rawCarts = await this.cartService.getCartByUserId(user.userId);
-            }
-            else {
-                rawCarts = req.body.Items.map((item) => ({
-                    items: item,
-                    customerDetails: {},
-                    _id: new mongoose.Types.ObjectId(),
-                }));
-            }
-            if (!rawCarts.length) {
-                return res.status(200).json({
-                    success: true,
-                    data: { carts: [], grandTotal: 0 },
-                });
-            }
-            const enrichedCarts = await Promise.all(rawCarts.map((cart) => this.cartService.getCartDetails(cart)));
-            const grandTotal = enrichedCarts.reduce((acc, cart) => acc + (cart.grandTotal || 0), 0);
-            res.status(200).json({
-                success: true,
-                data: {
-                    carts: enrichedCarts,
-                    grandTotal,
-                },
-            });
-        }
-        catch (error) {
-            console.error("Get cart details error:", error);
-            res.status(500).json({
+            return res.status(500).json({
                 success: false,
                 message: error.message || "Failed to fetch cart",
             });
         }
     };
-    mergeCartOnLogin = async (req, res) => {
+    updateCart = async (req, res) => {
         try {
             const user = req.user;
-            if (!user?.userId) {
-                return res.status(401).json({
-                    success: false,
-                    message: "Unauthorized",
-                });
-            }
-            const { guestCartIds } = req.body;
-            if (!Array.isArray(guestCartIds)) {
-                return res.status(400).json({
-                    success: false,
-                    message: "guestCartIds must be an array",
-                });
-            }
-            const mergedCartData = await this.cartService.mergeCarts(user.userId, guestCartIds);
-            res.status(200).json({
+            const { cartId } = req.params;
+            const cart = await this.cartService.updateCart(cartId, user.userId, req.body);
+            return res.status(200).json({
                 success: true,
-                message: "Carts merged successfully",
-                data: mergedCartData,
-            });
-        }
-        catch (error) {
-            console.error("Merge cart error:", error);
-            res.status(500).json({
-                success: false,
-                message: error.message || "Merge failed",
-            });
-        }
-    };
-    addItem = async (req, res) => {
-        try {
-            const user = req.user;
-            const userId = user?.userId || null;
-            if (!userId) {
-                return res.status(401).json({
-                    success: false,
-                    message: "Unauthorized",
-                });
-            }
-            const newItem = req.body;
-            if (!newItem.targetId || !newItem.itemType) {
-                return res.status(400).json({
-                    success: false,
-                    message: "targetId and itemType are required",
-                });
-            }
-            newItem.selectedVariantIds = Array.isArray(newItem.selectedVariantIds)
-                ? [...new Set(newItem.selectedVariantIds)]
-                : [];
-            const data = await this.cartService.addItem(userId, newItem);
-            res.status(201).json({
-                success: true,
-                message: "Item added to cart",
-                data,
-            });
-        }
-        catch (error) {
-            console.error("Add item error:", error);
-            res.status(500).json({
-                success: false,
-                message: error.message || "Failed to add item",
-            });
-        }
-    };
-    removeItem = async (req, res) => {
-        try {
-            const user = req.user;
-            if (!user?.userId) {
-                return res.status(401).json({
-                    success: false,
-                    message: "Unauthorized",
-                });
-            }
-            const { itemKey } = req.params;
-            if (!itemKey) {
-                return res.status(400).json({
-                    success: false,
-                    message: "itemKey is required",
-                });
-            }
-            const isDeleted = await this.cartService.removeItem(user.userId, itemKey);
-            if (!isDeleted) {
-                return res.status(404).json({
-                    success: false,
-                    message: "Item not found in your cart",
-                });
-            }
-            const updatedFullCart = await this.cartService.getCart(user.userId);
-            res.status(200).json({
-                success: true,
-                message: "Item removed from cart",
-                data: updatedFullCart,
-            });
-        }
-        catch (error) {
-            console.error("Remove item error:", error);
-            res.status(500).json({
-                success: false,
-                message: error.message || "Failed to remove item",
-            });
-        }
-    };
-    clearCart = async (req, res) => {
-        try {
-            const user = req.user;
-            if (!user?.userId) {
-                return res.status(401).json({
-                    success: false,
-                    message: "Unauthorized",
-                });
-            }
-            await this.cartService.clearCart(user.userId);
-            res.status(200).json({
-                success: true,
-                message: "Cart cleared successfully",
-                data: {
-                    carts: [],
-                    grandTotal: 0,
-                },
-            });
-        }
-        catch (error) {
-            console.error("Clear cart error:", error);
-            res.status(500).json({
-                success: false,
-                message: error.message || "Failed to clear cart",
-            });
-        }
-    };
-    removeVariant = async (req, res) => {
-        try {
-            const user = req.user;
-            if (!user?.userId) {
-                return res.status(401).json({
-                    success: false,
-                    message: "Unauthorized",
-                });
-            }
-            const { itemKey, variantId } = req.params;
-            if (!itemKey || !variantId) {
-                return res.status(400).json({
-                    success: false,
-                    message: "itemKey and variantId are required",
-                });
-            }
-            const result = await this.cartService.removeVariant(user.userId, itemKey, variantId);
-            if (!result) {
-                return res.status(404).json({
-                    success: false,
-                    message: "Item not found",
-                });
-            }
-            if (result.deleted) {
-                const fullCart = await this.cartService.getCart(user.userId);
-                return res.status(200).json({
-                    success: true,
-                    message: "Item removed (no variants left)",
-                    data: fullCart,
-                });
-            }
-            res.status(200).json({
-                success: true,
-                message: "Variant removed",
-                data: result,
-            });
-        }
-        catch (error) {
-            console.error("Remove variant error:", error);
-            res.status(500).json({
-                success: false,
-                message: error.message || "Failed to remove variant",
-            });
-        }
-    };
-    getCartCount = async (req, res) => {
-        try {
-            const user = req.user;
-            if (!user?.userId) {
-                return res.status(401).json({
-                    success: false,
-                    message: "Unauthorized",
-                });
-            }
-            const count = await this.cartService.getCartCount(user.userId);
-            res.status(200).json({
-                success: true,
-                data: {
-                    count,
-                },
-            });
-        }
-        catch (error) {
-            console.error("Get cart count error:", error);
-            res.status(500).json({
-                success: false,
-                message: error.message || "Failed to fetch cart count",
-            });
-        }
-    };
-    updateItem = async (req, res) => {
-        try {
-            const user = req.user;
-            if (!user?.userId) {
-                return res.status(401).json({
-                    success: false,
-                    message: "Unauthorized",
-                });
-            }
-            const { itemKey } = req.params;
-            const updatedItem = req.body;
-            if (!itemKey) {
-                return res.status(400).json({
-                    success: false,
-                    message: "itemKey is required",
-                });
-            }
-            if (!updatedItem.targetId || !updatedItem.itemType) {
-                return res.status(400).json({
-                    success: false,
-                    message: "targetId and itemType are required",
-                });
-            }
-            if (!["SERVICE", "PACKAGE"].includes(updatedItem.itemType)) {
-                return res.status(400).json({
-                    success: false,
-                    message: "Invalid itemType",
-                });
-            }
-            if (!Array.isArray(updatedItem.selectedVariantIds)) {
-                return res.status(400).json({
-                    success: false,
-                    message: "selectedVariantIds must be an array",
-                });
-            }
-            updatedItem.selectedVariantIds = [
-                ...new Set(updatedItem.selectedVariantIds),
-            ];
-            const cart = await this.cartService.updateItem(user.userId, itemKey, updatedItem);
-            if (!cart) {
-                return res.status(404).json({
-                    success: false,
-                    message: "Cart or item not found",
-                });
-            }
-            res.status(200).json({
-                success: true,
-                message: "Cart item updated successfully",
+                message: "Cart updated successfully",
                 data: cart,
             });
         }
         catch (error) {
-            console.error("Update item error:", error);
-            res.status(500).json({
+            return res.status(500).json({
                 success: false,
-                message: error.message || "Failed to update item",
+                message: error.message || "Failed to update cart",
             });
         }
     };
-    getCart = async (req, res) => {
+    deleteCart = async (req, res) => {
         try {
             const user = req.user;
-            if (!user?.userId) {
-                return res.status(401).json({
-                    success: false,
-                    message: "Unauthorized",
-                });
-            }
-            const cartData = await this.cartService.getCart(user.userId);
-            if (!cartData) {
-                return res.status(200).json({
-                    success: true,
-                    data: {
-                        items: [],
-                        grandTotal: 0,
-                        totalItems: 0,
-                    },
-                });
-            }
-            res.status(200).json({
+            const { cartId } = req.params;
+            await this.cartService.deleteCart(cartId, user.userId);
+            return res.status(200).json({
                 success: true,
-                data: {
-                    items: cartData.carts,
-                    grandTotal: cartData.grandTotal,
-                    totalItems: cartData.carts?.length,
-                },
+                message: "Cart deleted successfully",
             });
         }
         catch (error) {
-            console.error("Get cart error:", error);
-            res.status(500).json({
+            return res.status(500).json({
                 success: false,
-                message: error.message || "Failed to fetch cart",
+                message: error.message || "Failed to delete cart",
             });
         }
     };
-    getCartItemByTargetId = async (req, res) => {
+    clearCartEntries = async (req, res) => {
         try {
             const user = req.user;
-            const { targetId } = req.params;
-            if (!user?.userId) {
-                return res.status(401).json({
-                    success: false,
-                    message: "Unauthorized",
-                });
-            }
-            const result = await this.cartService.getCartItemByTargetId(user.userId, targetId);
-            res.status(200).json({
+            const { cartId } = req.params;
+            const cart = await this.cartService.clearCartEntries(cartId, user.userId);
+            return res.status(200).json({
                 success: true,
-                data: result,
+                message: "Cart entries cleared successfully",
+                data: cart,
             });
         }
         catch (error) {
-            const status = error.message === "Item not found in cart" ? 404 : 500;
-            res.status(status).json({
+            return res.status(500).json({
                 success: false,
-                message: error.message,
+                message: error.message || "Failed to clear cart entries",
+            });
+        }
+    };
+    addServiceEntry = async (req, res) => {
+        try {
+            const { cartId } = req.params;
+            const entry = await this.cartService.addServiceEntry(cartId, req.body);
+            return res.status(201).json({
+                success: true,
+                message: "Service entry added successfully",
+                data: entry,
+            });
+        }
+        catch (error) {
+            return res.status(500).json({
+                success: false,
+                message: error.message || "Failed to add service entry",
+            });
+        }
+    };
+    addPackageEntry = async (req, res) => {
+        try {
+            const user = req.user;
+            const { cartId } = req.params;
+            const entry = await this.cartService.addPackageEntry(cartId, user.userId, req.body);
+            return res.status(201).json({
+                success: true,
+                message: "Package entry added successfully",
+                data: entry,
+            });
+        }
+        catch (error) {
+            return res.status(500).json({
+                success: false,
+                message: error.message || "Failed to add package entry",
+            });
+        }
+    };
+    getEntryById = async (req, res) => {
+        try {
+            const user = req.user;
+            const { cartId, entryId } = req.params;
+            const entry = await this.cartService.getEntryById(cartId, entryId, user.userId);
+            return res.status(200).json({
+                success: true,
+                data: entry,
+            });
+        }
+        catch (error) {
+            return res.status(500).json({
+                success: false,
+                message: error.message || "Failed to fetch entry",
+            });
+        }
+    };
+    updateEntry = async (req, res) => {
+        try {
+            const user = req.user;
+            const { cartId, entryId } = req.params;
+            const entry = await this.cartService.updateEntry(cartId, entryId, user.userId, req.body);
+            return res.status(200).json({
+                success: true,
+                message: "Entry updated successfully",
+                data: entry,
+            });
+        }
+        catch (error) {
+            return res.status(500).json({
+                success: false,
+                message: error.message || "Failed to update entry",
+            });
+        }
+    };
+    removeEntry = async (req, res) => {
+        try {
+            const user = req.user;
+            const { cartId, entryId } = req.params;
+            await this.cartService.removeEntry(cartId, entryId, user.userId);
+            return res.status(200).json({
+                success: true,
+                message: "Entry removed successfully",
+            });
+        }
+        catch (error) {
+            return res.status(500).json({
+                success: false,
+                message: error.message || "Failed to remove entry",
+            });
+        }
+    };
+    getEntryComponents = async (req, res) => {
+        try {
+            const user = req.user;
+            const { cartId, entryId } = req.params;
+            const components = await this.cartService.getEntryComponents(cartId, entryId, user.userId);
+            return res.status(200).json({
+                success: true,
+                data: components,
+            });
+        }
+        catch (error) {
+            return res.status(500).json({
+                success: false,
+                message: error.message || "Failed to fetch components",
+            });
+        }
+    };
+    updateComponent = async (req, res) => {
+        try {
+            const { cartId, entryId, componentId } = req.params;
+            const component = await this.cartService.updateComponent(cartId, entryId, componentId, req.body);
+            return res.status(200).json({
+                success: true,
+                message: "Component updated successfully",
+                data: component,
+            });
+        }
+        catch (error) {
+            return res.status(500).json({
+                success: false,
+                message: error.message || "Failed to update component",
+            });
+        }
+    };
+    updateComponentItems = async (req, res) => {
+        try {
+            const { cartId, entryId, componentId } = req.params;
+            const component = await this.cartService.updateComponentItems(cartId, entryId, componentId, req.body.selectedItems);
+            return res.status(200).json({
+                success: true,
+                message: "Component items updated successfully",
+                data: component,
+            });
+        }
+        catch (error) {
+            return res.status(500).json({
+                success: false,
+                message: error.message || "Failed to update component items",
+            });
+        }
+    };
+    addAddonComponent = async (req, res) => {
+        try {
+            const { cartId, entryId } = req.params;
+            const component = await this.cartService.addAddonComponent(cartId, entryId, req.body);
+            return res.status(201).json({
+                success: true,
+                message: "Addon component added successfully",
+                data: component,
+            });
+        }
+        catch (error) {
+            return res.status(500).json({
+                success: false,
+                message: error.message || "Failed to add addon component",
+            });
+        }
+    };
+    removeAddonComponent = async (req, res) => {
+        try {
+            const { cartId, entryId, componentId } = req.params;
+            await this.cartService.removeAddonComponent(cartId, entryId, componentId);
+            return res.status(200).json({
+                success: true,
+                message: "Addon component removed successfully",
+            });
+        }
+        catch (error) {
+            return res.status(500).json({
+                success: false,
+                message: error.message || "Failed to remove addon component",
+            });
+        }
+    };
+    addAddonService = async (req, res) => {
+        try {
+            const { cartId, entryId } = req.params;
+            const service = await this.cartService.addAddonService(cartId, entryId, req.body);
+            return res.status(201).json({
+                success: true,
+                message: "Addon service added successfully",
+                data: service,
+            });
+        }
+        catch (error) {
+            return res.status(500).json({
+                success: false,
+                message: error.message || "Failed to add addon service",
+            });
+        }
+    };
+    removeAddonService = async (req, res) => {
+        try {
+            const { cartId, entryId, serviceId } = req.params;
+            await this.cartService.removeAddonService(cartId, entryId, serviceId);
+            return res.status(200).json({
+                success: true,
+                message: "Addon service removed successfully",
+            });
+        }
+        catch (error) {
+            return res.status(500).json({
+                success: false,
+                message: error.message || "Failed to remove addon service",
+            });
+        }
+    };
+    updateIncludedService = async (req, res) => {
+        try {
+            const user = req.user;
+            const { cartId, entryId, serviceId } = req.params;
+            const service = await this.cartService.updateIncludedService(cartId, entryId, serviceId, user.userId, req.body);
+            return res.status(200).json({
+                success: true,
+                message: "Included service updated successfully",
+                data: service,
+            });
+        }
+        catch (error) {
+            return res.status(500).json({
+                success: false,
+                message: error.message || "Failed to update included service",
             });
         }
     };
     validateCart = async (req, res) => {
         try {
-            const { items } = req.body;
-            if (!Array.isArray(items)) {
-                return res.status(400).json({
-                    success: false,
-                    message: "Items must be an array",
-                });
-            }
-            if (!items.length) {
-                return res.status(200).json({
-                    success: true,
-                    data: {
-                        isValid: true,
-                        invalidItems: [],
-                    },
-                });
-            }
-            const result = await this.cartService.validateCart(items);
-            res.status(200).json({
+            const { cartId } = req.params;
+            const validation = await this.cartService.validateCart(cartId);
+            return res.status(200).json({
                 success: true,
-                data: result,
+                message: "Cart validated successfully",
+                data: validation,
             });
         }
         catch (error) {
-            console.error("Validate cart error:", error);
-            res.status(500).json({
+            return res.status(500).json({
                 success: false,
-                message: error.message || "Cart validation failed",
+                message: error.message || "Failed to validate cart",
+            });
+        }
+    };
+    recalculateCart = async (req, res) => {
+        try {
+            const { cartId } = req.params;
+            const cart = await this.cartService.recalculateCart(cartId);
+            return res.status(200).json({
+                success: true,
+                message: "Cart recalculated successfully",
+                data: cart,
+            });
+        }
+        catch (error) {
+            return res.status(500).json({
+                success: false,
+                message: error.message || "Failed to recalculate cart",
             });
         }
     };
     prepareCheckout = async (req, res) => {
         try {
             const user = req.user;
-            if (!user?.userId) {
-                return res.status(401).json({
-                    success: false,
-                    message: "Unauthorized",
-                });
-            }
             const { cartId } = req.params;
-            if (!cartId) {
-                return res.status(400).json({
-                    success: false,
-                    message: "CartId is required",
-                });
-            }
-            const result = await this.cartService.prepareCheckout(cartId, user.userId);
-            res.status(200).json({
+            const checkout = await this.cartService.prepareCheckout(cartId, user?.userId);
+            return res.status(200).json({
                 success: true,
-                ...result,
+                message: "Checkout prepared successfully",
+                data: checkout,
             });
         }
         catch (error) {
-            console.error("Checkout error:", error);
-            res.status(400).json({
+            return res.status(500).json({
                 success: false,
-                message: error.message,
+                message: error.message || "Failed to prepare checkout",
             });
         }
     };
-    updateCustomerDetails = async (req, res) => {
+    checkoutCart = async (req, res) => {
         try {
             const user = req.user;
             const { cartId } = req.params;
-            const { customerDetails } = req.body;
-            if (!user?.userId) {
-                return res
-                    .status(401)
-                    .json({ success: false, message: "Unauthorized" });
-            }
-            if (!cartId || !customerDetails) {
-                return res.status(400).json({
-                    success: false,
-                    message: "cartId and customerDetails are required",
-                });
-            }
-            const updatedCart = await this.cartService.updateCustomerDetails(cartId, customerDetails);
-            res.status(200).json({
+            const booking = await this.cartService.checkoutCart(cartId, user?.userId);
+            return res.status(200).json({
                 success: true,
-                message: "Customer details updated",
-                data: updatedCart,
+                message: "Cart checked out successfully",
+                data: booking,
             });
         }
         catch (error) {
-            res.status(500).json({ success: false, message: error.message });
+            return res.status(500).json({
+                success: false,
+                message: error.message || "Failed to checkout cart",
+            });
         }
     };
 }

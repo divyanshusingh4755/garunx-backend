@@ -1,10 +1,9 @@
-import { Types } from "mongoose";
 import { type IBooking } from "../models/booking.model.js";
 declare class BookingService {
     private pricingService;
     constructor();
     processBookingFromCart(userId: string, cartId: string): Promise<import("mongoose").Document<unknown, {}, IBooking, {}, import("mongoose").DefaultSchemaOptions> & IBooking & Required<{
-        _id: Types.ObjectId;
+        _id: import("mongoose").Types.ObjectId;
     }> & {
         __v: number;
     } & {
