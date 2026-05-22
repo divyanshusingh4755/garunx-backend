@@ -4,121 +4,278 @@ import {
   type Response,
   type NextFunction,
 } from "express";
-import { body, param, query, validationResult } from "express-validator";
 
-import {
-  createPackage,
-  updatePackage,
-  getPackageDetails,
-  updatePackageStatus,
-  getPackageById,
-  getPackages,
-  getFullPackageDetails,
-} from "../controllers/package.controllers.js";
+import { body, param, validationResult } from "express-validator";
 
 import { authenticate } from "../middleware/authenticate.js";
+
+import {
+  getAllPackages,
+  createPackage,
+  updatePackage,
+  getPackageById,
+  togglePackageStatus,
+  getFullPackage,
+  updatePackageLocations,
+  removePackageLocation,
+  updatePackageTiers,
+  removePackageTier,
+  getPackageDiagnostics,
+} from "../controllers/package.controllers.js";
 
 const router = Router();
 
 const validate = (req: Request, res: Response, next: NextFunction) => {
   const errors = validationResult(req);
+
   if (!errors.isEmpty()) {
     const firstError = errors.array()[0];
+
     return res.status(400).json({
       success: false,
       message: firstError?.msg,
       error: firstError,
     });
   }
+
   next();
 };
 
 const packageIdValidation = [
-  param("id").isMongoId().withMessage("Invalid package ID"),
+  param("packageId").isMongoId().withMessage("Invalid package ID"),
+
   validate,
 ];
 
 const packageValidation = [
-  body("name").notEmpty().withMessage("Package name is required"),
+  body("name").notEmpty().withMessage("Name is required").isString().trim(),
 
-  body("services")
-    .isArray({ min: 1 })
-    .withMessage("At least one service is required"),
+  body("shortDescription")
+    .notEmpty()
+    .withMessage("Short description is required")
+    .isString()
+    .trim()
+    .isLength({ max: 200 })
+    .withMessage("Short description max length is 200"),
 
-  body("services.*.serviceId").isMongoId().withMessage("Invalid service ID"),
+  body("fullDescription")
+    .notEmpty()
+    .withMessage("Full description is required")
+    .isString()
+    .trim(),
 
-  body("services.*.displayOrder")
+  body("categoryId")
+    .notEmpty()
+    .withMessage("Category ID is required")
+    .isMongoId()
+    .withMessage("Invalid category ID"),
+
+  body("thumbnailImage")
+    .notEmpty()
+    .withMessage("Thumbnail image is required")
+    .isURL()
+    .withMessage("Thumbnail image must be valid URL"),
+
+  body("bannerImage")
     .optional()
-    .isInt({ min: 0 })
-    .withMessage("displayOrder must be >= 0"),
+    .isURL()
+    .withMessage("Banner image must be valid URL"),
 
-  body("locations")
+  body("locations").optional().isArray().withMessage("locations must be array"),
+
+  body("locations.*.name").optional().isString().trim(),
+
+  body("locations.*.locationId")
     .optional()
-    .isArray()
-    .withMessage("Locations must be an array"),
+    .isMongoId()
+    .withMessage("Invalid location ID"),
 
-  body("pricing.type")
-    .isIn(["DERIVED", "FIXED"])
-    .withMessage("Invalid pricing type"),
-
-  body("pricing.fixedPrice")
+  body("locations.*.isActive")
     .optional()
-    .isFloat({ min: 0 })
-    .withMessage("Fixed price must be >= 0"),
+    .isBoolean()
+    .withMessage("Location isActive must be boolean"),
 
-  validate,
-];
+  body("tiers").optional().isArray().withMessage("tiers must be array"),
 
-const statusValidation = [
-  body("isActive").isBoolean().withMessage("isActive must be boolean"),
-  validate,
-];
+  body("tiers.*.name").optional().isString().trim(),
 
-const packageQueryValidation = [
-  query("serviceId").optional().isMongoId().withMessage("Invalid serviceId"),
+  body("tiers.*.tierId").optional().isMongoId().withMessage("Invalid tier ID"),
 
-  query("location").optional().isString(),
-
-  query("page").optional().isInt({ min: 1 }),
-
-  query("limit").optional().isInt({ min: 1 }),
-
-  validate,
-];
-
-const adminQueryValidation = [
-  query("search").optional().isString(),
-
-  query("isActive")
+  body("isActive")
     .optional()
     .isBoolean()
     .withMessage("isActive must be boolean"),
 
-  query("page").optional().isInt({ min: 1 }),
+  validate,
+];
 
-  query("limit").optional().isInt({ min: 1 }),
+const updatePackageValidation = [
+  param("packageId").isMongoId().withMessage("Invalid package ID"),
+
+  body("name").optional().isString().trim(),
+
+  body("shortDescription")
+    .optional()
+    .isString()
+    .trim()
+    .isLength({ max: 200 })
+    .withMessage("Short description max length is 200"),
+
+  body("fullDescription").optional().isString().trim(),
+
+  body("categoryId").optional().isMongoId().withMessage("Invalid category ID"),
+
+  body("thumbnailImage")
+    .optional()
+    .isURL()
+    .withMessage("Thumbnail image must be valid URL"),
+
+  body("bannerImage")
+    .optional()
+    .isURL()
+    .withMessage("Banner image must be valid URL"),
+
+  body("locations").optional().isArray().withMessage("locations must be array"),
+
+  body("locations.*.locationId")
+    .optional()
+    .isMongoId()
+    .withMessage("Invalid location ID"),
+
+  body("tiers").optional().isArray().withMessage("tiers must be array"),
+
+  body("tiers.*.tierId").optional().isMongoId().withMessage("Invalid tier ID"),
+
+  body("isActive")
+    .optional()
+    .isBoolean()
+    .withMessage("isActive must be boolean"),
 
   validate,
 ];
 
-router.get("/", packageQueryValidation, getPackages);
-router.get("/:id/details", packageIdValidation, getPackageDetails);
-router.post("/", authenticate, packageValidation, createPackage);
-router.patch(
-  "/:id",
+const packageStatusValidation = [
+  param("packageId").isMongoId().withMessage("Invalid package ID"),
+
+  body("isActive")
+    .notEmpty()
+    .withMessage("isActive is required")
+    .isBoolean()
+    .withMessage("isActive must be boolean"),
+
+  validate,
+];
+
+const updateLocationsValidation = [
+  param("id").isMongoId().withMessage("Invalid package ID"),
+
+  body("locations")
+    .isArray({ min: 1 })
+    .withMessage("locations array is required"),
+
+  body("locations.*.name").notEmpty().withMessage("Location name is required"),
+
+  body("locations.*.locationId")
+    .notEmpty()
+    .withMessage("Location ID is required")
+    .isMongoId()
+    .withMessage("Invalid location ID"),
+
+  body("locations.*.isActive")
+    .optional()
+    .isBoolean()
+    .withMessage("isActive must be boolean"),
+
+  validate,
+];
+
+const removeLocationValidation = [
+  param("id").isMongoId().withMessage("Invalid package ID"),
+
+  param("locationId").isMongoId().withMessage("Invalid location ID"),
+
+  validate,
+];
+
+const updateTiersValidation = [
+  param("id").isMongoId().withMessage("Invalid package ID"),
+
+  body("tiers").isArray({ min: 1 }).withMessage("tiers array is required"),
+
+  body("tiers.*.name").notEmpty().withMessage("Tier name is required"),
+
+  body("tiers.*.tierId")
+    .notEmpty()
+    .withMessage("Tier ID is required")
+    .isMongoId()
+    .withMessage("Invalid tier ID"),
+
+  validate,
+];
+
+const removeTierValidation = [
+  param("id").isMongoId().withMessage("Invalid package ID"),
+
+  param("tierId").isMongoId().withMessage("Invalid tier ID"),
+
+  validate,
+];
+
+router.get("/", getAllPackages);
+
+router.get("/:packageId/full", packageIdValidation, getFullPackage);
+
+router.get(
+  "/:packageId/diagnostics",
   authenticate,
   packageIdValidation,
-  packageValidation,
+  getPackageDiagnostics,
+);
+
+router.get("/:packageId", packageIdValidation, getPackageById);
+
+router.post("/", authenticate, packageValidation, createPackage);
+
+router.patch(
+  "/:packageId",
+  authenticate,
+  updatePackageValidation,
   updatePackage,
 );
+
 router.patch(
-  "/:id/status",
+  "/:packageId/status",
   authenticate,
-  packageIdValidation,
-  statusValidation,
-  updatePackageStatus,
+  packageStatusValidation,
+  togglePackageStatus,
 );
-router.get("/:id", authenticate, packageIdValidation, getPackageById);
-router.post("/get-full-package-details", authenticate, getFullPackageDetails);
+
+router.post(
+  "/:id/locations",
+  authenticate,
+  updateLocationsValidation,
+  updatePackageLocations,
+);
+
+router.delete(
+  "/:id/locations/:locationId",
+  authenticate,
+  removeLocationValidation,
+  removePackageLocation,
+);
+
+router.post(
+  "/:id/tiers",
+  authenticate,
+  updateTiersValidation,
+  updatePackageTiers,
+);
+
+router.delete(
+  "/:id/tiers/:tierId",
+  authenticate,
+  removeTierValidation,
+  removePackageTier,
+);
 
 export default router;
