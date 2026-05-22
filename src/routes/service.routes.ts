@@ -20,6 +20,7 @@ import {
   removeServiceTier,
   getServicesByLocation,
   getFullServiceByCities,
+  getServiceDiagnostics,
 } from "../controllers/service.controllers.js";
 
 import { authenticate } from "../middleware/authenticate.js";
@@ -225,6 +226,13 @@ const removeTierValidation = [
 router.get("/", getAllServices);
 
 router.get("/:serviceId/full", serviceIdValidation, getFullService);
+
+router.get(
+  "/:serviceId/diagnostics",
+  authenticate,
+  serviceIdValidation,
+  getServiceDiagnostics,
+);
 
 router.get("/:serviceId", serviceIdValidation, getServiceById);
 

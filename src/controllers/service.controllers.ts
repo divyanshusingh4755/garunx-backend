@@ -1,5 +1,6 @@
 import type { Request, Response } from "express";
 import { ServiceService } from "../services/service.service.js";
+import { ServiceDiagnosticsEngine } from "../services/diagnostic-engine.service.js";
 
 export const createService = async (req: Request, res: Response) => {
   try {
@@ -314,6 +315,23 @@ export const getFullServiceByCities = async (req: Request, res: Response) => {
     return res.status(200).json({
       success: true,
       data,
+    });
+  } catch (error: any) {
+    return res.status(400).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+export const getServiceDiagnostics = async (req: Request, res: Response) => {
+  try {
+    const result = await ServiceDiagnosticsEngine.analyze(
+      req.params.serviceId as string,
+    );
+    return res.status(200).json({
+      success: true,
+      data: result,
     });
   } catch (error: any) {
     return res.status(400).json({
