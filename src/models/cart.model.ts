@@ -1,360 +1,47 @@
 import mongoose, { Document, Model, Schema, Types } from "mongoose";
 
-type EntryType = "SERVICE" | "PACKAGE";
-type ComponentType = "DEFAULT" | "ADDON";
-type ServiceRole = "PRIMARY" | "INCLUDED" | "ADDON";
-type CartType = "SERVICE" | "PACKAGE" | "MIXED";
+export type CartStatus =
+  | "ACTIVE"
+  | "SCHEDULED"
+  | "CHECKOUT_PENDING"
+  | "CHECKED_OUT"
+  | "BOOKED"
+  | "EXPIRED"
+  | "CANCELLED"
+  | "DELETED";
 
-interface ISelectedItem {
+export interface ISelectedComponentItem {
   itemId: Types.ObjectId;
   name: string;
   price?: number;
 }
 
-const selectedItemSchema = new Schema<ISelectedItem>(
-  {
-    itemId: {
-      type: Schema.Types.ObjectId,
-      ref: "ComponentItem",
-      required: true,
-    },
-    name: {
-      type: String,
-      required: true,
-      trim: true,
-    },
-    price: {
-      type: Number,
-      default: 0,
-      min: 0,
-    },
-  },
-  { _id: false },
-);
-
-interface ICartComponent {
-  componentType: ComponentType;
-  serviceComponentId?: Types.ObjectId;
+export interface ISelectedComponent {
   componentId: Types.ObjectId;
   name: string;
-  description?: string;
-  isRequired: boolean;
-  isRemovable: boolean;
-  isBundled: boolean;
-  selected: boolean;
-  selectedItems: ISelectedItem[];
-  pricing: {
-    basePrice: number;
-    itemsTotal: number;
-    total: number;
-  };
+  items: ISelectedComponentItem[];
+  totalPrice: number;
 }
 
-const cartComponentSchema = new Schema<ICartComponent>(
-  {
-    componentType: {
-      type: String,
-      enum: ["DEFAULT", "ADDON"],
-      required: true,
-    },
-
-    serviceComponentId: {
-      type: Schema.Types.ObjectId,
-      ref: "ServiceComponent",
-    },
-    componentId: {
-      type: Schema.Types.ObjectId,
-      ref: "Component",
-      required: true,
-    },
-    name: {
-      type: String,
-      required: true,
-      trim: true,
-    },
-    description: {
-      type: String,
-    },
-    isRequired: {
-      type: Boolean,
-      default: false,
-    },
-    isRemovable: {
-      type: Boolean,
-      default: true,
-    },
-    isBundled: {
-      type: Boolean,
-      default: false,
-    },
-    selected: {
-      type: Boolean,
-      default: true,
-    },
-    selectedItems: {
-      type: [selectedItemSchema],
-      default: [],
-    },
-    pricing: {
-      basePrice: {
-        type: Number,
-        default: 0,
-        min: 0,
-      },
-
-      itemsTotal: {
-        type: Number,
-        default: 0,
-        min: 0,
-      },
-
-      total: {
-        type: Number,
-        default: 0,
-        min: 0,
-      },
-    },
-  },
-  { _id: false },
-);
-
-interface IPackageConfiguration {
-  packageId: Types.ObjectId;
-
-  packageSnapshot: {
-    name: string;
-    shortDescription?: string;
-    thumbnailImage?: string;
-    packageReference?: string;
-  };
-
-  services: IServiceConfiguration[];
-
-  addonServices: IServiceConfiguration[];
-
-  pricing: {
-    subtotal: number;
-    taxes: number;
-    discount: number;
-    grandTotal: number;
-  };
-}
-
-interface IServiceConfiguration {
+export interface IAddonService {
   serviceId: Types.ObjectId;
-  serviceSnapshot: {
-    name: string;
-    shortDescription?: string;
-    thumbnailImage?: string;
-    serviceReference?: string;
-  };
-
-  serviceRole: ServiceRole;
-
-  subService?: {
-    subServiceId: Types.ObjectId;
-    name: string;
-  };
-
-  tier: {
-    tierId: Types.ObjectId;
-    name: string;
-  };
-
-  location: {
-    locationId: Types.ObjectId;
-    name: string;
-  };
-
-  components: ICartComponent[];
-
-  pricing: {
-    subtotal: number;
-    taxes: number;
-    discount: number;
-    grandTotal: number;
-  };
+  name: string;
+  price: number;
 }
-
-const serviceConfigurationSchema = new Schema<IServiceConfiguration>(
-  {
-    serviceId: {
-      type: Schema.Types.ObjectId,
-      ref: "Service",
-      required: true,
-    },
-
-    serviceSnapshot: {
-      name: {
-        type: String,
-        required: true,
-      },
-
-      shortDescription: String,
-      thumbnailImage: String,
-      serviceReference: String,
-    },
-
-    serviceRole: {
-      type: String,
-      enum: ["PRIMARY", "INCLUDED", "ADDON"],
-      default: "PRIMARY",
-      required: true,
-    },
-
-    subService: {
-      subServiceId: {
-        type: Schema.Types.ObjectId,
-        ref: "SubServiceComponent",
-      },
-      name: String,
-    },
-
-    tier: {
-      tierId: {
-        type: Schema.Types.ObjectId,
-        ref: "Tier",
-        required: true,
-      },
-
-      name: {
-        type: String,
-        required: true,
-      },
-    },
-
-    location: {
-      locationId: {
-        type: Schema.Types.ObjectId,
-        ref: "Location",
-        required: true,
-      },
-
-      name: {
-        type: String,
-        required: true,
-      },
-    },
-
-    components: {
-      type: [cartComponentSchema],
-      default: [],
-    },
-
-    pricing: {
-      subtotal: {
-        type: Number,
-        default: 0,
-      },
-
-      taxes: {
-        type: Number,
-        default: 0,
-      },
-
-      discount: {
-        type: Number,
-        default: 0,
-      },
-
-      grandTotal: {
-        type: Number,
-        default: 0,
-      },
-    },
-  },
-  {
-    _id: false,
-  },
-);
-
-const packageConfigurationSchema = new Schema<IPackageConfiguration>(
-  {
-    packageId: {
-      type: Schema.Types.ObjectId,
-      ref: "Package",
-      required: true,
-    },
-
-    packageSnapshot: {
-      name: String,
-      shortDescription: String,
-      thumbnailImage: String,
-      packageReference: String,
-    },
-
-    services: {
-      type: [serviceConfigurationSchema],
-      default: [],
-    },
-
-    addonServices: {
-      type: [serviceConfigurationSchema],
-      default: [],
-    },
-
-    pricing: {
-      subtotal: {
-        type: Number,
-        default: 0,
-      },
-
-      taxes: {
-        type: Number,
-        default: 0,
-      },
-
-      discount: {
-        type: Number,
-        default: 0,
-      },
-
-      grandTotal: {
-        type: Number,
-        default: 0,
-      },
-    },
-  },
-  {
-    _id: false,
-  },
-);
-
-interface ICartEntry {
-  entryType: EntryType;
-  entryId: Types.ObjectId;
-  serviceConfiguration?: IServiceConfiguration;
-  packageConfiguration?: IPackageConfiguration;
-}
-
-const cartEntrySchema = new Schema<ICartEntry>(
-  {
-    entryType: {
-      type: String,
-      enum: ["SERVICE", "PACKAGE"],
-      required: true,
-    },
-
-    entryId: {
-      type: Schema.Types.ObjectId,
-      required: true,
-      default: () => new mongoose.Types.ObjectId(),
-    },
-
-    serviceConfiguration: {
-      type: serviceConfigurationSchema,
-    },
-
-    packageConfiguration: {
-      type: packageConfigurationSchema,
-    },
-  },
-  { _id: false },
-);
 
 export interface ICart extends Document {
-  userId?: Types.ObjectId;
-  customerDetails: {
+  _id: Types.ObjectId;
+  userId?: Types.ObjectId | null;
+  serviceId?: Types.ObjectId;
+  packageId?: Types.ObjectId;
+  name: string;
+  thumbnailImage?: string;
+  categoryId: Types.ObjectId;
+  tierId: Types.ObjectId;
+  tierName: string;
+  locationId: Types.ObjectId;
+  locationName: string;
+  customerDetails?: {
     name?: string;
     email?: string;
     phone?: string;
@@ -362,34 +49,91 @@ export interface ICart extends Document {
     caste?: string;
     gotra?: string;
   };
-
-  cartType: CartType;
-
-  scheduledAt?: Date;
+  selectedComponents?: ISelectedComponent[];
+  addonComponents?: ISelectedComponent[];
+  addonServices?: IAddonService[];
+  scheduledDate?: Date;
+  scheduledTime?: string;
   notes?: string;
-  entries: ICartEntry[];
-  pricing: {
-    subtotal: number;
-    taxes: number;
-    discount: number;
-    grandTotal: number;
-    calculatedAt?: Date;
-  };
-
-  validation: {
-    isValid: boolean;
-    hasPricingChanged: boolean;
-    unavailableServices: boolean;
-    unavailableComponents: boolean;
-    errors: string[];
-    lastValidatedAt?: Date;
-  };
-
-  status: "ACTIVE" | "CHECKED_OUT" | "EXPIRED" | "ABANDONED";
+  activeBookingId?: Types.ObjectId;
+  basePrice: number;
+  addonPrice: number;
+  totalAmount: number;
+  status: CartStatus;
   expiresAt?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
+
+const selectedComponentItemSchema = new Schema<ISelectedComponentItem>(
+  {
+    itemId: {
+      type: Schema.Types.ObjectId,
+      ref: "ComponentItem",
+      required: true,
+    },
+
+    name: {
+      type: String,
+      required: true,
+    },
+
+    price: {
+      type: Number,
+      min: 0,
+    },
+  },
+  { _id: false },
+);
+
+const selectedComponentSchema = new Schema<ISelectedComponent>(
+  {
+    componentId: {
+      type: Schema.Types.ObjectId,
+      ref: "Component",
+      required: true,
+    },
+
+    name: {
+      type: String,
+      required: true,
+    },
+
+    items: {
+      type: [selectedComponentItemSchema],
+      default: [],
+    },
+
+    totalPrice: {
+      type: Number,
+      required: true,
+      min: 0,
+    },
+  },
+  { _id: false },
+);
+
+const addonServiceSchema = new Schema<IAddonService>(
+  {
+    serviceId: {
+      type: Schema.Types.ObjectId,
+      ref: "Service",
+      required: true,
+    },
+
+    name: {
+      type: String,
+      required: true,
+    },
+
+    price: {
+      type: Number,
+      required: true,
+      min: 0,
+    },
+  },
+  { _id: false },
+);
 
 const cartSchema = new Schema<ICart>(
   {
@@ -399,151 +143,154 @@ const cartSchema = new Schema<ICart>(
       index: true,
     },
 
-    cartType: {
-      type: String,
-      enum: ["SERVICE", "PACKAGE", "MIXED"],
-      default: "SERVICE",
+    serviceId: {
+      type: Schema.Types.ObjectId,
+      ref: "Service",
       index: true,
     },
 
-    customerDetails: {
-      name: {
-        type: String,
-        trim: true,
-      },
-      email: {
-        type: String,
-        trim: true,
-        lowercase: true,
-      },
-      phone: {
-        type: String,
-        trim: true,
-      },
-      address: {
-        type: String,
-      },
-      caste: {
-        type: String,
-      },
-      gotra: {
-        type: String,
-      },
+    packageId: {
+      type: Schema.Types.ObjectId,
+      ref: "Package",
+      index: true,
     },
 
-    scheduledAt: {
+    name: {
+      type: String,
+      required: true,
+    },
+
+    thumbnailImage: {
+      type: String,
+    },
+
+    categoryId: {
+      type: Schema.Types.ObjectId,
+      ref: "Category",
+      required: true,
+      index: true,
+    },
+
+    tierId: {
+      type: Schema.Types.ObjectId,
+      ref: "Tier",
+      required: true,
+      index: true,
+    },
+
+    tierName: {
+      type: String,
+      required: true,
+    },
+
+    locationId: {
+      type: Schema.Types.ObjectId,
+      ref: "Location",
+      required: true,
+      index: true,
+    },
+
+    locationName: {
+      type: String,
+      required: true,
+    },
+
+    customerDetails: {
+      name: String,
+      email: String,
+      phone: String,
+      address: String,
+      caste: String,
+      gotra: String,
+    },
+
+    selectedComponents: {
+      type: [selectedComponentSchema],
+      default: [],
+    },
+
+    addonComponents: {
+      type: [selectedComponentSchema],
+      default: [],
+    },
+
+    addonServices: {
+      type: [addonServiceSchema],
+      default: [],
+    },
+
+    scheduledDate: {
       type: Date,
+    },
+
+    scheduledTime: {
+      type: String,
     },
 
     notes: {
       type: String,
       maxlength: 1000,
     },
-    entries: {
-      type: [cartEntrySchema],
-      default: [],
+
+    activeBookingId: {
+      type: Schema.Types.ObjectId,
+      ref: "Booking",
     },
 
-    pricing: {
-      subtotal: {
-        type: Number,
-        default: 0,
-        min: 0,
-      },
-
-      taxes: {
-        type: Number,
-        default: 0,
-        min: 0,
-      },
-
-      discount: {
-        type: Number,
-        default: 0,
-        min: 0,
-      },
-
-      grandTotal: {
-        type: Number,
-        default: 0,
-        min: 0,
-      },
-
-      calculatedAt: {
-        type: Date,
-      },
+    basePrice: {
+      type: Number,
+      required: true,
+      min: 0,
     },
 
-    validation: {
-      isValid: {
-        type: Boolean,
-        default: true,
-      },
-
-      hasPricingChanged: {
-        type: Boolean,
-        default: false,
-      },
-
-      unavailableServices: {
-        type: Boolean,
-        default: false,
-      },
-
-      unavailableComponents: {
-        type: Boolean,
-        default: false,
-      },
-
-      errors: {
-        type: [String],
-        default: [],
-      },
-
-      lastValidatedAt: {
-        type: Date,
-      },
+    addonPrice: {
+      type: Number,
+      default: 0,
+      min: 0,
     },
+
+    totalAmount: {
+      type: Number,
+      required: true,
+      min: 0,
+    },
+
     status: {
       type: String,
-      enum: ["ACTIVE", "CHECKED_OUT", "EXPIRED", "ABANDONED"],
+      enum: [
+        "ACTIVE",
+        "SCHEDULED",
+        "CHECKOUT_PENDING",
+        "CHECKED_OUT",
+        "BOOKED",
+        "EXPIRED",
+        "CANCELLED",
+        "DELETED",
+      ] as CartStatus[],
       default: "ACTIVE",
       index: true,
     },
 
     expiresAt: {
       type: Date,
-      index: true,
+      index: {
+        expireAfterSeconds: 0,
+      },
     },
   },
-  { timestamps: true },
-);
-
-cartEntrySchema.pre(
-  "validate",
-  { document: true, query: false },
-  function (next) {
-    if (typeof next !== "function") return;
-
-    if (this.entryType === "SERVICE") {
-      delete this.packageConfiguration;
-
-      if (!this.serviceConfiguration) {
-        return next(new Error("serviceConfiguration required"));
-      }
-    }
-
-    if (this.entryType === "PACKAGE") {
-      delete this.serviceConfiguration;
-
-      if (!this.packageConfiguration) {
-        return next(new Error("packageConfiguration required"));
-      }
-    }
-
-    next();
+  {
+    timestamps: true,
   },
 );
+
+cartSchema.pre("validate", function () {
+  if (
+    (!this.serviceId && !this.packageId) ||
+    (this.serviceId && this.packageId)
+  ) {
+    throw new Error("Cart must contain either serviceId or packageId");
+  }
+});
 
 cartSchema.index({
   userId: 1,
@@ -551,20 +298,11 @@ cartSchema.index({
 });
 
 cartSchema.index({
-  expiresAt: 1,
+  serviceId: 1,
 });
 
 cartSchema.index({
-  updatedAt: -1,
-});
-
-cartSchema.index({
-  "validation.isValid": 1,
-  "validation.hasPricingChanged": 1,
-});
-
-cartSchema.index({
-  createdAt: -1,
+  packageId: 1,
 });
 
 export const Cart: Model<ICart> = mongoose.model<ICart>("Cart", cartSchema);

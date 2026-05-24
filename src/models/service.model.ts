@@ -14,7 +14,7 @@ export interface IServiceTier {
 export interface IService extends Document {
   name: string;
   shortDescription: string;
-  fullDescription?: string;
+  fullDescription: string;
   categoryId: Types.ObjectId;
   thumbnailImage?: string;
   bannerImage?: string;

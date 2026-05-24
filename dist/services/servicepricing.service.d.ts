@@ -9,7 +9,7 @@ export declare class ServicePricingService {
             id: Types.ObjectId;
             name: string;
             shortDescription: string;
-            fullDescription: string | undefined;
+            fullDescription: string;
             thumbnailImage: string | undefined;
             bannerImage: string | undefined;
             serviceReference: string;

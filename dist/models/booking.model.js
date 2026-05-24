@@ -6,80 +6,40 @@ const bookingSelectedItemSchema = new Schema({
         ref: "ComponentItem",
         required: true,
     },
-    name: {
-        type: String,
-        required: true,
-        trim: true,
-    },
-    price: {
-        type: Number,
-        default: 0,
-        min: 0,
-    },
-}, {
-    _id: false,
-});
+    name: { type: String, required: true },
+    price: { type: Number, default: 0, min: 0 },
+}, { _id: false });
 const bookingComponentSchema = new Schema({
     componentType: {
         type: String,
         enum: ["DEFAULT", "ADDON"],
         required: true,
     },
-    serviceComponentId: {
-        type: Schema.Types.ObjectId,
-        ref: "ServiceComponent",
-    },
     componentId: {
         type: Schema.Types.ObjectId,
         ref: "Component",
         required: true,
     },
-    name: {
-        type: String,
-        required: true,
-        trim: true,
+    serviceComponentId: {
+        type: Schema.Types.ObjectId,
+        ref: "ServiceComponent",
     },
+    name: { type: String, required: true },
     description: String,
-    isRequired: {
-        type: Boolean,
-        default: false,
-    },
-    isRemovable: {
-        type: Boolean,
-        default: true,
-    },
-    isBundled: {
-        type: Boolean,
-        default: false,
-    },
-    selected: {
-        type: Boolean,
-        default: true,
-    },
+    isRequired: { type: Boolean, default: false },
+    isRemovable: { type: Boolean, default: true },
+    isBundled: { type: Boolean, default: false },
+    selected: { type: Boolean, default: true },
     selectedItems: {
         type: [bookingSelectedItemSchema],
         default: [],
     },
     pricing: {
-        basePrice: {
-            type: Number,
-            default: 0,
-            min: 0,
-        },
-        itemsTotal: {
-            type: Number,
-            default: 0,
-            min: 0,
-        },
-        total: {
-            type: Number,
-            default: 0,
-            min: 0,
-        },
+        basePrice: { type: Number, default: 0, min: 0 },
+        itemsTotal: { type: Number, default: 0, min: 0 },
+        total: { type: Number, default: 0, min: 0 },
     },
-}, {
-    _id: false,
-});
+}, { _id: false });
 const bookingServiceConfigurationSchema = new Schema({
     serviceId: {
         type: Schema.Types.ObjectId,
@@ -87,10 +47,7 @@ const bookingServiceConfigurationSchema = new Schema({
         required: true,
     },
     serviceSnapshot: {
-        name: {
-            type: String,
-            required: true,
-        },
+        name: { type: String, required: true },
         shortDescription: String,
         thumbnailImage: String,
         serviceReference: String,
@@ -113,10 +70,7 @@ const bookingServiceConfigurationSchema = new Schema({
             ref: "Tier",
             required: true,
         },
-        name: {
-            type: String,
-            required: true,
-        },
+        name: { type: String, required: true },
     },
     location: {
         locationId: {
@@ -124,36 +78,19 @@ const bookingServiceConfigurationSchema = new Schema({
             ref: "Location",
             required: true,
         },
-        name: {
-            type: String,
-            required: true,
-        },
+        name: { type: String, required: true },
     },
     components: {
         type: [bookingComponentSchema],
         default: [],
     },
     pricing: {
-        subtotal: {
-            type: Number,
-            default: 0,
-        },
-        taxes: {
-            type: Number,
-            default: 0,
-        },
-        discount: {
-            type: Number,
-            default: 0,
-        },
-        grandTotal: {
-            type: Number,
-            default: 0,
-        },
+        subtotal: { type: Number, default: 0 },
+        taxes: { type: Number, default: 0 },
+        discount: { type: Number, default: 0 },
+        grandTotal: { type: Number, default: 0 },
     },
-}, {
-    _id: false,
-});
+}, { _id: false });
 const bookingPackageConfigurationSchema = new Schema({
     packageId: {
         type: Schema.Types.ObjectId,
@@ -175,77 +112,24 @@ const bookingPackageConfigurationSchema = new Schema({
         default: [],
     },
     pricing: {
-        subtotal: {
-            type: Number,
-            default: 0,
-        },
-        taxes: {
-            type: Number,
-            default: 0,
-        },
-        discount: {
-            type: Number,
-            default: 0,
-        },
-        grandTotal: {
-            type: Number,
-            default: 0,
-        },
+        subtotal: { type: Number, default: 0 },
+        taxes: { type: Number, default: 0 },
+        discount: { type: Number, default: 0 },
+        grandTotal: { type: Number, default: 0 },
     },
-}, {
-    _id: false,
-});
+}, { _id: false });
 const bookingEntrySchema = new Schema({
     entryType: {
         type: String,
         enum: ["SERVICE", "PACKAGE"],
         required: true,
     },
-    entryId: {
-        type: Schema.Types.ObjectId,
-        required: true,
-    },
-    serviceConfiguration: {
-        type: bookingServiceConfigurationSchema,
-    },
-    packageConfiguration: {
-        type: bookingPackageConfigurationSchema,
-    },
-}, {
-    _id: false,
-});
-bookingEntrySchema.pre("validate", { document: true, query: false }, function (next) {
-    if (typeof next !== "function")
-        return;
-    if (this.entryType === "SERVICE") {
-        if (!this.serviceConfiguration) {
-            return next(new Error("serviceConfiguration required"));
-        }
-        if (this.packageConfiguration) {
-            return next(new Error("packageConfiguration not allowed for SERVICE"));
-        }
-    }
-    if (this.entryType === "PACKAGE") {
-        if (!this.packageConfiguration) {
-            return next(new Error("packageConfiguration required"));
-        }
-        if (this.serviceConfiguration) {
-            return next(new Error("serviceConfiguration not allowed for PACKAGE"));
-        }
-    }
-    next();
-});
+    serviceConfiguration: bookingServiceConfigurationSchema,
+    packageConfiguration: bookingPackageConfigurationSchema,
+}, { _id: false });
 const bookingSchema = new Schema({
-    userId: {
-        type: Schema.Types.ObjectId,
-        ref: "User",
-        index: true,
-    },
-    subAdminId: {
-        type: Schema.Types.ObjectId,
-        ref: "User",
-        index: true,
-    },
+    userId: { type: Schema.Types.ObjectId, ref: "User", index: true },
+    subAdminId: { type: Schema.Types.ObjectId, ref: "User", index: true },
     cartId: {
         type: Schema.Types.ObjectId,
         ref: "Cart",
@@ -265,50 +149,25 @@ const bookingSchema = new Schema({
     entries: {
         type: [bookingEntrySchema],
         required: true,
-        default: [],
         validate: {
-            validator: (entries) => entries.length > 0,
+            validator: (v) => v.length > 0,
             message: "Booking must contain at least one entry",
         },
     },
     customerDetails: {
         name: String,
-        email: {
-            type: String,
-            lowercase: true,
-            trim: true,
-        },
+        email: { type: String, lowercase: true, trim: true },
         phone: String,
         address: String,
         caste: String,
         gotra: String,
     },
     pricing: {
-        subtotal: {
-            type: Number,
-            required: true,
-            min: 0,
-        },
-        taxes: {
-            type: Number,
-            default: 0,
-            min: 0,
-        },
-        discount: {
-            type: Number,
-            default: 0,
-            min: 0,
-        },
-        grandTotal: {
-            type: Number,
-            required: true,
-            min: 0,
-        },
-        earnings: {
-            type: Number,
-            default: 0,
-            min: 0,
-        },
+        subtotal: { type: Number, required: true, min: 0 },
+        taxes: { type: Number, default: 0 },
+        discount: { type: Number, default: 0 },
+        grandTotal: { type: Number, required: true, min: 0 },
+        earnings: { type: Number, default: 0 },
     },
     payment: {
         status: {
@@ -322,18 +181,11 @@ const bookingSchema = new Schema({
             enum: ["COD", "RAZORPAY", "STRIPE", "UPI", "CARD", "NETBANKING"],
         },
         gateway: String,
-        amountPaid: {
-            type: Number,
-            default: 0,
-            min: 0,
-        },
-        refundAmount: {
-            type: Number,
-            default: 0,
-            min: 0,
-        },
+        amountPaid: { type: Number, default: 0 },
+        refundAmount: { type: Number, default: 0 },
         paidAt: Date,
         refundedAt: Date,
+        currency: { type: String, default: "INR" },
     },
     status: {
         type: String,
@@ -343,10 +195,7 @@ const bookingSchema = new Schema({
     },
     cancellation: {
         reason: String,
-        cancelledBy: {
-            type: Schema.Types.ObjectId,
-            ref: "User",
-        },
+        cancelledBy: { type: Schema.Types.ObjectId, ref: "User" },
         cancelledByRole: {
             type: String,
             enum: ["CUSTOMER", "ADMIN", "SUBADMIN"],
@@ -359,48 +208,23 @@ const bookingSchema = new Schema({
         cancelledAt: Date,
     },
     scheduledAt: Date,
-    notes: {
-        type: String,
-        maxlength: 1000,
-    },
-    cartSnapshot: {
-        type: Schema.Types.Mixed,
-    },
-    isDeleted: {
-        type: Boolean,
-        default: false,
-    },
+    notes: { type: String, maxlength: 1000 },
+    cartSnapshot: Schema.Types.Mixed,
+    isDeleted: { type: Boolean, default: false },
 }, {
     timestamps: true,
 });
-bookingSchema.index({
-    userId: 1,
-    status: 1,
-});
-bookingSchema.index({
-    userId: 1,
-    createdAt: -1,
-});
-bookingSchema.index({
-    createdAt: -1,
-});
-bookingSchema.index({
-    scheduledAt: 1,
-    status: 1,
-});
-bookingSchema.index({
-    "payment.status": 1,
-});
-bookingSchema.index({
-    bookingReference: 1,
-});
+bookingSchema.index({ userId: 1, status: 1 });
+bookingSchema.index({ userId: 1, createdAt: -1 });
+bookingSchema.index({ createdAt: -1 });
+bookingSchema.index({ scheduledAt: 1, status: 1 });
+bookingSchema.index({ "payment.status": 1 });
+bookingSchema.index({ bookingReference: 1 });
+bookingSchema.index({ userId: 1, scheduledAt: 1 });
 bookingSchema.pre("save", async function () {
     if (!this.isNew)
         return;
-    const counter = await Counter.findOneAndUpdate({ id: "bookingId" }, { $inc: { seq: 1 } }, {
-        new: true,
-        upsert: true,
-    });
+    const counter = await Counter.findOneAndUpdate({ id: "bookingId" }, { $inc: { seq: 1 } }, { new: true, upsert: true });
     if (!counter) {
         throw new Error("Failed to generate booking reference");
     }

@@ -1,7 +1,6 @@
-import type { Types } from "mongoose";
-import { model, Schema } from "mongoose";
+import { model, Schema, Document, Types } from "mongoose";
 
-interface IServicePricing extends Document {
+export interface IServicePricing extends Document {
   name: string;
   serviceId: Types.ObjectId;
   componentId: Types.ObjectId;

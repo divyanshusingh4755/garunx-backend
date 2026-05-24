@@ -1,4 +1,4 @@
-import { model, Schema } from "mongoose";
+import { model, Schema, Document, Types } from "mongoose";
 const servicePricingSchema = new Schema({
     name: { type: String, required: true },
     serviceId: {

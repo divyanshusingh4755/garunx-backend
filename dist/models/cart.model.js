@@ -1,5 +1,5 @@
 import mongoose, { Document, Model, Schema, Types } from "mongoose";
-const selectedItemSchema = new Schema({
+const selectedComponentItemSchema = new Schema({
     itemId: {
         type: Schema.Types.ObjectId,
         ref: "ComponentItem",
@@ -8,24 +8,13 @@ const selectedItemSchema = new Schema({
     name: {
         type: String,
         required: true,
-        trim: true,
     },
     price: {
         type: Number,
-        default: 0,
         min: 0,
     },
 }, { _id: false });
-const cartComponentSchema = new Schema({
-    componentType: {
-        type: String,
-        enum: ["DEFAULT", "ADDON"],
-        required: true,
-    },
-    serviceComponentId: {
-        type: Schema.Types.ObjectId,
-        ref: "ServiceComponent",
-    },
+const selectedComponentSchema = new Schema({
     componentId: {
         type: Schema.Types.ObjectId,
         ref: "Component",
@@ -34,181 +23,31 @@ const cartComponentSchema = new Schema({
     name: {
         type: String,
         required: true,
-        trim: true,
     },
-    description: {
-        type: String,
-    },
-    isRequired: {
-        type: Boolean,
-        default: false,
-    },
-    isRemovable: {
-        type: Boolean,
-        default: true,
-    },
-    isBundled: {
-        type: Boolean,
-        default: false,
-    },
-    selected: {
-        type: Boolean,
-        default: true,
-    },
-    selectedItems: {
-        type: [selectedItemSchema],
+    items: {
+        type: [selectedComponentItemSchema],
         default: [],
     },
-    pricing: {
-        basePrice: {
-            type: Number,
-            default: 0,
-            min: 0,
-        },
-        itemsTotal: {
-            type: Number,
-            default: 0,
-            min: 0,
-        },
-        total: {
-            type: Number,
-            default: 0,
-            min: 0,
-        },
+    totalPrice: {
+        type: Number,
+        required: true,
+        min: 0,
     },
 }, { _id: false });
-const serviceConfigurationSchema = new Schema({
+const addonServiceSchema = new Schema({
     serviceId: {
         type: Schema.Types.ObjectId,
         ref: "Service",
         required: true,
     },
-    serviceSnapshot: {
-        name: {
-            type: String,
-            required: true,
-        },
-        shortDescription: String,
-        thumbnailImage: String,
-        serviceReference: String,
-    },
-    serviceRole: {
+    name: {
         type: String,
-        enum: ["PRIMARY", "INCLUDED", "ADDON"],
-        default: "PRIMARY",
         required: true,
     },
-    subService: {
-        subServiceId: {
-            type: Schema.Types.ObjectId,
-            ref: "SubServiceComponent",
-        },
-        name: String,
-    },
-    tier: {
-        tierId: {
-            type: Schema.Types.ObjectId,
-            ref: "Tier",
-            required: true,
-        },
-        name: {
-            type: String,
-            required: true,
-        },
-    },
-    location: {
-        locationId: {
-            type: Schema.Types.ObjectId,
-            ref: "Location",
-            required: true,
-        },
-        name: {
-            type: String,
-            required: true,
-        },
-    },
-    components: {
-        type: [cartComponentSchema],
-        default: [],
-    },
-    pricing: {
-        subtotal: {
-            type: Number,
-            default: 0,
-        },
-        taxes: {
-            type: Number,
-            default: 0,
-        },
-        discount: {
-            type: Number,
-            default: 0,
-        },
-        grandTotal: {
-            type: Number,
-            default: 0,
-        },
-    },
-}, {
-    _id: false,
-});
-const packageConfigurationSchema = new Schema({
-    packageId: {
-        type: Schema.Types.ObjectId,
-        ref: "Package",
+    price: {
+        type: Number,
         required: true,
-    },
-    packageSnapshot: {
-        name: String,
-        shortDescription: String,
-        thumbnailImage: String,
-        packageReference: String,
-    },
-    services: {
-        type: [serviceConfigurationSchema],
-        default: [],
-    },
-    addonServices: {
-        type: [serviceConfigurationSchema],
-        default: [],
-    },
-    pricing: {
-        subtotal: {
-            type: Number,
-            default: 0,
-        },
-        taxes: {
-            type: Number,
-            default: 0,
-        },
-        discount: {
-            type: Number,
-            default: 0,
-        },
-        grandTotal: {
-            type: Number,
-            default: 0,
-        },
-    },
-}, {
-    _id: false,
-});
-const cartEntrySchema = new Schema({
-    entryType: {
-        type: String,
-        enum: ["SERVICE", "PACKAGE"],
-        required: true,
-    },
-    entryId: {
-        type: Schema.Types.ObjectId,
-        required: true,
-        default: () => new mongoose.Types.ObjectId(),
-    },
-    serviceConfiguration: {
-        type: serviceConfigurationSchema,
-    },
-    packageConfiguration: {
-        type: packageConfigurationSchema,
+        min: 0,
     },
 }, { _id: false });
 const cartSchema = new Schema({
@@ -217,141 +56,137 @@ const cartSchema = new Schema({
         ref: "User",
         index: true,
     },
-    cartType: {
-        type: String,
-        enum: ["SERVICE", "PACKAGE", "MIXED"],
-        default: "SERVICE",
+    serviceId: {
+        type: Schema.Types.ObjectId,
+        ref: "Service",
         index: true,
     },
-    customerDetails: {
-        name: {
-            type: String,
-            trim: true,
-        },
-        email: {
-            type: String,
-            trim: true,
-            lowercase: true,
-        },
-        phone: {
-            type: String,
-            trim: true,
-        },
-        address: {
-            type: String,
-        },
-        caste: {
-            type: String,
-        },
-        gotra: {
-            type: String,
-        },
+    packageId: {
+        type: Schema.Types.ObjectId,
+        ref: "Package",
+        index: true,
     },
-    scheduledAt: {
+    name: {
+        type: String,
+        required: true,
+    },
+    thumbnailImage: {
+        type: String,
+    },
+    categoryId: {
+        type: Schema.Types.ObjectId,
+        ref: "Category",
+        required: true,
+        index: true,
+    },
+    tierId: {
+        type: Schema.Types.ObjectId,
+        ref: "Tier",
+        required: true,
+        index: true,
+    },
+    tierName: {
+        type: String,
+        required: true,
+    },
+    locationId: {
+        type: Schema.Types.ObjectId,
+        ref: "Location",
+        required: true,
+        index: true,
+    },
+    locationName: {
+        type: String,
+        required: true,
+    },
+    customerDetails: {
+        name: String,
+        email: String,
+        phone: String,
+        address: String,
+        caste: String,
+        gotra: String,
+    },
+    selectedComponents: {
+        type: [selectedComponentSchema],
+        default: [],
+    },
+    addonComponents: {
+        type: [selectedComponentSchema],
+        default: [],
+    },
+    addonServices: {
+        type: [addonServiceSchema],
+        default: [],
+    },
+    scheduledDate: {
         type: Date,
+    },
+    scheduledTime: {
+        type: String,
     },
     notes: {
         type: String,
         maxlength: 1000,
     },
-    entries: {
-        type: [cartEntrySchema],
-        default: [],
+    activeBookingId: {
+        type: Schema.Types.ObjectId,
+        ref: "Booking",
     },
-    pricing: {
-        subtotal: {
-            type: Number,
-            default: 0,
-            min: 0,
-        },
-        taxes: {
-            type: Number,
-            default: 0,
-            min: 0,
-        },
-        discount: {
-            type: Number,
-            default: 0,
-            min: 0,
-        },
-        grandTotal: {
-            type: Number,
-            default: 0,
-            min: 0,
-        },
-        calculatedAt: {
-            type: Date,
-        },
+    basePrice: {
+        type: Number,
+        required: true,
+        min: 0,
     },
-    validation: {
-        isValid: {
-            type: Boolean,
-            default: true,
-        },
-        hasPricingChanged: {
-            type: Boolean,
-            default: false,
-        },
-        unavailableServices: {
-            type: Boolean,
-            default: false,
-        },
-        unavailableComponents: {
-            type: Boolean,
-            default: false,
-        },
-        errors: {
-            type: [String],
-            default: [],
-        },
-        lastValidatedAt: {
-            type: Date,
-        },
+    addonPrice: {
+        type: Number,
+        default: 0,
+        min: 0,
+    },
+    totalAmount: {
+        type: Number,
+        required: true,
+        min: 0,
     },
     status: {
         type: String,
-        enum: ["ACTIVE", "CHECKED_OUT", "EXPIRED", "ABANDONED"],
+        enum: [
+            "ACTIVE",
+            "SCHEDULED",
+            "CHECKOUT_PENDING",
+            "CHECKED_OUT",
+            "BOOKED",
+            "EXPIRED",
+            "CANCELLED",
+            "DELETED",
+        ],
         default: "ACTIVE",
         index: true,
     },
     expiresAt: {
         type: Date,
-        index: true,
+        index: {
+            expireAfterSeconds: 0,
+        },
     },
-}, { timestamps: true });
-cartEntrySchema.pre("validate", { document: true, query: false }, function (next) {
-    if (typeof next !== "function")
-        return;
-    if (this.entryType === "SERVICE") {
-        delete this.packageConfiguration;
-        if (!this.serviceConfiguration) {
-            return next(new Error("serviceConfiguration required"));
-        }
+}, {
+    timestamps: true,
+});
+cartSchema.pre("validate", function () {
+    if ((!this.serviceId && !this.packageId) ||
+        (this.serviceId && this.packageId)) {
+        throw new Error("Cart must contain either serviceId or packageId");
     }
-    if (this.entryType === "PACKAGE") {
-        delete this.serviceConfiguration;
-        if (!this.packageConfiguration) {
-            return next(new Error("packageConfiguration required"));
-        }
-    }
-    next();
 });
 cartSchema.index({
     userId: 1,
     status: 1,
 });
 cartSchema.index({
-    expiresAt: 1,
+    serviceId: 1,
 });
 cartSchema.index({
-    updatedAt: -1,
-});
-cartSchema.index({
-    "validation.isValid": 1,
-    "validation.hasPricingChanged": 1,
-});
-cartSchema.index({
-    createdAt: -1,
+    packageId: 1,
 });
 export const Cart = mongoose.model("Cart", cartSchema);
 //# sourceMappingURL=cart.model.js.map

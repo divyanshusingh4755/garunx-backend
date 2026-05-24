@@ -80,7 +80,7 @@ export declare class ServiceService {
             id: Types.ObjectId;
             name: string;
             shortDescription: string;
-            fullDescription: string | undefined;
+            fullDescription: string;
             thumbnailImage: string | undefined;
             bannerImage: string | undefined;
             isActive: boolean;
@@ -100,7 +100,7 @@ export declare class ServiceService {
             id: Types.ObjectId;
             name: string;
             shortDescription: string;
-            fullDescription: string | undefined;
+            fullDescription: string;
             thumbnailImage: string | undefined;
             bannerImage: string | undefined;
             isActive: boolean;

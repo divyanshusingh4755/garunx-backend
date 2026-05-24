@@ -1,85 +1,34 @@
 import { Document, Model, Types } from "mongoose";
-type EntryType = "SERVICE" | "PACKAGE";
-type ComponentType = "DEFAULT" | "ADDON";
-type ServiceRole = "PRIMARY" | "INCLUDED" | "ADDON";
-type CartType = "SERVICE" | "PACKAGE" | "MIXED";
-interface ISelectedItem {
+export type CartStatus = "ACTIVE" | "SCHEDULED" | "CHECKOUT_PENDING" | "CHECKED_OUT" | "BOOKED" | "EXPIRED" | "CANCELLED" | "DELETED";
+export interface ISelectedComponentItem {
     itemId: Types.ObjectId;
     name: string;
     price?: number;
 }
-interface ICartComponent {
-    componentType: ComponentType;
-    serviceComponentId?: Types.ObjectId;
+export interface ISelectedComponent {
     componentId: Types.ObjectId;
     name: string;
-    description?: string;
-    isRequired: boolean;
-    isRemovable: boolean;
-    isBundled: boolean;
-    selected: boolean;
-    selectedItems: ISelectedItem[];
-    pricing: {
-        basePrice: number;
-        itemsTotal: number;
-        total: number;
-    };
+    items: ISelectedComponentItem[];
+    totalPrice: number;
 }
-interface IPackageConfiguration {
-    packageId: Types.ObjectId;
-    packageSnapshot: {
-        name: string;
-        shortDescription?: string;
-        thumbnailImage?: string;
-        packageReference?: string;
-    };
-    services: IServiceConfiguration[];
-    addonServices: IServiceConfiguration[];
-    pricing: {
-        subtotal: number;
-        taxes: number;
-        discount: number;
-        grandTotal: number;
-    };
-}
-interface IServiceConfiguration {
+export interface IAddonService {
     serviceId: Types.ObjectId;
-    serviceSnapshot: {
-        name: string;
-        shortDescription?: string;
-        thumbnailImage?: string;
-        serviceReference?: string;
-    };
-    serviceRole: ServiceRole;
-    subService?: {
-        subServiceId: Types.ObjectId;
-        name: string;
-    };
-    tier: {
-        tierId: Types.ObjectId;
-        name: string;
-    };
-    location: {
-        locationId: Types.ObjectId;
-        name: string;
-    };
-    components: ICartComponent[];
-    pricing: {
-        subtotal: number;
-        taxes: number;
-        discount: number;
-        grandTotal: number;
-    };
-}
-interface ICartEntry {
-    entryType: EntryType;
-    entryId: Types.ObjectId;
-    serviceConfiguration?: IServiceConfiguration;
-    packageConfiguration?: IPackageConfiguration;
+    name: string;
+    price: number;
 }
 export interface ICart extends Document {
-    userId?: Types.ObjectId;
-    customerDetails: {
+    _id: Types.ObjectId;
+    userId?: Types.ObjectId | null;
+    serviceId?: Types.ObjectId;
+    packageId?: Types.ObjectId;
+    name: string;
+    thumbnailImage?: string;
+    categoryId: Types.ObjectId;
+    tierId: Types.ObjectId;
+    tierName: string;
+    locationId: Types.ObjectId;
+    locationName: string;
+    customerDetails?: {
         name?: string;
         email?: string;
         phone?: string;
@@ -87,30 +36,20 @@ export interface ICart extends Document {
         caste?: string;
         gotra?: string;
     };
-    cartType: CartType;
-    scheduledAt?: Date;
+    selectedComponents?: ISelectedComponent[];
+    addonComponents?: ISelectedComponent[];
+    addonServices?: IAddonService[];
+    scheduledDate?: Date;
+    scheduledTime?: string;
     notes?: string;
-    entries: ICartEntry[];
-    pricing: {
-        subtotal: number;
-        taxes: number;
-        discount: number;
-        grandTotal: number;
-        calculatedAt?: Date;
-    };
-    validation: {
-        isValid: boolean;
-        hasPricingChanged: boolean;
-        unavailableServices: boolean;
-        unavailableComponents: boolean;
-        errors: string[];
-        lastValidatedAt?: Date;
-    };
-    status: "ACTIVE" | "CHECKED_OUT" | "EXPIRED" | "ABANDONED";
+    activeBookingId?: Types.ObjectId;
+    basePrice: number;
+    addonPrice: number;
+    totalAmount: number;
+    status: CartStatus;
     expiresAt?: Date;
     createdAt: Date;
     updatedAt: Date;
 }
 export declare const Cart: Model<ICart>;
-export {};
 //# sourceMappingURL=cart.model.d.ts.map

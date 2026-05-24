@@ -76,19 +76,27 @@ export class PackageDiagnosticsEngine {
         code: "ORPHAN_SERVICE_MAPPINGS",
         message: "Some services belong to deleted tiers",
         severity: "warning",
-        meta: orphanMappings.slice(0, 10).map((m) => ({
-          tierId: m.tierId,
-          serviceId: m.serviceId,
-          serviceName: serviceMap.get(m.serviceId.toString()) || "UNKNOWN",
-        })),
+        meta: orphanMappings.slice(0, 10).flatMap((m) =>
+          m.services.map((svc) => ({
+            tierId: m.tierId,
+            serviceId: svc.serviceId,
+            serviceName: serviceMap.get(svc.serviceId.toString()) || "UNKNOWN",
+          })),
+        ),
       });
     }
 
-    /* ----------------------------
-     * 3. INVALID SERVICES
-     * ---------------------------- */
-    const invalidServices = mappings.filter(
-      (m) => !serviceMap.has(m.serviceId.toString()),
+    const allMappedServices = mappings.flatMap((m) =>
+      m.services.map((svc) => ({
+        tierId: m.tierId,
+        serviceId: svc.serviceId,
+        isRequired: svc.isRequired,
+        name: svc.name,
+      })),
+    );
+
+    const invalidServices = allMappedServices.filter(
+      (svc) => !serviceMap.has(svc.serviceId.toString()),
     );
 
     if (invalidServices.length) {
@@ -96,13 +104,13 @@ export class PackageDiagnosticsEngine {
         code: "INVALID_SERVICES",
         message: "Some mapped services are missing or deleted",
         severity: "blocking",
-        meta: invalidServices.slice(0, 10).map((m) => ({
-          serviceId: m.serviceId,
+        meta: invalidServices.slice(0, 10).map((svc) => ({
+          serviceId: svc.serviceId,
         })),
       });
     }
 
-    const requiredServices = mappings.filter((m) => m.isRequired);
+    const requiredServices = allMappedServices.filter((svc) => svc.isRequired);
 
     const priceSet = new Set(
       pricing.map(

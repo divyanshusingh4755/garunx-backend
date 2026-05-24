@@ -1,10 +1,9 @@
 import { model, Schema, Types, Document, Model } from "mongoose";
-
 import { Counter } from "./counter.model.js";
 
-type BookingStatus = "PENDING" | "CONFIRMED" | "COMPLETED" | "CANCELLED";
+export type BookingStatus = "PENDING" | "CONFIRMED" | "COMPLETED" | "CANCELLED";
 
-type PaymentMethod =
+export type PaymentMethod =
   | "COD"
   | "RAZORPAY"
   | "STRIPE"
@@ -12,25 +11,22 @@ type PaymentMethod =
   | "CARD"
   | "NETBANKING";
 
-type PaymentStatus =
+export type PaymentStatus =
   | "PENDING"
   | "PAID"
   | "FAILED"
   | "REFUNDED"
   | "PARTIAL_REFUND";
 
-type BookedBy = "CUSTOMER" | "ADMIN" | "SUBADMIN";
-
-type EntryType = "SERVICE" | "PACKAGE";
-
-type ComponentType = "DEFAULT" | "ADDON";
-
-type ServiceRole = "PRIMARY" | "INCLUDED" | "ADDON";
+export type BookedBy = "CUSTOMER" | "ADMIN" | "SUBADMIN";
+export type EntryType = "SERVICE" | "PACKAGE";
+export type ComponentType = "DEFAULT" | "ADDON";
+export type ServiceRole = "PRIMARY" | "INCLUDED" | "ADDON";
 
 interface IBookingSelectedItem {
   itemId: Types.ObjectId;
   name: string;
-  price?: number;
+  price: number;
 }
 
 const bookingSelectedItemSchema = new Schema<IBookingSelectedItem>(
@@ -40,45 +36,23 @@ const bookingSelectedItemSchema = new Schema<IBookingSelectedItem>(
       ref: "ComponentItem",
       required: true,
     },
-
-    name: {
-      type: String,
-      required: true,
-      trim: true,
-    },
-
-    price: {
-      type: Number,
-      default: 0,
-      min: 0,
-    },
+    name: { type: String, required: true },
+    price: { type: Number, default: 0, min: 0 },
   },
-  {
-    _id: false,
-  },
+  { _id: false },
 );
 
 interface IBookingComponent {
   componentType: ComponentType;
-
-  serviceComponentId?: Types.ObjectId;
-
   componentId: Types.ObjectId;
-
+  serviceComponentId?: Types.ObjectId;
   name: string;
-
   description?: string;
-
   isRequired: boolean;
-
   isRemovable: boolean;
-
   isBundled: boolean;
-
   selected: boolean;
-
   selectedItems: IBookingSelectedItem[];
-
   pricing: {
     basePrice: number;
     itemsTotal: number;
@@ -94,44 +68,25 @@ const bookingComponentSchema = new Schema<IBookingComponent>(
       required: true,
     },
 
-    serviceComponentId: {
-      type: Schema.Types.ObjectId,
-      ref: "ServiceComponent",
-    },
-
     componentId: {
       type: Schema.Types.ObjectId,
       ref: "Component",
       required: true,
     },
 
-    name: {
-      type: String,
-      required: true,
-      trim: true,
+    serviceComponentId: {
+      type: Schema.Types.ObjectId,
+      ref: "ServiceComponent",
     },
 
+    name: { type: String, required: true },
     description: String,
 
-    isRequired: {
-      type: Boolean,
-      default: false,
-    },
+    isRequired: { type: Boolean, default: false },
+    isRemovable: { type: Boolean, default: true },
+    isBundled: { type: Boolean, default: false },
 
-    isRemovable: {
-      type: Boolean,
-      default: true,
-    },
-
-    isBundled: {
-      type: Boolean,
-      default: false,
-    },
-
-    selected: {
-      type: Boolean,
-      default: true,
-    },
+    selected: { type: Boolean, default: true },
 
     selectedItems: {
       type: [bookingSelectedItemSchema],
@@ -139,33 +94,16 @@ const bookingComponentSchema = new Schema<IBookingComponent>(
     },
 
     pricing: {
-      basePrice: {
-        type: Number,
-        default: 0,
-        min: 0,
-      },
-
-      itemsTotal: {
-        type: Number,
-        default: 0,
-        min: 0,
-      },
-
-      total: {
-        type: Number,
-        default: 0,
-        min: 0,
-      },
+      basePrice: { type: Number, default: 0, min: 0 },
+      itemsTotal: { type: Number, default: 0, min: 0 },
+      total: { type: Number, default: 0, min: 0 },
     },
   },
-  {
-    _id: false,
-  },
+  { _id: false },
 );
 
 interface IBookingServiceConfiguration {
   serviceId: Types.ObjectId;
-
   serviceSnapshot: {
     name: string;
     shortDescription?: string;
@@ -174,7 +112,6 @@ interface IBookingServiceConfiguration {
   };
 
   serviceRole: ServiceRole;
-
   subService?: {
     subServiceId: Types.ObjectId;
     name: string;
@@ -191,7 +128,6 @@ interface IBookingServiceConfiguration {
   };
 
   components: IBookingComponent[];
-
   pricing: {
     subtotal: number;
     taxes: number;
@@ -210,15 +146,9 @@ const bookingServiceConfigurationSchema =
       },
 
       serviceSnapshot: {
-        name: {
-          type: String,
-          required: true,
-        },
-
+        name: { type: String, required: true },
         shortDescription: String,
-
         thumbnailImage: String,
-
         serviceReference: String,
       },
 
@@ -233,7 +163,6 @@ const bookingServiceConfigurationSchema =
           type: Schema.Types.ObjectId,
           ref: "SubServiceComponent",
         },
-
         name: String,
       },
 
@@ -243,11 +172,7 @@ const bookingServiceConfigurationSchema =
           ref: "Tier",
           required: true,
         },
-
-        name: {
-          type: String,
-          required: true,
-        },
+        name: { type: String, required: true },
       },
 
       location: {
@@ -256,11 +181,7 @@ const bookingServiceConfigurationSchema =
           ref: "Location",
           required: true,
         },
-
-        name: {
-          type: String,
-          required: true,
-        },
+        name: { type: String, required: true },
       },
 
       components: {
@@ -269,30 +190,13 @@ const bookingServiceConfigurationSchema =
       },
 
       pricing: {
-        subtotal: {
-          type: Number,
-          default: 0,
-        },
-
-        taxes: {
-          type: Number,
-          default: 0,
-        },
-
-        discount: {
-          type: Number,
-          default: 0,
-        },
-
-        grandTotal: {
-          type: Number,
-          default: 0,
-        },
+        subtotal: { type: Number, default: 0 },
+        taxes: { type: Number, default: 0 },
+        discount: { type: Number, default: 0 },
+        grandTotal: { type: Number, default: 0 },
       },
     },
-    {
-      _id: false,
-    },
+    { _id: false },
   );
 
 interface IBookingPackageConfiguration {
@@ -306,25 +210,13 @@ interface IBookingPackageConfiguration {
   };
 
   services: IBookingServiceConfiguration[];
-
   addonServices: IBookingServiceConfiguration[];
-
   pricing: {
     subtotal: number;
     taxes: number;
     discount: number;
     grandTotal: number;
   };
-}
-
-interface IBookingEntry {
-  entryType: EntryType;
-
-  entryId: Types.ObjectId;
-
-  serviceConfiguration?: IBookingServiceConfiguration;
-
-  packageConfiguration?: IBookingPackageConfiguration;
 }
 
 const bookingPackageConfigurationSchema =
@@ -338,11 +230,8 @@ const bookingPackageConfigurationSchema =
 
       packageSnapshot: {
         name: String,
-
         shortDescription: String,
-
         thumbnailImage: String,
-
         packageReference: String,
       },
 
@@ -357,31 +246,20 @@ const bookingPackageConfigurationSchema =
       },
 
       pricing: {
-        subtotal: {
-          type: Number,
-          default: 0,
-        },
-
-        taxes: {
-          type: Number,
-          default: 0,
-        },
-
-        discount: {
-          type: Number,
-          default: 0,
-        },
-
-        grandTotal: {
-          type: Number,
-          default: 0,
-        },
+        subtotal: { type: Number, default: 0 },
+        taxes: { type: Number, default: 0 },
+        discount: { type: Number, default: 0 },
+        grandTotal: { type: Number, default: 0 },
       },
     },
-    {
-      _id: false,
-    },
+    { _id: false },
   );
+
+interface IBookingEntry {
+  entryType: EntryType;
+  serviceConfiguration?: IBookingServiceConfiguration;
+  packageConfiguration?: IBookingPackageConfiguration;
+}
 
 const bookingEntrySchema = new Schema<IBookingEntry>(
   {
@@ -391,65 +269,19 @@ const bookingEntrySchema = new Schema<IBookingEntry>(
       required: true,
     },
 
-    entryId: {
-      type: Schema.Types.ObjectId,
-      required: true,
-    },
-
-    serviceConfiguration: {
-      type: bookingServiceConfigurationSchema,
-    },
-
-    packageConfiguration: {
-      type: bookingPackageConfigurationSchema,
-    },
+    serviceConfiguration: bookingServiceConfigurationSchema,
+    packageConfiguration: bookingPackageConfigurationSchema,
   },
-  {
-    _id: false,
-  },
-);
-
-bookingEntrySchema.pre(
-  "validate",
-  { document: true, query: false },
-  function (next) {
-    if (typeof next !== "function") return;
-
-    if (this.entryType === "SERVICE") {
-      if (!this.serviceConfiguration) {
-        return next(new Error("serviceConfiguration required"));
-      }
-      if (this.packageConfiguration) {
-        return next(new Error("packageConfiguration not allowed for SERVICE"));
-      }
-    }
-
-    if (this.entryType === "PACKAGE") {
-      if (!this.packageConfiguration) {
-        return next(new Error("packageConfiguration required"));
-      }
-      if (this.serviceConfiguration) {
-        return next(new Error("serviceConfiguration not allowed for PACKAGE"));
-      }
-    }
-
-    next();
-  },
+  { _id: false },
 );
 
 export interface IBooking extends Document {
   userId?: Types.ObjectId;
-
   subAdminId?: Types.ObjectId;
-
   cartId: Types.ObjectId;
-
   bookingReference: string;
-
   bookedBy: BookedBy;
-
   entries: IBookingEntry[];
-
   customerDetails: {
     name?: string;
     email?: string;
@@ -476,10 +308,10 @@ export interface IBooking extends Document {
     refundAmount?: number;
     paidAt?: Date;
     refundedAt?: Date;
+    currency?: string;
   };
 
   status: BookingStatus;
-
   cancellation?: {
     reason?: string;
     cancelledBy?: Types.ObjectId;
@@ -494,27 +326,17 @@ export interface IBooking extends Document {
   };
 
   scheduledAt?: Date;
-
   notes?: string;
-
-  cartSnapshot?: Record<string, unknown>;
-
+  cartSnapshot?: unknown;
   isDeleted?: boolean;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 const bookingSchema = new Schema<IBooking>(
   {
-    userId: {
-      type: Schema.Types.ObjectId,
-      ref: "User",
-      index: true,
-    },
-
-    subAdminId: {
-      type: Schema.Types.ObjectId,
-      ref: "User",
-      index: true,
-    },
+    userId: { type: Schema.Types.ObjectId, ref: "User", index: true },
+    subAdminId: { type: Schema.Types.ObjectId, ref: "User", index: true },
 
     cartId: {
       type: Schema.Types.ObjectId,
@@ -538,62 +360,27 @@ const bookingSchema = new Schema<IBooking>(
     entries: {
       type: [bookingEntrySchema],
       required: true,
-      default: [],
       validate: {
-        validator: (entries: IBookingEntry[]) => entries.length > 0,
-
+        validator: (v: IBookingEntry[]) => v.length > 0,
         message: "Booking must contain at least one entry",
       },
     },
 
     customerDetails: {
       name: String,
-
-      email: {
-        type: String,
-        lowercase: true,
-        trim: true,
-      },
-
+      email: { type: String, lowercase: true, trim: true },
       phone: String,
-
       address: String,
-
       caste: String,
-
       gotra: String,
     },
 
     pricing: {
-      subtotal: {
-        type: Number,
-        required: true,
-        min: 0,
-      },
-
-      taxes: {
-        type: Number,
-        default: 0,
-        min: 0,
-      },
-
-      discount: {
-        type: Number,
-        default: 0,
-        min: 0,
-      },
-
-      grandTotal: {
-        type: Number,
-        required: true,
-        min: 0,
-      },
-
-      earnings: {
-        type: Number,
-        default: 0,
-        min: 0,
-      },
+      subtotal: { type: Number, required: true, min: 0 },
+      taxes: { type: Number, default: 0 },
+      discount: { type: Number, default: 0 },
+      grandTotal: { type: Number, required: true, min: 0 },
+      earnings: { type: Number, default: 0 },
     },
 
     payment: {
@@ -602,31 +389,17 @@ const bookingSchema = new Schema<IBooking>(
         enum: ["PENDING", "PAID", "FAILED", "REFUNDED", "PARTIAL_REFUND"],
         default: "PENDING",
       },
-
       transactionId: String,
-
       paymentMethod: {
         type: String,
         enum: ["COD", "RAZORPAY", "STRIPE", "UPI", "CARD", "NETBANKING"],
       },
-
       gateway: String,
-
-      amountPaid: {
-        type: Number,
-        default: 0,
-        min: 0,
-      },
-
-      refundAmount: {
-        type: Number,
-        default: 0,
-        min: 0,
-      },
-
+      amountPaid: { type: Number, default: 0 },
+      refundAmount: { type: Number, default: 0 },
       paidAt: Date,
-
       refundedAt: Date,
+      currency: { type: String, default: "INR" },
     },
 
     status: {
@@ -638,75 +411,37 @@ const bookingSchema = new Schema<IBooking>(
 
     cancellation: {
       reason: String,
-
-      cancelledBy: {
-        type: Schema.Types.ObjectId,
-        ref: "User",
-      },
-
+      cancelledBy: { type: Schema.Types.ObjectId, ref: "User" },
       cancelledByRole: {
         type: String,
         enum: ["CUSTOMER", "ADMIN", "SUBADMIN"],
       },
-
       cancelledAt: Date,
     },
 
     lifecycle: {
       confirmedAt: Date,
-
       completedAt: Date,
-
       cancelledAt: Date,
     },
 
     scheduledAt: Date,
-
-    notes: {
-      type: String,
-      maxlength: 1000,
-    },
-
-    cartSnapshot: {
-      type: Schema.Types.Mixed,
-    },
-
-    isDeleted: {
-      type: Boolean,
-      default: false,
-    },
+    notes: { type: String, maxlength: 1000 },
+    cartSnapshot: Schema.Types.Mixed,
+    isDeleted: { type: Boolean, default: false },
   },
   {
     timestamps: true,
   },
 );
 
-bookingSchema.index({
-  userId: 1,
-  status: 1,
-});
-
-bookingSchema.index({
-  userId: 1,
-  createdAt: -1,
-});
-
-bookingSchema.index({
-  createdAt: -1,
-});
-
-bookingSchema.index({
-  scheduledAt: 1,
-  status: 1,
-});
-
-bookingSchema.index({
-  "payment.status": 1,
-});
-
-bookingSchema.index({
-  bookingReference: 1,
-});
+bookingSchema.index({ userId: 1, status: 1 });
+bookingSchema.index({ userId: 1, createdAt: -1 });
+bookingSchema.index({ createdAt: -1 });
+bookingSchema.index({ scheduledAt: 1, status: 1 });
+bookingSchema.index({ "payment.status": 1 });
+bookingSchema.index({ bookingReference: 1 });
+bookingSchema.index({ userId: 1, scheduledAt: 1 });
 
 bookingSchema.pre("save", async function () {
   if (!this.isNew) return;
@@ -714,10 +449,7 @@ bookingSchema.pre("save", async function () {
   const counter = await Counter.findOneAndUpdate(
     { id: "bookingId" },
     { $inc: { seq: 1 } },
-    {
-      new: true,
-      upsert: true,
-    },
+    { new: true, upsert: true },
   );
 
   if (!counter) {

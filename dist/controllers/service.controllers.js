@@ -1,4 +1,5 @@
 import { ServiceService } from "../services/service.service.js";
+import { ServiceDiagnosticsEngine } from "../services/diagnostic-engine.service.js";
 export const createService = async (req, res) => {
     try {
         const service = await ServiceService.createService(req.body);
@@ -222,6 +223,21 @@ export const getFullServiceByCities = async (req, res) => {
         return res.status(200).json({
             success: true,
             data,
+        });
+    }
+    catch (error) {
+        return res.status(400).json({
+            success: false,
+            message: error.message,
+        });
+    }
+};
+export const getServiceDiagnostics = async (req, res) => {
+    try {
+        const result = await ServiceDiagnosticsEngine.analyze(req.params.serviceId);
+        return res.status(200).json({
+            success: true,
+            data: result,
         });
     }
     catch (error) {

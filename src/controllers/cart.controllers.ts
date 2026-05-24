@@ -1,520 +1,342 @@
 import type { Request, Response } from "express";
-import { CartService } from "../services/cart.service.js";
+import CartService from "../services/cart.service.js";
 
-export class CartController {
-  private cartService: CartService;
+export const createServiceCart = async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) {
+      return res.status(401).json({ success: false, message: "Unauthorized" });
+    }
 
-  constructor() {
-    this.cartService = new CartService();
+    const cart = await CartService.createServiceCart(userId, req.body);
+
+    res.status(201).json({
+      success: true,
+      message: "Service cart created successfully",
+      cart,
+    });
+  } catch (error: any) {
+    res.status(400).json({
+      success: false,
+      message: error.message || "Failed to create service cart",
+    });
   }
+};
 
-  createCart = async (req: Request, res: Response) => {
-    try {
-      const user = (req as any).user;
-      const cart = await this.cartService.createCart({
-        userId: user?.userId,
-        ...req.body,
-      });
-
-      return res.status(201).json({
-        success: true,
-        message: "Cart create successfully",
-        data: cart,
-      });
-    } catch (error: any) {
-      return res.status(500).json({
-        success: false,
-        message: error.message || "Failed to create cart",
-      });
+export const createPackageCart = async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) {
+      return res.status(401).json({ success: false, message: "Unauthorized" });
     }
-  };
 
-  getUserCarts = async (req: Request, res: Response) => {
-    try {
-      const user = (req as any).user;
-      const carts = await this.cartService.getUserCarts(user.userId, req.query);
-      return res.status(200).json({
-        success: true,
-        data: carts,
-      });
-    } catch (error: any) {
-      return res.status(500).json({
-        success: false,
-        message: error.message || "Failed to fetch carts",
-      });
+    const cart = await CartService.createPackageCart(userId, req.body);
+
+    res.status(201).json({
+      success: true,
+      message: "Package cart created successfully",
+      cart,
+    });
+  } catch (error: any) {
+    res.status(400).json({
+      success: false,
+      message: error.message || "Failed to create package cart",
+    });
+  }
+};
+
+export const getUserCarts = async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) {
+      return res.status(401).json({ success: false, message: "Unauthorized" });
     }
-  };
 
-  getCartById = async (req: Request, res: Response) => {
-    try {
-      const user = (req as any).user;
-      const { cartId } = req.params;
-      const cart = await this.cartService.getCartById(
-        cartId as string,
-        user.userId,
-      );
-      return res.status(200).json({
-        success: true,
-        data: cart,
-      });
-    } catch (error: any) {
-      return res.status(500).json({
-        success: false,
-        message: error.message || "Failed to fetch cart",
-      });
+    const carts = await CartService.getUserCarts(userId);
+
+    res.status(200).json({
+      success: true,
+      carts,
+    });
+  } catch (error: any) {
+    res.status(400).json({
+      success: false,
+      message: error.message || "Failed to fetch carts",
+    });
+  }
+};
+
+export const getCartById = async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) {
+      return res.status(401).json({ success: false, message: "Unauthorized" });
     }
-  };
 
-  updateCart = async (req: Request, res: Response) => {
-    try {
-      const user = (req as any).user;
-      const { cartId } = req.params;
-      const cart = await this.cartService.updateCart(
-        cartId as string,
-        user.userId,
-        req.body,
-      );
-      return res.status(200).json({
-        success: true,
-        message: "Cart updated successfully",
-        data: cart,
-      });
-    } catch (error: any) {
-      return res.status(500).json({
-        success: false,
-        message: error.message || "Failed to update cart",
-      });
+    const cart = await CartService.getCartById(
+      userId,
+      req.params.cartId as string,
+    );
+
+    res.status(200).json({
+      success: true,
+      cart,
+    });
+  } catch (error: any) {
+    res.status(404).json({
+      success: false,
+      message: error.message || "Failed to fetch cart",
+    });
+  }
+};
+
+export const updateSelectedComponents = async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) {
+      return res.status(401).json({ success: false, message: "Unauthorized" });
     }
-  };
 
-  deleteCart = async (req: Request, res: Response) => {
-    try {
-      const user = (req as any).user;
-      const { cartId } = req.params;
+    const cart = await CartService.updateSelectedComponents(
+      userId,
+      req.params.cartId as string,
+      req.body,
+    );
 
-      await this.cartService.deleteCart(cartId as string, user.userId);
+    res.status(200).json({
+      success: true,
+      message: "Selected components updated successfully",
+      cart,
+    });
+  } catch (error: any) {
+    res.status(400).json({
+      success: false,
+      message: error.message || "Failed to update selected components",
+    });
+  }
+};
 
-      return res.status(200).json({
-        success: true,
-        message: "Cart deleted successfully",
-      });
-    } catch (error: any) {
-      return res.status(500).json({
-        success: false,
-        message: error.message || "Failed to delete cart",
-      });
+export const updateAddonComponents = async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) {
+      return res.status(401).json({ success: false, message: "Unauthorized" });
     }
-  };
 
-  clearCartEntries = async (req: Request, res: Response) => {
-    try {
-      const user = (req as any).user;
-      const { cartId } = req.params;
+    const cart = await CartService.updateAddonComponents(
+      userId,
+      req.params.cartId as string,
+      req.body,
+    );
 
-      const cart = await this.cartService.clearCartEntries(
-        cartId as string,
-        user.userId,
-      );
+    res.status(200).json({
+      success: true,
+      message: "Addon components updated successfully",
+      cart,
+    });
+  } catch (error: any) {
+    res.status(400).json({
+      success: false,
+      message: error.message || "Failed to update addon components",
+    });
+  }
+};
 
-      return res.status(200).json({
-        success: true,
-        message: "Cart entries cleared successfully",
-        data: cart,
-      });
-    } catch (error: any) {
-      return res.status(500).json({
-        success: false,
-        message: error.message || "Failed to clear cart entries",
-      });
+export const updateAddonServices = async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) {
+      return res.status(401).json({ success: false, message: "Unauthorized" });
     }
-  };
 
-  addServiceEntry = async (req: Request, res: Response) => {
-    try {
-      const { cartId } = req.params;
+    const cart = await CartService.updateAddonServices(
+      userId,
+      req.params.cartId as string,
+      req.body,
+    );
 
-      const entry = await this.cartService.addServiceEntry(
-        cartId as string,
-        req.body,
-      );
+    res.status(200).json({
+      success: true,
+      message: "Addon services updated successfully",
+      cart,
+    });
+  } catch (error: any) {
+    res.status(400).json({
+      success: false,
+      message: error.message || "Failed to update addon services",
+    });
+  }
+};
 
-      return res.status(201).json({
-        success: true,
-        message: "Service entry added successfully",
-        data: entry,
-      });
-    } catch (error: any) {
-      return res.status(500).json({
-        success: false,
-        message: error.message || "Failed to add service entry",
-      });
+export const updateSchedule = async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) {
+      return res.status(401).json({ success: false, message: "Unauthorized" });
     }
-  };
 
-  addPackageEntry = async (req: Request, res: Response) => {
-    try {
-      const user = (req as any).user;
-      const { cartId } = req.params;
+    const cart = await CartService.updateSchedule(
+      userId,
+      req.params.cartId as string,
+      req.body,
+    );
 
-      const entry = await this.cartService.addPackageEntry(
-        cartId as string,
-        user.userId,
-        req.body,
-      );
+    res.status(200).json({
+      success: true,
+      message: "Schedule updated successfully",
+      cart,
+    });
+  } catch (error: any) {
+    res.status(400).json({
+      success: false,
+      message: error.message || "Failed to update schedule",
+    });
+  }
+};
 
-      return res.status(201).json({
-        success: true,
-        message: "Package entry added successfully",
-        data: entry,
-      });
-    } catch (error: any) {
-      return res.status(500).json({
-        success: false,
-        message: error.message || "Failed to add package entry",
-      });
+export const updateCustomerDetails = async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) {
+      return res.status(401).json({ success: false, message: "Unauthorized" });
     }
-  };
 
-  getEntryById = async (req: Request, res: Response) => {
-    try {
-      const user = (req as any).user;
-      const { cartId, entryId } = req.params;
+    const cart = await CartService.updateCustomerDetails(
+      userId,
+      req.params.cartId as string,
+      req.body,
+    );
 
-      const entry = await this.cartService.getEntryById(
-        cartId as string,
-        entryId as string,
-        user.userId,
-      );
+    res.status(200).json({
+      success: true,
+      message: "Customer details updated successfully",
+      cart,
+    });
+  } catch (error: any) {
+    res.status(400).json({
+      success: false,
+      message: error.message || "Failed to update customer details",
+    });
+  }
+};
 
-      return res.status(200).json({
-        success: true,
-        data: entry,
-      });
-    } catch (error: any) {
-      return res.status(500).json({
-        success: false,
-        message: error.message || "Failed to fetch entry",
-      });
+export const updateCartNotes = async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) {
+      return res.status(401).json({ success: false, message: "Unauthorized" });
     }
-  };
 
-  updateEntry = async (req: Request, res: Response) => {
-    try {
-      const user = (req as any).user;
-      const { cartId, entryId } = req.params;
+    const cart = await CartService.updateCartNotes(
+      userId,
+      req.params.cartId as string,
+      req.body,
+    );
 
-      const entry = await this.cartService.updateEntry(
-        cartId as string,
-        entryId as string,
-        user.userId,
-        req.body,
-      );
+    res.status(200).json({
+      success: true,
+      message: "Cart notes updated successfully",
+      cart,
+    });
+  } catch (error: any) {
+    res.status(400).json({
+      success: false,
+      message: error.message || "Failed to update cart notes",
+    });
+  }
+};
 
-      return res.status(200).json({
-        success: true,
-        message: "Entry updated successfully",
-        data: entry,
-      });
-    } catch (error: any) {
-      return res.status(500).json({
-        success: false,
-        message: error.message || "Failed to update entry",
-      });
+export const recalculateCart = async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) {
+      return res.status(401).json({ success: false, message: "Unauthorized" });
     }
-  };
 
-  removeEntry = async (req: Request, res: Response) => {
-    try {
-      const user = (req as any).user;
-      const { cartId, entryId } = req.params;
+    const cart = await CartService.recalculateCart(
+      userId,
+      req.params.cartId as string,
+    );
 
-      await this.cartService.removeEntry(
-        cartId as string,
-        entryId as string,
-        user.userId,
-      );
+    res.status(200).json({
+      success: true,
+      message: "Cart recalculated successfully",
+      cart,
+    });
+  } catch (error: any) {
+    res.status(400).json({
+      success: false,
+      message: error.message || "Failed to recalculate cart",
+    });
+  }
+};
 
-      return res.status(200).json({
-        success: true,
-        message: "Entry removed successfully",
-      });
-    } catch (error: any) {
-      return res.status(500).json({
-        success: false,
-        message: error.message || "Failed to remove entry",
-      });
+export const validateCart = async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) {
+      return res.status(401).json({ success: false, message: "Unauthorized" });
     }
-  };
 
-  getEntryComponents = async (req: Request, res: Response) => {
-    try {
-      const user = (req as any).user;
-      const { cartId, entryId } = req.params;
+    const validation = await CartService.validateCart(
+      userId,
+      req.params.cartId as string,
+    );
 
-      const components = await this.cartService.getEntryComponents(
-        cartId as string,
-        entryId as string,
-        user.userId,
-      );
+    res.status(200).json({
+      success: true,
+      validation,
+    });
+  } catch (error: any) {
+    res.status(400).json({
+      success: false,
+      message: error.message || "Failed to validate cart",
+    });
+  }
+};
 
-      return res.status(200).json({
-        success: true,
-        data: components,
-      });
-    } catch (error: any) {
-      return res.status(500).json({
-        success: false,
-        message: error.message || "Failed to fetch components",
-      });
+// export const checkoutCart = async (req: Request, res: Response) => {
+//   try {
+//     const userId = req.user?.userId;
+//     if (!userId) {
+//       return res.status(401).json({ success: false, message: "Unauthorized" });
+//     }
+
+//     const checkout = await CartService.checkoutCart(
+//       userId,
+//       req.params.cartId as string,
+//     );
+
+//     res.status(200).json({
+//       success: true,
+//       message: "Cart checked out successfully",
+//       ...checkout,
+//     });
+//   } catch (error: any) {
+//     res.status(400).json({
+//       success: false,
+//       message: error.message || "Failed to checkout cart",
+//     });
+//   }
+// };
+
+export const deleteCart = async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) {
+      return res.status(401).json({ success: false, message: "Unauthorized" });
     }
-  };
 
-  updateComponent = async (req: Request, res: Response) => {
-    try {
-      const { cartId, entryId, componentId } = req.params;
+    await CartService.deleteCart(userId, req.params.cartId as string);
 
-      const component = await this.cartService.updateComponent(
-        cartId as string,
-        entryId as string,
-        componentId as string,
-        req.body,
-      );
-
-      return res.status(200).json({
-        success: true,
-        message: "Component updated successfully",
-        data: component,
-      });
-    } catch (error: any) {
-      return res.status(500).json({
-        success: false,
-        message: error.message || "Failed to update component",
-      });
-    }
-  };
-
-  updateComponentItems = async (req: Request, res: Response) => {
-    try {
-      const { cartId, entryId, componentId } = req.params;
-
-      const component = await this.cartService.updateComponentItems(
-        cartId as string,
-        entryId as string,
-        componentId as string,
-        req.body.selectedItems,
-      );
-
-      return res.status(200).json({
-        success: true,
-        message: "Component items updated successfully",
-        data: component,
-      });
-    } catch (error: any) {
-      return res.status(500).json({
-        success: false,
-        message: error.message || "Failed to update component items",
-      });
-    }
-  };
-
-  addAddonComponent = async (req: Request, res: Response) => {
-    try {
-      const { cartId, entryId } = req.params;
-
-      const component = await this.cartService.addAddonComponent(
-        cartId as string,
-        entryId as string,
-        req.body,
-      );
-
-      return res.status(201).json({
-        success: true,
-        message: "Addon component added successfully",
-        data: component,
-      });
-    } catch (error: any) {
-      return res.status(500).json({
-        success: false,
-        message: error.message || "Failed to add addon component",
-      });
-    }
-  };
-
-  removeAddonComponent = async (req: Request, res: Response) => {
-    try {
-      const { cartId, entryId, componentId } = req.params;
-
-      await this.cartService.removeAddonComponent(
-        cartId as string,
-        entryId as string,
-        componentId as string,
-      );
-
-      return res.status(200).json({
-        success: true,
-        message: "Addon component removed successfully",
-      });
-    } catch (error: any) {
-      return res.status(500).json({
-        success: false,
-        message: error.message || "Failed to remove addon component",
-      });
-    }
-  };
-
-  addAddonService = async (req: Request, res: Response) => {
-    try {
-      const { cartId, entryId } = req.params;
-
-      const service = await this.cartService.addAddonService(
-        cartId as string,
-        entryId as string,
-        req.body,
-      );
-
-      return res.status(201).json({
-        success: true,
-        message: "Addon service added successfully",
-        data: service,
-      });
-    } catch (error: any) {
-      return res.status(500).json({
-        success: false,
-        message: error.message || "Failed to add addon service",
-      });
-    }
-  };
-
-  removeAddonService = async (req: Request, res: Response) => {
-    try {
-      const { cartId, entryId, serviceId } = req.params;
-
-      await this.cartService.removeAddonService(
-        cartId as string,
-        entryId as string,
-        serviceId as string,
-      );
-
-      return res.status(200).json({
-        success: true,
-        message: "Addon service removed successfully",
-      });
-    } catch (error: any) {
-      return res.status(500).json({
-        success: false,
-        message: error.message || "Failed to remove addon service",
-      });
-    }
-  };
-
-  updateIncludedService = async (req: Request, res: Response) => {
-    try {
-      const user = (req as any).user;
-      const { cartId, entryId, serviceId } = req.params;
-
-      const service = await this.cartService.updateIncludedService(
-        cartId as string,
-        entryId as string,
-        serviceId as string,
-        user.userId,
-        req.body,
-      );
-
-      return res.status(200).json({
-        success: true,
-        message: "Included service updated successfully",
-        data: service,
-      });
-    } catch (error: any) {
-      return res.status(500).json({
-        success: false,
-        message: error.message || "Failed to update included service",
-      });
-    }
-  };
-
-  validateCart = async (req: Request, res: Response) => {
-    try {
-      const { cartId } = req.params;
-
-      const validation = await this.cartService.validateCart(cartId as string);
-
-      return res.status(200).json({
-        success: true,
-        message: "Cart validated successfully",
-        data: validation,
-      });
-    } catch (error: any) {
-      return res.status(500).json({
-        success: false,
-        message: error.message || "Failed to validate cart",
-      });
-    }
-  };
-
-  recalculateCart = async (req: Request, res: Response) => {
-    try {
-      const { cartId } = req.params;
-
-      const cart = await this.cartService.recalculateCart(cartId as string);
-
-      return res.status(200).json({
-        success: true,
-        message: "Cart recalculated successfully",
-        data: cart,
-      });
-    } catch (error: any) {
-      return res.status(500).json({
-        success: false,
-        message: error.message || "Failed to recalculate cart",
-      });
-    }
-  };
-
-  prepareCheckout = async (req: Request, res: Response) => {
-    try {
-      const user = (req as any).user;
-      const { cartId } = req.params;
-
-      const checkout = await this.cartService.prepareCheckout(
-        cartId as string,
-        user?.userId,
-      );
-
-      return res.status(200).json({
-        success: true,
-        message: "Checkout prepared successfully",
-        data: checkout,
-      });
-    } catch (error: any) {
-      return res.status(500).json({
-        success: false,
-        message: error.message || "Failed to prepare checkout",
-      });
-    }
-  };
-
-  checkoutCart = async (req: Request, res: Response) => {
-    try {
-      const user = (req as any).user;
-
-      const { cartId } = req.params;
-
-      const booking = await this.cartService.checkoutCart(
-        cartId as string,
-        user?.userId,
-      );
-
-      return res.status(200).json({
-        success: true,
-        message: "Cart checked out successfully",
-        data: booking,
-      });
-    } catch (error: any) {
-      return res.status(500).json({
-        success: false,
-        message: error.message || "Failed to checkout cart",
-      });
-    }
-  };
-}
+    res.status(200).json({
+      success: true,
+      message: "Cart deleted successfully",
+    });
+  } catch (error: any) {
+    res.status(400).json({
+      success: false,
+      message: error.message || "Failed to delete cart",
+    });
+  }
+};

@@ -1,127 +1,205 @@
 import { PackageService } from "../services/package.service.js";
+import { PackageDiagnosticsEngine } from "../services/package-diagnostics-engine.service.js";
 export const createPackage = async (req, res) => {
     try {
         const pkg = await PackageService.createPackage(req.body);
-        res.status(201).json({
+        return res.status(201).json({
             success: true,
             data: pkg,
         });
     }
     catch (error) {
-        res.status(400).json({
+        if (error.name === "ValidationError" || error.isOperational) {
+            return res.status(400).json({
+                success: false,
+                message: error.message,
+            });
+        }
+        if (error.code === 11000) {
+            return res.status(409).json({
+                success: false,
+                message: "Package with this reference already exists",
+            });
+        }
+        return res.status(500).json({
             success: false,
-            message: error.message || "Failed to create package",
+            message: error.message || "Internal server error",
         });
     }
 };
 export const updatePackage = async (req, res) => {
     try {
-        const { id } = req.params;
-        const pkg = await PackageService.updatePackage(id, req.body);
-        res.status(200).json({
+        const { packageId } = req.params;
+        const pkg = await PackageService.updatePackage(packageId, req.body);
+        return res.status(200).json({
             success: true,
             data: pkg,
         });
     }
     catch (error) {
-        res.status(400).json({
+        return res.status(400).json({
             success: false,
-            message: error.message || "Failed to update package",
+            message: error.message,
         });
     }
 };
-export const getPackageDetails = async (req, res) => {
+export const togglePackageStatus = async (req, res) => {
     try {
-        const { id } = req.params;
-        const { location } = req.query;
-        const pkg = await PackageService.getPackageDetails(id, location);
-        res.status(200).json({
-            success: true,
-            data: pkg,
-        });
+        const { packageId } = req.params;
+        const { isActive } = req.body;
+        const result = await PackageService.togglePackageStatus(packageId, isActive);
+        return res.status(200).json(result);
     }
     catch (error) {
-        res.status(400).json({
+        return res.status(400).json({
             success: false,
-            message: error.message || "Failed to fetch package details",
+            message: error.message,
         });
     }
 };
 export const getPackageById = async (req, res) => {
     try {
-        const { id } = req.params;
-        const pkg = await PackageService.getPackageById(id);
-        res.status(200).json({
+        const { packageId } = req.params;
+        const pkg = await PackageService.getPackageById(packageId);
+        return res.status(200).json({
             success: true,
             data: pkg,
         });
     }
     catch (error) {
-        res.status(404).json({
+        return res.status(400).json({
             success: false,
-            message: error.message || "Package not found",
+            message: error.message,
         });
     }
 };
-export const getFullPackageDetails = async (req, res) => {
+export const getAllPackages = async (req, res) => {
     try {
-        const { serviceIds } = req.body;
-        if (!Array.isArray(serviceIds)) {
-            return res
-                .status(400)
-                .json({ success: false, message: "serviceIds must be an array" });
-        }
-        const pkg = await PackageService.getFullPackageDetails(serviceIds);
-        res.status(200).json({
-            success: true,
-            data: pkg,
-        });
-    }
-    catch (error) {
-        res.status(404).json({
-            success: false,
-            message: error.message || "Package not found",
-        });
-    }
-};
-export const updatePackageStatus = async (req, res) => {
-    try {
-        const { id } = req.params;
-        const { isActive } = req.body;
-        const result = await PackageService.updatePackageStatus(id, isActive);
-        res.status(200).json(result);
-    }
-    catch (error) {
-        res.status(400).json({
-            success: false,
-            message: error.message || "Failed to update package status",
-        });
-    }
-};
-export const getPackages = async (req, res) => {
-    try {
-        const { page, limit, isActive, search, category, serviceId, location, sortBy, sortOrder, } = req.query;
+        const { searchTerm, categoryId, locationId, limit, page, isActive, isComplete, sortBy, sortOrder, } = req.query;
         const activeBool = isActive === "true" ? true : isActive === "false" ? false : undefined;
-        const result = await PackageService.getPackages({
-            page: Number(page) || 1,
-            limit: Number(limit) || 20,
-            isActive: activeBool, // Pass undefined, true, or false
-            search: search,
-            category: category,
-            serviceId: serviceId,
-            location: location,
-            sortBy: sortBy || "displayOrder",
-            sortOrder: sortOrder || "asc",
-        });
-        res.status(200).json({
+        const completeBool = isComplete === "true" ? true : isComplete === "false" ? false : undefined;
+        const { data, total, page: currentPage, totalPages, } = await PackageService.findPackages(searchTerm, categoryId, locationId, Number(limit) || 20, Number(page) || 1, activeBool, completeBool, sortBy || "name", sortOrder || "asc");
+        return res.status(200).json({
             success: true,
-            ...result,
+            data,
+            total,
+            currentPage,
+            totalPages,
         });
     }
     catch (error) {
-        res.status(400).json({
+        return res.status(400).json({
             success: false,
             message: error.message || "Failed to fetch packages",
+        });
+    }
+};
+export const updatePackageLocations = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { locations } = req.body;
+        const result = await PackageService.updatePackageLocations(id, locations);
+        return res.status(200).json(result);
+    }
+    catch (error) {
+        if (error.message === "Package not found") {
+            return res.status(404).json({
+                success: false,
+                message: error.message,
+            });
+        }
+        return res.status(400).json({
+            success: false,
+            message: error.message,
+        });
+    }
+};
+export const removePackageLocation = async (req, res) => {
+    try {
+        const { id, locationId } = req.params;
+        const result = await PackageService.removePackageLocation(id, locationId);
+        return res.status(200).json(result);
+    }
+    catch (error) {
+        if (error.message === "Package not found") {
+            return res.status(404).json({
+                success: false,
+                message: error.message,
+            });
+        }
+        return res.status(400).json({
+            success: false,
+            message: error.message,
+        });
+    }
+};
+export const updatePackageTiers = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { tiers } = req.body;
+        const result = await PackageService.updatePackageTiers(id, tiers);
+        return res.status(200).json(result);
+    }
+    catch (error) {
+        if (error.message === "Package not found") {
+            return res.status(404).json({
+                success: false,
+                message: error.message,
+            });
+        }
+        return res.status(400).json({
+            success: false,
+            message: error.message,
+        });
+    }
+};
+export const removePackageTier = async (req, res) => {
+    try {
+        const { id, tierId } = req.params;
+        const result = await PackageService.removePackageTier(id, tierId);
+        return res.status(200).json(result);
+    }
+    catch (error) {
+        if (error.message === "Package not found") {
+            return res.status(404).json({
+                success: false,
+                message: error.message,
+            });
+        }
+        return res.status(400).json({
+            success: false,
+            message: error.message,
+        });
+    }
+};
+export const getFullPackage = async (req, res) => {
+    try {
+        const { packageId } = req.params;
+        const data = await PackageService.getFullPackage(packageId);
+        return res.status(200).json({
+            success: true,
+            data,
+        });
+    }
+    catch (error) {
+        return res.status(400).json({
+            success: false,
+            message: error.message,
+        });
+    }
+};
+export const getPackageDiagnostics = async (req, res) => {
+    try {
+        const result = await PackageDiagnosticsEngine.analyze(req.params.packageId);
+        return res.status(200).json({
+            success: true,
+            data: result,
+        });
+    }
+    catch (error) {
+        return res.status(400).json({
+            success: false,
+            message: error.message,
         });
     }
 };

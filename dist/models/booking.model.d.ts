@@ -1,20 +1,20 @@
 import { Types, Document, Model } from "mongoose";
-type BookingStatus = "PENDING" | "CONFIRMED" | "COMPLETED" | "CANCELLED";
-type PaymentMethod = "COD" | "RAZORPAY" | "STRIPE" | "UPI" | "CARD" | "NETBANKING";
-type PaymentStatus = "PENDING" | "PAID" | "FAILED" | "REFUNDED" | "PARTIAL_REFUND";
-type BookedBy = "CUSTOMER" | "ADMIN" | "SUBADMIN";
-type EntryType = "SERVICE" | "PACKAGE";
-type ComponentType = "DEFAULT" | "ADDON";
-type ServiceRole = "PRIMARY" | "INCLUDED" | "ADDON";
+export type BookingStatus = "PENDING" | "CONFIRMED" | "COMPLETED" | "CANCELLED";
+export type PaymentMethod = "COD" | "RAZORPAY" | "STRIPE" | "UPI" | "CARD" | "NETBANKING";
+export type PaymentStatus = "PENDING" | "PAID" | "FAILED" | "REFUNDED" | "PARTIAL_REFUND";
+export type BookedBy = "CUSTOMER" | "ADMIN" | "SUBADMIN";
+export type EntryType = "SERVICE" | "PACKAGE";
+export type ComponentType = "DEFAULT" | "ADDON";
+export type ServiceRole = "PRIMARY" | "INCLUDED" | "ADDON";
 interface IBookingSelectedItem {
     itemId: Types.ObjectId;
     name: string;
-    price?: number;
+    price: number;
 }
 interface IBookingComponent {
     componentType: ComponentType;
-    serviceComponentId?: Types.ObjectId;
     componentId: Types.ObjectId;
+    serviceComponentId?: Types.ObjectId;
     name: string;
     description?: string;
     isRequired: boolean;
@@ -76,7 +76,6 @@ interface IBookingPackageConfiguration {
 }
 interface IBookingEntry {
     entryType: EntryType;
-    entryId: Types.ObjectId;
     serviceConfiguration?: IBookingServiceConfiguration;
     packageConfiguration?: IBookingPackageConfiguration;
 }
@@ -111,6 +110,7 @@ export interface IBooking extends Document {
         refundAmount?: number;
         paidAt?: Date;
         refundedAt?: Date;
+        currency?: string;
     };
     status: BookingStatus;
     cancellation?: {
@@ -126,8 +126,10 @@ export interface IBooking extends Document {
     };
     scheduledAt?: Date;
     notes?: string;
-    cartSnapshot?: Record<string, unknown>;
+    cartSnapshot?: unknown;
     isDeleted?: boolean;
+    createdAt: Date;
+    updatedAt: Date;
 }
 export declare const Booking: Model<IBooking>;
 export {};

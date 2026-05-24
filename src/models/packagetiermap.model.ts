@@ -6,12 +6,6 @@ export interface IPackageTierService {
   isRequired: boolean;
 }
 
-export interface IPackageTierMap extends Document {
-  packageId: Types.ObjectId;
-  tierId: Types.ObjectId;
-  services: IPackageTierService[];
-}
-
 const packageTierServiceSchema = new Schema<IPackageTierService>(
   {
     serviceId: {

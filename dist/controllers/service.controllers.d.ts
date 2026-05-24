@@ -11,4 +11,5 @@ export declare const updateServiceTiers: (req: Request, res: Response) => Promis
 export declare const removeServiceTier: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
 export declare const getFullService: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
 export declare const getFullServiceByCities: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
+export declare const getServiceDiagnostics: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
 //# sourceMappingURL=service.controllers.d.ts.map

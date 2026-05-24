@@ -1,31 +1,25 @@
 import { Types, Document } from "mongoose";
-export interface IPackageService {
-    serviceId: Types.ObjectId;
+export interface IPackageLocation {
     name: string;
-    serviceRole: "INCLUDED" | "OPTIONAL";
-    defaultTierId?: Types.ObjectId;
-    allowedTierIds?: Types.ObjectId[];
-    displayOrder?: number;
-    isActive?: boolean;
+    isActive: boolean;
+    locationId: Types.ObjectId;
+}
+export interface IPackageTier {
+    name: string;
+    tierId: Types.ObjectId;
 }
 export interface IPackage extends Document {
     name: string;
-    shortDescription?: string;
-    description?: string;
-    packageReference: string;
+    shortDescription: string;
+    fullDescription?: string;
     categoryId: Types.ObjectId;
-    services: IPackageService[];
-    locations: Types.ObjectId[];
-    image?: string;
-    pricing: {
-        type: "DERIVED" | "FIXED";
-        fixedPrice?: number;
-        discountPercentage?: number;
-    };
-    displayOrder?: number;
+    thumbnailImage?: string;
+    bannerImage?: string;
     isActive: boolean;
-    version: number;
-    createdBy?: Types.ObjectId;
+    packageReference: string;
+    locations: IPackageLocation[];
+    tiers: IPackageTier[];
+    isComplete: boolean;
 }
 export declare const Package: import("mongoose").Model<IPackage, {}, {}, {}, Document<unknown, {}, IPackage, {}, import("mongoose").DefaultSchemaOptions> & IPackage & Required<{
     _id: Types.ObjectId;

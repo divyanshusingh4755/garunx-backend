@@ -1,36 +1,32 @@
-import { model, Schema, Types, Document } from "mongoose";
-const packageServiceSchema = new Schema({
-    serviceId: {
-        type: Schema.Types.ObjectId,
-        ref: "Service",
-        required: true,
-    },
+import { Schema, model, Types, Document } from "mongoose";
+const packageLocationSchema = new Schema({
     name: {
         type: String,
         required: true,
-    },
-    serviceRole: {
-        type: String,
-        enum: ["INCLUDED", "OPTIONAL"],
-        default: "INCLUDED",
-    },
-    defaultTierId: {
-        type: Schema.Types.ObjectId,
-        ref: "Tier",
-    },
-    allowedTierIds: [
-        {
-            type: Schema.Types.ObjectId,
-            ref: "Tier",
-        },
-    ],
-    displayOrder: {
-        type: Number,
-        default: 0,
+        trim: true,
     },
     isActive: {
         type: Boolean,
         default: true,
+    },
+    locationId: {
+        type: Schema.Types.ObjectId,
+        required: true,
+        ref: "Location",
+        index: true,
+    },
+}, { _id: false });
+const packageTierSchema = new Schema({
+    name: {
+        type: String,
+        required: true,
+        trim: true,
+    },
+    tierId: {
+        type: Schema.Types.ObjectId,
+        required: true,
+        ref: "Tier",
+        index: true,
     },
 }, { _id: false });
 const packageSchema = new Schema({
@@ -41,16 +37,19 @@ const packageSchema = new Schema({
     },
     shortDescription: {
         type: String,
+        required: true,
         maxlength: 200,
     },
-    description: {
-        type: String,
-    },
-    packageReference: {
+    fullDescription: {
         type: String,
         required: true,
-        unique: true,
-        index: true,
+    },
+    thumbnailImage: {
+        type: String,
+        required: true,
+    },
+    bannerImage: {
+        type: String,
     },
     categoryId: {
         type: Schema.Types.ObjectId,
@@ -58,92 +57,61 @@ const packageSchema = new Schema({
         required: true,
         index: true,
     },
-    services: {
-        type: [packageServiceSchema],
-        validate: {
-            validator: function (services) {
-                return services && services.length > 0;
-            },
-            message: "Package must contain at least one service",
-        },
-    },
-    locations: [
-        {
-            type: Schema.Types.ObjectId,
-            ref: "Location",
-        },
-    ],
-    image: {
-        type: String,
-    },
-    pricing: {
-        type: {
-            type: String,
-            enum: ["DERIVED", "FIXED"],
-            default: "DERIVED",
-        },
-        fixedPrice: {
-            type: Number,
-            min: 0,
-        },
-        discountPercentage: {
-            type: Number,
-            min: 0,
-            max: 100,
-        },
-    },
-    displayOrder: {
-        type: Number,
-        default: 0,
-    },
+    locations: [packageLocationSchema],
+    tiers: [packageTierSchema],
     isActive: {
         type: Boolean,
         default: true,
         index: true,
     },
-    version: {
-        type: Number,
-        default: 1,
+    packageReference: {
+        type: String,
+        unique: true,
     },
-    createdBy: {
-        type: Schema.Types.ObjectId,
-        ref: "User",
+    isComplete: {
+        type: Boolean,
+        default: false,
+        index: true,
     },
 }, {
     timestamps: true,
+    toJSON: {
+        virtuals: true,
+    },
+    toObject: {
+        virtuals: true,
+    },
+});
+packageSchema.virtual("tierMappings", {
+    ref: "PackageTierMap",
+    localField: "_id",
+    foreignField: "packageId",
+});
+packageSchema.virtual("tierPricing", {
+    ref: "PackageTierPricing",
+    localField: "_id",
+    foreignField: "packageId",
 });
 packageSchema.index({
-    isActive: 1,
     categoryId: 1,
+    isActive: 1,
+    isComplete: 1,
 });
 packageSchema.index({
-    locations: 1,
+    "locations.locationId": 1,
 });
 packageSchema.index({
-    "services.serviceId": 1,
-});
-packageSchema.index({
-    createdAt: -1,
+    "tiers.tierId": 1,
 });
 packageSchema.index({
     name: "text",
     shortDescription: "text",
-    description: "text",
+}, {
+    name: "PackageTextSearchIndex",
 });
-packageSchema.pre("save", async function () {
-    if (this.pricing.type === "FIXED") {
-        if (this.pricing.fixedPrice === undefined) {
-            throw new Error("Fixed price is required when pricing type is FIXED");
-        }
-        delete this.pricing.discountPercentage;
-    }
-    if (this.pricing.type === "DERIVED") {
-        delete this.pricing.fixedPrice;
-    }
-    const serviceIds = this.services.map((service) => service.serviceId.toString());
-    if (new Set(serviceIds).size !== serviceIds.length) {
-        throw new Error("Duplicate services are not allowed in package");
-    }
+packageSchema.index({
+    isActive: 1,
+    categoryId: 1,
 });
 export const Package = model("Package", packageSchema);
 //# sourceMappingURL=package.model.js.map

@@ -1,5 +1,5 @@
-import type { Types } from "mongoose";
-interface IServicePricing extends Document {
+import { Document, Types } from "mongoose";
+export interface IServicePricing extends Document {
     name: string;
     serviceId: Types.ObjectId;
     componentId: Types.ObjectId;
@@ -7,12 +7,11 @@ interface IServicePricing extends Document {
     locationId: Types.ObjectId;
     price: number;
 }
-export declare const ServicePricing: import("mongoose").Model<IServicePricing, {}, {}, {}, import("mongoose").Document<unknown, {}, IServicePricing, {}, import("mongoose").DefaultSchemaOptions> & IServicePricing & {
+export declare const ServicePricing: import("mongoose").Model<IServicePricing, {}, {}, {}, Document<unknown, {}, IServicePricing, {}, import("mongoose").DefaultSchemaOptions> & IServicePricing & Required<{
     _id: Types.ObjectId;
-} & {
+}> & {
     __v: number;
 } & {
     id: string;
 }, any, IServicePricing>;
-export {};
 //# sourceMappingURL=servicepricing.model.d.ts.map
