@@ -6,12 +6,12 @@ export type BookedBy = "CUSTOMER" | "ADMIN" | "SUBADMIN";
 export type EntryType = "SERVICE" | "PACKAGE";
 export type ComponentType = "DEFAULT" | "ADDON";
 export type ServiceRole = "PRIMARY" | "INCLUDED" | "ADDON";
-interface IBookingSelectedItem {
+export interface IBookingSelectedItem {
     itemId: Types.ObjectId;
     name: string;
     price: number;
 }
-interface IBookingComponent {
+export interface IBookingComponent {
     componentType: ComponentType;
     componentId: Types.ObjectId;
     serviceComponentId?: Types.ObjectId;
@@ -28,7 +28,7 @@ interface IBookingComponent {
         total: number;
     };
 }
-interface IBookingServiceConfiguration {
+export interface IBookingServiceConfiguration {
     serviceId: Types.ObjectId;
     serviceSnapshot: {
         name: string;
@@ -57,7 +57,7 @@ interface IBookingServiceConfiguration {
         grandTotal: number;
     };
 }
-interface IBookingPackageConfiguration {
+export interface IBookingPackageConfiguration {
     packageId: Types.ObjectId;
     packageSnapshot: {
         name: string;
@@ -74,7 +74,7 @@ interface IBookingPackageConfiguration {
         grandTotal: number;
     };
 }
-interface IBookingEntry {
+export interface IBookingEntry {
     entryType: EntryType;
     serviceConfiguration?: IBookingServiceConfiguration;
     packageConfiguration?: IBookingPackageConfiguration;
@@ -132,5 +132,4 @@ export interface IBooking extends Document {
     updatedAt: Date;
 }
 export declare const Booking: Model<IBooking>;
-export {};
 //# sourceMappingURL=booking.model.d.ts.map

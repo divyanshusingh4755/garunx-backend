@@ -13,7 +13,7 @@ import {
   updateCartNotes,
   recalculateCart,
   validateCart,
-  // checkoutCart,
+  checkoutCart,
   deleteCart,
 } from "../controllers/cart.controllers.js";
 
@@ -33,7 +33,7 @@ router.put("/:cartId/customer-details", authenticate, updateCustomerDetails);
 router.put("/:cartId/notes", authenticate, updateCartNotes);
 router.post("/:cartId/recalculate", authenticate, recalculateCart);
 router.post("/:cartId/validate", authenticate, validateCart);
-// router.post("/:cartId/checkout", authenticate, checkoutCart);
+router.post("/:cartId/checkout", authenticate, checkoutCart);
 router.delete("/:cartId", authenticate, deleteCart);
 
 export default router;

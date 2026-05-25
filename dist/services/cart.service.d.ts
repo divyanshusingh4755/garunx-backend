@@ -160,7 +160,7 @@ declare class CartService {
     } & {
         id: string;
     }>;
-    static recalculateCart(userId: string, cartId: string): Promise<mongoose.Document<unknown, {}, import("../models/cart.model.js").ICart, {}, mongoose.DefaultSchemaOptions> & import("../models/cart.model.js").ICart & Required<{
+    static recalculateCart(userId: string, cartId: string, session?: mongoose.ClientSession): Promise<mongoose.Document<unknown, {}, import("../models/cart.model.js").ICart, {}, mongoose.DefaultSchemaOptions> & import("../models/cart.model.js").ICart & Required<{
         _id: Types.ObjectId;
     }> & {
         __v: number;
@@ -170,6 +170,11 @@ declare class CartService {
     static validateCart(userId: string, cartId: string): Promise<{
         isValid: boolean;
         errors: string[];
+    }>;
+    static checkoutCart(userId: string, cartId: string): Promise<{
+        bookingId: Types.ObjectId;
+        bookingReference: string;
+        totalAmount: number;
     }>;
     static deleteCart(userId: string, cartId: string): Promise<boolean>;
 }

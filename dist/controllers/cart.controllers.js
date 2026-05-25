@@ -236,28 +236,26 @@ export const validateCart = async (req, res) => {
         });
     }
 };
-// export const checkoutCart = async (req: Request, res: Response) => {
-//   try {
-//     const userId = req.user?.userId;
-//     if (!userId) {
-//       return res.status(401).json({ success: false, message: "Unauthorized" });
-//     }
-//     const checkout = await CartService.checkoutCart(
-//       userId,
-//       req.params.cartId as string,
-//     );
-//     res.status(200).json({
-//       success: true,
-//       message: "Cart checked out successfully",
-//       ...checkout,
-//     });
-//   } catch (error: any) {
-//     res.status(400).json({
-//       success: false,
-//       message: error.message || "Failed to checkout cart",
-//     });
-//   }
-// };
+export const checkoutCart = async (req, res) => {
+    try {
+        const userId = req.user?.userId;
+        if (!userId) {
+            return res.status(401).json({ success: false, message: "Unauthorized" });
+        }
+        const checkout = await CartService.checkoutCart(userId, req.params.cartId);
+        res.status(200).json({
+            success: true,
+            message: "Cart checked out successfully",
+            ...checkout,
+        });
+    }
+    catch (error) {
+        res.status(400).json({
+            success: false,
+            message: error.message || "Failed to checkout cart",
+        });
+    }
+};
 export const deleteCart = async (req, res) => {
     try {
         const userId = req.user?.userId;

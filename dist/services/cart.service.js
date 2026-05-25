@@ -7,38 +7,24 @@ import { ServicePricing } from "../models/servicepricing.model.js";
 import { PackageTierPricing } from "../models/packagetierpricing.model.js";
 import { Component } from "../models/component.model.js";
 import { ComponentItem } from "../models/componentitem.model.js";
-// import { Booking } from "../models/booking.model.js";
+import { CartPricingEngine } from "./cart-pricing.engine.js";
+import { BookingBuilder } from "./booking.builder.js";
+import { Booking } from "../models/booking.model.js";
 class CartService {
     static async createServiceCart(userId, payload) {
         const { serviceId, tierId, locationId } = payload;
-        if (!serviceId || !tierId || !locationId) {
-            throw new Error("serviceId, tierId and locationId are required");
-        }
-        if (!mongoose.Types.ObjectId.isValid(serviceId)) {
-            throw new Error("Invalid serviceId");
-        }
         const service = await Service.findById(serviceId);
         if (!service || !service.isActive) {
             throw new Error("Service not found or inactive");
         }
-        const isTierValid = service.tiers.some((t) => t.tierId.toString() === tierId);
-        if (!isTierValid) {
-            throw new Error("Invalid tier for this service");
-        }
-        const isLocationValid = service.locations.some((l) => l.locationId.toString() === locationId);
-        if (!isLocationValid) {
-            throw new Error("Invalid location for this service");
-        }
-        const pricing = await ServicePricing.findOne({
-            serviceId,
-            tierId,
-            locationId,
-        });
-        if (!pricing) {
-            throw new Error("Pricing not found for selected configuration");
-        }
+        const isValidTier = service.tiers.some((t) => t.tierId.toString() === tierId);
+        const isValidLocation = service.locations.some((l) => l.locationId.toString() === locationId);
+        if (!isValidTier)
+            throw new Error("Invalid tier");
+        if (!isValidLocation)
+            throw new Error("Invalid location");
         const cart = await Cart.create({
-            userId: userId,
+            userId,
             serviceId: service._id,
             name: service.name,
             thumbnailImage: service.thumbnailImage ?? "",
@@ -48,44 +34,35 @@ class CartService {
             locationId,
             locationName: service.locations.find((l) => l.locationId.toString() === locationId)
                 ?.name || "",
-            basePrice: pricing.price,
+            selectedComponents: [],
+            addonComponents: [],
+            addonServices: [],
+            basePrice: 0,
             addonPrice: 0,
-            totalAmount: pricing.price,
+            totalAmount: 0,
             status: "ACTIVE",
         });
+        const totals = await CartPricingEngine.calculateCartTotals(cart);
+        cart.basePrice = totals.basePrice;
+        cart.addonPrice = totals.addonPrice;
+        cart.totalAmount = totals.totalAmount;
+        await cart.save();
         return cart;
     }
     static async createPackageCart(userId, payload) {
         const { packageId, tierId, locationId } = payload;
-        if (!packageId || !tierId || !locationId) {
-            throw new Error("packageId, tierId and locationId are required");
-        }
-        if (!mongoose.Types.ObjectId.isValid(packageId)) {
-            throw new Error("Invalid packageId");
-        }
         const pkg = await Package.findById(packageId);
-        if (!pkg || !pkg.isActive) {
-            throw new Error("Package not found or inactive");
-        }
-        const isTierValid = pkg.tiers.some((t) => t.tierId.toString() === tierId);
-        if (!isTierValid) {
-            throw new Error("Invalid tier for this package");
-        }
-        const isLocationValid = pkg.locations.some((l) => l.locationId.toString() === locationId);
-        if (!isLocationValid) {
-            throw new Error("Invalid location for this package");
-        }
-        const pricing = await PackageTierPricing.findOne({
-            packageId,
-            tierId,
-            locationId,
-        });
-        if (!pricing) {
-            throw new Error("Pricing not found for selected package configuration");
-        }
+        if (!pkg?.isActive)
+            throw new Error("Package not found");
+        const isValidTier = pkg.tiers.some((t) => t.tierId.toString() === tierId);
+        const isValidLocation = pkg.locations.some((l) => l.locationId.toString() === locationId);
+        if (!isValidTier)
+            throw new Error("Invalid tier");
+        if (!isValidLocation)
+            throw new Error("Invalid location");
         const cart = await Cart.create({
-            userId: userId,
-            packageId: pkg._id,
+            userId,
+            packageId,
             name: pkg.name,
             thumbnailImage: pkg.thumbnailImage ?? "",
             categoryId: pkg.categoryId,
@@ -94,11 +71,17 @@ class CartService {
             locationId,
             locationName: pkg.locations.find((l) => l.locationId.toString() === locationId)
                 ?.name || "",
-            basePrice: pricing.finalPrice,
+            addonServices: [],
+            basePrice: 0,
             addonPrice: 0,
-            totalAmount: pricing.finalPrice,
+            totalAmount: 0,
             status: "ACTIVE",
         });
+        const totals = await CartPricingEngine.calculateCartTotals(cart);
+        cart.basePrice = totals.basePrice;
+        cart.addonPrice = totals.addonPrice;
+        cart.totalAmount = totals.totalAmount;
+        await cart.save();
         return cart;
     }
     static async getUserCarts(userId) {
@@ -123,7 +106,7 @@ class CartService {
         const cart = await Cart.findOne({
             _id: cartId,
             userId: userId,
-        });
+        }).lean();
         if (!cart) {
             throw new Error("Cart not found");
         }
@@ -162,7 +145,7 @@ class CartService {
                 })),
             }));
             return {
-                ...cart.toObject(),
+                ...cart,
                 service,
                 selectedComponents: hydratedSelectedComponents,
                 addonComponents: hydratedAddonComponents,
@@ -174,7 +157,7 @@ class CartService {
                 throw new Error("Package not found");
             }
             return {
-                ...cart.toObject(),
+                ...cart,
                 package: pkg,
                 addonServices: cart.addonServices || [],
             };
@@ -214,35 +197,11 @@ class CartService {
                 .map((c) => c.name)
                 .join(", ")}`);
         }
-        let totalComponentPrice = 0;
-        const updatedComponents = [];
-        for (const sc of selectedComponents || []) {
-            const component = componentMap.get(sc.componentId);
-            if (!component) {
-                throw new Error("Invalid component selected");
-            }
-            const items = await ComponentItem.find({
-                _id: { $in: sc.items },
-            }).lean();
-            if (items.length !== sc.items.length) {
-                throw new Error("Invalid component items selected");
-            }
-            const itemPrice = items.reduce((sum, i) => sum + (i.price || 0), 0);
-            totalComponentPrice += itemPrice;
-            updatedComponents.push({
-                componentId: sc.componentId,
-                name: component.name,
-                items: items.map((i) => ({
-                    itemId: i._id,
-                    name: i.name,
-                    price: i.price ?? 0,
-                })),
-                totalPrice: itemPrice,
-            });
-        }
-        cart.selectedComponents = updatedComponents;
-        cart.addonPrice = cart.addonPrice || 0;
-        cart.totalAmount = cart.basePrice + totalComponentPrice + cart.addonPrice;
+        cart.selectedComponents = selectedComponents || [];
+        const totals = await CartPricingEngine.calculateCartTotals(cart);
+        cart.basePrice = totals.basePrice;
+        cart.addonPrice = totals.addonPrice;
+        cart.totalAmount = totals.totalAmount;
         await cart.save();
         return cart;
     }
@@ -269,7 +228,6 @@ class CartService {
             tierId: cart.tierId,
         }).lean();
         const componentMap = new Map(serviceComponents.map((c) => [c.componentId.toString(), c]));
-        let totalAddonPrice = 0;
         const updatedAddonComponents = [];
         for (const ac of addonComponents || []) {
             const component = componentMap.get(ac.componentId);
@@ -282,8 +240,7 @@ class CartService {
             if (items.length !== ac.items.length) {
                 throw new Error("Invalid addon component items selected");
             }
-            const itemPrice = items.reduce((sum, i) => sum + (i.price || 0), 0);
-            totalAddonPrice += itemPrice;
+            const totalPrice = items.reduce((sum, i) => sum + (i.price || 0), 0);
             updatedAddonComponents.push({
                 componentId: ac.componentId,
                 name: component.name,
@@ -292,15 +249,14 @@ class CartService {
                     name: i.name,
                     price: i.price ?? 0,
                 })),
-                totalPrice: itemPrice,
+                totalPrice,
             });
         }
         cart.addonComponents = updatedAddonComponents;
-        cart.addonPrice = totalAddonPrice;
-        cart.totalAmount =
-            cart.basePrice +
-                (cart.selectedComponents || []).reduce((sum, c) => sum + (c.totalPrice || 0), 0) +
-                totalAddonPrice;
+        const totals = await CartPricingEngine.calculateCartTotals(cart);
+        cart.basePrice = totals.basePrice;
+        cart.addonPrice = totals.addonPrice;
+        cart.totalAmount = totals.totalAmount;
         await cart.save();
         return cart;
     }
@@ -332,19 +288,29 @@ class CartService {
         if (services.length !== serviceIds.length) {
             throw new Error("One or more services are invalid or inactive");
         }
-        let totalAddonPrice = 0;
-        const addonServices = services.map((s) => {
-            const price = s.basePrice || 0; // safe fallback
-            totalAddonPrice += price;
-            return {
-                serviceId: s._id,
-                name: s.name,
-                price,
-            };
-        });
+        const addonServices = services.map((s) => ({
+            serviceId: s._id,
+            name: s.name,
+            price: 0,
+        }));
         cart.addonServices = addonServices;
-        cart.addonPrice = totalAddonPrice;
-        cart.totalAmount = cart.basePrice + totalAddonPrice;
+        const totals = await CartPricingEngine.calculateCartTotals(cart);
+        const pricingMap = new Map();
+        const pricingList = await ServicePricing.find({
+            serviceId: { $in: serviceIds },
+            tierId: cart.tierId,
+            locationId: cart.locationId,
+        }).lean();
+        pricingList.forEach((p) => {
+            pricingMap.set(p.serviceId.toString(), p.price);
+        });
+        cart.addonServices = addonServices.map((s) => ({
+            ...s,
+            price: pricingMap.get(s.serviceId.toString()) ?? 0,
+        }));
+        cart.basePrice = totals.basePrice;
+        cart.addonPrice = totals.addonPrice;
+        cart.totalAmount = totals.totalAmount;
         await cart.save();
         return cart;
     }
@@ -447,7 +413,7 @@ class CartService {
         await cart.save();
         return cart;
     }
-    static async recalculateCart(userId, cartId) {
+    static async recalculateCart(userId, cartId, session) {
         if (!userId) {
             throw new Error("Token missing");
         }
@@ -457,61 +423,17 @@ class CartService {
         const cart = await Cart.findOne({
             _id: cartId,
             userId: userId,
-        });
+        }).session(session || null);
         if (!cart) {
             throw new Error("Cart not found");
         }
-        let basePrice = cart.basePrice || 0;
-        let componentTotal = 0;
-        let addonTotal = 0;
-        if (cart.serviceId) {
-            const servicePricing = await ServicePricing.findOne({
-                serviceId: cart.serviceId,
-                tierId: cart.tierId,
-                locationId: cart.locationId,
-            });
-            if (servicePricing) {
-                basePrice = servicePricing.price;
-            }
-            for (const comp of cart.selectedComponents || []) {
-                const items = await ComponentItem.find({
-                    _id: {
-                        $in: comp.items.map((i) => i.itemId),
-                    },
-                }).lean();
-                componentTotal += items.reduce((sum, i) => sum + (i.price || 0), 0);
-            }
-            for (const comp of cart.addonComponents || []) {
-                const items = await ComponentItem.find({
-                    _id: {
-                        $in: comp.items.map((i) => i.itemId),
-                    },
-                }).lean();
-                addonTotal += items.reduce((sum, i) => sum + (i.price || 0), 0);
-            }
-        }
-        if (cart.packageId) {
-            const packagePricing = await PackageTierPricing.findOne({
-                packageId: cart.packageId,
-                tierId: cart.tierId,
-                locationId: cart.locationId,
-            });
-            if (packagePricing) {
-                basePrice = packagePricing.finalPrice;
-            }
-            for (const service of cart.addonServices || []) {
-                const servicePricing = await ServicePricing.findOne({
-                    serviceId: service.serviceId,
-                    tierId: cart.tierId,
-                    locationId: cart.locationId,
-                });
-                addonTotal += servicePricing?.price || 0;
-            }
-        }
-        cart.basePrice = basePrice;
-        cart.addonPrice = componentTotal + addonTotal;
-        cart.totalAmount = basePrice + cart.addonPrice;
-        await cart.save();
+        const totals = await CartPricingEngine.calculateCartTotals(cart);
+        cart.basePrice = totals.basePrice;
+        cart.addonPrice = totals.addonPrice;
+        cart.totalAmount = totals.totalAmount;
+        await cart.save({
+            session: session ?? undefined,
+        });
         return cart;
     }
     static async validateCart(userId, cartId) {
@@ -573,63 +495,78 @@ class CartService {
             errors: [],
         };
     }
-    // static async checkoutCart(userId: string, cartId: string) {
-    //   if (!userId) {
-    //     throw new Error("Token missing");
-    //   }
-    //   if (!mongoose.Types.ObjectId.isValid(cartId)) {
-    //     throw new Error("Invalid cartId");
-    //   }
-    //   const cart = await Cart.findOne({
-    //     _id: cartId,
-    //     userId: userId,
-    //   });
-    //   if (!cart) {
-    //     throw new Error("Cart not found");
-    //   }
-    //   if (cart.status === "CHECKED_OUT") {
-    //     throw new Error("Cart already checked out");
-    //   }
-    //   const validation = await this.validateCart(user, cartId);
-    //   if (!validation.isValid) {
-    //     throw new Error(validation.errors.join(", "));
-    //   }
-    //   await this.recalculateCart(user, cartId);
-    //   const freshCart = await Cart.findById(cartId).lean();
-    //   const booking = await Booking.create({
-    //     userId: user._id,
-    //     cartId: freshCart._id,
-    //     serviceId: freshCart.serviceId,
-    //     packageId: freshCart.packageId,
-    //     tierId: freshCart.tierId,
-    //     locationId: freshCart.locationId,
-    //     scheduledDate: freshCart.scheduledDate,
-    //     customerDetails: freshCart.customerDetails,
-    //     items: {
-    //       selectedComponents: freshCart.selectedComponents || [],
-    //       addonComponents: freshCart.addonComponents || [],
-    //       addonServices: freshCart.addonServices || [],
-    //     },
-    //     pricing: {
-    //       basePrice: freshCart.basePrice,
-    //       addonPrice: freshCart.addonPrice,
-    //       totalAmount: freshCart.totalAmount,
-    //     },
-    //     status: "PENDING",
-    //   });
-    //   await Cart.updateOne(
-    //     { _id: cartId },
-    //     {
-    //       status: "CHECKED_OUT",
-    //       activeBookingId: booking._id,
-    //     },
-    //   );
-    //   return {
-    //     bookingId: booking._id,
-    //     cartId,
-    //     totalAmount: freshCart.totalAmount,
-    //   };
-    // }
+    static async checkoutCart(userId, cartId) {
+        const session = await mongoose.startSession();
+        try {
+            session.startTransaction();
+            if (!userId) {
+                throw new Error("Token missing");
+            }
+            if (!mongoose.Types.ObjectId.isValid(cartId)) {
+                throw new Error("Invalid cartId");
+            }
+            const cart = await Cart.findOne({
+                _id: cartId,
+                userId,
+            }).session(session);
+            if (!cart) {
+                throw new Error("Cart not found");
+            }
+            if (cart.status === "CHECKED_OUT") {
+                throw new Error("Cart already checked out");
+            }
+            const validation = await this.validateCart(userId, cartId);
+            if (!validation.isValid) {
+                throw new Error(validation.errors.join(", "));
+            }
+            await this.recalculateCart(userId, cartId, session);
+            const freshCart = await Cart.findById(cartId).session(session).lean();
+            if (!freshCart) {
+                throw new Error("Cart not found after recalculation");
+            }
+            const bookingData = await BookingBuilder.buildFromCart(freshCart);
+            const bookingPayload = {
+                userId: new mongoose.Types.ObjectId(userId),
+                cartId: freshCart._id,
+                bookedBy: "CUSTOMER",
+                entries: bookingData.entries,
+                customerDetails: freshCart.customerDetails || {},
+                pricing: bookingData.pricing,
+                payment: {
+                    status: "PENDING",
+                },
+                status: "PENDING",
+                cartSnapshot: freshCart,
+            };
+            if (freshCart.scheduledDate) {
+                bookingPayload.scheduledAt = freshCart.scheduledDate;
+            }
+            if (freshCart.notes) {
+                bookingPayload.notes = freshCart.notes;
+            }
+            const bookings = await Booking.create([bookingPayload], { session });
+            const booking = bookings[0];
+            if (!booking) {
+                throw new Error("Failed to create booking");
+            }
+            cart.status = "CHECKED_OUT";
+            cart.activeBookingId = booking._id;
+            await cart.save({ session });
+            await session.commitTransaction();
+            return {
+                bookingId: booking._id,
+                bookingReference: booking.bookingReference,
+                totalAmount: booking.pricing.grandTotal,
+            };
+        }
+        catch (error) {
+            await session.abortTransaction();
+            throw error;
+        }
+        finally {
+            session.endSession();
+        }
+    }
     static async deleteCart(userId, cartId) {
         if (!userId) {
             throw new Error("Token missing");

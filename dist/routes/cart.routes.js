@@ -1,7 +1,5 @@
 import { Router } from "express";
-import { createServiceCart, createPackageCart, getUserCarts, getCartById, updateSelectedComponents, updateAddonComponents, updateAddonServices, updateSchedule, updateCustomerDetails, updateCartNotes, recalculateCart, validateCart, 
-// checkoutCart,
-deleteCart, } from "../controllers/cart.controllers.js";
+import { createServiceCart, createPackageCart, getUserCarts, getCartById, updateSelectedComponents, updateAddonComponents, updateAddonServices, updateSchedule, updateCustomerDetails, updateCartNotes, recalculateCart, validateCart, checkoutCart, deleteCart, } from "../controllers/cart.controllers.js";
 import { authenticate } from "../middleware/authenticate.js";
 const router = Router();
 router.post("/service", authenticate, createServiceCart);
@@ -16,7 +14,7 @@ router.put("/:cartId/customer-details", authenticate, updateCustomerDetails);
 router.put("/:cartId/notes", authenticate, updateCartNotes);
 router.post("/:cartId/recalculate", authenticate, recalculateCart);
 router.post("/:cartId/validate", authenticate, validateCart);
-// router.post("/:cartId/checkout", authenticate, checkoutCart);
+router.post("/:cartId/checkout", authenticate, checkoutCart);
 router.delete("/:cartId", authenticate, deleteCart);
 export default router;
 //# sourceMappingURL=cart.routes.js.map

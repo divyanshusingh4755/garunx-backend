@@ -11,5 +11,6 @@ export declare const updateCustomerDetails: (req: Request, res: Response) => Pro
 export declare const updateCartNotes: (req: Request, res: Response) => Promise<Response<any, Record<string, any>> | undefined>;
 export declare const recalculateCart: (req: Request, res: Response) => Promise<Response<any, Record<string, any>> | undefined>;
 export declare const validateCart: (req: Request, res: Response) => Promise<Response<any, Record<string, any>> | undefined>;
+export declare const checkoutCart: (req: Request, res: Response) => Promise<Response<any, Record<string, any>> | undefined>;
 export declare const deleteCart: (req: Request, res: Response) => Promise<Response<any, Record<string, any>> | undefined>;
 //# sourceMappingURL=cart.controllers.d.ts.map

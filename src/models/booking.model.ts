@@ -23,7 +23,7 @@ export type EntryType = "SERVICE" | "PACKAGE";
 export type ComponentType = "DEFAULT" | "ADDON";
 export type ServiceRole = "PRIMARY" | "INCLUDED" | "ADDON";
 
-interface IBookingSelectedItem {
+export interface IBookingSelectedItem {
   itemId: Types.ObjectId;
   name: string;
   price: number;
@@ -42,7 +42,7 @@ const bookingSelectedItemSchema = new Schema<IBookingSelectedItem>(
   { _id: false },
 );
 
-interface IBookingComponent {
+export interface IBookingComponent {
   componentType: ComponentType;
   componentId: Types.ObjectId;
   serviceComponentId?: Types.ObjectId;
@@ -102,7 +102,7 @@ const bookingComponentSchema = new Schema<IBookingComponent>(
   { _id: false },
 );
 
-interface IBookingServiceConfiguration {
+export interface IBookingServiceConfiguration {
   serviceId: Types.ObjectId;
   serviceSnapshot: {
     name: string;
@@ -199,7 +199,7 @@ const bookingServiceConfigurationSchema =
     { _id: false },
   );
 
-interface IBookingPackageConfiguration {
+export interface IBookingPackageConfiguration {
   packageId: Types.ObjectId;
 
   packageSnapshot: {
@@ -255,7 +255,7 @@ const bookingPackageConfigurationSchema =
     { _id: false },
   );
 
-interface IBookingEntry {
+export interface IBookingEntry {
   entryType: EntryType;
   serviceConfiguration?: IBookingServiceConfiguration;
   packageConfiguration?: IBookingPackageConfiguration;
