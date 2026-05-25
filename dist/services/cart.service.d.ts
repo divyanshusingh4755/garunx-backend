@@ -1,4 +1,5 @@
 import mongoose, { Types } from "mongoose";
+import { type IAddonService, type ISelectedComponent } from "../models/cart.model.js";
 declare class CartService {
     static createServiceCart(userId: string, payload: any): Promise<mongoose.Document<unknown, {}, import("../models/cart.model.js").ICart, {}, mongoose.DefaultSchemaOptions> & import("../models/cart.model.js").ICart & Required<{
         _id: Types.ObjectId;
@@ -48,7 +49,7 @@ declare class CartService {
             caste?: string;
             gotra?: string;
         };
-        addonServices?: import("../models/cart.model.js").IAddonService[];
+        addonServices?: IAddonService[];
         scheduledDate?: Date;
         scheduledTime?: string;
         notes?: string;
@@ -76,7 +77,7 @@ declare class CartService {
         }> & {
             __v: number;
         };
-        addonServices: import("../models/cart.model.js").IAddonService[];
+        addonServices: IAddonService[];
         _id: Types.ObjectId;
         userId?: Types.ObjectId | null;
         serviceId?: Types.ObjectId;
@@ -96,8 +97,8 @@ declare class CartService {
             caste?: string;
             gotra?: string;
         };
-        selectedComponents?: import("../models/cart.model.js").ISelectedComponent[];
-        addonComponents?: import("../models/cart.model.js").ISelectedComponent[];
+        selectedComponents?: ISelectedComponent[];
+        addonComponents?: ISelectedComponent[];
         scheduledDate?: Date;
         scheduledTime?: string;
         notes?: string;
@@ -134,10 +135,12 @@ declare class CartService {
     } & {
         id: string;
     }>;
-    static updateAddonServices(userId: string, cartId: string, payload: any): Promise<import("../models/cart.model.js").ICart & Required<{
+    static updateAddonServices(userId: string, cartId: string, payload: any): Promise<mongoose.Document<unknown, {}, import("../models/cart.model.js").ICart, {}, mongoose.DefaultSchemaOptions> & import("../models/cart.model.js").ICart & Required<{
         _id: Types.ObjectId;
     }> & {
         __v: number;
+    } & {
+        id: string;
     }>;
     static updateSchedule(userId: string, cartId: string, payload: any): Promise<mongoose.Document<unknown, {}, import("../models/cart.model.js").ICart, {}, mongoose.DefaultSchemaOptions> & import("../models/cart.model.js").ICart & Required<{
         _id: Types.ObjectId;

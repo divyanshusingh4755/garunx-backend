@@ -1,5 +1,5 @@
 import mongoose, { Types } from "mongoose";
-import { Cart } from "../models/cart.model.js";
+import { Cart, } from "../models/cart.model.js";
 import { Service } from "../models/service.model.js";
 import { Package } from "../models/package.model.js";
 import { ServiceComponent } from "../models/servicecomponent.model.js";
@@ -10,6 +10,7 @@ import { ComponentItem } from "../models/componentitem.model.js";
 import { CartPricingEngine } from "./cart-pricing.engine.js";
 import { BookingBuilder } from "./booking.builder.js";
 import { Booking } from "../models/booking.model.js";
+import { PackageTierMap } from "../models/packagetiermap.model.js";
 class CartService {
     static async createServiceCart(userId, payload) {
         const { serviceId, tierId, locationId } = payload;
@@ -190,14 +191,49 @@ class CartService {
         const missingRequired = serviceComponents
             .filter((c) => c.isRequired)
             .filter((c) => {
-            return !selectedComponents?.some((sc) => sc.componentId === c.componentId.toString());
+            return !selectedComponents?.some((sc) => sc.componentId.toString() === c.componentId.toString());
         });
         if (missingRequired.length > 0) {
             throw new Error(`Missing required components: ${missingRequired
                 .map((c) => c.name)
                 .join(", ")}`);
         }
-        cart.selectedComponents = selectedComponents || [];
+        const formattedComponents = [];
+        for (const sc of selectedComponents || []) {
+            const componentConfig = componentMap.get(sc.componentId.toString());
+            if (!componentConfig) {
+                throw new Error(`Invalid component`);
+            }
+            const pricing = await ServicePricing.findOne({
+                serviceId: cart.serviceId,
+                componentId: sc.componentId,
+                tierId: cart.tierId,
+                locationId: cart.locationId,
+            }).lean();
+            if (!pricing) {
+                throw new Error(`Pricing not found for ${componentConfig.name}`);
+            }
+            const allowedItems = componentConfig.items || [];
+            const formattedItems = [];
+            for (const selectedItem of sc.items || []) {
+                const matchedItem = allowedItems.find((item) => item.itemId.toString() === selectedItem.itemId.toString());
+                if (!matchedItem) {
+                    throw new Error(`Invalid item in ${componentConfig.name}`);
+                }
+                formattedItems.push({
+                    itemId: matchedItem.itemId,
+                    name: matchedItem.name,
+                    price: pricing.price,
+                });
+            }
+            formattedComponents.push({
+                componentId: componentConfig.componentId,
+                name: componentConfig.name,
+                items: formattedItems,
+                totalPrice: pricing.price * formattedItems.length,
+            });
+        }
+        cart.selectedComponents = formattedComponents;
         const totals = await CartPricingEngine.calculateCartTotals(cart);
         cart.basePrice = totals.basePrice;
         cart.addonPrice = totals.addonPrice;
@@ -234,22 +270,32 @@ class CartService {
             if (!component) {
                 throw new Error("Invalid addon component for this service");
             }
-            const items = await ComponentItem.find({
-                _id: { $in: ac.items },
-            }).lean();
-            if (items.length !== ac.items.length) {
-                throw new Error("Invalid addon component items selected");
-            }
-            const totalPrice = items.reduce((sum, i) => sum + (i.price || 0), 0);
-            updatedAddonComponents.push({
+            const pricing = await ServicePricing.findOne({
+                serviceId: cart.serviceId,
                 componentId: ac.componentId,
+                tierId: cart.tierId,
+                locationId: cart.locationId,
+            }).lean();
+            if (!pricing) {
+                throw new Error(`Pricing not found for ${component.name}`);
+            }
+            const allowedItems = component.items || [];
+            const formattedItems = [];
+            for (const itemId of ac.items || []) {
+                const matchedItem = allowedItems.find((item) => item.itemId.toString() === itemId.toString());
+                if (!matchedItem) {
+                    throw new Error(`Invalid item selected for ${component.name}`);
+                }
+                formattedItems.push({
+                    itemId: matchedItem.itemId,
+                    name: matchedItem.name,
+                });
+            }
+            updatedAddonComponents.push({
+                componentId: component.componentId,
                 name: component.name,
-                items: items.map((i) => ({
-                    itemId: i._id,
-                    name: i.name,
-                    price: i.price ?? 0,
-                })),
-                totalPrice,
+                items: formattedItems,
+                totalPrice: pricing.price,
             });
         }
         cart.addonComponents = updatedAddonComponents;
@@ -270,44 +316,47 @@ class CartService {
         }
         const cart = await Cart.findOne({
             _id: cartId,
-            userId: userId,
-        }).lean();
+            userId,
+        });
         if (!cart) {
             throw new Error("Cart not found");
         }
         if (!cart.packageId) {
             throw new Error("This operation is only allowed for package carts");
         }
-        if (!serviceIds || !Array.isArray(serviceIds)) {
+        if (!Array.isArray(serviceIds)) {
             throw new Error("serviceIds must be an array");
         }
-        const services = await Service.find({
-            _id: { $in: serviceIds },
-            isActive: true,
+        const packageTierMap = await PackageTierMap.findOne({
+            packageId: cart.packageId,
+            tierId: cart.tierId,
         }).lean();
-        if (services.length !== serviceIds.length) {
-            throw new Error("One or more services are invalid or inactive");
+        if (!packageTierMap) {
+            throw new Error("Package tier mapping not found");
         }
-        const addonServices = services.map((s) => ({
-            serviceId: s._id,
-            name: s.name,
-            price: 0,
-        }));
-        cart.addonServices = addonServices;
-        const totals = await CartPricingEngine.calculateCartTotals(cart);
-        const pricingMap = new Map();
-        const pricingList = await ServicePricing.find({
-            serviceId: { $in: serviceIds },
+        const allowedServices = packageTierMap.services || [];
+        const addonServices = [];
+        const pricingList = await PackageTierPricing.find({
+            packageId: cart.packageId,
             tierId: cart.tierId,
             locationId: cart.locationId,
+            serviceId: { $in: serviceIds },
         }).lean();
-        pricingList.forEach((p) => {
-            pricingMap.set(p.serviceId.toString(), p.price);
-        });
-        cart.addonServices = addonServices.map((s) => ({
-            ...s,
-            price: pricingMap.get(s.serviceId.toString()) ?? 0,
-        }));
+        const pricingMap = new Map(pricingList.map((p) => [p.serviceId.toString(), p.finalPrice]));
+        for (const serviceId of serviceIds) {
+            const matchedService = allowedServices.find((s) => s.serviceId.toString() === serviceId.toString());
+            if (!matchedService) {
+                throw new Error(`Invalid addon service selected`);
+            }
+            const price = pricingMap.get(serviceId.toString()) ?? 0;
+            addonServices.push({
+                serviceId: matchedService.serviceId,
+                name: matchedService.name,
+                price,
+            });
+        }
+        cart.addonServices = addonServices;
+        const totals = await CartPricingEngine.calculateCartTotals(cart);
         cart.basePrice = totals.basePrice;
         cart.addonPrice = totals.addonPrice;
         cart.totalAmount = totals.totalAmount;
