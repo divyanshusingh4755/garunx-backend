@@ -3,7 +3,6 @@ export type CartStatus = "ACTIVE" | "SCHEDULED" | "CHECKOUT_PENDING" | "CHECKED_
 export interface ISelectedComponentItem {
     itemId: Types.ObjectId;
     name: string;
-    price?: number;
 }
 export interface ISelectedComponent {
     componentId: Types.ObjectId;

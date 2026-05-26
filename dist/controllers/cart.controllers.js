@@ -43,9 +43,12 @@ export const getUserCarts = async (req, res) => {
     try {
         const userId = req.user?.userId;
         if (!userId) {
-            return res.status(401).json({ success: false, message: "Unauthorized" });
+            return res.status(401).json({
+                success: false,
+                message: "Unauthorized",
+            });
         }
-        const carts = await CartService.getUserCarts(userId);
+        const carts = await CartService.getUserCarts(userId, req.query);
         res.status(200).json({
             success: true,
             carts,

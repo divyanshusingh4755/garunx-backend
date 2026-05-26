@@ -24,6 +24,16 @@ class CartService {
             throw new Error("Invalid tier");
         if (!isValidLocation)
             throw new Error("Invalid location");
+        const existingCart = await Cart.findOne({
+            userId,
+            serviceId,
+            tierId,
+            locationId,
+            status: "ACTIVE",
+        });
+        if (existingCart) {
+            throw new Error("Same service already exists in cart");
+        }
         const cart = await Cart.create({
             userId,
             serviceId: service._id,
@@ -61,6 +71,16 @@ class CartService {
             throw new Error("Invalid tier");
         if (!isValidLocation)
             throw new Error("Invalid location");
+        const existingCart = await Cart.findOne({
+            userId,
+            packageId,
+            tierId,
+            locationId,
+            status: "ACTIVE",
+        });
+        if (existingCart) {
+            throw new Error("Same package already exists in cart");
+        }
         const cart = await Cart.create({
             userId,
             packageId,
@@ -85,14 +105,23 @@ class CartService {
         await cart.save();
         return cart;
     }
-    static async getUserCarts(userId) {
+    static async getUserCarts(userId, filters = {}) {
         if (!userId) {
             throw new Error("Token missing");
         }
-        const carts = await Cart.find({
-            userId: userId,
-            status: { $ne: "EXPIRED" },
-        })
+        const query = {
+            userId,
+        };
+        if (filters.status) {
+            const statuses = filters.status.split(",").map((s) => s.trim());
+            query.status = { $in: statuses };
+        }
+        else {
+            query.status = {
+                $nin: ["EXPIRED", "DELETED"],
+            };
+        }
+        const carts = await Cart.find(query)
             .sort({ updatedAt: -1 })
             .select("serviceId packageId name thumbnailImage tierName locationName status totalAmount updatedAt scheduledDate scheduledTime");
         return carts;
@@ -223,14 +252,13 @@ class CartService {
                 formattedItems.push({
                     itemId: matchedItem.itemId,
                     name: matchedItem.name,
-                    price: pricing.price,
                 });
             }
             formattedComponents.push({
                 componentId: componentConfig.componentId,
                 name: componentConfig.name,
                 items: formattedItems,
-                totalPrice: pricing.price * formattedItems.length,
+                totalPrice: pricing.price,
             });
         }
         cart.selectedComponents = formattedComponents;
@@ -519,10 +547,9 @@ class CartService {
                 errors.push("No components selected for service");
             }
         }
-        if (cart.packageId) {
-            if (!cart.packageId) {
-                errors.push("Invalid package selection");
-            }
+        if (cart.packageId &&
+            !mongoose.Types.ObjectId.isValid(cart.packageId.toString())) {
+            errors.push("Invalid package selection");
         }
         if (!cart.basePrice || cart.basePrice <= 0) {
             errors.push("Invalid base price");

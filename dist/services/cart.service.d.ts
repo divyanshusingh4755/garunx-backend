@@ -15,7 +15,7 @@ declare class CartService {
     } & {
         id: string;
     }>;
-    static getUserCarts(userId: string): Promise<(mongoose.Document<unknown, {}, import("../models/cart.model.js").ICart, {}, mongoose.DefaultSchemaOptions> & import("../models/cart.model.js").ICart & Required<{
+    static getUserCarts(userId: string, filters?: any): Promise<(mongoose.Document<unknown, {}, import("../models/cart.model.js").ICart, {}, mongoose.DefaultSchemaOptions> & import("../models/cart.model.js").ICart & Required<{
         _id: Types.ObjectId;
     }> & {
         __v: number;

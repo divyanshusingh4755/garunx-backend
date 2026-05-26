@@ -9,10 +9,6 @@ const selectedComponentItemSchema = new Schema({
         type: String,
         required: true,
     },
-    price: {
-        type: Number,
-        min: 0,
-    },
 }, { _id: false });
 const selectedComponentSchema = new Schema({
     componentId: {

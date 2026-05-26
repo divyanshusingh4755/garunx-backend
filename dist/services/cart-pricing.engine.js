@@ -1,23 +1,24 @@
 import { ServicePricing } from "../models/servicepricing.model.js";
 import { PackageTierPricing } from "../models/packagetierpricing.model.js";
 import { ComponentItem } from "../models/componentitem.model.js";
-import { Service } from "../models/service.model.js";
 export class CartPricingEngine {
     static async getServiceBasePrice(serviceId, tierId, locationId) {
-        const pricing = await ServicePricing.findOne({
+        const pricingList = await ServicePricing.find({
             serviceId,
             tierId,
             locationId,
         }).lean();
-        return pricing?.price ?? 0;
+        const basePrice = pricingList.reduce((sum, p) => sum + (p.price || 0), 0);
+        return basePrice;
     }
     static async getPackageBasePrice(packageId, tierId, locationId) {
-        const pricing = await PackageTierPricing.findOne({
+        const pricingList = await PackageTierPricing.find({
             packageId,
             tierId,
             locationId,
         }).lean();
-        return pricing?.finalPrice ?? 0;
+        const total = pricingList.reduce((sum, p) => sum + (p.finalPrice || 0), 0);
+        return total;
     }
     static async calculateComponentTotal(selectedComponents = []) {
         if (!selectedComponents.length)
@@ -30,7 +31,7 @@ export class CartPricingEngine {
         }).lean();
         const map = new Map(items.map((i) => [i._id.toString(), i]));
         return selectedComponents.reduce((sum, comp) => {
-            const compTotal = comp.items.reduce((s, item) => {
+            const compTotal = (comp.items || []).reduce((s, item) => {
                 return s + (map.get(item.itemId.toString())?.price ?? 0);
             }, 0);
             return sum + compTotal;
@@ -40,10 +41,6 @@ export class CartPricingEngine {
         if (!addonServices.length)
             return 0;
         const serviceIds = addonServices.map((s) => s.serviceId);
-        const services = await Service.find({
-            _id: { $in: serviceIds },
-            isActive: true,
-        }).lean();
         const pricingList = await ServicePricing.find({
             serviceId: { $in: serviceIds },
             tierId,
@@ -56,23 +53,33 @@ export class CartPricingEngine {
     }
     static async calculateCartTotals(cart) {
         let basePrice = 0;
-        let componentTotal = 0;
-        let addonTotal = 0;
+        let addonPrice = 0;
         if (cart.serviceId) {
-            basePrice = await this.getServiceBasePrice(cart.serviceId, cart.tierId, cart.locationId);
-            componentTotal = await this.calculateComponentTotal([
+            const servicePricing = await ServicePricing.find({
+                serviceId: cart.serviceId,
+                tierId: cart.tierId,
+                locationId: cart.locationId,
+            }).lean();
+            basePrice = servicePricing.reduce((sum, p) => sum + (p.price || 0), 0);
+            const componentTotal = await this.calculateComponentTotal([
                 ...(cart.selectedComponents || []),
                 ...(cart.addonComponents || []),
             ]);
+            addonPrice = componentTotal;
         }
         if (cart.packageId) {
-            basePrice = await this.getPackageBasePrice(cart.packageId, cart.tierId, cart.locationId);
-            addonTotal = await this.calculateAddonServicesTotal(cart.addonServices || [], cart.tierId, cart.locationId);
+            const packagePricing = await PackageTierPricing.find({
+                packageId: cart.packageId,
+                tierId: cart.tierId,
+                locationId: cart.locationId,
+            }).lean();
+            basePrice = packagePricing.reduce((sum, p) => sum + (p.finalPrice || 0), 0);
+            addonPrice = await this.calculateAddonServicesTotal(cart.addonServices || [], cart.tierId, cart.locationId);
         }
         return {
             basePrice,
-            addonPrice: componentTotal + addonTotal,
-            totalAmount: basePrice + componentTotal + addonTotal,
+            addonPrice,
+            totalAmount: basePrice + addonPrice,
         };
     }
 }

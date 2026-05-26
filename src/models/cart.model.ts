@@ -13,7 +13,6 @@ export type CartStatus =
 export interface ISelectedComponentItem {
   itemId: Types.ObjectId;
   name: string;
-  price?: number;
 }
 
 export interface ISelectedComponent {
@@ -76,11 +75,6 @@ const selectedComponentItemSchema = new Schema<ISelectedComponentItem>(
     name: {
       type: String,
       required: true,
-    },
-
-    price: {
-      type: Number,
-      min: 0,
     },
   },
   { _id: false },
