@@ -1,8 +1,6 @@
 import "dotenv/config";
 import app from "./app.js";
 
-import test from "./test.js";
-
 const PORT = process.env.PORT || 3000;
 
 const server = app.listen(PORT, () => {
@@ -13,5 +11,3 @@ process.on("unhandledRejection", (err: Error) => {
   console.log(`Error: ${err.message}`);
   server.close(() => process.exit(1));
 });
-
-// test();
