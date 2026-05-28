@@ -5,7 +5,6 @@ export type CartStatus =
   | "SCHEDULED"
   | "CHECKOUT_PENDING"
   | "CHECKED_OUT"
-  | "BOOKED"
   | "EXPIRED"
   | "CANCELLED"
   | "DELETED";
@@ -59,9 +58,11 @@ export interface ICart extends Document {
   addonPrice: number;
   totalAmount: number;
   status: CartStatus;
-  expiresAt?: Date;
   createdAt: Date;
   updatedAt: Date;
+  checkedOutAt?: Date;
+  checkoutExpiresAt?: Date;
+  convertedToBookingAt?: Date;
 }
 
 const selectedComponentItemSchema = new Schema<ISelectedComponentItem>(
@@ -256,7 +257,6 @@ const cartSchema = new Schema<ICart>(
         "SCHEDULED",
         "CHECKOUT_PENDING",
         "CHECKED_OUT",
-        "BOOKED",
         "EXPIRED",
         "CANCELLED",
         "DELETED",
@@ -264,13 +264,12 @@ const cartSchema = new Schema<ICart>(
       default: "ACTIVE",
       index: true,
     },
-
-    expiresAt: {
+    checkedOutAt: Date,
+    checkoutExpiresAt: {
       type: Date,
-      index: {
-        expireAfterSeconds: 0,
-      },
+      index: true,
     },
+    convertedToBookingAt: Date,
   },
   {
     timestamps: true,

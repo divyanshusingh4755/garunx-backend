@@ -1,7 +1,13 @@
 import { model, Schema, Types, Document, Model } from "mongoose";
 import { Counter } from "./counter.model.js";
+import type { ICart } from "./cart.model.js";
 
-export type BookingStatus = "PENDING" | "CONFIRMED" | "COMPLETED" | "CANCELLED";
+export type BookingStatus =
+  | "PENDING"
+  | "CONFIRMED"
+  | "IN_PROGRESS"
+  | "COMPLETED"
+  | "CANCELLED";
 
 export type PaymentMethod =
   | "COD"
@@ -301,7 +307,6 @@ export interface IBooking extends Document {
 
   payment: {
     status: PaymentStatus;
-    transactionId?: string;
     paymentMethod?: PaymentMethod;
     gateway?: string;
     amountPaid?: number;
@@ -309,6 +314,12 @@ export interface IBooking extends Document {
     paidAt?: Date;
     refundedAt?: Date;
     currency?: string;
+    providerOrderId?: string;
+    providerPaymentId?: string;
+    providerSignature?: string;
+    attempts?: number;
+    lastAttemptAt?: Date;
+    failureReason?: string;
   };
 
   status: BookingStatus;
@@ -320,6 +331,8 @@ export interface IBooking extends Document {
   };
 
   lifecycle?: {
+    confirmedBy?: Types.ObjectId;
+    completedBy?: Types.ObjectId;
     confirmedAt?: Date;
     completedAt?: Date;
     cancelledAt?: Date;
@@ -327,10 +340,11 @@ export interface IBooking extends Document {
 
   scheduledAt?: Date;
   notes?: string;
-  cartSnapshot?: unknown;
+  cartSnapshot?: Partial<ICart>;
   isDeleted?: boolean;
   createdAt: Date;
   updatedAt: Date;
+  paymentExpiresAt?: Date;
 }
 
 const bookingSchema = new Schema<IBooking>(
@@ -389,17 +403,34 @@ const bookingSchema = new Schema<IBooking>(
         enum: ["PENDING", "PAID", "FAILED", "REFUNDED", "PARTIAL_REFUND"],
         default: "PENDING",
       },
-      transactionId: String,
+      providerOrderId: String,
+      providerPaymentId: String,
+      providerSignature: String,
       paymentMethod: {
         type: String,
         enum: ["COD", "RAZORPAY", "STRIPE", "UPI", "CARD", "NETBANKING"],
       },
       gateway: String,
-      amountPaid: { type: Number, default: 0 },
-      refundAmount: { type: Number, default: 0 },
+      attempts: {
+        type: Number,
+        default: 0,
+      },
+      lastAttemptAt: Date,
+      failureReason: String,
+      amountPaid: {
+        type: Number,
+        default: 0,
+      },
+      refundAmount: {
+        type: Number,
+        default: 0,
+      },
       paidAt: Date,
       refundedAt: Date,
-      currency: { type: String, default: "INR" },
+      currency: {
+        type: String,
+        default: "INR",
+      },
     },
 
     status: {
@@ -423,12 +454,24 @@ const bookingSchema = new Schema<IBooking>(
       confirmedAt: Date,
       completedAt: Date,
       cancelledAt: Date,
+      confirmedBy: {
+        type: Schema.Types.ObjectId,
+        ref: "User",
+      },
+      completedBy: {
+        type: Schema.Types.ObjectId,
+        ref: "User",
+      },
     },
 
     scheduledAt: Date,
     notes: { type: String, maxlength: 1000 },
     cartSnapshot: Schema.Types.Mixed,
     isDeleted: { type: Boolean, default: false },
+    paymentExpiresAt: {
+      type: Date,
+      index: true,
+    },
   },
   {
     timestamps: true,
@@ -442,6 +485,10 @@ bookingSchema.index({ scheduledAt: 1, status: 1 });
 bookingSchema.index({ "payment.status": 1 });
 bookingSchema.index({ bookingReference: 1 });
 bookingSchema.index({ userId: 1, scheduledAt: 1 });
+bookingSchema.index({
+  status: 1,
+  paymentExpiresAt: 1,
+});
 
 bookingSchema.pre("save", async function () {
   if (!this.isNew) return;
