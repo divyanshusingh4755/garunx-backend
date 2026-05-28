@@ -2,6 +2,7 @@ import mongoose, { Types } from "mongoose";
 import {
   Cart,
   type IAddonService,
+  type ICart,
   type ISelectedComponent,
   type ISelectedComponentItem,
 } from "../models/cart.model.js";
@@ -16,6 +17,13 @@ import { CartPricingEngine } from "./cart-pricing.engine.js";
 import { BookingBuilder } from "./booking.builder.js";
 import { Booking, type IBooking } from "../models/booking.model.js";
 import { PackageTierMap } from "../models/packagetiermap.model.js";
+
+interface CartValidationResult {
+  isValid: boolean;
+  errors: string[];
+  changes: string[];
+  cart: ICart;
+}
 
 class CartService {
   static async createServiceCart(userId: string, payload: any) {
@@ -684,7 +692,10 @@ class CartService {
   static async recalculateCart(
     userId: string,
     cartId: string,
-    session?: mongoose.ClientSession,
+    options?: {
+      session?: mongoose.ClientSession;
+      persist?: boolean;
+    },
   ) {
     if (!userId) {
       throw new Error("Token missing");
@@ -696,24 +707,61 @@ class CartService {
 
     const cart = await Cart.findOne({
       _id: cartId,
-      userId: userId,
-    }).session(session || null);
+      userId,
+    }).session(options?.session || null);
 
     if (!cart) {
       throw new Error("Cart not found");
     }
 
+    const oldValues = {
+      basePrice: cart.basePrice,
+      addonPrice: cart.addonPrice,
+      totalAmount: cart.totalAmount,
+    };
+
     const totals = await CartPricingEngine.calculateCartTotals(cart);
     cart.basePrice = totals.basePrice;
     cart.addonPrice = totals.addonPrice;
     cart.totalAmount = totals.totalAmount;
-    await cart.save({
-      session: session ?? undefined,
-    } as any);
-    return cart;
+
+    const changes: string[] = [];
+
+    if (oldValues.basePrice !== cart.basePrice) {
+      changes.push(
+        `Base price changed from ${oldValues.basePrice} to ${cart.basePrice}`,
+      );
+    }
+
+    if (oldValues.addonPrice !== cart.addonPrice) {
+      changes.push(
+        `Addon price changed from ${oldValues.addonPrice} to ${cart.addonPrice}`,
+      );
+    }
+
+    if (oldValues.totalAmount !== cart.totalAmount) {
+      changes.push(
+        `Total amount changed from ${oldValues.totalAmount} to ${cart.totalAmount}`,
+      );
+    }
+
+    if (options?.persist) {
+      await cart.save({
+        session: options.session ?? undefined,
+      } as any);
+    }
+
+    return {
+      cart,
+      changes,
+    };
   }
 
-  static async validateCart(userId: string, cartId: string) {
+  static async validateCart(
+    userId: string,
+    cartId: string,
+    persist: boolean,
+  ): Promise<CartValidationResult> {
     if (!userId) {
       throw new Error("Token missing");
     }
@@ -722,14 +770,12 @@ class CartService {
       throw new Error("Invalid cartId");
     }
 
-    const cart = await Cart.findOne({
-      _id: cartId,
-      userId: userId,
+    const recalculated = await this.recalculateCart(userId, cartId, {
+      persist: persist,
     });
 
-    if (!cart) {
-      throw new Error("Cart not found");
-    }
+    const cart = recalculated.cart;
+    const changes = recalculated.changes;
 
     if (["EXPIRED", "CANCELLED"].includes(cart.status)) {
       throw new Error("Cart is not in a valid state");
@@ -777,20 +823,11 @@ class CartService {
       errors.push("Invalid total amount");
     }
 
-    if (!cart.scheduledDate) {
-      errors.push("Scheduled date not set");
-    }
-
-    if (errors.length > 0) {
-      return {
-        isValid: false,
-        errors,
-      };
-    }
-
     return {
-      isValid: true,
-      errors: [],
+      isValid: errors.length === 0,
+      errors,
+      changes,
+      cart,
     };
   }
 
@@ -820,19 +857,17 @@ class CartService {
         throw new Error("Cart already checked out");
       }
 
-      const validation = await this.validateCart(userId, cartId);
-
-      if (!validation.isValid) {
-        throw new Error(validation.errors.join(", "));
+      if (!cart.scheduledDate) {
+        throw new Error("Scheduled date not set");
       }
 
-      await this.recalculateCart(userId, cartId, session);
-      const freshCart = await Cart.findById(cartId).session(session).lean();
+      const recalculated = await this.validateCart(userId, cartId, true);
 
-      if (!freshCart) {
-        throw new Error("Cart not found after recalculation");
+      if (!recalculated.isValid) {
+        throw new Error(recalculated.errors.join(", "));
       }
 
+      const freshCart = recalculated.cart;
       const bookingData = await BookingBuilder.buildFromCart(freshCart);
       const bookingPayload: Partial<IBooking> = {
         userId: new mongoose.Types.ObjectId(userId),

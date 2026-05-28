@@ -278,13 +278,22 @@ export const recalculateCart = async (req: Request, res: Response) => {
 export const validateCart = async (req: Request, res: Response) => {
   try {
     const userId = req.user?.userId;
+    const { persist } = req.body;
+
     if (!userId) {
       return res.status(401).json({ success: false, message: "Unauthorized" });
+    }
+
+    if (!persist) {
+      return res
+        .status(400)
+        .json({ success: false, message: "persist missing" });
     }
 
     const validation = await CartService.validateCart(
       userId,
       req.params.cartId as string,
+      Boolean(persist),
     );
 
     res.status(200).json({
