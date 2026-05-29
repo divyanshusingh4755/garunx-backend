@@ -1,19 +1,19 @@
-import bcrypt from 'bcrypt';
+import bcrypt from "bcrypt";
 import { User } from "../models/user.model.js";
-import mongoose from 'mongoose';
+import mongoose from "mongoose";
 import jwt from "jsonwebtoken";
-import { Session } from '../models/session.model.js';
-import crypto from 'crypto';
+import { Session } from "../models/session.model.js";
+import crypto from "crypto";
 import nodemailer from "nodemailer";
-import { generateUniqueCode } from '../utils/generateUniqueCode.js';
+import { generateUniqueCode } from "../utils/generateUniqueCode.js";
 class AuthService {
     static async generateUserSession(user, userAgent, ip) {
         const familyId = crypto.randomUUID();
-        const accessToken = jwt.sign({ userId: user._id, role: user.role }, process.env.JWT_ACCESS_SECRET, { expiresIn: '15m' });
-        const refreshToken = jwt.sign({ userId: user._id, familyId }, process.env.JWT_REFRESH_SECRET, { expiresIn: '30d' });
+        const accessToken = jwt.sign({ userId: user._id, role: user.role }, process.env.JWT_ACCESS_SECRET, { expiresIn: "15m" });
+        const refreshToken = jwt.sign({ userId: user._id, familyId }, process.env.JWT_REFRESH_SECRET, { expiresIn: "30d" });
         const expiresAt = new Date();
         expiresAt.setDate(expiresAt.getDate() + 30);
-        await Session.findOneAndUpdate({ userId: user._id, deviceInfo: userAgent || 'unknown' }, { refreshToken, familyId, expiresAt, ...(ip && { ipAddress: ip }) }, { upsert: true });
+        await Session.findOneAndUpdate({ userId: user._id, deviceInfo: userAgent || "unknown" }, { refreshToken, familyId, expiresAt, ...(ip && { ipAddress: ip }) }, { upsert: true });
         const userObject = user.toObject();
         delete userObject.password;
         return { user: userObject, accessToken, refreshToken };
@@ -48,7 +48,7 @@ class AuthService {
             const otpExpiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 mins
             const filter = existingUser ? { _id: existingUser._id } : { $or: query };
             // Upsert User (Update unverified or create new)
-            const user = await User.findOneAndUpdate(filter, {
+            const user = (await User.findOneAndUpdate(filter, {
                 role,
                 otp: generatedOtp,
                 otpExpiresAt,
@@ -59,8 +59,8 @@ class AuthService {
                 $setOnInsert: {
                     referralCode: `REF-${generateUniqueCode()}`,
                     isComplete: false,
-                }
-            }, { session, upsert: true, new: true, runValidators: true });
+                },
+            }, { session, upsert: true, new: true, runValidators: true }));
             await session.commitTransaction();
             return user;
         }
@@ -82,14 +82,14 @@ class AuthService {
                 $setOnInsert: {
                     isComplete: false,
                     referralCode: `REF-${generateUniqueCode()}`,
-                }
+                },
             }, {
                 new: true,
                 upsert: true,
-                runValidators: true
+                runValidators: true,
             });
             if (!user.isActive)
-                throw new Error('Account is deactivated');
+                throw new Error("Account is deactivated");
             const sessionData = await this.generateUserSession(user, userAgent, ip);
             return { ...sessionData, isNewUser: !user.isComplete };
         }
@@ -128,12 +128,12 @@ class AuthService {
         }
         if (email) {
             // hash the incoming token to match
-            const hashedToken = crypto.createHash('sha256').update(otp).digest('hex');
+            const hashedToken = crypto.createHash("sha256").update(otp).digest("hex");
             // Find user with valid token
             const user = await User.findOne({
                 email: email,
                 resetPasswordToken: hashedToken,
-                resetPasswordExpires: { $gt: Date.now() }
+                resetPasswordExpires: { $gt: Date.now() },
             });
             if (!user) {
                 throw new Error("OTP is invalid or has expired");
@@ -155,10 +155,10 @@ class AuthService {
             // Find the specific document by ID
             const user = await User.findById(userId);
             if (!user)
-                throw new Error('User not found. Please restart registration.');
+                throw new Error("User not found. Please restart registration.");
             // Safety check: Don't resend if they already finished everything
             if (user.isComplete) {
-                throw new Error('Account is already fully registered. Please login instead.');
+                throw new Error("Account is already fully registered. Please login instead.");
             }
             // Update the existing document with new OTP
             const newOtp = Math.floor(100000 + Math.random() * 900000).toString();
@@ -168,19 +168,23 @@ class AuthService {
             await user.save();
             // Trigger your SMS provider here (using user.phoneNumber)
             console.log(`Resending OTP ${newOtp} to ${user.phoneNumber}`);
-            return { success: true, message: "OTP resent successfully via SMS", otp: newOtp };
+            return {
+                success: true,
+                message: "OTP resent successfully via SMS",
+                otp: newOtp,
+            };
         }
         if (email) {
             // Find the specific document by ID
             const user = await User.findOne({ email });
             if (!user)
-                throw new Error('User not found. Please restart registration.');
+                throw new Error("User not found. Please restart registration.");
             // Generate 6-digit OTP
             // const otp = crypto.randomInt(100000, 1000000).toString();
             // For testing
             const otp = "111111";
             // Save to user document (using your existing 15-min expiry logic)
-            const hashedOtp = crypto.createHash('sha256').update(otp).digest('hex');
+            const hashedOtp = crypto.createHash("sha256").update(otp).digest("hex");
             user.resetPasswordToken = hashedOtp;
             user.resetPasswordExpires = expiryTime;
             user.isResetVerified = false;
@@ -209,7 +213,11 @@ class AuthService {
             // `
             // };
             // await transporter.sendMail(mailOptions);
-            return { success: true, message: 'Reset code sent to your email', otp: otp };
+            return {
+                success: true,
+                message: "Reset code sent to your email",
+                otp: otp,
+            };
         }
         throw new Error("Invalid resend type.");
     }
@@ -217,25 +225,22 @@ class AuthService {
         if (!password) {
             throw new Error("Password is required for manual login");
         }
-        const user = await User.findOne({
+        const user = (await User.findOne({
             role,
-            $or: [
-                { email: identifier.toLowerCase() },
-                { phoneNumber: identifier }
-            ]
-        }).select('+password');
+            $or: [{ email: identifier.toLowerCase() }, { phoneNumber: identifier }],
+        }).select("+password"));
         if (!user || !user.password)
-            throw new Error('Invalid Credentials');
+            throw new Error("Invalid Credentials");
         const isMatch = await bcrypt.compare(password, user.password);
         if (!isMatch)
             throw new Error("Invalid credentials");
         // Status & Completeness Checks
         if (!user.isActive)
-            throw new Error('Account is deactivated');
+            throw new Error("Account is deactivated");
         if (!user.isOtpVerified)
-            throw new Error('Please verify your account first.');
+            throw new Error("Please verify your account first.");
         if (!user.isComplete)
-            throw new Error('Registration incomplete. Please finish setting up your profile.');
+            throw new Error("Registration incomplete. Please finish setting up your profile.");
         const sessionData = await this.generateUserSession(user, userAgent, ip);
         return sessionData;
     }
@@ -254,8 +259,8 @@ class AuthService {
             const user = await User.findById(decoded.userId);
             if (!user || !user.isActive)
                 throw new Error("User inactive or not found.");
-            const newAccessToken = jwt.sign({ userId: user._id, role: user.role }, process.env.JWT_ACCESS_SECRET, { expiresIn: '15m' });
-            const newRefreshToken = jwt.sign({ userId: user._id, familyId: decoded.familyId }, process.env.JWT_REFRESH_SECRET, { expiresIn: '30d' });
+            const newAccessToken = jwt.sign({ userId: user._id, role: user.role }, process.env.JWT_ACCESS_SECRET, { expiresIn: "15m" });
+            const newRefreshToken = jwt.sign({ userId: user._id, familyId: decoded.familyId }, process.env.JWT_REFRESH_SECRET, { expiresIn: "30d" });
             // Rotation: Replace old token with the new one in the same session document
             session.refreshToken = newRefreshToken;
             session.deviceInfo = userAgent;
@@ -265,7 +270,7 @@ class AuthService {
             return { accessToken: newAccessToken, refreshToken: newRefreshToken };
         }
         catch (error) {
-            if (error.name === 'TokenExpiredError') {
+            if (error.name === "TokenExpiredError") {
                 await Session.deleteOne({ refreshToken: oldRefreshToken });
             }
             throw new Error(error.message || "Inavlid refresh token");
@@ -299,7 +304,7 @@ class AuthService {
             // For testing
             const otp = "111111";
             // Save to user document (using your existing 15-min expiry logic)
-            const hashedOtp = crypto.createHash('sha256').update(otp).digest('hex');
+            const hashedOtp = crypto.createHash("sha256").update(otp).digest("hex");
             user.resetPasswordToken = hashedOtp;
             user.resetPasswordExpires = new Date(Date.now() + 15 * 60 * 1000); // 15 mins
             user.isResetVerified = false;
@@ -327,7 +332,11 @@ class AuthService {
             // `
             // };
             // await transporter.sendMail(mailOptions);
-            return { success: true, otp: otp, message: 'Reset code sent to your email' };
+            return {
+                success: true,
+                otp: otp,
+                message: "Reset code sent to your email",
+            };
         }
         catch (error) {
             throw new Error(error.message || "Failed to send reset email");
@@ -337,7 +346,7 @@ class AuthService {
         const user = await User.findOne({
             _id: userId,
             isResetVerified: true,
-            resetPasswordExpires: { $gt: new Date() }
+            resetPasswordExpires: { $gt: new Date() },
         });
         if (!user) {
             throw new Error("Action unauthorized or session expired. Please verify your OTP again.");
@@ -374,36 +383,32 @@ class AuthService {
         await Session.deleteMany({ userId: user._id });
         return { success: true, message: "Password updated sucessfully" };
     }
-    static async GetAllUsers(page = 1, limit = 40, role, isComplete, isActive, search, sortBy = 'createdAt', sortOrder = 'desc') {
+    static async GetAllUsers(page = 1, limit = 40, role, isComplete, isActive, search, sortBy = "createdAt", sortOrder = "desc") {
         try {
             const skip = (page - 1) * limit;
             // Build a dynamic filter object
             const filter = {};
             if (role)
                 filter.role = role;
-            if (typeof isComplete === 'boolean')
+            if (typeof isComplete === "boolean")
                 filter.isComplete = isComplete;
-            if (typeof isActive === 'boolean')
+            if (typeof isActive === "boolean")
                 filter.isActive = isActive;
             if (search)
                 filter.$text = { $search: search };
             // Defined sort order
             let sortCriteria = {};
-            if (search && sortBy === 'relevance') {
-                sortCriteria = { score: { $meta: 'textScore' } };
+            if (search && sortBy === "relevance") {
+                sortCriteria = { score: { $meta: "textScore" } };
             }
             else {
-                sortCriteria[sortBy] = sortOrder === 'desc' ? -1 : 1;
-                sortCriteria['createdAt'] = -1;
+                sortCriteria[sortBy] = sortOrder === "desc" ? -1 : 1;
+                sortCriteria["createdAt"] = -1;
             }
             // Fetch data and count in parallel for better performance
             const [users, total] = await Promise.all([
-                User.find(filter)
-                    .sort(sortCriteria)
-                    .skip(skip)
-                    .limit(limit)
-                    .lean(), // Use lean() for faster read-only queries
-                User.countDocuments(filter)
+                User.find(filter).sort(sortCriteria).skip(skip).limit(limit).lean(), // Use lean() for faster read-only queries
+                User.countDocuments(filter),
             ]);
             return {
                 users,
@@ -411,8 +416,8 @@ class AuthService {
                     total,
                     page,
                     limit,
-                    pages: Math.ceil(total / limit)
-                }
+                    pages: Math.ceil(total / limit),
+                },
             };
         }
         catch (error) {
@@ -422,7 +427,7 @@ class AuthService {
     static async GetUserById(userId) {
         try {
             const user = await User.findById(userId)
-                .select('-password -otp -otpExpiresAt -resetPasswordToken -resetPasswordExpires')
+                .select("-password -otp -otpExpiresAt -resetPasswordToken -resetPasswordExpires")
                 .lean();
             if (!user) {
                 throw new Error("User not found with the provided ID");
@@ -430,7 +435,7 @@ class AuthService {
             return user;
         }
         catch (error) {
-            if (error.name === 'CastError') {
+            if (error.name === "CastError") {
                 throw new Error("Invalid User ID format");
             }
             throw error;
@@ -441,10 +446,10 @@ class AuthService {
             const user = await User.findOne({
                 $or: [
                     { email: identifier, role },
-                    { phoneNumber: identifier, role }
-                ]
+                    { phoneNumber: identifier, role },
+                ],
             })
-                .select('-password -otp -resetPasswordToken -resetPasswordExpires')
+                .select("-password -otp -resetPasswordToken -resetPasswordExpires")
                 .lean();
             if (!user) {
                 throw new Error(`No ${role} account found with these credentials.`);
@@ -486,7 +491,7 @@ class AuthService {
             let referredById = null;
             if (referralCode && !user.referredBy) {
                 const referrer = await User.findOne({
-                    referralCode: referralCode.trim().toUpperCase()
+                    referralCode: referralCode.trim().toUpperCase(),
                 }).session(session);
                 if (referrer) {
                     // Prevent self-referral
@@ -517,46 +522,50 @@ class AuthService {
                     ...(referredById && { referredBy: referredById }),
                     ...(caste && { caste: caste }),
                     ...(gotra && { gotra: gotra }),
-                }
+                },
             }, { new: true, runValidators: true, session }).lean();
             if (!updatedUser)
                 throw new Error("Update failed.");
             // Session & Token Generation
             const familyId = crypto.randomUUID();
-            const accessToken = jwt.sign({ userId: updatedUser._id, role: updatedUser.role }, process.env.JWT_ACCESS_SECRET, { expiresIn: '15m' });
-            const refreshToken = jwt.sign({ userId: updatedUser._id, familyId: familyId }, process.env.JWT_REFRESH_SECRET, { expiresIn: '30d' });
+            const accessToken = jwt.sign({ userId: updatedUser._id, role: updatedUser.role }, process.env.JWT_ACCESS_SECRET, { expiresIn: "15m" });
+            const refreshToken = jwt.sign({ userId: updatedUser._id, familyId: familyId }, process.env.JWT_REFRESH_SECRET, { expiresIn: "30d" });
             const expiresAt = new Date();
             expiresAt.setDate(expiresAt.getDate() + 30);
             await Session.create([
                 {
                     userId: updatedUser._id,
                     refreshToken,
-                    deviceInfo: userAgent || 'unknown',
+                    deviceInfo: userAgent || "unknown",
                     familyId: familyId,
                     expiresAt,
-                    ...(ip && { ipAddress: ip })
-                }
+                    ...(ip && { ipAddress: ip }),
+                },
             ], { session });
             const { password: _, ...userWithoutPassword } = updatedUser;
             await session.commitTransaction();
-            return { user: userWithoutPassword, accessToken, refreshToken };
+            return {
+                user: userWithoutPassword,
+                accessToken,
+                refreshToken,
+            };
         }
         catch (error) {
             await session.abortTransaction();
             if (error.code === 11000 && error.keyValue) {
                 const keys = Object.keys(error.keyValue);
                 const duplicateField = keys.length > 0 ? keys[0] : null;
-                if (duplicateField === 'email') {
+                if (duplicateField === "email") {
                     throw new Error("This email is already registered.");
                 }
-                if (duplicateField === 'phoneNumber') {
+                if (duplicateField === "phoneNumber") {
                     throw new Error("This phone number is already in use.");
                 }
                 throw new Error(`${duplicateField} already exists.`);
             }
-            if (error.name === 'ValidationError') {
+            if (error.name === "ValidationError") {
                 const messages = Object.values(error.errors).map((val) => val.message);
-                throw new Error(`Validation failed: ${messages.join(', ')}`);
+                throw new Error(`Validation failed: ${messages.join(", ")}`);
             }
             throw error;
         }
@@ -569,8 +578,8 @@ class AuthService {
         if (!user)
             throw new Error("User not found");
         const updatedUser = await User.findByIdAndUpdate(userId, { $set: updateData }, { new: true, runValidators: true })
-            .select('-password -otp')
-            .populate('serviceableLocations.locationId');
+            .select("-password -otp")
+            .populate("serviceableLocations.locationId");
         return updatedUser;
     }
     static async uploadVerificationDocuments(userId, docs) {
@@ -585,8 +594,10 @@ class AuthService {
         if (docs.bankPassbook) {
             updatePayload["isBankDocumentVerified"] = true;
             updatePayload["bankDocumentVerification.status"] = "APPROVED";
-            updatePayload["bankDocumentVerification.bankPassbook"] = docs.bankPassbook;
-            updatePayload["bankDocumentVerification.accountNumber"] = docs.accountNumber;
+            updatePayload["bankDocumentVerification.bankPassbook"] =
+                docs.bankPassbook;
+            updatePayload["bankDocumentVerification.accountNumber"] =
+                docs.accountNumber;
             updatePayload["bankDocumentVerification.accountName"] = docs.accountName;
             updatePayload["bankDocumentVerification.bankName"] = docs.bankName;
             updatePayload["bankDocumentVerification.ifscCode"] = docs.ifscCode;
@@ -595,10 +606,10 @@ class AuthService {
             throw new Error("No valid documents provided for update");
         }
         const user = await User.findByIdAndUpdate(userId, {
-            $set: updatePayload
-        }, { new: true, runValidators: true }).select('-password -otp');
+            $set: updatePayload,
+        }, { new: true, runValidators: true }).select("-password -otp");
         if (!user)
-            throw new Error('User not found');
+            throw new Error("User not found");
         return user;
     }
     static async updateVerificationStatus(userId, type, status, rejectionReason) {
@@ -606,18 +617,18 @@ class AuthService {
         if (type === "document") {
             update = {
                 "documentVerification.status": status,
-                "documentVerification.rejectionReason": status === 'REJECTED' ? rejectionReason : null,
-                isDocumentVerified: status === 'APPROVED'
+                "documentVerification.rejectionReason": status === "REJECTED" ? rejectionReason : null,
+                isDocumentVerified: status === "APPROVED",
             };
         }
         else if (type === "bank") {
             update = {
                 "bankDocumentVerification.status": status,
-                "bankDocumentVerification.rejectionReason": status === 'REJECTED' ? rejectionReason : null,
-                isBankDocumentVerified: status === 'APPROVED'
+                "bankDocumentVerification.rejectionReason": status === "REJECTED" ? rejectionReason : null,
+                isBankDocumentVerified: status === "APPROVED",
             };
         }
-        const user = await User.findByIdAndUpdate(userId, { $set: update }, { new: true, runValidators: true }).select('-password -otp');
+        const user = await User.findByIdAndUpdate(userId, { $set: update }, { new: true, runValidators: true }).select("-password -otp");
         if (!user)
             throw new Error("User not found");
         return user;

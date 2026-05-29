@@ -223,10 +223,16 @@ export const recalculateCart = async (req, res) => {
 export const validateCart = async (req, res) => {
     try {
         const userId = req.user?.userId;
+        const { persist } = req.body;
         if (!userId) {
             return res.status(401).json({ success: false, message: "Unauthorized" });
         }
-        const validation = await CartService.validateCart(userId, req.params.cartId);
+        if (!persist) {
+            return res
+                .status(400)
+                .json({ success: false, message: "persist missing" });
+        }
+        const validation = await CartService.validateCart(userId, req.params.cartId, Boolean(persist));
         res.status(200).json({
             success: true,
             validation,

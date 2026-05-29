@@ -1,5 +1,6 @@
 import { Types, Document, Model } from "mongoose";
-export type BookingStatus = "PENDING" | "CONFIRMED" | "COMPLETED" | "CANCELLED";
+import type { ICart } from "./cart.model.js";
+export type BookingStatus = "PENDING" | "CONFIRMED" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED";
 export type PaymentMethod = "COD" | "RAZORPAY" | "STRIPE" | "UPI" | "CARD" | "NETBANKING";
 export type PaymentStatus = "PENDING" | "PAID" | "FAILED" | "REFUNDED" | "PARTIAL_REFUND";
 export type BookedBy = "CUSTOMER" | "ADMIN" | "SUBADMIN";
@@ -103,7 +104,6 @@ export interface IBooking extends Document {
     };
     payment: {
         status: PaymentStatus;
-        transactionId?: string;
         paymentMethod?: PaymentMethod;
         gateway?: string;
         amountPaid?: number;
@@ -111,6 +111,12 @@ export interface IBooking extends Document {
         paidAt?: Date;
         refundedAt?: Date;
         currency?: string;
+        providerOrderId?: string;
+        providerPaymentId?: string;
+        providerSignature?: string;
+        attempts?: number;
+        lastAttemptAt?: Date;
+        failureReason?: string;
     };
     status: BookingStatus;
     cancellation?: {
@@ -120,16 +126,19 @@ export interface IBooking extends Document {
         cancelledAt?: Date;
     };
     lifecycle?: {
+        confirmedBy?: Types.ObjectId;
+        completedBy?: Types.ObjectId;
         confirmedAt?: Date;
         completedAt?: Date;
         cancelledAt?: Date;
     };
     scheduledAt?: Date;
     notes?: string;
-    cartSnapshot?: unknown;
+    cartSnapshot?: Partial<ICart>;
     isDeleted?: boolean;
     createdAt: Date;
     updatedAt: Date;
+    paymentExpiresAt?: Date;
 }
 export declare const Booking: Model<IBooking>;
 //# sourceMappingURL=booking.model.d.ts.map

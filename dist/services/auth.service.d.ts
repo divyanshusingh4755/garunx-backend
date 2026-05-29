@@ -1,7 +1,7 @@
 import { type IUser } from "../models/user.model.js";
 import type { Role } from "../types/rbac.js";
-import type { Types } from 'mongoose';
-import mongoose from 'mongoose';
+import type { Types } from "mongoose";
+import mongoose from "mongoose";
 declare class AuthService {
     private static generateUserSession;
     static registerUser(role: Role, password?: string, userEmail?: string, phoneNumber?: string): Promise<mongoose.Document<unknown, {}, IUser, {}, mongoose.DefaultSchemaOptions> & IUser & Required<{
@@ -58,7 +58,7 @@ declare class AuthService {
         success: boolean;
         message: string;
     }>;
-    static GetAllUsers(page?: number, limit?: number, role?: Role, isComplete?: boolean, isActive?: boolean, search?: string, sortBy?: string, sortOrder?: 'asc' | 'desc'): Promise<{
+    static GetAllUsers(page?: number, limit?: number, role?: Role, isComplete?: boolean, isActive?: boolean, search?: string, sortBy?: string, sortOrder?: "asc" | "desc"): Promise<{
         users: (IUser & Required<{
             _id: Types.ObjectId;
         }> & {
@@ -82,7 +82,7 @@ declare class AuthService {
         __v: number;
     }>;
     static deactivateUser(userId: String, status: String): Promise<void>;
-    static completeProfile(userId: string, fullName: string, dob?: Date, gender?: 'Male' | 'Female' | 'Other', referralCode?: string, password?: string, profileImage?: string, userAgent?: string, ip?: string, email?: string, phoneNumber?: string, caste?: 'SC' | 'ST' | 'OBC' | 'GENERAL', gotra?: 'Bharadvaja' | 'Kashyapa' | 'Vashistha' | 'Vishvamitra' | 'Gautama' | 'Atri' | 'Jamadagni' | 'Agastya'): Promise<{
+    static completeProfile(userId: string, fullName: string, dob?: Date, gender?: "Male" | "Female" | "Other", referralCode?: string, password?: string, profileImage?: string, userAgent?: string, ip?: string, email?: string, phoneNumber?: string, caste?: "SC" | "ST" | "OBC" | "GENERAL", gotra?: "Bharadvaja" | "Kashyapa" | "Vashistha" | "Vishvamitra" | "Gautama" | "Atri" | "Jamadagni" | "Agastya"): Promise<{
         user: IUser;
         accessToken: string;
         refreshToken: string;
@@ -120,7 +120,7 @@ declare class AuthService {
     } & {
         id: string;
     }>;
-    static updateVerificationStatus(userId: string, type: 'document' | 'bank', status: 'APPROVED' | 'REJECTED', rejectionReason?: string): Promise<mongoose.Document<unknown, {}, IUser, {}, mongoose.DefaultSchemaOptions> & IUser & Required<{
+    static updateVerificationStatus(userId: string, type: "document" | "bank", status: "APPROVED" | "REJECTED", rejectionReason?: string): Promise<mongoose.Document<unknown, {}, IUser, {}, mongoose.DefaultSchemaOptions> & IUser & Required<{
         _id: Types.ObjectId;
     }> & {
         __v: number;

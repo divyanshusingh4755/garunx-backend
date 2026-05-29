@@ -1,5 +1,5 @@
 import { Document, Model, Types } from "mongoose";
-export type CartStatus = "ACTIVE" | "SCHEDULED" | "CHECKOUT_PENDING" | "CHECKED_OUT" | "BOOKED" | "EXPIRED" | "CANCELLED" | "DELETED";
+export type CartStatus = "ACTIVE" | "SCHEDULED" | "CHECKOUT_PENDING" | "CHECKED_OUT" | "EXPIRED" | "CANCELLED" | "DELETED";
 export interface ISelectedComponentItem {
     itemId: Types.ObjectId;
     name: string;
@@ -46,9 +46,11 @@ export interface ICart extends Document {
     addonPrice: number;
     totalAmount: number;
     status: CartStatus;
-    expiresAt?: Date;
     createdAt: Date;
     updatedAt: Date;
+    checkedOutAt?: Date;
+    checkoutExpiresAt?: Date;
+    convertedToBookingAt?: Date;
 }
 export declare const Cart: Model<ICart>;
 //# sourceMappingURL=cart.model.d.ts.map

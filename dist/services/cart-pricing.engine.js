@@ -1,85 +1,101 @@
 import { ServicePricing } from "../models/servicepricing.model.js";
 import { PackageTierPricing } from "../models/packagetierpricing.model.js";
 import { ComponentItem } from "../models/componentitem.model.js";
+import { ServiceComponent } from "../models/servicecomponent.model.js";
+import { PackageTierMap } from "../models/packagetiermap.model.js";
 export class CartPricingEngine {
-    static async getServiceBasePrice(serviceId, tierId, locationId) {
-        const pricingList = await ServicePricing.find({
-            serviceId,
-            tierId,
-            locationId,
-        }).lean();
-        const basePrice = pricingList.reduce((sum, p) => sum + (p.price || 0), 0);
-        return basePrice;
-    }
-    static async getPackageBasePrice(packageId, tierId, locationId) {
-        const pricingList = await PackageTierPricing.find({
-            packageId,
-            tierId,
-            locationId,
-        }).lean();
-        const total = pricingList.reduce((sum, p) => sum + (p.finalPrice || 0), 0);
-        return total;
-    }
-    static async calculateComponentTotal(selectedComponents = []) {
-        if (!selectedComponents.length)
-            return 0;
-        const itemIds = selectedComponents.flatMap((c) => c.items.map((i) => i.itemId));
-        if (!itemIds.length)
-            return 0;
-        const items = await ComponentItem.find({
-            _id: { $in: itemIds },
-        }).lean();
-        const map = new Map(items.map((i) => [i._id.toString(), i]));
-        return selectedComponents.reduce((sum, comp) => {
-            const compTotal = (comp.items || []).reduce((s, item) => {
-                return s + (map.get(item.itemId.toString())?.price ?? 0);
-            }, 0);
-            return sum + compTotal;
-        }, 0);
-    }
-    static async calculateAddonServicesTotal(addonServices = [], tierId, locationId) {
-        if (!addonServices.length)
-            return 0;
-        const serviceIds = addonServices.map((s) => s.serviceId);
-        const pricingList = await ServicePricing.find({
-            serviceId: { $in: serviceIds },
-            tierId,
-            locationId,
-        }).lean();
-        const priceMap = new Map(pricingList.map((p) => [p.serviceId.toString(), p.price]));
-        return addonServices.reduce((sum, s) => {
-            return sum + (priceMap.get(s.serviceId.toString()) ?? 0);
-        }, 0);
-    }
-    static async calculateCartTotals(cart) {
-        let basePrice = 0;
-        let addonPrice = 0;
-        if (cart.serviceId) {
-            const servicePricing = await ServicePricing.find({
+    static async calculateServiceCart(cart) {
+        const [serviceComponents, pricingRows] = await Promise.all([
+            ServiceComponent.find({
+                serviceId: cart.serviceId,
+                tierId: cart.tierId,
+            }).lean(),
+            ServicePricing.find({
                 serviceId: cart.serviceId,
                 tierId: cart.tierId,
                 locationId: cart.locationId,
-            }).lean();
-            basePrice = servicePricing.reduce((sum, p) => sum + (p.price || 0), 0);
-            const componentTotal = await this.calculateComponentTotal([
-                ...(cart.selectedComponents || []),
-                ...(cart.addonComponents || []),
-            ]);
-            addonPrice = componentTotal;
+            }).lean(),
+        ]);
+        const pricingMap = new Map(pricingRows.map((p) => [`${p.componentId.toString()}`, p.price]));
+        const requiredComponentIds = serviceComponents
+            .filter((c) => c.isRequired)
+            .map((c) => c.componentId.toString());
+        let basePrice = 0;
+        for (const componentId of requiredComponentIds) {
+            basePrice += pricingMap.get(componentId) || 0;
         }
-        if (cart.packageId) {
-            const packagePricing = await PackageTierPricing.find({
+        let addonPrice = 0;
+        for (const comp of cart.selectedComponents || []) {
+            const id = comp.componentId.toString();
+            if (requiredComponentIds.includes(id))
+                continue;
+            addonPrice += pricingMap.get(id) || 0;
+        }
+        for (const comp of cart.addonComponents || []) {
+            addonPrice += pricingMap.get(comp.componentId.toString()) || 0;
+        }
+        const itemIds = [
+            ...(cart.selectedComponents || []),
+            ...(cart.addonComponents || []),
+        ].flatMap((c) => (c.items || []).map((i) => i.itemId));
+        const items = await ComponentItem.find({
+            _id: { $in: itemIds },
+        }).lean();
+        const itemMap = new Map(items.map((i) => [i._id.toString(), i.price]));
+        let itemAddonPrice = 0;
+        for (const comp of [
+            ...(cart.selectedComponents || []),
+            ...(cart.addonComponents || []),
+        ]) {
+            for (const item of comp.items || []) {
+                itemAddonPrice += itemMap.get(item.itemId.toString()) || 0;
+            }
+        }
+        addonPrice += itemAddonPrice;
+        return {
+            basePrice,
+            addonPrice,
+            totalAmount: basePrice + addonPrice,
+        };
+    }
+    static async calculatePackageCart(cart) {
+        const [pricingRows, packageTierMap] = await Promise.all([
+            PackageTierPricing.find({
                 packageId: cart.packageId,
                 tierId: cart.tierId,
                 locationId: cart.locationId,
-            }).lean();
-            basePrice = packagePricing.reduce((sum, p) => sum + (p.finalPrice || 0), 0);
-            addonPrice = await this.calculateAddonServicesTotal(cart.addonServices || [], cart.tierId, cart.locationId);
+            }).lean(),
+            PackageTierMap.findOne({
+                packageId: cart.packageId,
+                tierId: cart.tierId,
+            }).lean(),
+        ]);
+        const pricingMap = new Map(pricingRows.map((p) => [p.serviceId.toString(), p.finalPrice]));
+        const allowedServiceIds = new Set((packageTierMap?.services || []).map((s) => s.serviceId.toString()));
+        let basePrice = pricingRows.reduce((sum, p) => sum + (p.finalPrice || 0), 0);
+        let addonPrice = 0;
+        for (const s of cart.addonServices || []) {
+            if (!allowedServiceIds.has(s.serviceId.toString())) {
+                addonPrice += pricingMap.get(s.serviceId.toString()) || 0;
+            }
         }
         return {
             basePrice,
             addonPrice,
             totalAmount: basePrice + addonPrice,
+        };
+    }
+    static async calculateCartTotals(cart) {
+        if (cart.serviceId) {
+            return this.calculateServiceCart(cart);
+        }
+        if (cart.packageId) {
+            return this.calculatePackageCart(cart);
+        }
+        return {
+            basePrice: 0,
+            addonPrice: 0,
+            totalAmount: 0,
         };
     }
 }

@@ -151,7 +151,6 @@ const cartSchema = new Schema({
             "SCHEDULED",
             "CHECKOUT_PENDING",
             "CHECKED_OUT",
-            "BOOKED",
             "EXPIRED",
             "CANCELLED",
             "DELETED",
@@ -159,12 +158,12 @@ const cartSchema = new Schema({
         default: "ACTIVE",
         index: true,
     },
-    expiresAt: {
+    checkedOutAt: Date,
+    checkoutExpiresAt: {
         type: Date,
-        index: {
-            expireAfterSeconds: 0,
-        },
+        index: true,
     },
+    convertedToBookingAt: Date,
 }, {
     timestamps: true,
 });

@@ -490,7 +490,7 @@ class CartService {
         await cart.save();
         return cart;
     }
-    static async recalculateCart(userId, cartId, session) {
+    static async recalculateCart(userId, cartId, options) {
         if (!userId) {
             throw new Error("Token missing");
         }
@@ -499,34 +499,52 @@ class CartService {
         }
         const cart = await Cart.findOne({
             _id: cartId,
-            userId: userId,
-        }).session(session || null);
+            userId,
+        }).session(options?.session || null);
         if (!cart) {
             throw new Error("Cart not found");
         }
+        const oldValues = {
+            basePrice: cart.basePrice,
+            addonPrice: cart.addonPrice,
+            totalAmount: cart.totalAmount,
+        };
         const totals = await CartPricingEngine.calculateCartTotals(cart);
         cart.basePrice = totals.basePrice;
         cart.addonPrice = totals.addonPrice;
         cart.totalAmount = totals.totalAmount;
-        await cart.save({
-            session: session ?? undefined,
-        });
-        return cart;
+        const changes = [];
+        if (oldValues.basePrice !== cart.basePrice) {
+            changes.push(`Base price changed from ${oldValues.basePrice} to ${cart.basePrice}`);
+        }
+        if (oldValues.addonPrice !== cart.addonPrice) {
+            changes.push(`Addon price changed from ${oldValues.addonPrice} to ${cart.addonPrice}`);
+        }
+        if (oldValues.totalAmount !== cart.totalAmount) {
+            changes.push(`Total amount changed from ${oldValues.totalAmount} to ${cart.totalAmount}`);
+        }
+        if (options?.persist) {
+            await cart.save({
+                session: options.session ?? undefined,
+            });
+        }
+        return {
+            cart,
+            changes,
+        };
     }
-    static async validateCart(userId, cartId) {
+    static async validateCart(userId, cartId, persist) {
         if (!userId) {
             throw new Error("Token missing");
         }
         if (!mongoose.Types.ObjectId.isValid(cartId)) {
             throw new Error("Invalid cartId");
         }
-        const cart = await Cart.findOne({
-            _id: cartId,
-            userId: userId,
+        const recalculated = await this.recalculateCart(userId, cartId, {
+            persist: persist,
         });
-        if (!cart) {
-            throw new Error("Cart not found");
-        }
+        const cart = recalculated.cart;
+        const changes = recalculated.changes;
         if (["EXPIRED", "CANCELLED"].includes(cart.status)) {
             throw new Error("Cart is not in a valid state");
         }
@@ -557,18 +575,11 @@ class CartService {
         if (!cart.totalAmount || cart.totalAmount <= 0) {
             errors.push("Invalid total amount");
         }
-        if (!cart.scheduledDate) {
-            errors.push("Scheduled date not set");
-        }
-        if (errors.length > 0) {
-            return {
-                isValid: false,
-                errors,
-            };
-        }
         return {
-            isValid: true,
-            errors: [],
+            isValid: errors.length === 0,
+            errors,
+            changes,
+            cart,
         };
     }
     static async checkoutCart(userId, cartId) {
@@ -591,15 +602,14 @@ class CartService {
             if (cart.status === "CHECKED_OUT") {
                 throw new Error("Cart already checked out");
             }
-            const validation = await this.validateCart(userId, cartId);
-            if (!validation.isValid) {
-                throw new Error(validation.errors.join(", "));
+            if (!cart.scheduledDate) {
+                throw new Error("Scheduled date not set");
             }
-            await this.recalculateCart(userId, cartId, session);
-            const freshCart = await Cart.findById(cartId).session(session).lean();
-            if (!freshCart) {
-                throw new Error("Cart not found after recalculation");
+            const recalculated = await this.validateCart(userId, cartId, true);
+            if (!recalculated.isValid) {
+                throw new Error(recalculated.errors.join(", "));
             }
+            const freshCart = recalculated.cart;
             const bookingData = await BookingBuilder.buildFromCart(freshCart);
             const bookingPayload = {
                 userId: new mongoose.Types.ObjectId(userId),

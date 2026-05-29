@@ -175,17 +175,34 @@ const bookingSchema = new Schema({
             enum: ["PENDING", "PAID", "FAILED", "REFUNDED", "PARTIAL_REFUND"],
             default: "PENDING",
         },
-        transactionId: String,
+        providerOrderId: String,
+        providerPaymentId: String,
+        providerSignature: String,
         paymentMethod: {
             type: String,
             enum: ["COD", "RAZORPAY", "STRIPE", "UPI", "CARD", "NETBANKING"],
         },
         gateway: String,
-        amountPaid: { type: Number, default: 0 },
-        refundAmount: { type: Number, default: 0 },
+        attempts: {
+            type: Number,
+            default: 0,
+        },
+        lastAttemptAt: Date,
+        failureReason: String,
+        amountPaid: {
+            type: Number,
+            default: 0,
+        },
+        refundAmount: {
+            type: Number,
+            default: 0,
+        },
         paidAt: Date,
         refundedAt: Date,
-        currency: { type: String, default: "INR" },
+        currency: {
+            type: String,
+            default: "INR",
+        },
     },
     status: {
         type: String,
@@ -206,11 +223,23 @@ const bookingSchema = new Schema({
         confirmedAt: Date,
         completedAt: Date,
         cancelledAt: Date,
+        confirmedBy: {
+            type: Schema.Types.ObjectId,
+            ref: "User",
+        },
+        completedBy: {
+            type: Schema.Types.ObjectId,
+            ref: "User",
+        },
     },
     scheduledAt: Date,
     notes: { type: String, maxlength: 1000 },
     cartSnapshot: Schema.Types.Mixed,
     isDeleted: { type: Boolean, default: false },
+    paymentExpiresAt: {
+        type: Date,
+        index: true,
+    },
 }, {
     timestamps: true,
 });
@@ -221,6 +250,10 @@ bookingSchema.index({ scheduledAt: 1, status: 1 });
 bookingSchema.index({ "payment.status": 1 });
 bookingSchema.index({ bookingReference: 1 });
 bookingSchema.index({ userId: 1, scheduledAt: 1 });
+bookingSchema.index({
+    status: 1,
+    paymentExpiresAt: 1,
+});
 bookingSchema.pre("save", async function () {
     if (!this.isNew)
         return;
