@@ -554,6 +554,7 @@ export class PackageService {
         discountPercent: price.discountPercent,
         finalPrice: price.finalPrice,
         serviceId: price.serviceId,
+        locationId: price.locationId,
       };
     }
 
