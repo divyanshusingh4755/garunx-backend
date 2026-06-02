@@ -21,6 +21,8 @@ import {
   updatePackageTiers,
   removePackageTier,
   getPackageDiagnostics,
+  getPackagesByLocation,
+  getFullPackageByCities,
 } from "../controllers/package.controllers.js";
 
 const router = Router();
@@ -222,6 +224,14 @@ const removeTierValidation = [
 ];
 
 router.get("/", getAllPackages);
+
+router.post("/getPackagesByLocation", authenticate, getPackagesByLocation);
+
+router.post(
+  "/:packageId/getFullPackagesByCities",
+  packageIdValidation,
+  getFullPackageByCities,
+);
 
 router.get("/:packageId/full", packageIdValidation, getFullPackage);
 

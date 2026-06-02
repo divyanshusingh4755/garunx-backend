@@ -689,4 +689,262 @@ export class PackageService {
       issues,
     };
   }
+
+  static async getFullPackageByCities(packageId: string, cityIds: string[]) {
+    if (!Types.ObjectId.isValid(packageId)) {
+      throw new Error("Invalid packageId");
+    }
+
+    if (!Array.isArray(cityIds) || cityIds.length === 0) {
+      throw new Error("cityIds must be a non-empty array");
+    }
+
+    const invalidCityIds = cityIds.filter((id) => !Types.ObjectId.isValid(id));
+
+    if (invalidCityIds.length > 0) {
+      throw new Error(`Invalid cityIds: ${invalidCityIds.join(", ")}`);
+    }
+
+    const locations = await Location.find({
+      cityId: {
+        $in: cityIds.map((id) => new Types.ObjectId(id)),
+      },
+      isActive: true,
+    })
+      .populate({
+        path: "cityId",
+        select: "name",
+      })
+      .select("_id name cityId")
+      .lean();
+
+    const locationIds = locations.map((loc) => loc._id);
+
+    const locationMap = new Map(
+      locations.map((loc: any) => [
+        loc._id.toString(),
+        {
+          locationId: loc._id,
+          locationName: loc.name,
+          city: loc.cityId,
+        },
+      ]),
+    );
+
+    const pkg = await Package.findById(packageId)
+      .populate({
+        path: "tiers.tierId",
+        select: "name",
+      })
+      .lean({ virtuals: true });
+
+    if (!pkg) {
+      throw new Error("Package not found");
+    }
+
+    const filteredLocations = pkg.locations
+      .filter((loc: any) =>
+        locationIds.some((id) => id.toString() === loc.locationId.toString()),
+      )
+      .map((loc: any) => ({
+        ...loc,
+        locationDetails: locationMap.get(loc.locationId.toString()) || null,
+      }));
+
+    const [tierMaps, pricing] = await Promise.all([
+      PackageTierMap.find({ packageId }).lean(),
+
+      PackageTierPricing.find({
+        packageId,
+        locationId: { $in: locationIds },
+      }).lean(),
+    ]);
+
+    const pricingMap = new Map<string, any[]>();
+
+    for (const p of pricing) {
+      const key = `${p.tierId}_${p.serviceId}`;
+
+      if (!pricingMap.has(key)) {
+        pricingMap.set(key, []);
+      }
+
+      pricingMap.get(key)!.push({
+        locationId: p.locationId,
+        locationDetails: locationMap.get(p.locationId.toString()) || null,
+        basePrice: p.basePrice,
+        fixedPrice: p.fixedPrice,
+        discountPercent: p.discountPercent,
+        finalPrice: p.finalPrice,
+      });
+    }
+
+    const grouped: Record<string, any> = {};
+    for (const tierMap of tierMaps) {
+      const tierId = tierMap.tierId.toString();
+
+      if (!grouped[tierId]) {
+        grouped[tierId] = {
+          tierId: tierMap.tierId,
+          services: [],
+        };
+      }
+
+      for (const service of tierMap.services) {
+        const key = `${tierMap.tierId}_${service.serviceId}`;
+
+        const servicePricing = pricingMap.get(key) || [];
+
+        if (servicePricing.length === 0) continue;
+
+        grouped[tierId].services.push({
+          serviceId: service.serviceId,
+          name: service.name,
+          isRequired: service.isRequired,
+          pricing: servicePricing,
+        });
+      }
+    }
+
+    const filteredTiers = pkg.tiers.filter((t) => grouped[t.tierId.toString()]);
+
+    return {
+      package: {
+        id: pkg._id,
+        name: pkg.name,
+        shortDescription: pkg.shortDescription,
+        fullDescription: pkg.fullDescription,
+        thumbnailImage: pkg.thumbnailImage,
+        bannerImage: pkg.bannerImage,
+        isActive: pkg.isActive,
+        isComplete: pkg.isComplete,
+        packageReference: pkg.packageReference,
+      },
+
+      locations: filteredLocations,
+
+      tiers: filteredTiers.map((t) => ({
+        tierId: t.tierId,
+        name: t.name,
+      })),
+
+      components: grouped, // (services grouped under tiers)
+    };
+  }
+
+  static async getPackagesByLocation(
+    cityIds: string[],
+    limit: number = 20,
+    page: number = 1,
+    isActive?: boolean,
+    isComplete?: boolean,
+    sortBy: string = "createdAt",
+    sortOrder: "asc" | "desc" = "desc",
+  ) {
+    const skip = (page - 1) * limit;
+
+    if (!Array.isArray(cityIds) || cityIds.length === 0) {
+      throw new Error("cityIds must be a non-empty array");
+    }
+
+    const invalidIds = cityIds.filter((id) => !Types.ObjectId.isValid(id));
+
+    if (invalidIds.length > 0) {
+      throw new Error(`Invalid cityIds: ${invalidIds.join(", ")}`);
+    }
+
+    try {
+      const locations = await Location.find({
+        cityId: {
+          $in: cityIds.map((id) => new Types.ObjectId(id)),
+        },
+        isActive: true,
+      })
+        .populate({
+          path: "cityId",
+          select: "name",
+        })
+        .select("_id cityId name")
+        .lean();
+
+      const locationIds = locations.map((loc) => loc._id);
+
+      const locationMap = new Map(
+        locations.map((loc: any) => [
+          loc._id.toString(),
+          {
+            locationId: loc._id,
+            locationName: loc.name,
+            city: loc.cityId,
+          },
+        ]),
+      );
+
+      const matchQuery: any = {
+        "locations.locationId": {
+          $in: locationIds,
+        },
+      };
+
+      if (isActive !== undefined) {
+        matchQuery.isActive = isActive;
+      }
+
+      if (isComplete !== undefined) {
+        matchQuery.isComplete = isComplete;
+      }
+
+      const sortCriteria: any = {
+        [sortBy]: sortOrder === "desc" ? -1 : 1,
+      };
+
+      const [packages, total] = await Promise.all([
+        Package.find(matchQuery)
+          .populate({
+            path: "tiers.tierId",
+            select: "name",
+          })
+          .select({
+            name: 1,
+            shortDescription: 1,
+            thumbnailImage: 1,
+            bannerImage: 1,
+            categoryId: 1,
+            isActive: 1,
+            packageReference: 1,
+            createdAt: 1,
+            isComplete: 1,
+            locations: 1,
+            tiers: 1,
+          })
+          .sort(sortCriteria)
+          .skip(skip)
+          .limit(limit)
+          .lean({ virtuals: true }),
+
+        Package.countDocuments(matchQuery),
+      ]);
+
+      const data = packages.map((pkg: any) => ({
+        ...pkg,
+        locations: pkg.locations.map((loc: any) => {
+          const mappedLocation = locationMap.get(loc.locationId.toString());
+
+          return {
+            ...loc,
+            locationDetails: mappedLocation || null,
+          };
+        }),
+      }));
+
+      return {
+        data,
+        total,
+        page,
+        totalPages: Math.ceil(total / limit),
+      };
+    } catch (error: any) {
+      throw new Error(`Fetching packages by location failed: ${error.message}`);
+    }
+  }
 }

@@ -278,3 +278,73 @@ export const getPackageDiagnostics = async (req: Request, res: Response) => {
     });
   }
 };
+
+export const getFullPackageByCities = async (req: Request, res: Response) => {
+  try {
+    const { packageId } = req.params;
+    const { cityIds } = req.body;
+
+    if (!Array.isArray(cityIds) || cityIds.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "cityIds must be a non-empty array",
+      });
+    }
+
+    const data = await PackageService.getFullPackageByCities(
+      packageId as string,
+      cityIds as string[],
+    );
+
+    return res.status(200).json({
+      success: true,
+      data,
+    });
+  } catch (error: any) {
+    return res.status(400).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+export const getPackagesByLocation = async (req: Request, res: Response) => {
+  try {
+    const { cityIds, limit, page, isActive, isComplete, sortBy, sortOrder } =
+      req.body;
+
+    const activeBool =
+      isActive === "true" ? true : isActive === "false" ? false : undefined;
+
+    const completeBool =
+      isComplete === "true" ? true : isComplete === "false" ? false : undefined;
+
+    const {
+      data,
+      total,
+      page: currentPage,
+      totalPages,
+    } = await PackageService.getPackagesByLocation(
+      cityIds as string[],
+      Number(limit) || 20,
+      Number(page) || 1,
+      activeBool,
+      completeBool,
+      (sortBy as string) || "name",
+      (sortOrder as "asc" | "desc") || "asc",
+    );
+
+    return res.status(200).json({
+      success: true,
+      data,
+      total,
+      page: currentPage,
+      totalPages,
+    });
+  } catch (error: any) {
+    return res.status(400).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};

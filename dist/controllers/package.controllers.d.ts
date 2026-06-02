@@ -10,4 +10,6 @@ export declare const updatePackageTiers: (req: Request, res: Response) => Promis
 export declare const removePackageTier: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
 export declare const getFullPackage: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
 export declare const getPackageDiagnostics: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
+export declare const getFullPackageByCities: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
+export declare const getPackagesByLocation: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
 //# sourceMappingURL=package.controllers.d.ts.map

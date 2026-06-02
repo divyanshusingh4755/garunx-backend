@@ -83,5 +83,30 @@ export declare class PackageService {
         isComplete: boolean;
         issues: string[];
     }>;
+    static getFullPackageByCities(packageId: string, cityIds: string[]): Promise<{
+        package: {
+            id: Types.ObjectId;
+            name: string;
+            shortDescription: string;
+            fullDescription: string | undefined;
+            thumbnailImage: string | undefined;
+            bannerImage: string | undefined;
+            isActive: boolean;
+            isComplete: boolean;
+            packageReference: string;
+        };
+        locations: any[];
+        tiers: {
+            tierId: Types.ObjectId;
+            name: string;
+        }[];
+        components: Record<string, any>;
+    }>;
+    static getPackagesByLocation(cityIds: string[], limit?: number, page?: number, isActive?: boolean, isComplete?: boolean, sortBy?: string, sortOrder?: "asc" | "desc"): Promise<{
+        data: any[];
+        total: number;
+        page: number;
+        totalPages: number;
+    }>;
 }
 //# sourceMappingURL=package.service.d.ts.map
