@@ -553,6 +553,7 @@ export class PackageService {
         fixedPrice: price.fixedPrice,
         discountPercent: price.discountPercent,
         finalPrice: price.finalPrice,
+        serviceId: price.serviceId,
       };
     }
 
