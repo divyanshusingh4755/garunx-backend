@@ -366,34 +366,40 @@ export class PackageService {
                 packageId,
             }).lean(),
         ]);
-        const groupedMappings = {};
+        // Group pricing by tier + service
+        const pricingMap = new Map();
+        for (const p of pricing) {
+            const key = `${p.tierId}_${p.serviceId}`;
+            if (!pricingMap.has(key)) {
+                pricingMap.set(key, []);
+            }
+            pricingMap.get(key).push({
+                locationId: p.locationId,
+                basePrice: p.basePrice,
+                fixedPrice: p.fixedPrice,
+                discountPercent: p.discountPercent,
+                finalPrice: p.finalPrice,
+            });
+        }
+        // Group services by tier and attach pricing
+        const grouped = {};
         for (const map of mappings) {
             const tierId = map.tierId.toString();
-            if (!groupedMappings[tierId]) {
-                groupedMappings[tierId] = {
+            if (!grouped[tierId]) {
+                grouped[tierId] = {
                     tierId: map.tierId,
                     services: [],
                 };
             }
             for (const service of map.services || []) {
-                groupedMappings[tierId].services.push({
+                const pricingKey = `${map.tierId}_${service.serviceId}`;
+                grouped[tierId].services.push({
                     serviceId: service.serviceId,
                     name: service.name,
                     isRequired: service.isRequired,
+                    pricing: pricingMap.get(pricingKey) || [],
                 });
             }
-        }
-        const groupedPricing = {};
-        for (const price of pricing) {
-            groupedPricing[price.tierId.toString()] = {
-                tierId: price.tierId,
-                basePrice: price.basePrice,
-                fixedPrice: price.fixedPrice,
-                discountPercent: price.discountPercent,
-                finalPrice: price.finalPrice,
-                serviceId: price.serviceId,
-                locationId: price.locationId,
-            };
         }
         return {
             package: {
@@ -408,9 +414,11 @@ export class PackageService {
                 packageReference: pkg.packageReference,
             },
             locations: pkg.locations,
-            tiers: pkg.tiers,
-            mappings: groupedMappings,
-            pricing: groupedPricing,
+            tiers: (pkg.tiers || []).map((t) => ({
+                tierId: t.tierId,
+                name: t.name,
+            })),
+            services: grouped,
         };
     }
     static async updatePackageStartingPrice(packageId) {

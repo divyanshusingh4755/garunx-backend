@@ -74,9 +74,11 @@ export declare class PackageService {
             packageReference: string;
         };
         locations: import("../models/package.model.js").IPackageLocation[];
-        tiers: import("../models/package.model.js").IPackageTier[];
-        mappings: Record<string, any>;
-        pricing: Record<string, any>;
+        tiers: {
+            tierId: any;
+            name: any;
+        }[];
+        services: Record<string, any>;
     }>;
     static updatePackageStartingPrice(packageId: string): Promise<void>;
     static validatePackageConfiguration(packageId: string): Promise<{
