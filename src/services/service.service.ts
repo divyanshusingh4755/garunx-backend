@@ -602,9 +602,12 @@ export class ServiceService {
       throw new Error("Service not found");
     }
 
-    const [components, pricing] = await Promise.all([
+    const [components, pricing, serviceCategory] = await Promise.all([
       ServiceComponent.find({ serviceId }).lean(),
+
       ServicePricing.find({ serviceId }).lean(),
+
+      Category.findById(service.categoryId).select("label value image").lean(),
     ]);
 
     const pricingMap = new Map<string, any[]>();
@@ -639,6 +642,7 @@ export class ServiceService {
       grouped[tierId].components.push({
         componentId: comp.componentId,
         name: comp.name,
+        description: comp.description,
         isRequired: comp.isRequired,
         items: comp.items || [],
 
@@ -654,12 +658,25 @@ export class ServiceService {
         fullDescription: service.fullDescription,
         thumbnailImage: service.thumbnailImage,
         bannerImage: service.bannerImage,
+
+        category: serviceCategory
+          ? {
+              id: serviceCategory._id,
+              label: serviceCategory.label,
+              value: serviceCategory.value,
+              image: serviceCategory.image,
+            }
+          : null,
+
         isActive: service.isActive,
         isComplete: service.isComplete,
         serviceReference: service.serviceReference,
       },
+
       subServiceComponents: service.subServiceComponents || [],
+
       locations: service.locations,
+
       tiers: service.tiers.map((t) => ({
         tierId: t.tierId,
         name: t.name,

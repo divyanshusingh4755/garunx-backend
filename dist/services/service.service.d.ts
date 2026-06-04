@@ -83,6 +83,12 @@ export declare class ServiceService {
             fullDescription: string;
             thumbnailImage: string | undefined;
             bannerImage: string | undefined;
+            category: {
+                id: Types.ObjectId;
+                label: string;
+                value: string;
+                image: string | undefined;
+            } | null;
             isActive: boolean;
             isComplete: boolean;
             serviceReference: string;

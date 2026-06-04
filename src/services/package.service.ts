@@ -507,13 +507,9 @@ export class PackageService {
       throw new Error("Invalid packageId");
     }
 
-    const pkg = await Package.findById(packageId).lean();
+    const [pkg, mappings, pricing] = await Promise.all([
+      Package.findById(packageId).lean(),
 
-    if (!pkg) {
-      throw new Error("Package not found");
-    }
-
-    const [mappings, pricing] = await Promise.all([
       PackageTierMap.find({
         packageId,
       }).lean(),
@@ -522,6 +518,57 @@ export class PackageService {
         packageId,
       }).lean(),
     ]);
+
+    if (!pkg) {
+      throw new Error("Package not found");
+    }
+
+    // Collect all service ids
+    const serviceIds = [
+      ...new Set(
+        mappings.flatMap((m) =>
+          (m.services || []).map((s) => s.serviceId.toString()),
+        ),
+      ),
+    ];
+
+    // Fetch services
+    const services = await Service.find({
+      _id: { $in: serviceIds },
+    })
+      .select("categoryId thumbnailImage")
+      .lean();
+
+    // Collect category ids
+    const categoryIds = [
+      ...new Set([
+        pkg.categoryId?.toString(),
+        ...services.map((s) => s.categoryId?.toString()).filter(Boolean),
+      ]),
+    ];
+
+    // Fetch categories
+    const categories = await Category.find({
+      _id: { $in: categoryIds },
+    })
+      .select("label value image")
+      .lean();
+
+    // Category lookup
+    const categoryMap = new Map(
+      categories.map((c: any) => [c._id.toString(), c]),
+    );
+
+    // Service lookup
+    const serviceMap = new Map(
+      services.map((s: any) => [
+        s._id.toString(),
+        {
+          thumbnailImage: s.thumbnailImage,
+          categoryId: s.categoryId,
+        },
+      ]),
+    );
 
     // Group pricing by tier + service
     const pricingMap = new Map<string, any[]>();
@@ -542,7 +589,7 @@ export class PackageService {
       });
     }
 
-    // Group services by tier and attach pricing
+    // Group services by tier
     const grouped: Record<string, any> = {};
 
     for (const map of mappings) {
@@ -558,15 +605,36 @@ export class PackageService {
       for (const service of map.services || []) {
         const pricingKey = `${map.tierId}_${service.serviceId}`;
 
+        const serviceDetails = serviceMap.get(service.serviceId.toString());
+
+        const category = serviceDetails?.categoryId
+          ? categoryMap.get(serviceDetails.categoryId.toString())
+          : null;
+
         grouped[tierId].services.push({
           serviceId: service.serviceId,
           name: service.name,
           isRequired: service.isRequired,
 
+          thumbnailImage: serviceDetails?.thumbnailImage || null,
+
+          category: category
+            ? {
+                id: category._id,
+                label: category.label,
+                value: category.value,
+                image: category.image,
+              }
+            : null,
+
           pricing: pricingMap.get(pricingKey) || [],
         });
       }
     }
+
+    const packageCategory = pkg.categoryId
+      ? categoryMap.get(pkg.categoryId.toString())
+      : null;
 
     return {
       package: {
@@ -576,6 +644,16 @@ export class PackageService {
         fullDescription: pkg.fullDescription,
         thumbnailImage: pkg.thumbnailImage,
         bannerImage: pkg.bannerImage,
+
+        category: packageCategory
+          ? {
+              id: packageCategory._id,
+              label: packageCategory.label,
+              value: packageCategory.value,
+              image: packageCategory.image,
+            }
+          : null,
+
         isActive: pkg.isActive,
         isComplete: pkg.isComplete,
         packageReference: pkg.packageReference,

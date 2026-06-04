@@ -448,9 +448,10 @@ export class ServiceService {
         if (!service) {
             throw new Error("Service not found");
         }
-        const [components, pricing] = await Promise.all([
+        const [components, pricing, serviceCategory] = await Promise.all([
             ServiceComponent.find({ serviceId }).lean(),
             ServicePricing.find({ serviceId }).lean(),
+            Category.findById(service.categoryId).select("label value image").lean(),
         ]);
         const pricingMap = new Map();
         for (const p of pricing) {
@@ -476,6 +477,7 @@ export class ServiceService {
             grouped[tierId].components.push({
                 componentId: comp.componentId,
                 name: comp.name,
+                description: comp.description,
                 isRequired: comp.isRequired,
                 items: comp.items || [],
                 pricing: pricingMap.get(pricingKey) || [],
@@ -489,6 +491,14 @@ export class ServiceService {
                 fullDescription: service.fullDescription,
                 thumbnailImage: service.thumbnailImage,
                 bannerImage: service.bannerImage,
+                category: serviceCategory
+                    ? {
+                        id: serviceCategory._id,
+                        label: serviceCategory.label,
+                        value: serviceCategory.value,
+                        image: serviceCategory.image,
+                    }
+                    : null,
                 isActive: service.isActive,
                 isComplete: service.isComplete,
                 serviceReference: service.serviceReference,

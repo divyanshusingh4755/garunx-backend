@@ -69,6 +69,12 @@ export declare class PackageService {
             fullDescription: string | undefined;
             thumbnailImage: string | undefined;
             bannerImage: string | undefined;
+            category: {
+                id: any;
+                label: any;
+                value: any;
+                image: any;
+            } | null;
             isActive: boolean;
             isComplete: boolean;
             packageReference: string;
