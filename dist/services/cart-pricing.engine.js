@@ -59,24 +59,28 @@ export class CartPricingEngine {
         };
     }
     static async calculatePackageCart(cart) {
-        const [pricingRows, packageTierMap] = await Promise.all([
+        const [packageTierMap, pricingRows] = await Promise.all([
+            PackageTierMap.findOne({
+                packageId: cart.packageId,
+                tierId: cart.tierId,
+            }).lean(),
             PackageTierPricing.find({
                 packageId: cart.packageId,
                 tierId: cart.tierId,
                 locationId: cart.locationId,
             }).lean(),
-            PackageTierMap.findOne({
-                packageId: cart.packageId,
-                tierId: cart.tierId,
-            }).lean(),
         ]);
         const pricingMap = new Map(pricingRows.map((p) => [p.serviceId.toString(), p.finalPrice]));
-        const allowedServiceIds = new Set((packageTierMap?.services || []).map((s) => s.serviceId.toString()));
-        let basePrice = pricingRows.reduce((sum, p) => sum + (p.finalPrice || 0), 0);
+        const allowedServices = packageTierMap?.services || [];
+        let basePrice = 0;
+        for (const s of allowedServices) {
+            basePrice += pricingMap.get(s.serviceId.toString()) || 0;
+        }
         let addonPrice = 0;
         for (const s of cart.addonServices || []) {
-            if (!allowedServiceIds.has(s.serviceId.toString())) {
-                addonPrice += pricingMap.get(s.serviceId.toString()) || 0;
+            const id = s.serviceId.toString();
+            if (!allowedServices.find((x) => x.serviceId.toString() === id)) {
+                addonPrice += pricingMap.get(id) || 0;
             }
         }
         return {

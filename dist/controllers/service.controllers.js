@@ -47,14 +47,14 @@ export const updateService = async (req, res) => {
 export const toggleServiceStatus = async (req, res) => {
     try {
         const { serviceId } = req.params;
-        const { status, confirmed } = req.body;
-        if (!serviceId || status === undefined) {
+        const { isActive, confirmed } = req.body;
+        if (!serviceId || isActive === undefined) {
             return res.status(400).json({
                 success: false,
-                message: "Service ID and status are required.",
+                message: "Service ID and isActive are required.",
             });
         }
-        const result = await ServiceService.toggleServiceStatus(serviceId, status, confirmed);
+        const result = await ServiceService.toggleServiceStatus(serviceId, isActive, confirmed);
         if (result?.requiresConfirmation) {
             return res.status(200).json({
                 success: true,
