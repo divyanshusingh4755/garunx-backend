@@ -1,5 +1,7 @@
-import { Types } from "mongoose";
+import mongoose, { Types } from "mongoose";
 import { Location } from "../models/location.model.js";
+import { Service } from "../models/service.model.js";
+import { Package } from "../models/package.model.js";
 export class LocationService {
     static async createLocation(data) {
         const newLocation = new Location(data);
@@ -90,15 +92,70 @@ export class LocationService {
             throw new Error(`Location Update Failed: ${error.message}`);
         }
     }
-    static async softDeleteLocation(locationId, status) {
+    static async getDeactivationImpact(locationId) {
+        const [services, packages] = await Promise.all([
+            Service.find({
+                "locations.locationId": locationId,
+                "locations.isActive": true,
+            }, {
+                _id: 1,
+                name: 1,
+            }).lean(),
+            Package.find({
+                "locations.locationId": locationId,
+                "locations.isActive": true,
+            }, {
+                _id: 1,
+                name: 1,
+            }).lean(),
+        ]);
+        return {
+            servicesCount: services.length,
+            packagesCount: packages.length,
+            services,
+            packages,
+        };
+    }
+    static async softDeleteLocation(locationId, status, confirmed = false) {
+        // 1. Fetch location first to verify existence
+        const location = await Location.findById(locationId).lean();
+        if (!location) {
+            throw new Error("Location not found");
+        }
+        if (!status && !confirmed) {
+            const impact = await this.getDeactivationImpact(locationId);
+            return {
+                requiresConfirmation: true,
+                impact,
+            };
+        }
+        // 3. Execute updates inside a transaction
+        const session = await Location.db.startSession();
         try {
-            const deletedLocation = await Location.findByIdAndUpdate(locationId, { isActive: status }, { new: true, runValidators: true }).lean();
-            if (!deletedLocation)
-                throw new Error("Location not found");
-            return deletedLocation;
+            let result = null;
+            await session.withTransaction(async () => {
+                // Update parent location status
+                await Location.findByIdAndUpdate(locationId, { isActive: status }, { session });
+                // Convert ID format dynamically
+                const targetId = mongoose.Types.ObjectId.isValid(locationId)
+                    ? new mongoose.Types.ObjectId(locationId)
+                    : locationId;
+                // Update related mappings in Services and Packages
+                const updatePayload = { $set: { "locations.$[loc].isActive": status } };
+                const options = {
+                    session,
+                    arrayFilters: [{ "loc.locationId": targetId }],
+                };
+                await Service.updateMany({ "locations.locationId": locationId }, updatePayload, options);
+                await Package.updateMany({ "locations.locationId": locationId }, updatePayload, options);
+            });
+            return { success: true };
         }
         catch (error) {
-            throw new Error(`Delete failed: ${error.message}`);
+            throw error;
+        }
+        finally {
+            await session.endSession();
         }
     }
     static async getLocationById(locationId) {

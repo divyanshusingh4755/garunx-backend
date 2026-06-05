@@ -33,9 +33,17 @@ export const updateComponent = async (req, res) => {
 export const toggleComponentStatus = async (req, res) => {
     try {
         const { componentId } = req.params;
-        const { isActive } = req.body;
-        const result = await ComponentService.toggleComponentStatus(componentId, isActive);
-        res.status(200).json(result);
+        const { isActive, confirmed } = req.body;
+        const result = await ComponentService.toggleComponentStatus(componentId, isActive, confirmed);
+        if (result?.requiresConfirmation) {
+            return res.status(200).json({
+                success: true,
+                requiresConfirmation: true,
+                message: "This component is used in services and pricing records.",
+                data: result,
+            });
+        }
+        return res.status(200).json(result);
     }
     catch (error) {
         res.status(400).json({

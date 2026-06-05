@@ -3,7 +3,7 @@ import { model, Schema, Types, Document } from "mongoose";
 export interface ILocationService {
   name: string;
   isActive: boolean;
-  locationId: Types.ObjectId; // cityId
+  locationId: Types.ObjectId;
 }
 
 export interface IServiceTier {

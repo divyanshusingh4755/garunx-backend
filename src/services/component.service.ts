@@ -1,5 +1,8 @@
 import { Types } from "mongoose";
 import { Component, type IComponent } from "../models/component.model.js";
+import { ServiceComponent } from "../models/servicecomponent.model.js";
+import { ServicePricing } from "../models/servicepricing.model.js";
+import mongoose from "mongoose";
 
 export class ComponentService {
   static async createComponent(payload: Partial<IComponent>) {
@@ -49,22 +52,72 @@ export class ComponentService {
     }
   }
 
-  static async toggleComponentStatus(componentId: string, isActive: boolean) {
+  static async getDeactivationImpact(componentId: string) {
+    const [serviceComponents, pricing] = await Promise.all([
+      ServiceComponent.find({ componentId }, { _id: 1, serviceId: 1 }).lean(),
+
+      ServicePricing.find({ componentId, isActive: true }, { _id: 1 }).lean(),
+    ]);
+
+    return {
+      affectedServicesCount: serviceComponents.length,
+      pricingCount: pricing.length,
+      serviceComponents,
+    };
+  }
+
+  static async toggleComponentStatus(
+    componentId: string,
+    isActive: boolean,
+    confirmed = false,
+  ) {
     if (!Types.ObjectId.isValid(componentId)) {
       throw new Error("Invalid componentId");
     }
 
     const component = await Component.findById(componentId);
-    if (!component) throw new Error("Component not found");
 
-    component.isActive = isActive;
+    if (!component) {
+      throw new Error("Component not found");
+    }
 
-    await component.save();
+    // If deactivating → ask confirmation first
+    if (!isActive && !confirmed) {
+      const impact = await this.getDeactivationImpact(componentId);
 
-    return {
-      success: true,
-      message: `Component ${isActive ? "activated" : "deactivated"} successfully`,
-    };
+      return {
+        requiresConfirmation: true,
+        impact,
+      };
+    }
+
+    const session = await mongoose.startSession();
+
+    try {
+      await session.withTransaction(async () => {
+        // 1. Update Component
+        await Component.findByIdAndUpdate(
+          componentId,
+          { isActive },
+          { session },
+        );
+
+        // 2. Remove/Deactivate from ServiceComponent
+        await ServiceComponent.deleteMany({ componentId }, { session });
+
+        // 3. Delete pricing
+        await ServicePricing.deleteMany({ componentId }, { session });
+      });
+
+      return {
+        success: true,
+        message: `Component ${
+          isActive ? "activated" : "deactivated"
+        } successfully`,
+      };
+    } finally {
+      await session.endSession();
+    }
   }
 
   static async getComponentById(componentId: string) {

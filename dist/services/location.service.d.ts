@@ -1,4 +1,4 @@
-import { Types } from "mongoose";
+import mongoose, { Types } from "mongoose";
 import { type ILocation } from "../models/location.model.js";
 export declare class LocationService {
     static createLocation(data: {
@@ -14,7 +14,7 @@ export declare class LocationService {
             type: "Point";
             coordinates: [number, number];
         };
-    }): Promise<import("mongoose").Document<unknown, {}, ILocation, {}, import("mongoose").DefaultSchemaOptions> & ILocation & Required<{
+    }): Promise<mongoose.Document<unknown, {}, ILocation, {}, mongoose.DefaultSchemaOptions> & ILocation & Required<{
         _id: Types.ObjectId;
     }> & {
         __v: number;
@@ -76,10 +76,41 @@ export declare class LocationService {
     }> & {
         __v: number;
     }>;
-    static softDeleteLocation(locationId: string, status: string): Promise<ILocation & Required<{
-        _id: Types.ObjectId;
-    }> & {
-        __v: number;
+    static getDeactivationImpact(locationId: string): Promise<{
+        servicesCount: number;
+        packagesCount: number;
+        services: (import("../models/service.model.js").IService & Required<{
+            _id: Types.ObjectId;
+        }> & {
+            __v: number;
+        })[];
+        packages: (import("../models/package.model.js").IPackage & Required<{
+            _id: Types.ObjectId;
+        }> & {
+            __v: number;
+        })[];
+    }>;
+    static softDeleteLocation(locationId: string, status: boolean, confirmed?: boolean): Promise<{
+        requiresConfirmation: boolean;
+        impact: {
+            servicesCount: number;
+            packagesCount: number;
+            services: (import("../models/service.model.js").IService & Required<{
+                _id: Types.ObjectId;
+            }> & {
+                __v: number;
+            })[];
+            packages: (import("../models/package.model.js").IPackage & Required<{
+                _id: Types.ObjectId;
+            }> & {
+                __v: number;
+            })[];
+        };
+        success?: never;
+    } | {
+        success: boolean;
+        requiresConfirmation?: never;
+        impact?: never;
     }>;
     static getLocationById(locationId: string): Promise<ILocation & Required<{
         _id: Types.ObjectId;

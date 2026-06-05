@@ -190,58 +190,54 @@ class CartService {
       throw new Error("Cart not found");
     }
 
+    // Service Cart
     if (cart.serviceId) {
       const service = await Service.findById(cart.serviceId).lean();
-
       if (!service) {
         throw new Error("Service not found");
       }
 
-      const componentIds =
-        service.subServiceComponents
-          ?.map((c: any) => c.componentId)
-          ?.filter(Boolean) || [];
+      // Fetch components for this service and tier
+      const serviceComponents = await ServiceComponent.find({
+        serviceId: service._id,
+        tierId: cart.tierId,
+      }).lean();
 
-      const componentMap = new Map(
-        (
-          await Component.find({
-            _id: { $in: componentIds },
-          }).lean()
-        ).map((c: any) => [c._id.toString(), c]),
+      const componentIds = serviceComponents.map((c) => c.componentId);
+      const componentsMap = new Map(
+        (await Component.find({ _id: { $in: componentIds } }).lean()).map(
+          (c) => [c._id.toString(), c],
+        ),
       );
 
-      const itemIds =
-        service.subServiceComponents
-          ?.flatMap((c: any) => c.items?.map((i: any) => i.itemId))
-          ?.filter(Boolean) || [];
-
-      const itemMap = new Map(
-        (
-          await ComponentItem.find({
-            _id: { $in: itemIds },
-          }).lean()
-        ).map((i: any) => [i._id.toString(), i]),
+      const itemIds = serviceComponents.flatMap(
+        (c) => c.items?.map((i) => i.itemId) || [],
       );
 
+      const itemsMap = new Map(
+        (await ComponentItem.find({ _id: { $in: itemIds } }).lean()).map(
+          (i) => [i._id.toString(), i],
+        ),
+      );
+
+      // Hydrate selected components
       const hydratedSelectedComponents = (cart.selectedComponents || []).map(
-        (comp: any) => {
-          return {
-            ...comp,
-            component: componentMap.get(comp.componentId.toString()),
-            items: comp.items.map((item: any) => ({
-              ...item,
-              itemDetails: itemMap.get(item.itemId.toString()),
-            })),
-          };
-        },
+        (comp) => ({
+          ...comp,
+          component: componentsMap.get(comp.componentId.toString()),
+          items: (comp.items || []).map((item) => ({
+            ...item,
+            itemDetails: itemsMap.get(item.itemId.toString()),
+          })),
+        }),
       );
 
       const hydratedAddonComponents = (cart.addonComponents || []).map(
-        (comp: any) => ({
+        (comp) => ({
           ...comp,
-          items: comp.items.map((item: any) => ({
+          items: (comp.items || []).map((item) => ({
             ...item,
-            itemDetails: itemMap.get(item.itemId.toString()),
+            itemDetails: itemsMap.get(item.itemId.toString()),
           })),
         }),
       );
@@ -254,16 +250,77 @@ class CartService {
       };
     }
 
+    // Package Cart
     if (cart.packageId) {
-      const pkg = await Package.findById(cart.packageId).lean();
+      const pkg = (await Package.findById(cart.packageId)
+        .populate("tierMappings")
+        .lean({ virtuals: true })) as any;
 
       if (!pkg) {
         throw new Error("Package not found");
       }
 
+      // Get services for this cart's tier
+      const packageTierMap = pkg.tierMappings?.find(
+        (m: any) => m.tierId.toString() === cart.tierId.toString(),
+      );
+
+      const serviceIds = packageTierMap?.services?.map(
+        (s: {
+          serviceId: mongoose.Types.ObjectId;
+          name: string;
+          isRequired: boolean;
+        }) => s.serviceId,
+      );
+
+      // Fetch services
+      const services = await Service.find({ _id: { $in: serviceIds } }).lean();
+
+      // Fetch all components for these services in this tier
+      const serviceComponents = await ServiceComponent.find({
+        serviceId: { $in: serviceIds },
+        tierId: cart.tierId,
+      }).lean();
+
+      const componentIds = serviceComponents.map((c) => c.componentId);
+      const componentsMap = new Map(
+        (await Component.find({ _id: { $in: componentIds } }).lean()).map(
+          (c) => [c._id.toString(), c],
+        ),
+      );
+
+      const itemIds = serviceComponents.flatMap(
+        (c) => c.items?.map((i) => i.itemId) || [],
+      );
+
+      const itemsMap = new Map(
+        (await ComponentItem.find({ _id: { $in: itemIds } }).lean()).map(
+          (i) => [i._id.toString(), i],
+        ),
+      );
+
+      // Hydrate services with their components and items
+      const hydratedServices = services.map((service) => {
+        const comps = serviceComponents
+          .filter((c) => c.serviceId.toString() === service._id.toString())
+          .map((comp) => ({
+            ...comp,
+            component: componentsMap.get(comp.componentId.toString()),
+            items: (comp.items || []).map((item) => ({
+              ...item,
+              itemDetails: itemsMap.get(item.itemId.toString()),
+            })),
+          }));
+        return {
+          ...service,
+          components: comps,
+        };
+      });
+
       return {
         ...cart,
         package: pkg,
+        services: hydratedServices,
         addonServices: cart.addonServices || [],
       };
     }

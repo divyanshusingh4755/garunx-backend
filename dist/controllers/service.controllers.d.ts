@@ -1,7 +1,7 @@
 import type { Request, Response } from "express";
 export declare const createService: (req: Request, res: Response) => Promise<Response<any, Record<string, any>> | undefined>;
 export declare const updateService: (req: Request, res: Response) => Promise<void>;
-export declare const toggleServiceStatus: (req: Request, res: Response) => Promise<void>;
+export declare const toggleServiceStatus: (req: Request, res: Response) => Promise<Response<any, Record<string, any>> | undefined>;
 export declare const getServiceById: (req: Request, res: Response) => Promise<void>;
 export declare const getServicesByLocation: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
 export declare const getAllServices: (req: Request, res: Response) => Promise<void>;

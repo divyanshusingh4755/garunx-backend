@@ -49,8 +49,8 @@ export const getTierById = async (req, res) => {
 export const toggleTierStatus = async (req, res) => {
     try {
         const { id } = req.params;
-        const { isActive } = req.body;
-        const data = await TierService.toggleTierStatus(id, isActive);
+        const { isActive, confirmed } = req.body;
+        const data = await TierService.toggleTierStatus(id, isActive, confirmed);
         res.status(200).json({
             succes: true,
             data,

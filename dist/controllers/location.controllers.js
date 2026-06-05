@@ -96,18 +96,26 @@ export const getLocationById = async (req, res) => {
 export const deleteLocation = async (req, res) => {
     try {
         const { id } = req.params;
-        const { status } = req.body;
+        const { status, confirmed } = req.body;
         if (!id || status === undefined) {
             return res.status(400).json({
                 success: false,
-                message: "User ID and status are required.",
+                message: "Location ID and status are required.",
             });
         }
-        const location = await LocationService.softDeleteLocation(id, status);
-        res.status(200).json({
+        const result = await LocationService.softDeleteLocation(id, status, confirmed);
+        if (result?.requiresConfirmation) {
+            return res.status(200).json({
+                success: true,
+                requiresConfirmation: true,
+                message: "This location is linked with services/packages. Please confirm.",
+                data: result,
+            });
+        }
+        return res.status(200).json({
             success: true,
-            message: `Location marked as ${status}`,
-            data: location,
+            message: `Location ${status ? "activated" : "deactivated"} successfully`,
+            data: result,
         });
     }
     catch (error) {

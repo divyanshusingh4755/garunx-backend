@@ -1,5 +1,8 @@
+import mongoose from "mongoose";
 import { Category } from "../models/category.model.js";
 import { Component } from "../models/component.model.js";
+import { Package } from "../models/package.model.js";
+import { Service } from "../models/service.model.js";
 export class CategoryService {
     static async createCategory(categoryData) {
         if (!categoryData.value) {
@@ -48,13 +51,54 @@ export class CategoryService {
             throw new Error("Cannot delete category being used by products");
         return await Category.findByIdAndDelete(id);
     }
-    static async toggleCategoryStatus(id) {
-        const category = await Category.findById(id);
+    static async getDeactivationImpact(categoryId) {
+        const [components, services, packages] = await Promise.all([
+            Component.find({ categoryId, isActive: true }, { _id: 1, name: 1 }).lean(),
+            Service.find({ categoryId, isActive: true }, { _id: 1, name: 1 }).lean(),
+            Package.find({ categoryId, isActive: true }, { _id: 1, name: 1 }).lean(),
+        ]);
+        return {
+            componentsCount: components.length,
+            servicesCount: services.length,
+            packagesCount: packages.length,
+            components,
+            services,
+            packages,
+        };
+    }
+    static async toggleCategoryStatus(categoryId, confirmed = false) {
+        const category = await Category.findById(categoryId);
         if (!category) {
-            throw new Error("category not found");
+            throw new Error("Category not found");
         }
-        category.isActive = !category.isActive;
-        return await category.save();
+        const newStatus = !category.isActive;
+        if (!newStatus && !confirmed) {
+            const impact = await this.getDeactivationImpact(categoryId);
+            return {
+                requiresConfirmation: true,
+                impact,
+            };
+        }
+        const session = await mongoose.startSession();
+        try {
+            await session.withTransaction(async () => {
+                // 1. Update Category
+                await Category.findByIdAndUpdate(categoryId, { isActive: newStatus }, { session });
+                // 2. Update Components
+                await Component.updateMany({ categoryId }, { isActive: newStatus }, { session });
+                // 3. Update Services
+                await Service.updateMany({ categoryId }, { isActive: newStatus }, { session });
+                // 4. Update Packages
+                await Package.updateMany({ categoryId }, { isActive: newStatus }, { session });
+            });
+            return await Category.findById(categoryId).lean();
+        }
+        catch (error) {
+            throw error;
+        }
+        finally {
+            await session.endSession();
+        }
     }
     static async FindCategories(searchTerm, typeFilter, limit = 40, page = 1, isActive, sortBy = "displayOrder", sortOrder = "asc") {
         const skip = limit * (page - 1);

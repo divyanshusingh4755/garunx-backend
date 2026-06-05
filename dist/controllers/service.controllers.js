@@ -1,5 +1,6 @@
 import { ServiceService } from "../services/service.service.js";
 import { ServiceDiagnosticsEngine } from "../services/diagnostic-engine.service.js";
+import { stat } from "node:fs/promises";
 export const createService = async (req, res) => {
     try {
         const service = await ServiceService.createService(req.body);
@@ -46,12 +47,30 @@ export const updateService = async (req, res) => {
 export const toggleServiceStatus = async (req, res) => {
     try {
         const { serviceId } = req.params;
-        const { isActive } = req.body;
-        const result = await ServiceService.toggleServiceStatus(serviceId, isActive);
-        res.status(200).json(result);
+        const { status, confirmed } = req.body;
+        if (!serviceId || status === undefined) {
+            return res.status(400).json({
+                success: false,
+                message: "Service ID and status are required.",
+            });
+        }
+        const result = await ServiceService.toggleServiceStatus(serviceId, status, confirmed);
+        if (result?.requiresConfirmation) {
+            return res.status(200).json({
+                success: true,
+                requiresConfirmation: true,
+                message: "This service is linked with services/packages. Please confirm.",
+                data: result,
+            });
+        }
+        return res.status(200).json({
+            success: true,
+            message: `Service ${status ? "activated" : "deactivated"} successfully`,
+            data: result,
+        });
     }
     catch (error) {
-        res.status(400).json({
+        res.status(error.message === "Service not found" ? 404 : 400).json({
             success: false,
             message: error.message,
         });

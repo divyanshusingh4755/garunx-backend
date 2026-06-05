@@ -34,8 +34,39 @@ declare class CartService {
         }> & {
             __v: number;
         };
-        selectedComponents: any[];
-        addonComponents: any[];
+        selectedComponents: {
+            component: (import("../models/component.model.js").IComponent & Required<{
+                _id: Types.ObjectId;
+            }> & {
+                __v: number;
+            }) | undefined;
+            items: {
+                itemDetails: (import("../models/componentitem.model.js").IComponentItem & Required<{
+                    _id: Types.ObjectId;
+                }> & {
+                    __v: number;
+                }) | undefined;
+                itemId: Types.ObjectId;
+                name: string;
+            }[];
+            componentId: Types.ObjectId;
+            name: string;
+            totalPrice: number;
+        }[];
+        addonComponents: {
+            items: {
+                itemDetails: (import("../models/componentitem.model.js").IComponentItem & Required<{
+                    _id: Types.ObjectId;
+                }> & {
+                    __v: number;
+                }) | undefined;
+                itemId: Types.ObjectId;
+                name: string;
+            }[];
+            componentId: Types.ObjectId;
+            name: string;
+            totalPrice: number;
+        }[];
         _id: Types.ObjectId;
         userId?: Types.ObjectId | null;
         serviceId?: Types.ObjectId;
@@ -80,11 +111,65 @@ declare class CartService {
         schema: mongoose.Schema;
         __v: number;
     } | {
-        package: import("../models/package.model.js").IPackage & Required<{
+        package: any;
+        services: {
+            components: {
+                component: (import("../models/component.model.js").IComponent & Required<{
+                    _id: Types.ObjectId;
+                }> & {
+                    __v: number;
+                }) | undefined;
+                items: {
+                    itemDetails: (import("../models/componentitem.model.js").IComponentItem & Required<{
+                        _id: Types.ObjectId;
+                    }> & {
+                        __v: number;
+                    }) | undefined;
+                    itemId: Types.ObjectId;
+                    name: string;
+                }[];
+                name: string;
+                description: string;
+                serviceId: Types.ObjectId;
+                componentId: Types.ObjectId;
+                tierId: Types.ObjectId;
+                isRequired: boolean;
+                _id: Types.ObjectId;
+                $locals: Record<string, unknown>;
+                $op: "save" | "validate" | "remove" | null;
+                $where: Record<string, unknown>;
+                baseModelName?: string;
+                collection: mongoose.Collection;
+                db: mongoose.Connection;
+                errors?: mongoose.Error.ValidationError;
+                isNew: boolean;
+                schema: mongoose.Schema;
+                __v: number;
+            }[];
+            name: string;
+            shortDescription: string;
+            fullDescription: string;
+            categoryId: Types.ObjectId;
+            thumbnailImage?: string;
+            bannerImage?: string;
+            isActive: boolean;
+            serviceReference: string;
+            locations: import("../models/service.model.js").ILocationService[];
+            tiers: import("../models/service.model.js").IServiceTier[];
+            isComplete: boolean;
+            subServiceComponents?: any[];
             _id: Types.ObjectId;
-        }> & {
+            $locals: Record<string, unknown>;
+            $op: "save" | "validate" | "remove" | null;
+            $where: Record<string, unknown>;
+            baseModelName?: string;
+            collection: mongoose.Collection;
+            db: mongoose.Connection;
+            errors?: mongoose.Error.ValidationError;
+            isNew: boolean;
+            schema: mongoose.Schema;
             __v: number;
-        };
+        }[];
         addonServices: IAddonService[];
         _id: Types.ObjectId;
         userId?: Types.ObjectId | null;

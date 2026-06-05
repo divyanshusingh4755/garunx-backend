@@ -69,14 +69,22 @@ export const getAllComponentItems = async (req, res) => {
 export const updateComponentItemStatus = async (req, res) => {
     try {
         const { componentItemId } = req.params;
-        const { isActive } = req.body;
-        const result = await ComponentItemService.updateComponentItemStatus(componentItemId, isActive);
-        res.status(200).json(result);
+        const { isActive, confirmed } = req.body;
+        const result = await ComponentItemService.updateComponentItemStatus(componentItemId, isActive, confirmed);
+        if (result?.requiresConfirmation) {
+            return res.status(200).json({
+                success: true,
+                requiresConfirmation: true,
+                message: "This component item is used in service configurations.",
+                data: result,
+            });
+        }
+        return res.status(200).json(result);
     }
     catch (error) {
-        res.status(400).json({
+        return res.status(400).json({
             success: false,
-            message: error.message || "Falied to update status of component item",
+            message: error.message || "Failed to update status of component item",
         });
     }
 };

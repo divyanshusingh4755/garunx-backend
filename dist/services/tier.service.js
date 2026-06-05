@@ -1,3 +1,8 @@
+import mongoose from "mongoose";
+import { PackageTierMap } from "../models/packagetiermap.model.js";
+import { PackageTierPricing } from "../models/packagetierpricing.model.js";
+import { ServiceComponent } from "../models/servicecomponent.model.js";
+import { ServicePricing } from "../models/servicepricing.model.js";
 import { Tier } from "../models/tier.model.js";
 export class TierService {
     static async createTier(tierData) {
@@ -33,13 +38,81 @@ export class TierService {
         }
         return tier;
     }
-    static async toggleTierStatus(id, isActive) {
+    static async getDeactivationImpact(tierId) {
+        const [serviceComponents, servicePricing, packageMappings, packagePricing] = await Promise.all([
+            ServiceComponent.find({ tierId }, {
+                _id: 1,
+                serviceId: 1,
+                componentId: 1,
+            }).lean(),
+            ServicePricing.find({ tierId }, {
+                _id: 1,
+                serviceId: 1,
+                componentId: 1,
+            }).lean(),
+            PackageTierMap.find({ tierId }, {
+                _id: 1,
+                packageId: 1,
+            }).lean(),
+            PackageTierPricing.find({ tierId }, {
+                _id: 1,
+                packageId: 1,
+                serviceId: 1,
+            }).lean(),
+        ]);
+        return {
+            serviceComponentCount: serviceComponents.length,
+            servicePricingCount: servicePricing.length,
+            packageMappingCount: packageMappings.length,
+            packagePricingCount: packagePricing.length,
+            serviceComponents,
+            servicePricing,
+            packageMappings,
+            packagePricing,
+        };
+    }
+    static async toggleTierStatus(id, isActive, confirmed = false) {
         const tier = await Tier.findById(id);
         if (!tier) {
             throw new Error("Tier not found");
         }
-        tier.isActive = isActive;
-        return await tier.save();
+        if (tier.isActive === isActive) {
+            return {
+                success: true,
+                message: `Tier already ${isActive ? "active" : "inactive"}`,
+            };
+        }
+        /**
+         * CONFIRMATION FLOW
+         */
+        if (!isActive && !confirmed) {
+            const impact = await TierService.getDeactivationImpact(id);
+            return {
+                requiresConfirmation: true,
+                message: "Tier is used in services and packages. Are you sure?",
+                impact,
+            };
+        }
+        const session = await mongoose.startSession();
+        try {
+            await session.withTransaction(async () => {
+                await Tier.findByIdAndUpdate(id, { isActive: false }, { session });
+                await ServiceComponent.deleteMany({ tierId: id }, { session });
+                await ServicePricing.deleteMany({ tierId: id }, { session });
+                await PackageTierMap.deleteMany({ tierId: id }, { session });
+                await PackageTierPricing.deleteMany({ tierId: id }, { session });
+            });
+            return {
+                success: true,
+                message: `Tier ${isActive ? "activated" : "deactivated"} successfully`,
+            };
+        }
+        catch (err) {
+            throw err;
+        }
+        finally {
+            await session.endSession();
+        }
     }
     static async FindTiers(limit = 40, page = 1, sortBy, sortOrder = "asc", searchTerm, isActive) {
         const skip = limit * (page - 1);

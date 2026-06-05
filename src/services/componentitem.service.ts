@@ -1,7 +1,10 @@
+import mongoose from "mongoose";
 import {
   ComponentItem,
   type IComponentItem,
 } from "../models/componentitem.model.js";
+import { Types } from "mongoose";
+import { ServiceComponent } from "../models/servicecomponent.model.js";
 
 export class ComponentItemService {
   static async createComponentItem(payload: Partial<IComponentItem>) {
@@ -92,24 +95,87 @@ export class ComponentItemService {
     }
   }
 
+  static async getDeactivationImpact(componentItemId: string) {
+    const affected = await ServiceComponent.find(
+      {
+        "items.itemId": componentItemId,
+      },
+      {
+        _id: 1,
+        serviceId: 1,
+        componentId: 1,
+        items: 1,
+      },
+    ).lean();
+
+    return {
+      affectedServiceComponentsCount: affected.length,
+      affected,
+    };
+  }
+
   static async updateComponentItemStatus(
     componentItemId: string,
     isActive: boolean,
+    confirmed = false,
   ) {
-    const componentItem = await ComponentItem.findByIdAndUpdate(
-      componentItemId,
-      {
-        isActive,
-      },
-      { new: true },
-    );
+    if (!Types.ObjectId.isValid(componentItemId)) {
+      throw new Error("Invalid componentItemId");
+    }
 
-    if (!componentItem) throw new Error("Component Item not found");
+    const componentItem = await ComponentItem.findById(componentItemId);
 
-    return {
-      success: true,
-      message: `Component item ${isActive ? "activated" : "deactivated"} successfully`,
-    };
+    if (!componentItem) {
+      throw new Error("Component Item not found");
+    }
+
+    if (!isActive && !confirmed) {
+      const impact = await this.getDeactivationImpact(componentItemId);
+
+      return {
+        requiresConfirmation: true,
+        impact,
+      };
+    }
+
+    const session = await mongoose.startSession();
+
+    try {
+      await session.withTransaction(async () => {
+        // 1. Update ComponentItem itself
+        await ComponentItem.findByIdAndUpdate(
+          componentItemId,
+          { isActive },
+          { session },
+        );
+
+        // 2. REMOVE from ServiceComponent.items[]
+        await ServiceComponent.updateMany(
+          {
+            "items.itemId": componentItemId,
+          },
+          {
+            $pull: {
+              items: {
+                itemId: new mongoose.Types.ObjectId(componentItemId),
+              },
+            },
+          },
+          { session },
+        );
+      });
+
+      return {
+        success: true,
+        message: `Component item ${
+          isActive ? "activated" : "deactivated"
+        } successfully`,
+      };
+    } catch (err: any) {
+      throw err;
+    } finally {
+      await session.endSession();
+    }
   }
 }
 

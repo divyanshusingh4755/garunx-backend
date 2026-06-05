@@ -9,6 +9,10 @@ import { ServicePricing } from "../models/servicepricing.model.js";
 import { Location } from "../models/location.model.js";
 import { ServiceCascadingEngine } from "./cascading-engine.service.js";
 import { Component } from "../models/component.model.js";
+import mongoose from "mongoose";
+import { PackageTierMap } from "../models/packagetiermap.model.js";
+import { PackageTierPricing } from "../models/packagetierpricing.model.js";
+import { ComponentItem } from "../models/componentitem.model.js";
 
 export class ServiceService {
   static async createService(payload: any) {
@@ -149,7 +153,39 @@ export class ServiceService {
     return service;
   }
 
-  static async toggleServiceStatus(serviceId: string, isActive: boolean) {
+  static async getDeactivationImpact(serviceId: string) {
+    const [packageMappings, packagePricing, servicePricing] = await Promise.all(
+      [
+        // 1. Where service is used in packages
+        PackageTierMap.find(
+          { "services.serviceId": serviceId },
+          { _id: 1, packageId: 1, tierId: 1 },
+        ).lean(),
+
+        // 2. Package pricing tied to this service
+        PackageTierPricing.find({ serviceId }, { _id: 1 }).lean(),
+
+        // 3. Service pricing (optional visibility)
+        ServicePricing.find({ serviceId }, { _id: 1 }).lean(),
+      ],
+    );
+
+    return {
+      packageUsageCount: packageMappings.length,
+      packagePricingCount: packagePricing.length,
+      servicePricingCount: servicePricing.length,
+
+      packageMappings,
+      packagePricing,
+      servicePricing,
+    };
+  }
+
+  static async toggleServiceStatus(
+    serviceId: string,
+    isActive: boolean,
+    confirmed = false,
+  ) {
     if (!Types.ObjectId.isValid(serviceId)) {
       throw new Error("Invalid serviceId");
     }
@@ -167,6 +203,16 @@ export class ServiceService {
       };
     }
 
+    if (!isActive && !confirmed) {
+      const impact = await ServiceService.getDeactivationImpact(serviceId);
+
+      return {
+        requiresConfirmation: true,
+        message: "This service is used in packages and pricing. Are you sure?",
+        impact,
+      };
+    }
+
     if (isActive) {
       const validation =
         await ServiceService.validateServiceConfiguration(serviceId);
@@ -176,15 +222,44 @@ export class ServiceService {
       }
     }
 
-    service.isActive = isActive;
-    await service.save();
+    const session = await mongoose.startSession();
 
-    await ServiceCascadingEngine.run(serviceId);
+    try {
+      await session.withTransaction(async () => {
+        // 1. Update Service
+        await Service.findByIdAndUpdate(serviceId, { isActive }, { session });
 
-    return {
-      success: true,
-      message: `Service ${isActive ? "activated" : "deactivated"} successfully`,
-    };
+        // 2. REMOVE service from Package mappings
+        await PackageTierMap.updateMany(
+          {
+            "services.serviceId": serviceId,
+          },
+          {
+            $pull: {
+              services: {
+                serviceId: new mongoose.Types.ObjectId(serviceId),
+              },
+            },
+          },
+          { session },
+        );
+
+        // 3. DELETE package pricing for this service
+        await PackageTierPricing.deleteMany({ serviceId }, { session });
+      });
+
+      // 4. Run downstream cascading (components etc.)
+      await ServiceCascadingEngine.run(serviceId);
+
+      return {
+        success: true,
+        message: `Service ${
+          isActive ? "activated" : "deactivated"
+        } successfully`,
+      };
+    } finally {
+      await session.endSession();
+    }
   }
 
   static async getServicesByLocation(
@@ -602,13 +677,33 @@ export class ServiceService {
       throw new Error("Service not found");
     }
 
-    const [components, pricing, serviceCategory] = await Promise.all([
+    const [serviceComponents, pricing, serviceCategory] = await Promise.all([
       ServiceComponent.find({ serviceId }).lean(),
 
       ServicePricing.find({ serviceId }).lean(),
 
       Category.findById(service.categoryId).select("label value image").lean(),
     ]);
+
+    const componentIds = serviceComponents.map((c) => c.componentId);
+
+    const componentDocs = await Component.find({
+      _id: { $in: componentIds },
+    }).lean();
+
+    const componentMap = new Map(
+      componentDocs.map((c) => [c._id.toString(), c]),
+    );
+
+    const itemIds = serviceComponents.flatMap(
+      (c) => c.items?.map((i) => i.itemId) || [],
+    );
+
+    const itemDocs = await ComponentItem.find({
+      _id: { $in: itemIds },
+    }).lean();
+
+    const itemMap = new Map(itemDocs.map((i) => [i._id.toString(), i]));
 
     const pricingMap = new Map<string, any[]>();
 
@@ -627,7 +722,7 @@ export class ServiceService {
 
     const grouped: Record<string, any> = {};
 
-    for (const comp of components) {
+    for (const comp of serviceComponents) {
       const tierId = comp.tierId.toString();
 
       if (!grouped[tierId]) {
@@ -639,12 +734,28 @@ export class ServiceService {
 
       const pricingKey = `${comp.tierId}_${comp.componentId}`;
 
+      const componentDetails = componentMap.get(comp.componentId.toString());
+
       grouped[tierId].components.push({
         componentId: comp.componentId,
         name: comp.name,
         description: comp.description,
         isRequired: comp.isRequired,
-        items: comp.items || [],
+        component: componentDetails
+          ? {
+              id: componentDetails._id,
+              image: componentDetails.imageUrl,
+              isRemovable: componentDetails.isRemovable,
+              isBundled: componentDetails.isBundled,
+              isActive: componentDetails.isActive,
+            }
+          : null,
+
+        items: (comp.items || []).map((item) => ({
+          ...item,
+
+          itemDetails: itemMap.get(item.itemId.toString()) || null,
+        })),
 
         pricing: pricingMap.get(pricingKey) || [],
       });

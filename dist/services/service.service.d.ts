@@ -1,13 +1,14 @@
 import { Types } from "mongoose";
+import mongoose from "mongoose";
 export declare class ServiceService {
-    static createService(payload: any): Promise<import("mongoose").Document<unknown, {}, import("../models/service.model.js").IService, {}, import("mongoose").DefaultSchemaOptions> & import("../models/service.model.js").IService & Required<{
+    static createService(payload: any): Promise<mongoose.Document<unknown, {}, import("../models/service.model.js").IService, {}, mongoose.DefaultSchemaOptions> & import("../models/service.model.js").IService & Required<{
         _id: Types.ObjectId;
     }> & {
         __v: number;
     } & {
         id: string;
     }>;
-    static updateService(serviceId: string, payload: any): Promise<import("mongoose").Document<unknown, {}, import("../models/service.model.js").IService, {}, import("mongoose").DefaultSchemaOptions> & import("../models/service.model.js").IService & Required<{
+    static updateService(serviceId: string, payload: any): Promise<mongoose.Document<unknown, {}, import("../models/service.model.js").IService, {}, mongoose.DefaultSchemaOptions> & import("../models/service.model.js").IService & Required<{
         _id: Types.ObjectId;
     }> & {
         __v: number;
@@ -19,9 +20,55 @@ export declare class ServiceService {
     }> & {
         __v: number;
     }>;
-    static toggleServiceStatus(serviceId: string, isActive: boolean): Promise<{
+    static getDeactivationImpact(serviceId: string): Promise<{
+        packageUsageCount: number;
+        packagePricingCount: number;
+        servicePricingCount: number;
+        packageMappings: (import("../models/packagetiermap.model.js").IPackageTierMap & Required<{
+            _id: Types.ObjectId;
+        }> & {
+            __v: number;
+        })[];
+        packagePricing: (import("../models/packagetierpricing.model.js").IPackageTierPricing & Required<{
+            _id: Types.ObjectId;
+        }> & {
+            __v: number;
+        })[];
+        servicePricing: (import("../models/servicepricing.model.js").IServicePricing & Required<{
+            _id: Types.ObjectId;
+        }> & {
+            __v: number;
+        })[];
+    }>;
+    static toggleServiceStatus(serviceId: string, isActive: boolean, confirmed?: boolean): Promise<{
         success: boolean;
         message: string;
+        requiresConfirmation?: never;
+        impact?: never;
+    } | {
+        requiresConfirmation: boolean;
+        message: string;
+        impact: {
+            packageUsageCount: number;
+            packagePricingCount: number;
+            servicePricingCount: number;
+            packageMappings: (import("../models/packagetiermap.model.js").IPackageTierMap & Required<{
+                _id: Types.ObjectId;
+            }> & {
+                __v: number;
+            })[];
+            packagePricing: (import("../models/packagetierpricing.model.js").IPackageTierPricing & Required<{
+                _id: Types.ObjectId;
+            }> & {
+                __v: number;
+            })[];
+            servicePricing: (import("../models/servicepricing.model.js").IServicePricing & Required<{
+                _id: Types.ObjectId;
+            }> & {
+                __v: number;
+            })[];
+        };
+        success?: never;
     }>;
     static getServicesByLocation(cityIds: string[], limit?: number, page?: number, isActive?: boolean, isComplete?: boolean, sortBy?: string, sortOrder?: "asc" | "desc"): Promise<{
         data: any[];
