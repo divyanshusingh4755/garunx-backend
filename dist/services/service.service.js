@@ -175,7 +175,9 @@ export class ServiceService {
                 await PackageTierPricing.deleteMany({ serviceId }, { session });
             });
             // 4. Run downstream cascading (components etc.)
-            await ServiceCascadingEngine.run(serviceId);
+            if (isActive) {
+                await ServiceCascadingEngine.run(serviceId);
+            }
             return {
                 success: true,
                 message: `Service ${isActive ? "activated" : "deactivated"} successfully`,
@@ -782,9 +784,6 @@ export class ServiceService {
             throw new Error("Service not found");
         }
         const issues = [];
-        if (!service.isActive) {
-            issues.push("Service is inactive");
-        }
         const activeLocations = service.locations.filter((l) => l.isActive);
         if (activeLocations.length === 0) {
             issues.push("No active locations configured");

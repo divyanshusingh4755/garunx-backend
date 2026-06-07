@@ -249,7 +249,9 @@ export class ServiceService {
       });
 
       // 4. Run downstream cascading (components etc.)
-      await ServiceCascadingEngine.run(serviceId);
+      if (isActive) {
+        await ServiceCascadingEngine.run(serviceId);
+      }
 
       return {
         success: true,
@@ -1058,10 +1060,6 @@ export class ServiceService {
     }
 
     const issues: string[] = [];
-
-    if (!service.isActive) {
-      issues.push("Service is inactive");
-    }
 
     const activeLocations = service.locations.filter((l) => l.isActive);
 
