@@ -84,7 +84,7 @@ export const toggleServiceStatus = async (req: Request, res: Response) => {
 
     return res.status(200).json({
       success: true,
-      message: `Service ${status ? "activated" : "deactivated"} successfully`,
+      message: `Service ${isActive ? "activated" : "deactivated"} successfully`,
       data: result,
     });
   } catch (error: any) {

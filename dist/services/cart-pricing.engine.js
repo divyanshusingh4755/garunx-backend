@@ -72,15 +72,17 @@ export class CartPricingEngine {
         ]);
         const pricingMap = new Map(pricingRows.map((p) => [p.serviceId.toString(), p.finalPrice]));
         const allowedServices = packageTierMap?.services || [];
+        const selectedServiceIds = new Set((cart.addonServices || []).map((s) => String(s.serviceId)));
         let basePrice = 0;
-        for (const s of allowedServices) {
-            basePrice += pricingMap.get(s.serviceId.toString()) || 0;
+        for (const serviceId of selectedServiceIds) {
+            if (allowedServices.some((s) => s.serviceId.toString() === serviceId)) {
+                basePrice += pricingMap.get(serviceId) || 0;
+            }
         }
         let addonPrice = 0;
-        for (const s of cart.addonServices || []) {
-            const id = s.serviceId.toString();
-            if (!allowedServices.find((x) => x.serviceId.toString() === id)) {
-                addonPrice += pricingMap.get(id) || 0;
+        for (const serviceId of selectedServiceIds) {
+            if (!allowedServices.some((s) => s.serviceId.toString() === serviceId)) {
+                addonPrice += pricingMap.get(serviceId) || 0;
             }
         }
         return {
