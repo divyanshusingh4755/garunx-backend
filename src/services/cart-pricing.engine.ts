@@ -39,7 +39,7 @@ export class CartPricingEngine {
     for (const comp of cart.selectedComponents || []) {
       const id = comp.componentId.toString();
       if (requiredComponentIds.includes(id)) continue;
-      addonPrice += pricingMap.get(id) || 0;
+      basePrice += pricingMap.get(id) || 0;
     }
 
     for (const comp of cart.addonComponents || []) {
