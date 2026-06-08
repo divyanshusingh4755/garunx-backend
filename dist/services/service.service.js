@@ -289,13 +289,13 @@ export class ServiceService {
             if (!Types.ObjectId.isValid(categoryId)) {
                 throw new Error("Invalid categoryId");
             }
-            matchQuery.categoryId = categoryId;
+            matchQuery.categoryId = new Types.ObjectId(categoryId);
         }
         if (locationId) {
             if (!Types.ObjectId.isValid(locationId)) {
                 throw new Error("Invalid locationId");
             }
-            matchQuery.locationId = locationId;
+            matchQuery["locations.locationId"] = new Types.ObjectId(locationId);
         }
         if (searchTerm)
             matchQuery.$text = { $search: searchTerm };
