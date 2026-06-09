@@ -25,9 +25,7 @@ const validate = (req: any, res: any, next: any) => {
 
 const packageTierValidation = [
   param("packageId").isMongoId().withMessage("Invalid packageId"),
-
   param("tierId").isMongoId().withMessage("Invalid tierId"),
-
   validate,
 ];
 
@@ -36,7 +34,6 @@ router.post(
   authenticate,
 
   body("packageId").isMongoId().withMessage("Invalid packageId"),
-
   body("tierId").isMongoId().withMessage("Invalid tierId"),
 
   body("services")
@@ -52,8 +49,21 @@ router.post(
     .isBoolean()
     .withMessage("isRequired must be boolean"),
 
-  validate,
+  body("services.*.isRelated")
+    .optional()
+    .isBoolean()
+    .withMessage("isRelated must be boolean"),
 
+  body("services").custom((services) => {
+    for (const s of services) {
+      if (s.isRequired && s.isRelated) {
+        throw new Error("Service cannot be both required and related");
+      }
+    }
+    return true;
+  }),
+
+  validate,
   bulkUpsertPackageTierMappings,
 );
 
@@ -62,10 +72,11 @@ router.put(
   authenticate,
 
   body("packageId").isMongoId().withMessage("Invalid packageId"),
-
   body("tierId").isMongoId().withMessage("Invalid tierId"),
 
-  body("services").isArray().withMessage("services array is required"),
+  body("services")
+    .isArray({ min: 1 })
+    .withMessage("services array is required"),
 
   body("services.*.serviceId").isMongoId().withMessage("Invalid serviceId"),
 
@@ -76,17 +87,28 @@ router.put(
     .isBoolean()
     .withMessage("isRequired must be boolean"),
 
-  validate,
+  body("services.*.isRelated")
+    .optional()
+    .isBoolean()
+    .withMessage("isRelated must be boolean"),
 
+  body("services").custom((services) => {
+    for (const s of services) {
+      if (s.isRequired && s.isRelated) {
+        throw new Error("Service cannot be both required and related");
+      }
+    }
+    return true;
+  }),
+
+  validate,
   replacePackageTierMappings,
 );
 
 router.get(
   "/:packageId/:tierId",
   authenticate,
-
   packageTierValidation,
-
   getServicesByPackageAndTier,
 );
 
@@ -95,9 +117,7 @@ router.patch(
   authenticate,
 
   body("packageId").isMongoId().withMessage("Invalid packageId"),
-
   body("tierId").isMongoId().withMessage("Invalid tierId"),
-
   body("serviceId").isMongoId().withMessage("Invalid serviceId"),
 
   body("isRequired")
@@ -105,8 +125,19 @@ router.patch(
     .isBoolean()
     .withMessage("isRequired must be boolean"),
 
-  validate,
+  body("isRelated")
+    .optional()
+    .isBoolean()
+    .withMessage("isRelated must be boolean"),
 
+  body().custom((body) => {
+    if (body.isRequired && body.isRelated) {
+      throw new Error("Service cannot be both required and related");
+    }
+    return true;
+  }),
+
+  validate,
   updatePackageTierService,
 );
 

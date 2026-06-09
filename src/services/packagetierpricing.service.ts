@@ -238,6 +238,7 @@ export class PackageTierPricingService {
         shortDescription: s.serviceId.shortDescription,
         thumbnailImage: s.serviceId.thumbnailImage,
         isRequired: s.isRequired,
+        isRelated: s.isRelated,
       })),
     );
 
@@ -303,8 +304,8 @@ export class PackageTierPricingService {
     );
 
     const isAvailable =
-      requiredServices.length > 0 &&
-      requiredServices.every((s) => s.isPriceConfigured);
+      requiredServices.every((s) => s.isPriceConfigured) &&
+      optionalServices.every((s) => s.isPriceConfigured);
 
     return {
       package: {

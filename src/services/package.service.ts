@@ -615,6 +615,7 @@ export class PackageService {
           serviceId: service.serviceId,
           name: service.name,
           isRequired: service.isRequired,
+          isRelated: service.isRelated,
 
           thumbnailImage: serviceDetails?.thumbnailImage || null,
 
@@ -747,7 +748,7 @@ export class PackageService {
 
     const requiredServiceIds = mappings.flatMap((m) =>
       (m.services || [])
-        .filter((s: any) => s.isRequired)
+        .filter((s: any) => s.isRequired || s.isRelated)
         .map((s: any) => s.serviceId.toString()),
     );
 
@@ -765,7 +766,9 @@ export class PackageService {
       );
 
       if (invalidServices.length) {
-        issues.push("One or more required services are inactive or incomplete");
+        issues.push(
+          "One or more required/related services are inactive or incomplete",
+        );
       }
     }
 

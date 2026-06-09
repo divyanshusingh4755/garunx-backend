@@ -180,6 +180,7 @@ export class PackageTierPricingService {
             shortDescription: s.serviceId.shortDescription,
             thumbnailImage: s.serviceId.thumbnailImage,
             isRequired: s.isRequired,
+            isRelated: s.isRelated,
         })));
         const serviceIds = serviceList.map((s) => new Types.ObjectId(s.serviceId));
         const basePricingDocs = await ServicePricing.find({
@@ -223,8 +224,8 @@ export class PackageTierPricingService {
         const requiredServices = resolvedServices.filter((s) => s.isRequired);
         const optionalServices = resolvedServices.filter((s) => !s.isRequired);
         const startingPrice = requiredServices.reduce((sum, s) => sum + (s.price ?? 0), 0);
-        const isAvailable = requiredServices.length > 0 &&
-            requiredServices.every((s) => s.isPriceConfigured);
+        const isAvailable = requiredServices.every((s) => s.isPriceConfigured) &&
+            optionalServices.every((s) => s.isPriceConfigured);
         return {
             package: {
                 id: pkg._id,

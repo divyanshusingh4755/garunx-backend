@@ -65,10 +65,15 @@ export class PackageTierMapService {
         throw new Error(`Service not found: ${key}`);
       }
 
+      if (s.isRequired && s.isRelated) {
+        throw new Error(`${service.name} cannot be both required and related`);
+      }
+
       return {
         serviceId: new Types.ObjectId(key),
         name: service.name,
         isRequired: !!s.isRequired,
+        isRelated: !!s.isRelated,
       };
     });
 
@@ -158,12 +163,19 @@ export class PackageTierMapService {
       const docs = services.map((s: any) => {
         const dbService = serviceMap.get(s.serviceId)!;
 
+        if (s.isRequired && s.isRelated) {
+          throw new Error(
+            `${dbService.name} cannot be both required and related`,
+          );
+        }
+
         return {
           packageId,
           tierId,
           serviceId: s.serviceId,
           name: dbService.name,
           isRequired: !!s.isRequired,
+          isRelated: !!s.isRelated,
         };
       });
 
@@ -218,12 +230,13 @@ export class PackageTierMapService {
         serviceId: s.serviceId,
         name: s.name,
         isRequired: s.isRequired,
+        isRelated: s.isRelated ?? false,
       })),
     );
   }
 
   static async patchService(payload: any) {
-    const { packageId, tierId, serviceId, isRequired } = payload;
+    const { packageId, tierId, serviceId, isRequired, isRelated } = payload;
 
     if (!Types.ObjectId.isValid(packageId)) {
       throw new Error("Invalid packageId");
@@ -246,18 +259,22 @@ export class PackageTierMapService {
       throw new Error("Service mapping not found");
     }
 
-    const serviceExists = mapping.services?.some(
+    const currentService = mapping.services.find(
       (s: any) => s.serviceId.toString() === serviceId,
     );
 
-    if (!serviceExists) {
+    if (!currentService) {
       throw new Error("Service not found in mapping");
     }
 
-    const updateData: any = {};
+    const finalIsRequired =
+      typeof isRequired === "boolean" ? isRequired : currentService.isRequired;
 
-    if (typeof isRequired === "boolean") {
-      updateData["services.$.isRequired"] = isRequired;
+    const finalIsRelated =
+      typeof isRelated === "boolean" ? isRelated : currentService.isRelated;
+
+    if (finalIsRequired && finalIsRelated) {
+      throw new Error("A service cannot be both required and related");
     }
 
     await PackageTierMap.updateOne(
@@ -267,7 +284,10 @@ export class PackageTierMapService {
         "services.serviceId": serviceId,
       },
       {
-        $set: updateData,
+        $set: {
+          "services.$.isRequired": finalIsRequired,
+          "services.$.isRelated": finalIsRelated,
+        },
       },
     );
 

@@ -16,7 +16,7 @@ export class PackageCascadingEngine {
                     throw new Error("Package not found");
                 await this.cleanupTierOrphans(pkg, session);
                 await this.cleanupLocationOrphans(pkg, session);
-                await this.cleanupServiceOrphans(pkg, session);
+                // await this.cleanupServiceOrphans(pkg, session);
                 await this.cleanupPricing(pkg, session);
                 const refreshed = await Package.findById(packageId).session(session);
                 if (!refreshed)
@@ -53,17 +53,20 @@ export class PackageCascadingEngine {
             locationId: { $nin: validLocationIds },
         }, { session });
     }
-    static async cleanupServiceOrphans(pkg, session) {
-        const validTierIds = pkg.tiers.map((t) => t.tierId.toString());
-        if (!validTierIds.length) {
-            await PackageTierMap.deleteMany({ packageId: pkg._id }, { session });
-            return;
-        }
-        await PackageTierMap.deleteMany({
-            packageId: pkg._id,
-            tierId: { $nin: validTierIds },
-        }, { session });
-    }
+    // static async cleanupServiceOrphans(pkg: any, session: any) {
+    //   const validTierIds = pkg.tiers.map((t: any) => t.tierId.toString());
+    //   if (!validTierIds.length) {
+    //     await PackageTierMap.deleteMany({ packageId: pkg._id }, { session });
+    //     return;
+    //   }
+    //   await PackageTierMap.deleteMany(
+    //     {
+    //       packageId: pkg._id,
+    //       tierId: { $nin: validTierIds },
+    //     },
+    //     { session },
+    //   );
+    // }
     static async cleanupPricing(pkg, session) {
         const validTierIds = new Set(pkg.tiers.map((t) => t.tierId.toString()));
         const validLocationIds = new Set(pkg.locations.map((l) => l.locationId.toString()));
@@ -72,8 +75,18 @@ export class PackageCascadingEngine {
         })
             .session(session)
             .lean();
-        // tier-service pairs
-        const validServicePairs = new Set(mappings.flatMap((m) => (m.services || []).map((s) => `${m.tierId.toString()}_${s.serviceId.toString()}`)));
+        // Build tier -> service set map
+        const serviceMapByTier = new Map();
+        for (const m of mappings) {
+            const tierId = m.tierId.toString();
+            if (!serviceMapByTier.has(tierId)) {
+                serviceMapByTier.set(tierId, new Set());
+            }
+            const set = serviceMapByTier.get(tierId);
+            for (const s of m.services || []) {
+                set.add(s.serviceId.toString());
+            }
+        }
         const pricing = await PackageTierPricing.find({
             packageId: pkg._id,
         }).session(session);
@@ -84,7 +97,8 @@ export class PackageCascadingEngine {
             const serviceId = p.serviceId.toString();
             const tierValid = validTierIds.has(tierId);
             const locationValid = validLocationIds.has(locationId);
-            const serviceValid = validServicePairs.has(`${tierId}_${serviceId}`);
+            const serviceSet = serviceMapByTier.get(tierId);
+            const serviceValid = serviceSet?.has(serviceId);
             const invalid = !tierValid || !locationValid || !serviceValid;
             if (invalid) {
                 deleteIds.push(p._id);

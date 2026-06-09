@@ -11,6 +11,7 @@ export declare class PackageTierMapService {
         serviceId: any;
         name: any;
         isRequired: any;
+        isRelated: any;
     }[]>;
     static patchService(payload: any): Promise<{
         success: boolean;

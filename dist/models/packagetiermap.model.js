@@ -13,6 +13,10 @@ const packageTierServiceSchema = new Schema({
         type: Boolean,
         default: false,
     },
+    isRelated: {
+        type: Boolean,
+        default: false,
+    },
 }, { _id: false });
 const packageTierMapSchema = new Schema({
     packageId: {
@@ -34,6 +38,11 @@ const packageTierMapSchema = new Schema({
 packageTierMapSchema.index({
     packageId: 1,
     tierId: 1,
+});
+packageTierServiceSchema.pre("validate", function () {
+    if (this.isRequired && this.isRelated) {
+        throw new Error("A service cannot be both required and related");
+    }
 });
 export const PackageTierMap = model("PackageTierMap", packageTierMapSchema);
 //# sourceMappingURL=packagetiermap.model.js.map

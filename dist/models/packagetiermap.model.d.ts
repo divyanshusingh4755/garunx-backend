@@ -3,6 +3,7 @@ export interface IPackageTierService {
     serviceId: Types.ObjectId;
     name: string;
     isRequired: boolean;
+    isRelated: boolean;
 }
 export interface IPackageTierMap extends Document {
     packageId: Types.ObjectId;
@@ -11,6 +12,7 @@ export interface IPackageTierMap extends Document {
         serviceId: Types.ObjectId;
         name: string;
         isRequired: boolean;
+        isRelated: boolean;
     }[];
 }
 export declare const PackageTierMap: import("mongoose").Model<IPackageTierMap, {}, {}, {}, Document<unknown, {}, IPackageTierMap, {}, import("mongoose").DefaultSchemaOptions> & IPackageTierMap & Required<{

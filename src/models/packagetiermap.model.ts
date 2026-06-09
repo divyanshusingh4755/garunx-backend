@@ -4,6 +4,7 @@ export interface IPackageTierService {
   serviceId: Types.ObjectId;
   name: string;
   isRequired: boolean;
+  isRelated: boolean;
 }
 
 const packageTierServiceSchema = new Schema<IPackageTierService>(
@@ -23,6 +24,10 @@ const packageTierServiceSchema = new Schema<IPackageTierService>(
       type: Boolean,
       default: false,
     },
+    isRelated: {
+      type: Boolean,
+      default: false,
+    },
   },
   { _id: false },
 );
@@ -34,6 +39,7 @@ export interface IPackageTierMap extends Document {
     serviceId: Types.ObjectId;
     name: string;
     isRequired: boolean;
+    isRelated: boolean;
   }[];
 }
 
@@ -63,6 +69,12 @@ const packageTierMapSchema = new Schema<IPackageTierMap>(
 packageTierMapSchema.index({
   packageId: 1,
   tierId: 1,
+});
+
+packageTierServiceSchema.pre("validate", function () {
+  if (this.isRequired && this.isRelated) {
+    throw new Error("A service cannot be both required and related");
+  }
 });
 
 export const PackageTierMap = model<IPackageTierMap>(

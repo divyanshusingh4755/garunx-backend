@@ -531,7 +531,7 @@ export class PackageService {
             }
         }
         const requiredServiceIds = mappings.flatMap((m) => (m.services || [])
-            .filter((s) => s.isRequired)
+            .filter((s) => s.isRequired || s.isRelated)
             .map((s) => s.serviceId.toString()));
         if (requiredServiceIds.length) {
             const services = await Service.find({
@@ -543,7 +543,7 @@ export class PackageService {
                 .lean();
             const invalidServices = services.filter((s) => !s.isActive || !s.isComplete);
             if (invalidServices.length) {
-                issues.push("One or more required services are inactive or incomplete");
+                issues.push("One or more required/related services are inactive or incomplete");
             }
         }
         const isComplete = issues.length === 0;

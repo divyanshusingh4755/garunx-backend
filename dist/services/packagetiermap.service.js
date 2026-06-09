@@ -49,10 +49,14 @@ export class PackageTierMapService {
             if (!service) {
                 throw new Error(`Service not found: ${key}`);
             }
+            if (s.isRequired && s.isRelated) {
+                throw new Error(`${service.name} cannot be both required and related`);
+            }
             return {
                 serviceId: new Types.ObjectId(key),
                 name: service.name,
                 isRequired: !!s.isRequired,
+                isRelated: !!s.isRelated,
             };
         });
         await PackageTierMap.updateOne({ packageId, tierId }, {
@@ -119,12 +123,16 @@ export class PackageTierMapService {
             const serviceMap = new Map(dbServices.map((s) => [s._id.toString(), s]));
             const docs = services.map((s) => {
                 const dbService = serviceMap.get(s.serviceId);
+                if (s.isRequired && s.isRelated) {
+                    throw new Error(`${dbService.name} cannot be both required and related`);
+                }
                 return {
                     packageId,
                     tierId,
                     serviceId: s.serviceId,
                     name: dbService.name,
                     isRequired: !!s.isRequired,
+                    isRelated: !!s.isRelated,
                 };
             });
             await PackageTierMap.deleteMany({
@@ -168,10 +176,11 @@ export class PackageTierMapService {
             serviceId: s.serviceId,
             name: s.name,
             isRequired: s.isRequired,
+            isRelated: s.isRelated ?? false,
         })));
     }
     static async patchService(payload) {
-        const { packageId, tierId, serviceId, isRequired } = payload;
+        const { packageId, tierId, serviceId, isRequired, isRelated } = payload;
         if (!Types.ObjectId.isValid(packageId)) {
             throw new Error("Invalid packageId");
         }
@@ -188,20 +197,24 @@ export class PackageTierMapService {
         if (!mapping) {
             throw new Error("Service mapping not found");
         }
-        const serviceExists = mapping.services?.some((s) => s.serviceId.toString() === serviceId);
-        if (!serviceExists) {
+        const currentService = mapping.services.find((s) => s.serviceId.toString() === serviceId);
+        if (!currentService) {
             throw new Error("Service not found in mapping");
         }
-        const updateData = {};
-        if (typeof isRequired === "boolean") {
-            updateData["services.$.isRequired"] = isRequired;
+        const finalIsRequired = typeof isRequired === "boolean" ? isRequired : currentService.isRequired;
+        const finalIsRelated = typeof isRelated === "boolean" ? isRelated : currentService.isRelated;
+        if (finalIsRequired && finalIsRelated) {
+            throw new Error("A service cannot be both required and related");
         }
         await PackageTierMap.updateOne({
             packageId,
             tierId,
             "services.serviceId": serviceId,
         }, {
-            $set: updateData,
+            $set: {
+                "services.$.isRequired": finalIsRequired,
+                "services.$.isRelated": finalIsRelated,
+            },
         });
         await PackageCascadingEngine.run(packageId);
         return {

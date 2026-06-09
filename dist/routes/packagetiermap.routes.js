@@ -23,15 +23,45 @@ router.post("/bulk", authenticate, body("packageId").isMongoId().withMessage("In
     .withMessage("services array is required"), body("services.*.serviceId").isMongoId().withMessage("Invalid serviceId"), body("services.*.name").notEmpty().withMessage("Service name is required"), body("services.*.isRequired")
     .optional()
     .isBoolean()
-    .withMessage("isRequired must be boolean"), validate, bulkUpsertPackageTierMappings);
-router.put("/replace", authenticate, body("packageId").isMongoId().withMessage("Invalid packageId"), body("tierId").isMongoId().withMessage("Invalid tierId"), body("services").isArray().withMessage("services array is required"), body("services.*.serviceId").isMongoId().withMessage("Invalid serviceId"), body("services.*.name").notEmpty().withMessage("Service name is required"), body("services.*.isRequired")
+    .withMessage("isRequired must be boolean"), body("services.*.isRelated")
     .optional()
     .isBoolean()
-    .withMessage("isRequired must be boolean"), validate, replacePackageTierMappings);
+    .withMessage("isRelated must be boolean"), body("services").custom((services) => {
+    for (const s of services) {
+        if (s.isRequired && s.isRelated) {
+            throw new Error("Service cannot be both required and related");
+        }
+    }
+    return true;
+}), validate, bulkUpsertPackageTierMappings);
+router.put("/replace", authenticate, body("packageId").isMongoId().withMessage("Invalid packageId"), body("tierId").isMongoId().withMessage("Invalid tierId"), body("services")
+    .isArray({ min: 1 })
+    .withMessage("services array is required"), body("services.*.serviceId").isMongoId().withMessage("Invalid serviceId"), body("services.*.name").notEmpty().withMessage("Service name is required"), body("services.*.isRequired")
+    .optional()
+    .isBoolean()
+    .withMessage("isRequired must be boolean"), body("services.*.isRelated")
+    .optional()
+    .isBoolean()
+    .withMessage("isRelated must be boolean"), body("services").custom((services) => {
+    for (const s of services) {
+        if (s.isRequired && s.isRelated) {
+            throw new Error("Service cannot be both required and related");
+        }
+    }
+    return true;
+}), validate, replacePackageTierMappings);
 router.get("/:packageId/:tierId", authenticate, packageTierValidation, getServicesByPackageAndTier);
 router.patch("/", authenticate, body("packageId").isMongoId().withMessage("Invalid packageId"), body("tierId").isMongoId().withMessage("Invalid tierId"), body("serviceId").isMongoId().withMessage("Invalid serviceId"), body("isRequired")
     .optional()
     .isBoolean()
-    .withMessage("isRequired must be boolean"), validate, updatePackageTierService);
+    .withMessage("isRequired must be boolean"), body("isRelated")
+    .optional()
+    .isBoolean()
+    .withMessage("isRelated must be boolean"), body().custom((body) => {
+    if (body.isRequired && body.isRelated) {
+        throw new Error("Service cannot be both required and related");
+    }
+    return true;
+}), validate, updatePackageTierService);
 export default router;
 //# sourceMappingURL=packagetiermap.routes.js.map
