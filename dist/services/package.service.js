@@ -434,6 +434,7 @@ export class PackageService {
                     serviceId: service.serviceId,
                     name: service.name,
                     isRequired: service.isRequired,
+                    isRelated: service.isRelated,
                     thumbnailImage: serviceDetails?.thumbnailImage || null,
                     category: category
                         ? {
