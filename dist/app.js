@@ -16,6 +16,7 @@ import packageTierPricingRoutes from "./routes/packagetierpricing.routes.js";
 import componentRoutes from "./routes/component.routes.js";
 import componentItemRoutes from "./routes/componentitem.routes.js";
 import cartRoutes from "./routes/cart.routes.js";
+import bookingRoutes from "./routes/booking.routes.js";
 import categoryRoutes from "./routes/category.routes.js";
 import tierRoutes from "./routes/tier.routes.js";
 import subServices from "./routes/subservices.routes.js";
@@ -71,7 +72,7 @@ app.use("/api/package-tier-pricing", packageTierPricingRoutes);
 app.use("/api/category", categoryRoutes);
 app.use("/api/tier", tierRoutes);
 app.use("/api/cart", cartRoutes);
-// Routes
+app.use("/api/booking", bookingRoutes);
 app.get("/health", (req, res) => {
     res.status(200).json({ status: "ok", uptime: process.uptime() });
 });

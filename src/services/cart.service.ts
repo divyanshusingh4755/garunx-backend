@@ -17,6 +17,8 @@ import { CartPricingEngine } from "./cart-pricing.engine.js";
 import { BookingBuilder } from "./booking.builder.js";
 import { Booking, type IBooking } from "../models/booking.model.js";
 import { PackageTierMap } from "../models/packagetiermap.model.js";
+import type { HydratedDocument } from "mongoose";
+import { CashfreeService } from "./cashfree.service.js";
 
 interface CartValidationResult {
   isValid: boolean;
@@ -235,6 +237,7 @@ class CartService {
       const hydratedAddonComponents = (cart.addonComponents || []).map(
         (comp) => ({
           ...comp,
+          component: componentsMap.get(comp.componentId?.toString()),
           items: (comp.items || []).map((item) => ({
             ...item,
             itemDetails: itemsMap.get(item.itemId.toString()),
@@ -265,16 +268,19 @@ class CartService {
         (m: any) => m.tierId.toString() === cart.tierId.toString(),
       );
 
-      const serviceIds = packageTierMap?.services?.map(
-        (s: {
-          serviceId: mongoose.Types.ObjectId;
-          name: string;
-          isRequired: boolean;
-        }) => s.serviceId,
-      );
+      const serviceIds =
+        packageTierMap?.services?.map(
+          (s: {
+            serviceId: mongoose.Types.ObjectId;
+            name: string;
+            isRequired: boolean;
+          }) => s.serviceId,
+        ) || [];
 
       // Fetch services
-      const services = await Service.find({ _id: { $in: serviceIds } }).lean();
+      const services = await Service.find({
+        _id: { $in: serviceIds },
+      }).lean();
 
       // Fetch all components for these services in this tier
       const serviceComponents = await ServiceComponent.find({
@@ -283,10 +289,13 @@ class CartService {
       }).lean();
 
       const componentIds = serviceComponents.map((c) => c.componentId);
+
       const componentsMap = new Map(
-        (await Component.find({ _id: { $in: componentIds } }).lean()).map(
-          (c) => [c._id.toString(), c],
-        ),
+        (
+          await Component.find({
+            _id: { $in: componentIds },
+          }).lean()
+        ).map((c) => [c._id.toString(), c]),
       );
 
       const itemIds = serviceComponents.flatMap(
@@ -294,34 +303,74 @@ class CartService {
       );
 
       const itemsMap = new Map(
-        (await ComponentItem.find({ _id: { $in: itemIds } }).lean()).map(
-          (i) => [i._id.toString(), i],
-        ),
+        (
+          await ComponentItem.find({
+            _id: { $in: itemIds },
+          }).lean()
+        ).map((i) => [i._id.toString(), i]),
       );
 
-      // Hydrate services with their components and items
+      // Group service components by serviceId
+      const serviceComponentMap = new Map<string, typeof serviceComponents>();
+
+      for (const sc of serviceComponents) {
+        const key = sc.serviceId.toString();
+
+        let components = serviceComponentMap.get(key);
+
+        if (!components) {
+          components = [];
+          serviceComponentMap.set(key, components);
+        }
+
+        components.push(sc);
+      }
+
+      // Hydrate services with components + component details + item details
       const hydratedServices = services.map((service) => {
-        const comps = serviceComponents
-          .filter((c) => c.serviceId.toString() === service._id.toString())
-          .map((comp) => ({
-            ...comp,
-            component: componentsMap.get(comp.componentId.toString()),
-            items: (comp.items || []).map((item) => ({
-              ...item,
-              itemDetails: itemsMap.get(item.itemId.toString()),
-            })),
-          }));
+        const comps = serviceComponentMap.get(service._id.toString()) || [];
+
+        const hydratedComponents = comps.map((comp) => ({
+          ...comp,
+          component: componentsMap.get(comp.componentId.toString()),
+          items: (comp.items || []).map((item) => ({
+            ...item,
+            itemDetails: itemsMap.get(item.itemId.toString()),
+          })),
+        }));
+
         return {
           ...service,
-          components: comps,
+          components: hydratedComponents,
         };
       });
+
+      /**
+       * HYDRATE ADDON SERVICES
+       */
+      const addonServiceIds =
+        cart.addonServices?.map((s: any) => s.serviceId) || [];
+
+      const addonServicesFromDB = await Service.find({
+        _id: { $in: addonServiceIds },
+      }).lean();
+
+      const addonServicesMap = new Map(
+        addonServicesFromDB.map((service) => [service._id.toString(), service]),
+      );
+
+      const hydratedAddonServices = (cart.addonServices || []).map(
+        (addon: any) => ({
+          ...addon,
+          service: addonServicesMap.get(addon.serviceId.toString()),
+        }),
+      );
 
       return {
         ...cart,
         package: pkg,
         services: hydratedServices,
-        addonServices: cart.addonServices || [],
+        addonServices: hydratedAddonServices,
       };
     }
 
@@ -818,6 +867,7 @@ class CartService {
     userId: string,
     cartId: string,
     persist: boolean,
+    session?: mongoose.ClientSession,
   ): Promise<CartValidationResult> {
     if (!userId) {
       throw new Error("Token missing");
@@ -829,6 +879,7 @@ class CartService {
 
     const recalculated = await this.recalculateCart(userId, cartId, {
       persist: persist,
+      ...(session ? { session } : {}),
     });
 
     const cart = recalculated.cart;
@@ -844,7 +895,9 @@ class CartService {
       const serviceComponents = await ServiceComponent.find({
         serviceId: cart.serviceId,
         tierId: cart.tierId,
-      }).lean();
+      })
+        .session(session || null)
+        .lean();
 
       const requiredComponents = serviceComponents.filter((c) => c.isRequired);
 
@@ -892,86 +945,177 @@ class CartService {
     const session = await mongoose.startSession();
 
     try {
-      session.startTransaction();
-      if (!userId) {
-        throw new Error("Token missing");
-      }
+      const result = await session.withTransaction(
+        async (): Promise<HydratedDocument<IBooking>> => {
+          if (!userId) {
+            throw new Error("Token missing");
+          }
 
-      if (!mongoose.Types.ObjectId.isValid(cartId)) {
-        throw new Error("Invalid cartId");
-      }
+          if (!mongoose.Types.ObjectId.isValid(cartId)) {
+            throw new Error("Invalid cartId");
+          }
 
-      const cart = await Cart.findOne({
-        _id: cartId,
-        userId,
-      }).session(session);
+          const cart = await Cart.findOne(
+            {
+              _id: cartId,
+              userId,
+              status: {
+                $in: ["ACTIVE", "SCHEDULED", "CHECKOUT_PENDING"],
+              },
+            },
+            null,
+            { session },
+          );
 
-      if (!cart) {
-        throw new Error("Cart not found");
-      }
+          if (!cart) {
+            throw new Error("Cart not found");
+          }
 
-      if (cart.status === "CHECKED_OUT") {
-        throw new Error("Cart already checked out");
-      }
+          /**
+           * Reuse existing booking if checkout already started
+           */
+          if (cart.activeBookingId) {
+            const existingBooking = await Booking.findById(
+              cart.activeBookingId,
+            ).session(session);
 
-      if (!cart.scheduledDate) {
-        throw new Error("Scheduled date not set");
-      }
+            if (existingBooking && existingBooking.payment.status !== "PAID") {
+              return existingBooking;
+            }
+          }
 
-      const recalculated = await this.validateCart(userId, cartId, true);
+          if (!cart.scheduledDate) {
+            throw new Error("Scheduled date not set");
+          }
 
-      if (!recalculated.isValid) {
-        throw new Error(recalculated.errors.join(", "));
-      }
+          const validation = await this.validateCart(
+            userId,
+            cartId,
+            true,
+            session,
+          );
 
-      const freshCart = recalculated.cart;
-      const bookingData = await BookingBuilder.buildFromCart(freshCart);
-      const bookingPayload: Partial<IBooking> = {
-        userId: new mongoose.Types.ObjectId(userId),
-        cartId: freshCart._id,
-        bookedBy: "CUSTOMER",
-        entries: bookingData.entries,
-        customerDetails: freshCart.customerDetails || {},
-        pricing: bookingData.pricing,
-        payment: {
-          status: "PENDING",
+          if (!validation.isValid) {
+            throw new Error(validation.errors.join(", "));
+          }
+
+          const expiry = new Date(Date.now() + 30 * 60 * 1000);
+          const checkoutExpiry = expiry;
+          const paymentExpiry = expiry;
+
+          const lockedCart = await Cart.findOneAndUpdate(
+            {
+              _id: cartId,
+              status: { $in: ["ACTIVE", "SCHEDULED"] },
+            },
+            {
+              $set: {
+                status: "CHECKOUT_PENDING",
+                checkoutExpiresAt: checkoutExpiry,
+              },
+            },
+            {
+              new: true,
+              session,
+            },
+          );
+
+          if (!lockedCart) {
+            throw new Error("Checkout already initiated");
+          }
+
+          const bookingData = await BookingBuilder.buildFromCart(lockedCart);
+
+          const bookingPayload: Partial<IBooking> = {
+            userId: new mongoose.Types.ObjectId(userId),
+            cartId: lockedCart._id,
+            bookedBy: "CUSTOMER",
+            entries: bookingData.entries,
+            customerDetails: lockedCart.customerDetails!,
+            pricing: bookingData.pricing,
+            payment: {
+              status: "PENDING",
+            },
+            paymentExpiresAt: paymentExpiry,
+            status: "PENDING",
+            scheduledAt: lockedCart.scheduledDate!,
+
+            ...(lockedCart.notes ? { notes: lockedCart.notes } : {}),
+
+            cartSnapshot: lockedCart.toObject(),
+          };
+
+          const bookings = await Booking.create([bookingPayload], { session });
+
+          const createdBooking = bookings[0];
+
+          if (!createdBooking) {
+            throw new Error("Failed to create booking");
+          }
+
+          await Cart.updateOne(
+            { _id: lockedCart._id },
+            { $set: { activeBookingId: createdBooking._id } },
+            { session },
+          );
+
+          return createdBooking;
         },
-        status: "PENDING",
-        cartSnapshot: freshCart,
-      };
+      );
 
-      if (freshCart.scheduledDate) {
-        bookingPayload.scheduledAt = freshCart.scheduledDate;
+      /**
+       * Now fully safe — no `never`
+       */
+      const finalBooking = result;
+
+      /**
+       * Payment already completed
+       */
+      if (finalBooking.payment.status === "PAID") {
+        return {
+          bookingId: finalBooking._id,
+          bookingReference: finalBooking.bookingReference,
+          totalAmount: finalBooking.pricing.grandTotal,
+          paymentCompleted: true,
+        };
       }
 
-      if (freshCart.notes) {
-        bookingPayload.notes = freshCart.notes;
-      }
+      /**
+       * Create Cashfree order/session (outside transaction)
+       */
 
-      const bookings = await Booking.create([bookingPayload], { session });
-      const booking = bookings[0];
+      const cashfreeOrder = await CashfreeService.createOrder({
+        orderId: finalBooking.bookingReference,
+        amount: finalBooking.pricing.grandTotal,
+        customerName: finalBooking.customerDetails?.name || "Customer",
+        customerEmail: finalBooking.customerDetails?.email || "",
+        customerPhone: finalBooking.customerDetails?.phone || "",
+        userId: userId,
+      });
 
-      if (!booking) {
-        throw new Error("Failed to create booking");
-      }
-
-      cart.status = "CHECKED_OUT";
-      cart.activeBookingId = booking._id;
-
-      await cart.save({ session });
-
-      await session.commitTransaction();
+      await Booking.updateOne(
+        { _id: finalBooking._id },
+        {
+          $set: {
+            "payment.providerOrderId": cashfreeOrder.order_id,
+            "payment.paymentSessionId": cashfreeOrder.payment_session_id,
+            "payment.lastAttemptAt": new Date(),
+            "payment.status": "PENDING",
+          },
+          $inc: {
+            "payment.attempts": 1,
+          },
+        },
+      );
 
       return {
-        bookingId: booking._id,
-        bookingReference: booking.bookingReference,
-        totalAmount: booking.pricing.grandTotal,
+        bookingId: finalBooking._id,
+        bookingReference: finalBooking.bookingReference,
+        totalAmount: finalBooking.pricing.grandTotal,
+        paymentSessionId: cashfreeOrder.payment_session_id,
       };
-    } catch (error) {
-      await session.abortTransaction();
-      throw error;
     } finally {
-      session.endSession();
+      await session.endSession();
     }
   }
 
@@ -1004,6 +1148,28 @@ class CartService {
     cart.status = "DELETED";
     await cart.save();
     return true;
+  }
+
+  static async expireCheckoutPendingCarts() {
+    const now = new Date();
+
+    await Cart.updateMany(
+      {
+        status: "CHECKOUT_PENDING",
+        checkoutExpiresAt: {
+          $lte: now,
+        },
+      },
+      {
+        $set: {
+          status: "ACTIVE",
+        },
+
+        $unset: {
+          checkoutExpiresAt: 1,
+        },
+      },
+    );
   }
 }
 

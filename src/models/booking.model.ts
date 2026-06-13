@@ -289,9 +289,9 @@ export interface IBooking extends Document {
   bookedBy: BookedBy;
   entries: IBookingEntry[];
   customerDetails: {
-    name?: string;
-    email?: string;
-    phone?: string;
+    name: string;
+    email: string;
+    phone: string;
     address?: string;
     caste?: string;
     gotra?: string;
@@ -316,7 +316,7 @@ export interface IBooking extends Document {
     currency?: string;
     providerOrderId?: string;
     providerPaymentId?: string;
-    providerSignature?: string;
+    paymentSessionId?: string;
     attempts?: number;
     lastAttemptAt?: Date;
     failureReason?: string;
@@ -326,7 +326,7 @@ export interface IBooking extends Document {
   cancellation?: {
     reason?: string;
     cancelledBy?: Types.ObjectId;
-    cancelledByRole?: "CUSTOMER" | "ADMIN" | "SUBADMIN";
+    cancelledByRole?: "CUSTOMER" | "ADMIN" | "SUBADMIN" | "SYSTEM";
     cancelledAt?: Date;
   };
 
@@ -336,6 +336,7 @@ export interface IBooking extends Document {
     confirmedAt?: Date;
     completedAt?: Date;
     cancelledAt?: Date;
+    expiredAt?: Date;
   };
 
   scheduledAt?: Date;
@@ -381,9 +382,9 @@ const bookingSchema = new Schema<IBooking>(
     },
 
     customerDetails: {
-      name: String,
-      email: { type: String, lowercase: true, trim: true },
-      phone: String,
+      name: { type: String, required: true },
+      email: { type: String, lowercase: true, trim: true, required: true },
+      phone: { type: String, required: true },
       address: String,
       caste: String,
       gotra: String,
@@ -405,7 +406,7 @@ const bookingSchema = new Schema<IBooking>(
       },
       providerOrderId: String,
       providerPaymentId: String,
-      providerSignature: String,
+      paymentSessionId: String,
       paymentMethod: {
         type: String,
         enum: ["COD", "RAZORPAY", "STRIPE", "UPI", "CARD", "NETBANKING"],
@@ -435,7 +436,7 @@ const bookingSchema = new Schema<IBooking>(
 
     status: {
       type: String,
-      enum: ["PENDING", "CONFIRMED", "COMPLETED", "CANCELLED"],
+      enum: ["PENDING", "CONFIRMED", "IN_PROGRESS", "COMPLETED", "CANCELLED"],
       default: "PENDING",
       index: true,
     },
@@ -445,7 +446,7 @@ const bookingSchema = new Schema<IBooking>(
       cancelledBy: { type: Schema.Types.ObjectId, ref: "User" },
       cancelledByRole: {
         type: String,
-        enum: ["CUSTOMER", "ADMIN", "SUBADMIN"],
+        enum: ["CUSTOMER", "ADMIN", "SUBADMIN", "SYSTEM"],
       },
       cancelledAt: Date,
     },
@@ -454,6 +455,7 @@ const bookingSchema = new Schema<IBooking>(
       confirmedAt: Date,
       completedAt: Date,
       cancelledAt: Date,
+      expiredAt: Date,
       confirmedBy: {
         type: Schema.Types.ObjectId,
         ref: "User",
@@ -505,6 +507,26 @@ bookingSchema.pre("save", async function () {
 
   this.bookingReference = `BK-${counter.seq.toString().padStart(6, "0")}`;
 });
+
+bookingEntrySchema.pre("validate", function () {
+  if (this.entryType === "SERVICE" && !this.serviceConfiguration) {
+    throw new Error("SERVICE entry requires serviceConfiguration");
+  }
+
+  if (this.entryType === "PACKAGE" && !this.packageConfiguration) {
+    throw new Error("PACKAGE entry requires packageConfiguration");
+  }
+});
+
+bookingSchema.index(
+  { cartId: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      isDeleted: false,
+    },
+  },
+);
 
 export const Booking: Model<IBooking> = model<IBooking>(
   "Booking",

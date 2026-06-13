@@ -54,6 +54,11 @@ declare class CartService {
             totalPrice: number;
         }[];
         addonComponents: {
+            component: (import("../models/component.model.js").IComponent & Required<{
+                _id: Types.ObjectId;
+            }> & {
+                __v: number;
+            }) | undefined;
             items: {
                 itemDetails: (import("../models/componentitem.model.js").IComponentItem & Required<{
                     _id: Types.ObjectId;
@@ -79,9 +84,9 @@ declare class CartService {
         locationId: Types.ObjectId;
         locationName: string;
         customerDetails?: {
-            name?: string;
-            email?: string;
-            phone?: string;
+            name: string;
+            email: string;
+            phone: string;
             address?: string;
             caste?: string;
             gotra?: string;
@@ -170,7 +175,7 @@ declare class CartService {
             schema: mongoose.Schema;
             __v: number;
         }[];
-        addonServices: IAddonService[];
+        addonServices: any[];
         _id: Types.ObjectId;
         userId?: Types.ObjectId | null;
         serviceId?: Types.ObjectId;
@@ -183,9 +188,9 @@ declare class CartService {
         locationId: Types.ObjectId;
         locationName: string;
         customerDetails?: {
-            name?: string;
-            email?: string;
-            phone?: string;
+            name: string;
+            email: string;
+            phone: string;
             address?: string;
             caste?: string;
             gotra?: string;
@@ -271,13 +276,22 @@ declare class CartService {
         };
         changes: string[];
     }>;
-    static validateCart(userId: string, cartId: string, persist: boolean): Promise<CartValidationResult>;
+    static validateCart(userId: string, cartId: string, persist: boolean, session?: mongoose.ClientSession): Promise<CartValidationResult>;
     static checkoutCart(userId: string, cartId: string): Promise<{
         bookingId: Types.ObjectId;
         bookingReference: string;
         totalAmount: number;
+        paymentCompleted: boolean;
+        paymentSessionId?: never;
+    } | {
+        bookingId: Types.ObjectId;
+        bookingReference: string;
+        totalAmount: number;
+        paymentSessionId: any;
+        paymentCompleted?: never;
     }>;
     static deleteCart(userId: string, cartId: string): Promise<boolean>;
+    static expireCheckoutPendingCarts(): Promise<void>;
 }
 export default CartService;
 //# sourceMappingURL=cart.service.d.ts.map

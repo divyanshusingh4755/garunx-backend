@@ -11,6 +11,7 @@ import { CartPricingEngine } from "./cart-pricing.engine.js";
 import { BookingBuilder } from "./booking.builder.js";
 import { Booking } from "../models/booking.model.js";
 import { PackageTierMap } from "../models/packagetiermap.model.js";
+import { CashfreeService } from "./cashfree.service.js";
 class CartService {
     static async createServiceCart(userId, payload) {
         const { serviceId, tierId, locationId } = payload;
@@ -166,6 +167,7 @@ class CartService {
             }));
             const hydratedAddonComponents = (cart.addonComponents || []).map((comp) => ({
                 ...comp,
+                component: componentsMap.get(comp.componentId?.toString()),
                 items: (comp.items || []).map((item) => ({
                     ...item,
                     itemDetails: itemsMap.get(item.itemId.toString()),
@@ -188,23 +190,39 @@ class CartService {
             }
             // Get services for this cart's tier
             const packageTierMap = pkg.tierMappings?.find((m) => m.tierId.toString() === cart.tierId.toString());
-            const serviceIds = packageTierMap?.services?.map((s) => s.serviceId);
+            const serviceIds = packageTierMap?.services?.map((s) => s.serviceId) || [];
             // Fetch services
-            const services = await Service.find({ _id: { $in: serviceIds } }).lean();
+            const services = await Service.find({
+                _id: { $in: serviceIds },
+            }).lean();
             // Fetch all components for these services in this tier
             const serviceComponents = await ServiceComponent.find({
                 serviceId: { $in: serviceIds },
                 tierId: cart.tierId,
             }).lean();
             const componentIds = serviceComponents.map((c) => c.componentId);
-            const componentsMap = new Map((await Component.find({ _id: { $in: componentIds } }).lean()).map((c) => [c._id.toString(), c]));
+            const componentsMap = new Map((await Component.find({
+                _id: { $in: componentIds },
+            }).lean()).map((c) => [c._id.toString(), c]));
             const itemIds = serviceComponents.flatMap((c) => c.items?.map((i) => i.itemId) || []);
-            const itemsMap = new Map((await ComponentItem.find({ _id: { $in: itemIds } }).lean()).map((i) => [i._id.toString(), i]));
-            // Hydrate services with their components and items
+            const itemsMap = new Map((await ComponentItem.find({
+                _id: { $in: itemIds },
+            }).lean()).map((i) => [i._id.toString(), i]));
+            // Group service components by serviceId
+            const serviceComponentMap = new Map();
+            for (const sc of serviceComponents) {
+                const key = sc.serviceId.toString();
+                let components = serviceComponentMap.get(key);
+                if (!components) {
+                    components = [];
+                    serviceComponentMap.set(key, components);
+                }
+                components.push(sc);
+            }
+            // Hydrate services with components + component details + item details
             const hydratedServices = services.map((service) => {
-                const comps = serviceComponents
-                    .filter((c) => c.serviceId.toString() === service._id.toString())
-                    .map((comp) => ({
+                const comps = serviceComponentMap.get(service._id.toString()) || [];
+                const hydratedComponents = comps.map((comp) => ({
                     ...comp,
                     component: componentsMap.get(comp.componentId.toString()),
                     items: (comp.items || []).map((item) => ({
@@ -214,14 +232,26 @@ class CartService {
                 }));
                 return {
                     ...service,
-                    components: comps,
+                    components: hydratedComponents,
                 };
             });
+            /**
+             * HYDRATE ADDON SERVICES
+             */
+            const addonServiceIds = cart.addonServices?.map((s) => s.serviceId) || [];
+            const addonServicesFromDB = await Service.find({
+                _id: { $in: addonServiceIds },
+            }).lean();
+            const addonServicesMap = new Map(addonServicesFromDB.map((service) => [service._id.toString(), service]));
+            const hydratedAddonServices = (cart.addonServices || []).map((addon) => ({
+                ...addon,
+                service: addonServicesMap.get(addon.serviceId.toString()),
+            }));
             return {
                 ...cart,
                 package: pkg,
                 services: hydratedServices,
-                addonServices: cart.addonServices || [],
+                addonServices: hydratedAddonServices,
             };
         }
         throw new Error("Invalid cart type");
@@ -565,7 +595,7 @@ class CartService {
             changes,
         };
     }
-    static async validateCart(userId, cartId, persist) {
+    static async validateCart(userId, cartId, persist, session) {
         if (!userId) {
             throw new Error("Token missing");
         }
@@ -574,6 +604,7 @@ class CartService {
         }
         const recalculated = await this.recalculateCart(userId, cartId, {
             persist: persist,
+            ...(session ? { session } : {}),
         });
         const cart = recalculated.cart;
         const changes = recalculated.changes;
@@ -585,7 +616,9 @@ class CartService {
             const serviceComponents = await ServiceComponent.find({
                 serviceId: cart.serviceId,
                 tierId: cart.tierId,
-            }).lean();
+            })
+                .session(session || null)
+                .lean();
             const requiredComponents = serviceComponents.filter((c) => c.isRequired);
             const selectedMap = new Set((cart.selectedComponents || []).map((c) => c.componentId.toString()));
             for (const comp of requiredComponents) {
@@ -617,72 +650,128 @@ class CartService {
     static async checkoutCart(userId, cartId) {
         const session = await mongoose.startSession();
         try {
-            session.startTransaction();
-            if (!userId) {
-                throw new Error("Token missing");
-            }
-            if (!mongoose.Types.ObjectId.isValid(cartId)) {
-                throw new Error("Invalid cartId");
-            }
-            const cart = await Cart.findOne({
-                _id: cartId,
-                userId,
-            }).session(session);
-            if (!cart) {
-                throw new Error("Cart not found");
-            }
-            if (cart.status === "CHECKED_OUT") {
-                throw new Error("Cart already checked out");
-            }
-            if (!cart.scheduledDate) {
-                throw new Error("Scheduled date not set");
-            }
-            const recalculated = await this.validateCart(userId, cartId, true);
-            if (!recalculated.isValid) {
-                throw new Error(recalculated.errors.join(", "));
-            }
-            const freshCart = recalculated.cart;
-            const bookingData = await BookingBuilder.buildFromCart(freshCart);
-            const bookingPayload = {
-                userId: new mongoose.Types.ObjectId(userId),
-                cartId: freshCart._id,
-                bookedBy: "CUSTOMER",
-                entries: bookingData.entries,
-                customerDetails: freshCart.customerDetails || {},
-                pricing: bookingData.pricing,
-                payment: {
+            const result = await session.withTransaction(async () => {
+                if (!userId) {
+                    throw new Error("Token missing");
+                }
+                if (!mongoose.Types.ObjectId.isValid(cartId)) {
+                    throw new Error("Invalid cartId");
+                }
+                const cart = await Cart.findOne({
+                    _id: cartId,
+                    userId,
+                    status: {
+                        $in: ["ACTIVE", "SCHEDULED", "CHECKOUT_PENDING"],
+                    },
+                }, null, { session });
+                if (!cart) {
+                    throw new Error("Cart not found");
+                }
+                /**
+                 * Reuse existing booking if checkout already started
+                 */
+                if (cart.activeBookingId) {
+                    const existingBooking = await Booking.findById(cart.activeBookingId).session(session);
+                    if (existingBooking && existingBooking.payment.status !== "PAID") {
+                        return existingBooking;
+                    }
+                }
+                if (!cart.scheduledDate) {
+                    throw new Error("Scheduled date not set");
+                }
+                const validation = await this.validateCart(userId, cartId, true, session);
+                if (!validation.isValid) {
+                    throw new Error(validation.errors.join(", "));
+                }
+                const expiry = new Date(Date.now() + 30 * 60 * 1000);
+                const checkoutExpiry = expiry;
+                const paymentExpiry = expiry;
+                const lockedCart = await Cart.findOneAndUpdate({
+                    _id: cartId,
+                    status: { $in: ["ACTIVE", "SCHEDULED"] },
+                }, {
+                    $set: {
+                        status: "CHECKOUT_PENDING",
+                        checkoutExpiresAt: checkoutExpiry,
+                    },
+                }, {
+                    new: true,
+                    session,
+                });
+                if (!lockedCart) {
+                    throw new Error("Checkout already initiated");
+                }
+                const bookingData = await BookingBuilder.buildFromCart(lockedCart);
+                const bookingPayload = {
+                    userId: new mongoose.Types.ObjectId(userId),
+                    cartId: lockedCart._id,
+                    bookedBy: "CUSTOMER",
+                    entries: bookingData.entries,
+                    customerDetails: lockedCart.customerDetails,
+                    pricing: bookingData.pricing,
+                    payment: {
+                        status: "PENDING",
+                    },
+                    paymentExpiresAt: paymentExpiry,
                     status: "PENDING",
+                    scheduledAt: lockedCart.scheduledDate,
+                    ...(lockedCart.notes ? { notes: lockedCart.notes } : {}),
+                    cartSnapshot: lockedCart.toObject(),
+                };
+                const bookings = await Booking.create([bookingPayload], { session });
+                const createdBooking = bookings[0];
+                if (!createdBooking) {
+                    throw new Error("Failed to create booking");
+                }
+                await Cart.updateOne({ _id: lockedCart._id }, { $set: { activeBookingId: createdBooking._id } }, { session });
+                return createdBooking;
+            });
+            /**
+             * Now fully safe — no `never`
+             */
+            const finalBooking = result;
+            /**
+             * Payment already completed
+             */
+            if (finalBooking.payment.status === "PAID") {
+                return {
+                    bookingId: finalBooking._id,
+                    bookingReference: finalBooking.bookingReference,
+                    totalAmount: finalBooking.pricing.grandTotal,
+                    paymentCompleted: true,
+                };
+            }
+            /**
+             * Create Cashfree order/session (outside transaction)
+             */
+            const cashfreeOrder = await CashfreeService.createOrder({
+                orderId: finalBooking.bookingReference,
+                amount: finalBooking.pricing.grandTotal,
+                customerName: finalBooking.customerDetails?.name || "Customer",
+                customerEmail: finalBooking.customerDetails?.email || "",
+                customerPhone: finalBooking.customerDetails?.phone || "",
+                userId: userId,
+            });
+            await Booking.updateOne({ _id: finalBooking._id }, {
+                $set: {
+                    "payment.providerOrderId": cashfreeOrder.order_id,
+                    "payment.paymentSessionId": cashfreeOrder.payment_session_id,
+                    "payment.lastAttemptAt": new Date(),
+                    "payment.status": "PENDING",
                 },
-                status: "PENDING",
-                cartSnapshot: freshCart,
-            };
-            if (freshCart.scheduledDate) {
-                bookingPayload.scheduledAt = freshCart.scheduledDate;
-            }
-            if (freshCart.notes) {
-                bookingPayload.notes = freshCart.notes;
-            }
-            const bookings = await Booking.create([bookingPayload], { session });
-            const booking = bookings[0];
-            if (!booking) {
-                throw new Error("Failed to create booking");
-            }
-            cart.status = "CHECKED_OUT";
-            cart.activeBookingId = booking._id;
-            await cart.save({ session });
-            await session.commitTransaction();
+                $inc: {
+                    "payment.attempts": 1,
+                },
+            });
             return {
-                bookingId: booking._id,
-                bookingReference: booking.bookingReference,
-                totalAmount: booking.pricing.grandTotal,
+                bookingId: finalBooking._id,
+                bookingReference: finalBooking.bookingReference,
+                totalAmount: finalBooking.pricing.grandTotal,
+                paymentSessionId: cashfreeOrder.payment_session_id,
             };
-        }
-        catch (error) {
-            await session.abortTransaction();
-            throw error;
         }
         finally {
-            session.endSession();
+            await session.endSession();
         }
     }
     static async deleteCart(userId, cartId) {
@@ -708,6 +797,22 @@ class CartService {
         cart.status = "DELETED";
         await cart.save();
         return true;
+    }
+    static async expireCheckoutPendingCarts() {
+        const now = new Date();
+        await Cart.updateMany({
+            status: "CHECKOUT_PENDING",
+            checkoutExpiresAt: {
+                $lte: now,
+            },
+        }, {
+            $set: {
+                status: "ACTIVE",
+            },
+            $unset: {
+                checkoutExpiresAt: 1,
+            },
+        });
     }
 }
 export default CartService;

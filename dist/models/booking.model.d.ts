@@ -88,9 +88,9 @@ export interface IBooking extends Document {
     bookedBy: BookedBy;
     entries: IBookingEntry[];
     customerDetails: {
-        name?: string;
-        email?: string;
-        phone?: string;
+        name: string;
+        email: string;
+        phone: string;
         address?: string;
         caste?: string;
         gotra?: string;
@@ -113,7 +113,7 @@ export interface IBooking extends Document {
         currency?: string;
         providerOrderId?: string;
         providerPaymentId?: string;
-        providerSignature?: string;
+        paymentSessionId?: string;
         attempts?: number;
         lastAttemptAt?: Date;
         failureReason?: string;
@@ -122,7 +122,7 @@ export interface IBooking extends Document {
     cancellation?: {
         reason?: string;
         cancelledBy?: Types.ObjectId;
-        cancelledByRole?: "CUSTOMER" | "ADMIN" | "SUBADMIN";
+        cancelledByRole?: "CUSTOMER" | "ADMIN" | "SUBADMIN" | "SYSTEM";
         cancelledAt?: Date;
     };
     lifecycle?: {
@@ -131,6 +131,7 @@ export interface IBooking extends Document {
         confirmedAt?: Date;
         completedAt?: Date;
         cancelledAt?: Date;
+        expiredAt?: Date;
     };
     scheduledAt?: Date;
     notes?: string;

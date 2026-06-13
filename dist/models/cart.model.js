@@ -96,9 +96,9 @@ const cartSchema = new Schema({
         required: true,
     },
     customerDetails: {
-        name: String,
-        email: String,
-        phone: String,
+        name: { type: String, required: true },
+        email: { type: String, lowercase: true, trim: true, required: true },
+        phone: { type: String, required: true },
         address: String,
         caste: String,
         gotra: String,
@@ -128,6 +128,8 @@ const cartSchema = new Schema({
     activeBookingId: {
         type: Schema.Types.ObjectId,
         ref: "Booking",
+        unique: true,
+        sparse: true,
     },
     basePrice: {
         type: Number,
@@ -182,6 +184,10 @@ cartSchema.index({
 });
 cartSchema.index({
     packageId: 1,
+});
+cartSchema.index({
+    status: 1,
+    checkoutExpiresAt: 1,
 });
 export const Cart = mongoose.model("Cart", cartSchema);
 //# sourceMappingURL=cart.model.js.map

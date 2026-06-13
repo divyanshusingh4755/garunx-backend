@@ -40,9 +40,9 @@ export interface ICart extends Document {
   locationId: Types.ObjectId;
   locationName: string;
   customerDetails?: {
-    name?: string;
-    email?: string;
-    phone?: string;
+    name: string;
+    email: string;
+    phone: string;
     address?: string;
     caste?: string;
     gotra?: string;
@@ -191,9 +191,9 @@ const cartSchema = new Schema<ICart>(
     },
 
     customerDetails: {
-      name: String,
-      email: String,
-      phone: String,
+      name: { type: String, required: true },
+      email: { type: String, lowercase: true, trim: true, required: true },
+      phone: { type: String, required: true },
       address: String,
       caste: String,
       gotra: String,
@@ -230,6 +230,8 @@ const cartSchema = new Schema<ICart>(
     activeBookingId: {
       type: Schema.Types.ObjectId,
       ref: "Booking",
+      unique: true,
+      sparse: true,
     },
 
     basePrice: {
@@ -296,6 +298,11 @@ cartSchema.index({
 
 cartSchema.index({
   packageId: 1,
+});
+
+cartSchema.index({
+  status: 1,
+  checkoutExpiresAt: 1,
 });
 
 export const Cart: Model<ICart> = mongoose.model<ICart>("Cart", cartSchema);

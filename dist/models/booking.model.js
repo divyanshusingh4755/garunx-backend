@@ -155,9 +155,9 @@ const bookingSchema = new Schema({
         },
     },
     customerDetails: {
-        name: String,
-        email: { type: String, lowercase: true, trim: true },
-        phone: String,
+        name: { type: String, required: true },
+        email: { type: String, lowercase: true, trim: true, required: true },
+        phone: { type: String, required: true },
         address: String,
         caste: String,
         gotra: String,
@@ -177,7 +177,7 @@ const bookingSchema = new Schema({
         },
         providerOrderId: String,
         providerPaymentId: String,
-        providerSignature: String,
+        paymentSessionId: String,
         paymentMethod: {
             type: String,
             enum: ["COD", "RAZORPAY", "STRIPE", "UPI", "CARD", "NETBANKING"],
@@ -206,7 +206,7 @@ const bookingSchema = new Schema({
     },
     status: {
         type: String,
-        enum: ["PENDING", "CONFIRMED", "COMPLETED", "CANCELLED"],
+        enum: ["PENDING", "CONFIRMED", "IN_PROGRESS", "COMPLETED", "CANCELLED"],
         default: "PENDING",
         index: true,
     },
@@ -215,7 +215,7 @@ const bookingSchema = new Schema({
         cancelledBy: { type: Schema.Types.ObjectId, ref: "User" },
         cancelledByRole: {
             type: String,
-            enum: ["CUSTOMER", "ADMIN", "SUBADMIN"],
+            enum: ["CUSTOMER", "ADMIN", "SUBADMIN", "SYSTEM"],
         },
         cancelledAt: Date,
     },
@@ -223,6 +223,7 @@ const bookingSchema = new Schema({
         confirmedAt: Date,
         completedAt: Date,
         cancelledAt: Date,
+        expiredAt: Date,
         confirmedBy: {
             type: Schema.Types.ObjectId,
             ref: "User",
@@ -262,6 +263,20 @@ bookingSchema.pre("save", async function () {
         throw new Error("Failed to generate booking reference");
     }
     this.bookingReference = `BK-${counter.seq.toString().padStart(6, "0")}`;
+});
+bookingEntrySchema.pre("validate", function () {
+    if (this.entryType === "SERVICE" && !this.serviceConfiguration) {
+        throw new Error("SERVICE entry requires serviceConfiguration");
+    }
+    if (this.entryType === "PACKAGE" && !this.packageConfiguration) {
+        throw new Error("PACKAGE entry requires packageConfiguration");
+    }
+});
+bookingSchema.index({ cartId: 1 }, {
+    unique: true,
+    partialFilterExpression: {
+        isDeleted: false,
+    },
 });
 export const Booking = model("Booking", bookingSchema);
 //# sourceMappingURL=booking.model.js.map
