@@ -9,14 +9,6 @@ export type BookingStatus =
   | "COMPLETED"
   | "CANCELLED";
 
-export type PaymentMethod =
-  | "COD"
-  | "RAZORPAY"
-  | "STRIPE"
-  | "UPI"
-  | "CARD"
-  | "NETBANKING";
-
 export type PaymentStatus =
   | "PENDING"
   | "PAID"
@@ -307,7 +299,7 @@ export interface IBooking extends Document {
 
   payment: {
     status: PaymentStatus;
-    paymentMethod?: PaymentMethod;
+    paymentMethod?: string;
     gateway?: string;
     amountPaid?: number;
     refundAmount?: number;
@@ -407,10 +399,7 @@ const bookingSchema = new Schema<IBooking>(
       providerOrderId: String,
       providerPaymentId: String,
       paymentSessionId: String,
-      paymentMethod: {
-        type: String,
-        enum: ["COD", "RAZORPAY", "STRIPE", "UPI", "CARD", "NETBANKING"],
-      },
+      paymentMethod: String,
       gateway: String,
       attempts: {
         type: Number,

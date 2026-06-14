@@ -57,15 +57,21 @@ export class CashfreeService {
             throw new Error("Failed to fetch Cashfree order");
         }
     }
-    static verifyWebhookSignature(rawBody, signature) {
+    static verifyWebhookSignature(rawBody, signature, timestamp) {
         if (!this.clientSecret) {
-            throw new Error("Webhook verification failed: clientSecret is not defined.");
+            throw new Error("Missing secret");
         }
-        const hash = crypto
+        const signaturePayload = timestamp + rawBody;
+        const computedHash = crypto
             .createHmac("sha256", this.clientSecret)
-            .update(rawBody)
+            .update(signaturePayload)
             .digest("base64");
-        return hash === signature;
+        const computedBuffer = Buffer.from(computedHash);
+        const signatureBuffer = Buffer.from(signature);
+        if (computedBuffer.length !== signatureBuffer.length) {
+            return false;
+        }
+        return crypto.timingSafeEqual(computedBuffer, signatureBuffer);
     }
 }
 //# sourceMappingURL=cashfree.service.js.map

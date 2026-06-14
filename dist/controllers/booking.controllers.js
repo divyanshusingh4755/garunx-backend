@@ -1,6 +1,9 @@
 import { BookingService } from "../services/booking.service.js";
 export const paymentWebhooks = async (req, res) => {
     try {
+        console.log("Webhook received");
+        console.log("Headers:", req.headers);
+        console.log("Body:", req.body);
         await BookingService.process(req);
         return res.status(200).json({
             success: true,

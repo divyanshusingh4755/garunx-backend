@@ -6,26 +6,31 @@ import { Cart } from "../models/cart.model.js";
 
 export class BookingService {
   static async process(req: Request) {
-    const rawBody =
-      req.body instanceof Buffer
-        ? req.body.toString("utf-8")
-        : JSON.stringify(req.body);
-
-    const signature = req.header("x-cashfree-signature") || "";
-
-    // Verfiy signature
-    const valid = CashfreeService.verifyWebhookSignature(rawBody, signature);
+    const rawBody = (req.body as Buffer).toString("utf-8");
+    const signature = req.header("x-webhook-signature") || "";
+    const timestamp = req.header("x-webhook-timestamp") || "";
+    const valid = CashfreeService.verifyWebhookSignature(
+      rawBody,
+      signature,
+      timestamp,
+    );
 
     if (!valid) {
-      throw new Error("Invalid webhook signature");
+      console.error("Invalid webhook signature");
+      return;
     }
 
-    const payload =
-      typeof req.body === "object" ? req.body : JSON.parse(rawBody);
+    const payload = JSON.parse(rawBody);
+    if (payload?.data?.test_object) {
+      console.log("Cashfree webhook test received");
+      return;
+    }
+
     const orderId = payload?.data?.order?.order_id;
     const paymentId = payload?.data?.payment?.cf_payment_id;
     const paymentStatus = payload?.data?.payment?.payment_status;
     const paymentAmount = payload?.data?.payment?.payment_amount;
+    const paymentGroup = payload?.data?.payment?.payment_group;
 
     if (!orderId) {
       throw new Error("Missing order id");
@@ -53,6 +58,7 @@ export class BookingService {
                 "payment.amountPaid": paymentAmount,
                 "payment.providerPaymentId": paymentId,
                 "payment.gateway": "CASHFREE",
+                "payment.paymentMethod": paymentGroup,
                 "payment.paidAt": new Date(),
                 status: "CONFIRMED",
                 "lifecycle.confirmedAt": new Date(),

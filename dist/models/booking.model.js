@@ -178,10 +178,7 @@ const bookingSchema = new Schema({
         providerOrderId: String,
         providerPaymentId: String,
         paymentSessionId: String,
-        paymentMethod: {
-            type: String,
-            enum: ["COD", "RAZORPAY", "STRIPE", "UPI", "CARD", "NETBANKING"],
-        },
+        paymentMethod: String,
         gateway: String,
         attempts: {
             type: Number,

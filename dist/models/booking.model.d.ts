@@ -1,7 +1,6 @@
 import { Types, Document, Model } from "mongoose";
 import type { ICart } from "./cart.model.js";
 export type BookingStatus = "PENDING" | "CONFIRMED" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED";
-export type PaymentMethod = "COD" | "RAZORPAY" | "STRIPE" | "UPI" | "CARD" | "NETBANKING";
 export type PaymentStatus = "PENDING" | "PAID" | "FAILED" | "REFUNDED" | "PARTIAL_REFUND";
 export type BookedBy = "CUSTOMER" | "ADMIN" | "SUBADMIN";
 export type EntryType = "SERVICE" | "PACKAGE";
@@ -104,7 +103,7 @@ export interface IBooking extends Document {
     };
     payment: {
         status: PaymentStatus;
-        paymentMethod?: PaymentMethod;
+        paymentMethod?: string;
         gateway?: string;
         amountPaid?: number;
         refundAmount?: number;

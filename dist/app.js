@@ -20,6 +20,7 @@ import bookingRoutes from "./routes/booking.routes.js";
 import categoryRoutes from "./routes/category.routes.js";
 import tierRoutes from "./routes/tier.routes.js";
 import subServices from "./routes/subservices.routes.js";
+import { paymentWebhooks } from "./controllers/booking.controllers.js";
 const app = express();
 // Connect DB
 ConnectDB();
@@ -51,6 +52,7 @@ app.options("/*splat", cors(corsOptions));
 app.use(helmet({
     crossOriginResourcePolicy: { policy: "cross-origin" },
 }));
+app.post("/api/booking/webhooks/cashfree", express.raw({ type: "application/json" }), paymentWebhooks);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.set("trust proxy", 1);
