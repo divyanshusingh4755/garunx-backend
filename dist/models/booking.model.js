@@ -9,6 +9,38 @@ const bookingSelectedItemSchema = new Schema({
     name: { type: String, required: true },
     price: { type: Number, default: 0, min: 0 },
 }, { _id: false });
+const bookingRefundSchema = new Schema({
+    refundId: {
+        type: String,
+        required: true,
+    },
+    amount: {
+        type: Number,
+        required: true,
+        min: 0,
+    },
+    reason: {
+        type: String,
+        required: true,
+        trim: true,
+    },
+    refundedAt: {
+        type: Date,
+        default: Date.now,
+    },
+    providerRefundId: {
+        type: String,
+    },
+    status: {
+        type: String,
+        enum: ["PENDING", "SUCCESS", "FAILED"],
+        default: "PENDING",
+    },
+    refundedBy: {
+        type: Schema.Types.ObjectId,
+        ref: "User",
+    },
+}, { _id: false });
 const bookingComponentSchema = new Schema({
     componentType: {
         type: String,
@@ -194,6 +226,10 @@ const bookingSchema = new Schema({
             type: Number,
             default: 0,
         },
+        refunds: {
+            type: [bookingRefundSchema],
+            default: [],
+        },
         paidAt: Date,
         refundedAt: Date,
         currency: {
@@ -274,6 +310,9 @@ bookingSchema.index({ cartId: 1 }, {
     partialFilterExpression: {
         isDeleted: false,
     },
+});
+bookingSchema.index({
+    "payment.refunds.refundId": 1,
 });
 export const Booking = model("Booking", bookingSchema);
 //# sourceMappingURL=booking.model.js.map

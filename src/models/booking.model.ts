@@ -27,6 +27,16 @@ export interface IBookingSelectedItem {
   price: number;
 }
 
+export interface IBookingRefund {
+  refundId: string;
+  amount: number;
+  reason: string;
+  refundedAt: Date;
+  providerRefundId?: string;
+  status?: "PENDING" | "SUCCESS" | "FAILED";
+  refundedBy?: Types.ObjectId;
+}
+
 const bookingSelectedItemSchema = new Schema<IBookingSelectedItem>(
   {
     itemId: {
@@ -57,6 +67,48 @@ export interface IBookingComponent {
     total: number;
   };
 }
+
+const bookingRefundSchema = new Schema<IBookingRefund>(
+  {
+    refundId: {
+      type: String,
+      required: true,
+    },
+
+    amount: {
+      type: Number,
+      required: true,
+      min: 0,
+    },
+
+    reason: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+
+    refundedAt: {
+      type: Date,
+      default: Date.now,
+    },
+
+    providerRefundId: {
+      type: String,
+    },
+
+    status: {
+      type: String,
+      enum: ["PENDING", "SUCCESS", "FAILED"],
+      default: "PENDING",
+    },
+
+    refundedBy: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+    },
+  },
+  { _id: false },
+);
 
 const bookingComponentSchema = new Schema<IBookingComponent>(
   {
@@ -312,6 +364,7 @@ export interface IBooking extends Document {
     attempts?: number;
     lastAttemptAt?: Date;
     failureReason?: string;
+    refunds?: IBookingRefund[];
   };
 
   status: BookingStatus;
@@ -415,6 +468,10 @@ const bookingSchema = new Schema<IBooking>(
         type: Number,
         default: 0,
       },
+      refunds: {
+        type: [bookingRefundSchema],
+        default: [],
+      },
       paidAt: Date,
       refundedAt: Date,
       currency: {
@@ -516,6 +573,10 @@ bookingSchema.index(
     },
   },
 );
+
+bookingSchema.index({
+  "payment.refunds.refundId": 1,
+});
 
 export const Booking: Model<IBooking> = model<IBooking>(
   "Booking",

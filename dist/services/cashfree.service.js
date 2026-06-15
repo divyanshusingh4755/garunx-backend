@@ -20,10 +20,8 @@ export class CashfreeService {
                     customer_phone: input.customerPhone,
                 },
                 order_meta: {
-                    return_url: process.env.CASHFREE_RETURN_URL ||
-                        "http://localhost:3000/payment/success?order_id={order_id}",
-                    notify_url: process.env.CASHFREE_WEBHOOK_URL ||
-                        "http://localhost:4000/webhooks/cashfree",
+                    return_url: `http://localhost:3000/payment/success?order_id=${input.orderId}`,
+                    notify_url: process.env.CASHFREE_WEBHOOK_URL,
                 },
             };
             const response = await axios.post(`${this.baseUrl}/orders`, payload, {
@@ -72,6 +70,28 @@ export class CashfreeService {
             return false;
         }
         return crypto.timingSafeEqual(computedBuffer, signatureBuffer);
+    }
+    static async refundPayment(input) {
+        try {
+            const payload = {
+                refund_amount: Number(input.amount),
+                refund_id: input.refundId,
+                refund_note: input.reason,
+            };
+            const response = await axios.post(`${this.baseUrl}/orders/${input.orderId}/refunds`, payload, {
+                headers: {
+                    "Content-Type": "application/json",
+                    "x-client-id": this.clientId,
+                    "x-client-secret": this.clientSecret,
+                    "x-api-version": "2022-09-01",
+                },
+            });
+            return response.data;
+        }
+        catch (error) {
+            console.error("Cashfree refundPayment error:", error?.response?.data || error.message);
+            throw new Error(error?.response?.data?.message || "Failed to process refund");
+        }
     }
 }
 //# sourceMappingURL=cashfree.service.js.map

@@ -11,6 +11,15 @@ export interface IBookingSelectedItem {
     name: string;
     price: number;
 }
+export interface IBookingRefund {
+    refundId: string;
+    amount: number;
+    reason: string;
+    refundedAt: Date;
+    providerRefundId?: string;
+    status?: "PENDING" | "SUCCESS" | "FAILED";
+    refundedBy?: Types.ObjectId;
+}
 export interface IBookingComponent {
     componentType: ComponentType;
     componentId: Types.ObjectId;
@@ -116,6 +125,7 @@ export interface IBooking extends Document {
         attempts?: number;
         lastAttemptAt?: Date;
         failureReason?: string;
+        refunds?: IBookingRefund[];
     };
     status: BookingStatus;
     cancellation?: {
