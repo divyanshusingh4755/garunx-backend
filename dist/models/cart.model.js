@@ -96,9 +96,9 @@ const cartSchema = new Schema({
         required: true,
     },
     customerDetails: {
-        name: { type: String, required: true },
-        email: { type: String, lowercase: true, trim: true, required: true },
-        phone: { type: String, required: true },
+        name: String,
+        email: { type: String, lowercase: true, trim: true },
+        phone: String,
         address: String,
         caste: String,
         gotra: String,

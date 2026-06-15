@@ -55,9 +55,9 @@ export declare class BookingService {
         status: BookingStatus;
         bookedBy: import("../models/booking.model.js").BookedBy;
         customerDetails: {
-            name: string;
-            email: string;
-            phone: string;
+            name?: string;
+            email?: string;
+            phone?: string;
             address?: string;
             caste?: string;
             gotra?: string;

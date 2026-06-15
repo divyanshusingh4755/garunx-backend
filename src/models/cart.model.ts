@@ -40,9 +40,9 @@ export interface ICart extends Document {
   locationId: Types.ObjectId;
   locationName: string;
   customerDetails?: {
-    name: string;
-    email: string;
-    phone: string;
+    name?: string;
+    email?: string;
+    phone?: string;
     address?: string;
     caste?: string;
     gotra?: string;
@@ -191,9 +191,9 @@ const cartSchema = new Schema<ICart>(
     },
 
     customerDetails: {
-      name: { type: String, required: true },
-      email: { type: String, lowercase: true, trim: true, required: true },
-      phone: { type: String, required: true },
+      name: String,
+      email: { type: String, lowercase: true, trim: true },
+      phone: String,
       address: String,
       caste: String,
       gotra: String,

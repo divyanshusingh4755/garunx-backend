@@ -96,9 +96,9 @@ export interface IBooking extends Document {
     bookedBy: BookedBy;
     entries: IBookingEntry[];
     customerDetails: {
-        name: string;
-        email: string;
-        phone: string;
+        name?: string;
+        email?: string;
+        phone?: string;
         address?: string;
         caste?: string;
         gotra?: string;

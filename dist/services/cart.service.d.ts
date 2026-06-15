@@ -84,9 +84,9 @@ declare class CartService {
         locationId: Types.ObjectId;
         locationName: string;
         customerDetails?: {
-            name: string;
-            email: string;
-            phone: string;
+            name?: string;
+            email?: string;
+            phone?: string;
             address?: string;
             caste?: string;
             gotra?: string;
@@ -188,9 +188,9 @@ declare class CartService {
         locationId: Types.ObjectId;
         locationName: string;
         customerDetails?: {
-            name: string;
-            email: string;
-            phone: string;
+            name?: string;
+            email?: string;
+            phone?: string;
             address?: string;
             caste?: string;
             gotra?: string;

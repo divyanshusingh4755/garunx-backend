@@ -28,9 +28,9 @@ export interface ICart extends Document {
     locationId: Types.ObjectId;
     locationName: string;
     customerDetails?: {
-        name: string;
-        email: string;
-        phone: string;
+        name?: string;
+        email?: string;
+        phone?: string;
         address?: string;
         caste?: string;
         gotra?: string;

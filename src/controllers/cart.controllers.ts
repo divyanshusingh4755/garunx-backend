@@ -200,19 +200,16 @@ export const updateSchedule = async (req: Request, res: Response) => {
 
 export const updateCustomerDetails = async (req: Request, res: Response) => {
   try {
-    const { name, email, phone } = req.body;
     const userId = req.user?.userId;
     if (!userId) {
       return res.status(401).json({ success: false, message: "Unauthorized" });
     }
 
-    if (!name || !email || !phone) {
-      return res
-        .status(400)
-        .json({
-          success: false,
-          message: "name, email, phone number is required",
-        });
+    if (!req.body.name || !req.body.email || !req.body.phone) {
+      return res.status(400).json({
+        success: false,
+        message: "name, email, phone number is required",
+      });
     }
 
     const cart = await CartService.updateCustomerDetails(

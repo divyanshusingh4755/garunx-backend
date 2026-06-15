@@ -333,9 +333,9 @@ export interface IBooking extends Document {
   bookedBy: BookedBy;
   entries: IBookingEntry[];
   customerDetails: {
-    name: string;
-    email: string;
-    phone: string;
+    name?: string;
+    email?: string;
+    phone?: string;
     address?: string;
     caste?: string;
     gotra?: string;
@@ -427,9 +427,9 @@ const bookingSchema = new Schema<IBooking>(
     },
 
     customerDetails: {
-      name: { type: String, required: true },
-      email: { type: String, lowercase: true, trim: true, required: true },
-      phone: { type: String, required: true },
+      name: String,
+      email: { type: String, lowercase: true, trim: true },
+      phone: String,
       address: String,
       caste: String,
       gotra: String,
