@@ -21,6 +21,12 @@ export interface ISelectedComponent {
   totalPrice: number;
 }
 
+export interface ISelectedService {
+  serviceId: Types.ObjectId;
+  name: string;
+  price: number;
+}
+
 export interface IAddonService {
   serviceId: Types.ObjectId;
   name: string;
@@ -49,6 +55,7 @@ export interface ICart extends Document {
   };
   selectedComponents?: ISelectedComponent[];
   addonComponents?: ISelectedComponent[];
+  selectedServices?: ISelectedService[];
   addonServices?: IAddonService[];
   scheduledDate?: Date;
   scheduledTime?: string;
@@ -100,6 +107,28 @@ const selectedComponentSchema = new Schema<ISelectedComponent>(
     },
 
     totalPrice: {
+      type: Number,
+      required: true,
+      min: 0,
+    },
+  },
+  { _id: false },
+);
+
+const selectedServiceSchema = new Schema<ISelectedService>(
+  {
+    serviceId: {
+      type: Schema.Types.ObjectId,
+      ref: "Service",
+      required: true,
+    },
+
+    name: {
+      type: String,
+      required: true,
+    },
+
+    price: {
       type: Number,
       required: true,
       min: 0,
@@ -201,6 +230,11 @@ const cartSchema = new Schema<ICart>(
 
     selectedComponents: {
       type: [selectedComponentSchema],
+      default: [],
+    },
+
+    selectedServices: {
+      type: [selectedServiceSchema],
       default: [],
     },
 

@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { createServiceCart, createPackageCart, getUserCarts, getCartById, updateSelectedComponents, updateAddonComponents, updateAddonServices, updateSchedule, updateCustomerDetails, updateCartNotes, recalculateCart, validateCart, checkoutCart, deleteCart, } from "../controllers/cart.controllers.js";
+import { createServiceCart, createPackageCart, getUserCarts, getCartById, updateSelectedComponents, updateAddonComponents, updateAddonServices, updateSchedule, updateCustomerDetails, updateCartNotes, recalculateCart, validateCart, checkoutCart, deleteCart, updateSelectedServices, } from "../controllers/cart.controllers.js";
 import { authenticate } from "../middleware/authenticate.js";
 const router = Router();
 router.post("/service", authenticate, createServiceCart);
@@ -8,6 +8,7 @@ router.get("/", authenticate, getUserCarts);
 router.get("/:cartId", authenticate, getCartById);
 router.put("/:cartId/components", authenticate, updateSelectedComponents);
 router.put("/:cartId/addon-components", authenticate, updateAddonComponents);
+router.put("/:cartId/selected-services", authenticate, updateSelectedServices);
 router.put("/:cartId/addon-services", authenticate, updateAddonServices);
 router.put("/:cartId/schedule", authenticate, updateSchedule);
 router.put("/:cartId/customer-details", authenticate, updateCustomerDetails);

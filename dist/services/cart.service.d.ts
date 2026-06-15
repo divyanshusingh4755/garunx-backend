@@ -1,5 +1,5 @@
 import mongoose, { Types } from "mongoose";
-import { type IAddonService, type ICart, type ISelectedComponent } from "../models/cart.model.js";
+import { type IAddonService, type ICart, type ISelectedComponent, type ISelectedService } from "../models/cart.model.js";
 interface CartValidationResult {
     isValid: boolean;
     errors: string[];
@@ -91,6 +91,7 @@ declare class CartService {
             caste?: string;
             gotra?: string;
         };
+        selectedServices?: ISelectedService[];
         addonServices?: IAddonService[];
         scheduledDate?: Date;
         scheduledTime?: string;
@@ -175,6 +176,7 @@ declare class CartService {
             schema: mongoose.Schema;
             __v: number;
         }[];
+        selectedServices: any[];
         addonServices: any[];
         _id: Types.ObjectId;
         userId?: Types.ObjectId | null;
@@ -229,6 +231,13 @@ declare class CartService {
         id: string;
     }>;
     static updateAddonComponents(userId: string, cartId: string, payload: any): Promise<mongoose.Document<unknown, {}, ICart, {}, mongoose.DefaultSchemaOptions> & ICart & Required<{
+        _id: Types.ObjectId;
+    }> & {
+        __v: number;
+    } & {
+        id: string;
+    }>;
+    static updateSelectedServices(userId: string, cartId: string, payload: any): Promise<mongoose.Document<unknown, {}, ICart, {}, mongoose.DefaultSchemaOptions> & ICart & Required<{
         _id: Types.ObjectId;
     }> & {
         __v: number;

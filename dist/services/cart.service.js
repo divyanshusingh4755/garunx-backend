@@ -247,10 +247,20 @@ class CartService {
                 ...addon,
                 service: addonServicesMap.get(addon.serviceId.toString()),
             }));
+            const selectedServiceIds = cart.selectedServices?.map((s) => s.serviceId) || [];
+            const selectedServicesFromDB = await Service.find({
+                _id: { $in: selectedServiceIds },
+            }).lean();
+            const selectedServicesMap = new Map(selectedServicesFromDB.map((s) => [s._id.toString(), s]));
+            const hydratedSelectedServices = (cart.selectedServices || []).map((s) => ({
+                ...s,
+                service: selectedServicesMap.get(String(s.serviceId)),
+            }));
             return {
                 ...cart,
                 package: pkg,
                 services: hydratedServices,
+                selectedServices: hydratedSelectedServices,
                 addonServices: hydratedAddonServices,
             };
         }
@@ -389,6 +399,63 @@ class CartService {
             });
         }
         cart.addonComponents = updatedAddonComponents;
+        const totals = await CartPricingEngine.calculateCartTotals(cart);
+        cart.basePrice = totals.basePrice;
+        cart.addonPrice = totals.addonPrice;
+        cart.totalAmount = totals.totalAmount;
+        await cart.save();
+        return cart;
+    }
+    static async updateSelectedServices(userId, cartId, payload) {
+        const { serviceIds } = payload;
+        if (!userId) {
+            throw new Error("Token missing");
+        }
+        if (!mongoose.Types.ObjectId.isValid(cartId)) {
+            throw new Error("Invalid cartId");
+        }
+        const cart = await Cart.findOne({
+            _id: cartId,
+            userId,
+        });
+        if (!cart) {
+            throw new Error("Cart not found");
+        }
+        if (!cart.packageId) {
+            throw new Error("This operation is only allowed for package carts");
+        }
+        if (!Array.isArray(serviceIds)) {
+            throw new Error("serviceIds must be an array");
+        }
+        const packageTierMap = await PackageTierMap.findOne({
+            packageId: cart.packageId,
+            tierId: cart.tierId,
+        }).lean();
+        if (!packageTierMap) {
+            throw new Error("Package tier mapping not found");
+        }
+        const allowedServices = packageTierMap.services || [];
+        const selectedServices = [];
+        const pricingList = await PackageTierPricing.find({
+            packageId: cart.packageId,
+            tierId: cart.tierId,
+            locationId: cart.locationId,
+            serviceId: { $in: serviceIds },
+        }).lean();
+        const pricingMap = new Map(pricingList.map((p) => [p.serviceId.toString(), p.finalPrice]));
+        for (const serviceId of serviceIds) {
+            const matchedService = allowedServices.find((s) => s.serviceId.toString() === serviceId.toString());
+            if (!matchedService) {
+                throw new Error(`Invalid addon service selected`);
+            }
+            const price = pricingMap.get(serviceId.toString()) ?? 0;
+            selectedServices.push({
+                serviceId: matchedService.serviceId,
+                name: matchedService.name,
+                price,
+            });
+        }
+        cart.selectedServices = selectedServices;
         const totals = await CartPricingEngine.calculateCartTotals(cart);
         cart.basePrice = totals.basePrice;
         cart.addonPrice = totals.addonPrice;

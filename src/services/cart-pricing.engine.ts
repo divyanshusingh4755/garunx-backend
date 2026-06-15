@@ -96,23 +96,30 @@ export class CartPricingEngine {
 
     const allowedServices = packageTierMap?.services || [];
 
-    const selectedServiceIds = new Set<string>(
+    const selectedServiceIds = new Set(
+      (cart.selectedServices || []).map((s: any) => String(s.serviceId)),
+    );
+
+    const addonServiceIds = new Set(
       (cart.addonServices || []).map((s: any) => String(s.serviceId)),
     );
 
     let basePrice = 0;
-
-    for (const serviceId of selectedServiceIds) {
-      if (allowedServices.some((s) => s.serviceId.toString() === serviceId)) {
-        basePrice += pricingMap.get(serviceId) || 0;
-      }
-    }
-
     let addonPrice = 0;
 
-    for (const serviceId of selectedServiceIds) {
-      if (!allowedServices.some((s) => s.serviceId.toString() === serviceId)) {
-        addonPrice += pricingMap.get(serviceId) || 0;
+    for (const service of allowedServices) {
+      const serviceId = service.serviceId.toString();
+      const price = pricingMap.get(serviceId) || 0;
+
+      const isSelected = selectedServiceIds.has(serviceId);
+      const isAddon = addonServiceIds.has(serviceId);
+
+      if (isSelected && service.isRequired) {
+        basePrice += price;
+      }
+
+      if (isAddon && !service.isRequired) {
+        addonPrice += price;
       }
     }
 

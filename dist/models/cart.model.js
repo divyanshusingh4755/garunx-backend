@@ -30,6 +30,22 @@ const selectedComponentSchema = new Schema({
         min: 0,
     },
 }, { _id: false });
+const selectedServiceSchema = new Schema({
+    serviceId: {
+        type: Schema.Types.ObjectId,
+        ref: "Service",
+        required: true,
+    },
+    name: {
+        type: String,
+        required: true,
+    },
+    price: {
+        type: Number,
+        required: true,
+        min: 0,
+    },
+}, { _id: false });
 const addonServiceSchema = new Schema({
     serviceId: {
         type: Schema.Types.ObjectId,
@@ -105,6 +121,10 @@ const cartSchema = new Schema({
     },
     selectedComponents: {
         type: [selectedComponentSchema],
+        default: [],
+    },
+    selectedServices: {
+        type: [selectedServiceSchema],
         default: [],
     },
     addonComponents: {

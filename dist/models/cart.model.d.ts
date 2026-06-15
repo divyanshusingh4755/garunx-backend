@@ -10,6 +10,11 @@ export interface ISelectedComponent {
     items: ISelectedComponentItem[];
     totalPrice: number;
 }
+export interface ISelectedService {
+    serviceId: Types.ObjectId;
+    name: string;
+    price: number;
+}
 export interface IAddonService {
     serviceId: Types.ObjectId;
     name: string;
@@ -37,6 +42,7 @@ export interface ICart extends Document {
     };
     selectedComponents?: ISelectedComponent[];
     addonComponents?: ISelectedComponent[];
+    selectedServices?: ISelectedService[];
     addonServices?: IAddonService[];
     scheduledDate?: Date;
     scheduledTime?: string;

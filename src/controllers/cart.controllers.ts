@@ -172,6 +172,32 @@ export const updateAddonServices = async (req: Request, res: Response) => {
   }
 };
 
+export const updateSelectedServices = async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) {
+      return res.status(401).json({ success: false, message: "Unauthorized" });
+    }
+
+    const cart = await CartService.updateSelectedServices(
+      userId,
+      req.params.cartId as string,
+      req.body,
+    );
+
+    res.status(200).json({
+      success: true,
+      message: "Addon services updated successfully",
+      cart,
+    });
+  } catch (error: any) {
+    res.status(400).json({
+      success: false,
+      message: error.message || "Failed to update addon services",
+    });
+  }
+};
+
 export const updateSchedule = async (req: Request, res: Response) => {
   try {
     const userId = req.user?.userId;
