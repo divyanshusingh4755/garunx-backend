@@ -132,9 +132,6 @@ export class ServiceComponentService {
             if (!Types.ObjectId.isValid(tierId)) {
                 throw new Error("Invalid tierId");
             }
-            if (!Array.isArray(components) || components.length === 0) {
-                throw new Error("At least one component is required");
-            }
             const service = await Service.findById(serviceId).session(session);
             if (!service)
                 throw new Error("Service not found");

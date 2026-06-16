@@ -536,10 +536,6 @@ export class ServiceService {
       };
     }
 
-    if (service.locations.length === 1) {
-      throw new Error("Service must have at least one location");
-    }
-
     service.locations = service.locations.filter(
       (loc) => loc.locationId.toString() !== locationId,
     );
@@ -644,10 +640,6 @@ export class ServiceService {
         success: true,
         message: "Tier already not present",
       };
-    }
-
-    if (service.tiers.length === 1) {
-      throw new Error("Service must have at least one tier");
     }
 
     service.tiers = service.tiers.filter((t) => t.tierId.toString() !== tierId);

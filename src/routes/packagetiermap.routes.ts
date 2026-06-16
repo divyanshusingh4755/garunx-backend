@@ -37,23 +37,19 @@ router.post(
   body("tierId").isMongoId().withMessage("Invalid tierId"),
 
   body("services")
+    .optional()
     .isArray({ min: 1 })
     .withMessage("services array is required"),
-
   body("services.*.serviceId").isMongoId().withMessage("Invalid serviceId"),
-
   body("services.*.name").notEmpty().withMessage("Service name is required"),
-
   body("services.*.isRequired")
     .optional()
     .isBoolean()
     .withMessage("isRequired must be boolean"),
-
   body("services.*.isRelated")
     .optional()
     .isBoolean()
     .withMessage("isRelated must be boolean"),
-
   body("services").custom((services) => {
     for (const s of services) {
       if (s.isRequired && s.isRelated) {
@@ -70,23 +66,12 @@ router.post(
 router.put(
   "/replace",
   authenticate,
-
   body("packageId").isMongoId().withMessage("Invalid packageId"),
   body("tierId").isMongoId().withMessage("Invalid tierId"),
-
-  body("services")
-    .isArray({ min: 1 })
-    .withMessage("services array is required"),
-
-  body("services.*.serviceId").isMongoId().withMessage("Invalid serviceId"),
-
-  body("services.*.name").notEmpty().withMessage("Service name is required"),
-
   body("services.*.isRequired")
     .optional()
     .isBoolean()
     .withMessage("isRequired must be boolean"),
-
   body("services.*.isRelated")
     .optional()
     .isBoolean()

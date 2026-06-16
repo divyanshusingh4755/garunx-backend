@@ -389,10 +389,6 @@ export class PackageService {
       };
     }
 
-    if (pkg.locations.length === 1) {
-      throw new Error("Package must have at least one location");
-    }
-
     pkg.locations = pkg.locations.filter(
       (loc) => loc.locationId.toString() !== locationId,
     );
@@ -486,10 +482,6 @@ export class PackageService {
         success: true,
         message: "Tier already not present",
       };
-    }
-
-    if (pkg.tiers.length === 1) {
-      throw new Error("Package must have at least one tier");
     }
 
     pkg.tiers = pkg.tiers.filter((t) => t.tierId.toString() !== tierId);

@@ -174,10 +174,6 @@ export class ServiceComponentService {
         throw new Error("Invalid tierId");
       }
 
-      if (!Array.isArray(components) || components.length === 0) {
-        throw new Error("At least one component is required");
-      }
-
       const service = await Service.findById(serviceId).session(session);
 
       if (!service) throw new Error("Service not found");
@@ -190,8 +186,8 @@ export class ServiceComponentService {
         throw new Error("Tier does not belong to service");
       }
 
-      const componentIds = [
-        ...new Set(components.map((c: any) => c.componentId)),
+      const componentIds: string[] = [
+        ...new Set<string>(components.map((c: any) => c.componentId)),
       ];
 
       const componentObjectIds = componentIds.map((id: string) => {

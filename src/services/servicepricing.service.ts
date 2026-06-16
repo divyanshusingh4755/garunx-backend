@@ -228,11 +228,8 @@ export class ServicePricingService {
 
     const resolvedComponents = components.map((component) => {
       const componentData = component.componentId as any;
-
       const componentId = componentData._id.toString();
-
       const hasPrice = pricingMap.has(componentId);
-
       const price = pricingMap.get(componentId) ?? null;
 
       return {
@@ -248,9 +245,7 @@ export class ServicePricingService {
     });
 
     const requiredComponents = resolvedComponents.filter((c) => c.isRequired);
-
     const optionalComponents = resolvedComponents.filter((c) => !c.isRequired);
-
     const startingPrice = requiredComponents.reduce(
       (sum, c) => sum + (c.price ?? 0),
       0,
@@ -280,18 +275,13 @@ export class ServicePricingService {
         id: location.locationId,
         name: location.name,
       },
-
       components: resolvedComponents,
 
       summary: {
         totalComponents: resolvedComponents.length,
-
         requiredComponentCount: requiredComponents.length,
-
         optionalComponentCount: optionalComponents.length,
-
         startingPrice,
-
         isAvailable,
       },
     };
