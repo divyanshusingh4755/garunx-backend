@@ -4,7 +4,7 @@ import { Category } from "../models/category.model.js";
 import { Tier } from "../models/tier.model.js";
 import { Location } from "../models/location.model.js";
 import { Service } from "../models/service.model.js";
-import { PackageTierMap } from "../models/packagetiermap.model.js";
+import { PackageTierMap, } from "../models/packagetiermap.model.js";
 import { PackageTierPricing } from "../models/packagetierpricing.model.js";
 import { generateSlug } from "../utils/generateSlug.js";
 import { getNextSequence } from "../utils/getNextSequence.js";
@@ -477,6 +477,121 @@ export class PackageService {
                 name: t.name,
             })),
             services: grouped,
+        };
+    }
+    static async getRelatedPackageService(packageId, tierId, locationId) {
+        if (!Types.ObjectId.isValid(packageId)) {
+            throw new Error("Invalid packageId");
+        }
+        const [pkg, mapping, pricing] = await Promise.all([
+            Package.findById(packageId).lean(),
+            PackageTierMap.findOne({
+                packageId,
+                tierId,
+            }).lean(),
+            PackageTierPricing.find({
+                packageId,
+                tierId,
+                locationId,
+            }).lean(),
+        ]);
+        if (!pkg) {
+            throw new Error("Package not found");
+        }
+        if (!mapping) {
+            throw new Error("Package tier mapping not found");
+        }
+        const relatedServices = (mapping.services || []).filter((service) => service.isRelated);
+        // Collect all service ids
+        const serviceIds = relatedServices.map((service) => service.serviceId.toString());
+        // Fetch services
+        const services = await Service.find({
+            _id: { $in: serviceIds },
+        })
+            .select("categoryId thumbnailImage")
+            .lean();
+        const categoryIds = [
+            ...new Set([
+                pkg.categoryId?.toString(),
+                ...services.map((s) => s.categoryId?.toString()).filter(Boolean),
+            ]),
+        ];
+        const categories = await Category.find({
+            _id: { $in: categoryIds },
+        })
+            .select("label value image")
+            .lean();
+        const categoryMap = new Map(categories.map((c) => [c._id.toString(), c]));
+        // Service lookup
+        const serviceMap = new Map(services.map((s) => [
+            s._id.toString(),
+            {
+                thumbnailImage: s.thumbnailImage,
+                categoryId: s.categoryId,
+            },
+        ]));
+        // Group pricing by tier + service
+        const pricingMap = new Map(pricing.map((p) => [
+            p.serviceId.toString(),
+            {
+                locationId: p.locationId,
+                basePrice: p.basePrice,
+                fixedPrice: p.fixedPrice,
+                discountPercent: p.discountPercent,
+                finalPrice: p.finalPrice,
+            },
+        ]));
+        const hydratedRelatedServices = relatedServices.map((service) => {
+            const serviceDetails = serviceMap.get(service.serviceId.toString());
+            const category = serviceDetails?.categoryId
+                ? categoryMap.get(serviceDetails.categoryId.toString())
+                : null;
+            return {
+                serviceId: service.serviceId,
+                name: service.name,
+                isRequired: service.isRequired,
+                isRelated: service.isRelated,
+                thumbnailImage: serviceDetails?.thumbnailImage || null,
+                category: category
+                    ? {
+                        id: category._id,
+                        label: category.label,
+                        value: category.value,
+                        image: category.image,
+                    }
+                    : null,
+                pricing: pricingMap.get(service.serviceId.toString()) || null,
+            };
+        });
+        const packageCategory = pkg.categoryId
+            ? categoryMap.get(pkg.categoryId.toString())
+            : null;
+        return {
+            package: {
+                id: pkg._id,
+                name: pkg.name,
+                shortDescription: pkg.shortDescription,
+                fullDescription: pkg.fullDescription,
+                thumbnailImage: pkg.thumbnailImage,
+                bannerImage: pkg.bannerImage,
+                category: packageCategory
+                    ? {
+                        id: packageCategory._id,
+                        label: packageCategory.label,
+                        value: packageCategory.value,
+                        image: packageCategory.image,
+                    }
+                    : null,
+                isActive: pkg.isActive,
+                isComplete: pkg.isComplete,
+                packageReference: pkg.packageReference,
+            },
+            locations: pkg.locations,
+            tiers: (pkg.tiers || []).map((t) => ({
+                tierId: t.tierId,
+                name: t.name,
+            })),
+            relatedServices: hydratedRelatedServices,
         };
     }
     static async updatePackageStartingPrice(packageId) {

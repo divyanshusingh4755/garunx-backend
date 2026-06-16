@@ -188,6 +188,28 @@ export const getFullPackage = async (req, res) => {
         });
     }
 };
+export const getRelatedPackageService = async (req, res) => {
+    try {
+        const { packageId, tierId, locationId } = req.params;
+        if (!packageId || !tierId || !locationId) {
+            return res.status(400).json({
+                success: false,
+                message: "packageId, tierId, locationId is required",
+            });
+        }
+        const data = await PackageService.getRelatedPackageService(packageId, tierId, locationId);
+        return res.status(200).json({
+            success: true,
+            data,
+        });
+    }
+    catch (error) {
+        return res.status(400).json({
+            success: false,
+            message: error.message,
+        });
+    }
+};
 export const getPackageDiagnostics = async (req, res) => {
     try {
         const result = await PackageDiagnosticsEngine.analyze(req.params.packageId);

@@ -23,6 +23,7 @@ import {
   getPackageDiagnostics,
   getPackagesByLocation,
   getFullPackageByCities,
+  getRelatedPackageService,
 } from "../controllers/package.controllers.js";
 
 const router = Router();
@@ -234,6 +235,11 @@ router.post(
 );
 
 router.get("/:packageId/full", packageIdValidation, getFullPackage);
+router.get(
+  "/:packageId/:tierId/:locationId/relatedService",
+  packageIdValidation,
+  getRelatedPackageService,
+);
 
 router.get(
   "/:packageId/diagnostics",

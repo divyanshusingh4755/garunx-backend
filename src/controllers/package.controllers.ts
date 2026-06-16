@@ -261,6 +261,35 @@ export const getFullPackage = async (req: Request, res: Response) => {
   }
 };
 
+export const getRelatedPackageService = async (req: Request, res: Response) => {
+  try {
+    const { packageId, tierId, locationId } = req.params;
+
+    if (!packageId || !tierId || !locationId) {
+      return res.status(400).json({
+        success: false,
+        message: "packageId, tierId, locationId is required",
+      });
+    }
+
+    const data = await PackageService.getRelatedPackageService(
+      packageId as string,
+      tierId as string,
+      locationId as string,
+    );
+
+    return res.status(200).json({
+      success: true,
+      data,
+    });
+  } catch (error: any) {
+    return res.status(400).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
 export const getPackageDiagnostics = async (req: Request, res: Response) => {
   try {
     const result = await PackageDiagnosticsEngine.analyze(

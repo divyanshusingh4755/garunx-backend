@@ -86,6 +86,50 @@ export declare class PackageService {
         }[];
         services: Record<string, any>;
     }>;
+    static getRelatedPackageService(packageId: string, tierId: string, locationId: string): Promise<{
+        package: {
+            id: Types.ObjectId;
+            name: string;
+            shortDescription: string;
+            fullDescription: string | undefined;
+            thumbnailImage: string | undefined;
+            bannerImage: string | undefined;
+            category: {
+                id: any;
+                label: any;
+                value: any;
+                image: any;
+            } | null;
+            isActive: boolean;
+            isComplete: boolean;
+            packageReference: string;
+        };
+        locations: import("../models/package.model.js").IPackageLocation[];
+        tiers: {
+            tierId: any;
+            name: any;
+        }[];
+        relatedServices: {
+            serviceId: Types.ObjectId;
+            name: string;
+            isRequired: boolean;
+            isRelated: boolean;
+            thumbnailImage: any;
+            category: {
+                id: any;
+                label: any;
+                value: any;
+                image: any;
+            } | null;
+            pricing: {
+                locationId: Types.ObjectId;
+                basePrice: number;
+                fixedPrice: number | undefined;
+                discountPercent: number | undefined;
+                finalPrice: number;
+            } | null;
+        }[];
+    }>;
     static updatePackageStartingPrice(packageId: string): Promise<void>;
     static validatePackageConfiguration(packageId: string): Promise<{
         isComplete: boolean;

@@ -1,7 +1,7 @@
 import { Router, } from "express";
 import { body, param, validationResult } from "express-validator";
 import { authenticate } from "../middleware/authenticate.js";
-import { getAllPackages, createPackage, updatePackage, getPackageById, togglePackageStatus, getFullPackage, updatePackageLocations, removePackageLocation, updatePackageTiers, removePackageTier, getPackageDiagnostics, getPackagesByLocation, getFullPackageByCities, } from "../controllers/package.controllers.js";
+import { getAllPackages, createPackage, updatePackage, getPackageById, togglePackageStatus, getFullPackage, updatePackageLocations, removePackageLocation, updatePackageTiers, removePackageTier, getPackageDiagnostics, getPackagesByLocation, getFullPackageByCities, getRelatedPackageService, } from "../controllers/package.controllers.js";
 const router = Router();
 const validate = (req, res, next) => {
     const errors = validationResult(req);
@@ -149,6 +149,7 @@ router.get("/", getAllPackages);
 router.post("/getPackagesByLocation", authenticate, getPackagesByLocation);
 router.post("/:packageId/getFullPackagesByCities", packageIdValidation, getFullPackageByCities);
 router.get("/:packageId/full", packageIdValidation, getFullPackage);
+router.get("/:packageId/:tierId/:locationId/relatedService", packageIdValidation, getRelatedPackageService);
 router.get("/:packageId/diagnostics", authenticate, packageIdValidation, getPackageDiagnostics);
 router.get("/:packageId", packageIdValidation, getPackageById);
 router.post("/", authenticate, packageValidation, createPackage);
