@@ -63,9 +63,7 @@ export declare class BookingService {
             gotra?: string;
         };
         pricing: {
-            subtotal: number;
             taxes: number;
-            discount: number;
             grandTotal: number;
             earnings?: number;
         };

@@ -24,7 +24,6 @@ export type ServiceRole = "PRIMARY" | "INCLUDED" | "ADDON";
 export interface IBookingSelectedItem {
   itemId: Types.ObjectId;
   name: string;
-  price: number;
 }
 
 export interface IBookingRefund {
@@ -45,7 +44,6 @@ const bookingSelectedItemSchema = new Schema<IBookingSelectedItem>(
       required: true,
     },
     name: { type: String, required: true },
-    price: { type: Number, default: 0, min: 0 },
   },
   { _id: false },
 );
@@ -62,8 +60,6 @@ export interface IBookingComponent {
   selected: boolean;
   selectedItems: IBookingSelectedItem[];
   pricing: {
-    basePrice: number;
-    itemsTotal: number;
     total: number;
   };
 }
@@ -145,7 +141,6 @@ const bookingComponentSchema = new Schema<IBookingComponent>(
 
     pricing: {
       basePrice: { type: Number, default: 0, min: 0 },
-      itemsTotal: { type: Number, default: 0, min: 0 },
       total: { type: Number, default: 0, min: 0 },
     },
   },
@@ -179,9 +174,7 @@ export interface IBookingServiceConfiguration {
 
   components: IBookingComponent[];
   pricing: {
-    subtotal: number;
     taxes: number;
-    discount: number;
     grandTotal: number;
   };
 }
@@ -240,9 +233,7 @@ const bookingServiceConfigurationSchema =
       },
 
       pricing: {
-        subtotal: { type: Number, default: 0 },
         taxes: { type: Number, default: 0 },
-        discount: { type: Number, default: 0 },
         grandTotal: { type: Number, default: 0 },
       },
     },
@@ -259,12 +250,10 @@ export interface IBookingPackageConfiguration {
     packageReference?: string;
   };
 
-  services: IBookingServiceConfiguration[];
+  selectedServices: IBookingServiceConfiguration[];
   addonServices: IBookingServiceConfiguration[];
   pricing: {
-    subtotal: number;
     taxes: number;
-    discount: number;
     grandTotal: number;
   };
 }
@@ -285,7 +274,7 @@ const bookingPackageConfigurationSchema =
         packageReference: String,
       },
 
-      services: {
+      selectedServices: {
         type: [bookingServiceConfigurationSchema],
         default: [],
       },
@@ -296,9 +285,7 @@ const bookingPackageConfigurationSchema =
       },
 
       pricing: {
-        subtotal: { type: Number, default: 0 },
         taxes: { type: Number, default: 0 },
-        discount: { type: Number, default: 0 },
         grandTotal: { type: Number, default: 0 },
       },
     },
@@ -342,9 +329,7 @@ export interface IBooking extends Document {
   };
 
   pricing: {
-    subtotal: number;
     taxes: number;
-    discount: number;
     grandTotal: number;
     earnings?: number;
   };
@@ -436,9 +421,7 @@ const bookingSchema = new Schema<IBooking>(
     },
 
     pricing: {
-      subtotal: { type: Number, required: true, min: 0 },
       taxes: { type: Number, default: 0 },
-      discount: { type: Number, default: 0 },
       grandTotal: { type: Number, required: true, min: 0 },
       earnings: { type: Number, default: 0 },
     },

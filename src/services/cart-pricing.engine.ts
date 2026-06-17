@@ -1,7 +1,6 @@
 import { ServicePricing } from "../models/servicepricing.model.js";
 import { PackageTierPricing } from "../models/packagetierpricing.model.js";
 import { ComponentItem } from "../models/componentitem.model.js";
-import type { ICart } from "../models/cart.model.js";
 import { ServiceComponent } from "../models/servicecomponent.model.js";
 import { PackageTierMap } from "../models/packagetiermap.model.js";
 

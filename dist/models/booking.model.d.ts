@@ -9,7 +9,6 @@ export type ServiceRole = "PRIMARY" | "INCLUDED" | "ADDON";
 export interface IBookingSelectedItem {
     itemId: Types.ObjectId;
     name: string;
-    price: number;
 }
 export interface IBookingRefund {
     refundId: string;
@@ -32,8 +31,6 @@ export interface IBookingComponent {
     selected: boolean;
     selectedItems: IBookingSelectedItem[];
     pricing: {
-        basePrice: number;
-        itemsTotal: number;
         total: number;
     };
 }
@@ -60,9 +57,7 @@ export interface IBookingServiceConfiguration {
     };
     components: IBookingComponent[];
     pricing: {
-        subtotal: number;
         taxes: number;
-        discount: number;
         grandTotal: number;
     };
 }
@@ -74,12 +69,10 @@ export interface IBookingPackageConfiguration {
         thumbnailImage?: string;
         packageReference?: string;
     };
-    services: IBookingServiceConfiguration[];
+    selectedServices: IBookingServiceConfiguration[];
     addonServices: IBookingServiceConfiguration[];
     pricing: {
-        subtotal: number;
         taxes: number;
-        discount: number;
         grandTotal: number;
     };
 }
@@ -104,9 +97,7 @@ export interface IBooking extends Document {
         gotra?: string;
     };
     pricing: {
-        subtotal: number;
         taxes: number;
-        discount: number;
         grandTotal: number;
         earnings?: number;
     };

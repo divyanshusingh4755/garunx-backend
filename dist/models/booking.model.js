@@ -7,7 +7,6 @@ const bookingSelectedItemSchema = new Schema({
         required: true,
     },
     name: { type: String, required: true },
-    price: { type: Number, default: 0, min: 0 },
 }, { _id: false });
 const bookingRefundSchema = new Schema({
     refundId: {
@@ -68,7 +67,6 @@ const bookingComponentSchema = new Schema({
     },
     pricing: {
         basePrice: { type: Number, default: 0, min: 0 },
-        itemsTotal: { type: Number, default: 0, min: 0 },
         total: { type: Number, default: 0, min: 0 },
     },
 }, { _id: false });
@@ -117,9 +115,7 @@ const bookingServiceConfigurationSchema = new Schema({
         default: [],
     },
     pricing: {
-        subtotal: { type: Number, default: 0 },
         taxes: { type: Number, default: 0 },
-        discount: { type: Number, default: 0 },
         grandTotal: { type: Number, default: 0 },
     },
 }, { _id: false });
@@ -135,7 +131,7 @@ const bookingPackageConfigurationSchema = new Schema({
         thumbnailImage: String,
         packageReference: String,
     },
-    services: {
+    selectedServices: {
         type: [bookingServiceConfigurationSchema],
         default: [],
     },
@@ -144,9 +140,7 @@ const bookingPackageConfigurationSchema = new Schema({
         default: [],
     },
     pricing: {
-        subtotal: { type: Number, default: 0 },
         taxes: { type: Number, default: 0 },
-        discount: { type: Number, default: 0 },
         grandTotal: { type: Number, default: 0 },
     },
 }, { _id: false });
@@ -195,9 +189,7 @@ const bookingSchema = new Schema({
         gotra: String,
     },
     pricing: {
-        subtotal: { type: Number, required: true, min: 0 },
         taxes: { type: Number, default: 0 },
-        discount: { type: Number, default: 0 },
         grandTotal: { type: Number, required: true, min: 0 },
         earnings: { type: Number, default: 0 },
     },

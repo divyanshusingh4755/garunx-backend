@@ -276,13 +276,7 @@ export class PackageTierPricingService {
       const serviceId = s.serviceId;
       const basePrice = baseMap.get(s.serviceId) ?? null;
       const override = overrideMap.get(serviceId);
-
-      const finalPrice =
-        override?.finalPrice ??
-        override?.fixedPrice ??
-        (basePrice != null && override?.discountPercent
-          ? basePrice - (basePrice * override.discountPercent) / 100
-          : basePrice);
+      const finalPrice = override?.finalPrice ?? basePrice;
 
       return {
         ...s,
