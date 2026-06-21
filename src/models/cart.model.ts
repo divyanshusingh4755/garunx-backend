@@ -370,4 +370,15 @@ cartSchema.index({
   checkoutExpiresAt: 1,
 });
 
+cartSchema.index(
+  { createdAt: 1 },
+  {
+    expireAfterSeconds: 86400, // 24h
+    partialFilterExpression: {
+      guestId: { $exists: true },
+      userId: { $exists: false },
+    },
+  },
+);
+
 export const Cart: Model<ICart> = mongoose.model<ICart>("Cart", cartSchema);

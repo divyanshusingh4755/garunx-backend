@@ -231,5 +231,12 @@ cartSchema.index({
     status: 1,
     checkoutExpiresAt: 1,
 });
+cartSchema.index({ createdAt: 1 }, {
+    expireAfterSeconds: 86400, // 24h
+    partialFilterExpression: {
+        guestId: { $exists: true },
+        userId: { $exists: false },
+    },
+});
 export const Cart = mongoose.model("Cart", cartSchema);
 //# sourceMappingURL=cart.model.js.map
