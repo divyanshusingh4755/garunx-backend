@@ -20,6 +20,7 @@ import { Booking, type IBooking } from "../models/booking.model.js";
 import { PackageTierMap } from "../models/packagetiermap.model.js";
 import type { HydratedDocument } from "mongoose";
 import { CashfreeService } from "./cashfree.service.js";
+import { buildCartOwnerQuery, type CartOwner } from "../utils/getCartOwner.js";
 
 interface CartValidationResult {
   isValid: boolean;
@@ -29,7 +30,7 @@ interface CartValidationResult {
 }
 
 class CartService {
-  static async createServiceCart(userId: string, payload: any) {
+  static async createServiceCart(owner: CartOwner, payload: any) {
     const { serviceId, tierId, locationId } = payload;
 
     const service = await Service.findById(serviceId);
@@ -47,8 +48,10 @@ class CartService {
     if (!isValidTier) throw new Error("Invalid tier");
     if (!isValidLocation) throw new Error("Invalid location");
 
+    const ownerQuery = buildCartOwnerQuery(owner);
+
     const existingCart = await Cart.findOne({
-      userId,
+      ...ownerQuery,
       serviceId,
       tierId,
       locationId,
@@ -60,7 +63,7 @@ class CartService {
     }
 
     const cart = await Cart.create({
-      userId,
+      ...ownerQuery,
       serviceId: service._id,
       name: service.name,
       thumbnailImage: service.thumbnailImage ?? "",
@@ -91,7 +94,7 @@ class CartService {
     return cart;
   }
 
-  static async createPackageCart(userId: string, payload: any) {
+  static async createPackageCart(owner: CartOwner, payload: any) {
     const { packageId, tierId, locationId } = payload;
 
     const pkg = await Package.findById(packageId);
@@ -105,8 +108,10 @@ class CartService {
     if (!isValidTier) throw new Error("Invalid tier");
     if (!isValidLocation) throw new Error("Invalid location");
 
+    const ownerQuery = buildCartOwnerQuery(owner);
+
     const existingCart = await Cart.findOne({
-      userId,
+      ...ownerQuery,
       packageId,
       tierId,
       locationId,
@@ -118,7 +123,7 @@ class CartService {
     }
 
     const cart = await Cart.create({
-      userId,
+      ...ownerQuery,
       packageId,
       name: pkg.name,
       thumbnailImage: pkg.thumbnailImage ?? "",
@@ -147,13 +152,11 @@ class CartService {
     return cart;
   }
 
-  static async getUserCarts(userId: string, filters: any = {}) {
-    if (!userId) {
-      throw new Error("Token missing");
-    }
+  static async getUserCarts(owner: CartOwner, filters: any = {}) {
+    const ownerQuery = buildCartOwnerQuery(owner);
 
     const query: any = {
-      userId,
+      ...ownerQuery,
     };
 
     if (filters.status) {
@@ -175,18 +178,14 @@ class CartService {
     return carts;
   }
 
-  static async getCartById(userId: string, cartId: string) {
-    if (!userId) {
-      throw new Error("Token missing");
-    }
-
+  static async getCartById(owner: CartOwner, cartId: string) {
     if (!mongoose.Types.ObjectId.isValid(cartId)) {
       throw new Error("Invalid cartId");
     }
 
     const cart = await Cart.findOne({
       _id: cartId,
-      userId: userId,
+      ...buildCartOwnerQuery(owner),
     }).lean();
 
     if (!cart) {
@@ -398,15 +397,11 @@ class CartService {
   }
 
   static async updateSelectedComponents(
-    userId: string,
+    owner: CartOwner,
     cartId: string,
     payload: any,
   ) {
     const { selectedComponents } = payload;
-
-    if (!userId) {
-      throw new Error("Token missing");
-    }
 
     if (!mongoose.Types.ObjectId.isValid(cartId)) {
       throw new Error("Invalid cartId");
@@ -414,7 +409,7 @@ class CartService {
 
     const cart = await Cart.findOne({
       _id: cartId,
-      userId: userId,
+      ...buildCartOwnerQuery(owner),
     });
 
     if (!cart) {
@@ -507,15 +502,11 @@ class CartService {
   }
 
   static async updateAddonComponents(
-    userId: string,
+    owner: CartOwner,
     cartId: string,
     payload: any,
   ) {
     const { addonComponents } = payload;
-
-    if (!userId) {
-      throw new Error("Token missing");
-    }
 
     if (!mongoose.Types.ObjectId.isValid(cartId)) {
       throw new Error("Invalid cartId");
@@ -523,7 +514,7 @@ class CartService {
 
     const cart = await Cart.findOne({
       _id: cartId,
-      userId: userId,
+      ...buildCartOwnerQuery(owner),
     });
 
     if (!cart) {
@@ -598,15 +589,11 @@ class CartService {
   }
 
   static async updateSelectedServices(
-    userId: string,
+    owner: CartOwner,
     cartId: string,
     payload: any,
   ) {
     const { serviceIds } = payload;
-
-    if (!userId) {
-      throw new Error("Token missing");
-    }
 
     if (!mongoose.Types.ObjectId.isValid(cartId)) {
       throw new Error("Invalid cartId");
@@ -614,7 +601,7 @@ class CartService {
 
     const cart = await Cart.findOne({
       _id: cartId,
-      userId,
+      ...buildCartOwnerQuery(owner),
     });
 
     if (!cart) {
@@ -681,15 +668,11 @@ class CartService {
   }
 
   static async updateAddonServices(
-    userId: string,
+    owner: CartOwner,
     cartId: string,
     payload: any,
   ) {
     const { serviceIds } = payload;
-
-    if (!userId) {
-      throw new Error("Token missing");
-    }
 
     if (!mongoose.Types.ObjectId.isValid(cartId)) {
       throw new Error("Invalid cartId");
@@ -697,7 +680,7 @@ class CartService {
 
     const cart = await Cart.findOne({
       _id: cartId,
-      userId,
+      ...buildCartOwnerQuery(owner),
     });
 
     if (!cart) {
@@ -763,12 +746,8 @@ class CartService {
     return cart;
   }
 
-  static async updateSchedule(userId: string, cartId: string, payload: any) {
+  static async updateSchedule(owner: CartOwner, cartId: string, payload: any) {
     const { scheduledDate, scheduledTime } = payload;
-
-    if (!userId) {
-      throw new Error("Token missing");
-    }
 
     if (!mongoose.Types.ObjectId.isValid(cartId)) {
       throw new Error("Invalid cartId");
@@ -776,7 +755,7 @@ class CartService {
 
     const cart = await Cart.findOne({
       _id: cartId,
-      userId: userId,
+      ...buildCartOwnerQuery(owner),
     });
 
     if (!cart) {
@@ -821,15 +800,11 @@ class CartService {
   }
 
   static async updateCustomerDetails(
-    userId: string,
+    owner: CartOwner,
     cartId: string,
     payload: any,
   ) {
     const { name, email, phone, address, caste, gotra } = payload;
-
-    if (!userId) {
-      throw new Error("Token missing");
-    }
 
     if (!mongoose.Types.ObjectId.isValid(cartId)) {
       throw new Error("Invalid cartId");
@@ -837,7 +812,7 @@ class CartService {
 
     const cart = await Cart.findOne({
       _id: cartId,
-      userId: userId,
+      ...buildCartOwnerQuery(owner),
     });
 
     if (!cart) {
@@ -869,12 +844,8 @@ class CartService {
     return cart;
   }
 
-  static async updateCartNotes(userId: string, cartId: string, payload: any) {
+  static async updateCartNotes(owner: CartOwner, cartId: string, payload: any) {
     const { notes } = payload;
-
-    if (!userId) {
-      throw new Error("Token missing");
-    }
 
     if (!mongoose.Types.ObjectId.isValid(cartId)) {
       throw new Error("Invalid cartId");
@@ -882,7 +853,7 @@ class CartService {
 
     const cart = await Cart.findOne({
       _id: cartId,
-      userId: userId,
+      ...buildCartOwnerQuery(owner),
     });
 
     if (!cart) {
@@ -899,24 +870,20 @@ class CartService {
   }
 
   static async recalculateCart(
-    userId: string,
+    owner: CartOwner,
     cartId: string,
     options?: {
       session?: mongoose.ClientSession;
       persist?: boolean;
     },
   ) {
-    if (!userId) {
-      throw new Error("Token missing");
-    }
-
     if (!mongoose.Types.ObjectId.isValid(cartId)) {
       throw new Error("Invalid cartId");
     }
 
     const cart = await Cart.findOne({
       _id: cartId,
-      userId,
+      ...buildCartOwnerQuery(owner),
     }).session(options?.session || null);
 
     if (!cart) {
@@ -967,20 +934,16 @@ class CartService {
   }
 
   static async validateCart(
-    userId: string,
+    owner: CartOwner,
     cartId: string,
     persist: boolean,
     session?: mongoose.ClientSession,
   ): Promise<CartValidationResult> {
-    if (!userId) {
-      throw new Error("Token missing");
-    }
-
     if (!mongoose.Types.ObjectId.isValid(cartId)) {
       throw new Error("Invalid cartId");
     }
 
-    const recalculated = await this.recalculateCart(userId, cartId, {
+    const recalculated = await this.recalculateCart(owner, cartId, {
       persist: persist,
       ...(session ? { session } : {}),
     });
@@ -1092,7 +1055,7 @@ class CartService {
           }
 
           const validation = await this.validateCart(
-            userId,
+            { userId },
             cartId,
             true,
             session,
@@ -1222,18 +1185,14 @@ class CartService {
     }
   }
 
-  static async deleteCart(userId: string, cartId: string) {
-    if (!userId) {
-      throw new Error("Token missing");
-    }
-
+  static async deleteCart(owner: CartOwner, cartId: string) {
     if (!mongoose.Types.ObjectId.isValid(cartId)) {
       throw new Error("Invalid cartId");
     }
 
     const cart = await Cart.findOne({
       _id: cartId,
-      userId: userId,
+      ...buildCartOwnerQuery(owner),
     });
 
     if (!cart) {
@@ -1273,6 +1232,56 @@ class CartService {
         },
       },
     );
+  }
+
+  static async mergeGuestCartToUser(guestId: string, userId: string) {
+    const session = await mongoose.startSession();
+
+    try {
+      await session.withTransaction(async () => {
+        const guestCarts = await Cart.find({
+          guestId,
+          status: "ACTIVE",
+        })
+          .select("_id serviceId packageId")
+          .session(session);
+
+        for (const cart of guestCarts) {
+          if (cart.serviceId) {
+            await Cart.deleteMany({
+              userId,
+              serviceId: cart.serviceId,
+              status: { $in: ["CHECKOUT_PENDING", "ACTIVE"] },
+            }).session(session);
+          }
+
+          if (cart.packageId) {
+            await Cart.deleteMany({
+              userId,
+              packageId: cart.packageId,
+              status: { $in: ["CHECKOUT_PENDING", "ACTIVE"] },
+            }).session(session);
+          }
+        }
+
+        await Cart.updateMany(
+          {
+            guestId,
+            status: "ACTIVE",
+          },
+          {
+            $set: {
+              userId,
+            },
+            $unset: {
+              guestId: 1,
+            },
+          },
+        ).session(session);
+      });
+    } finally {
+      await session.endSession();
+    }
   }
 }
 

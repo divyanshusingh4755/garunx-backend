@@ -13,10 +13,7 @@ const validate = (req, res, next) => {
     }
     next();
 };
-router.post("/bulk", authenticate, body("packageId").isMongoId().withMessage("Invalid packageId"), body("tierId").isMongoId().withMessage("Invalid tierId"), body("pricing")
-    .optional()
-    .isArray({ min: 1 })
-    .withMessage("pricing array is required"), body("pricing.*.locationId").isMongoId().withMessage("Invalid locationId"), body("pricing.*.services")
+router.post("/bulk", authenticate, body("packageId").isMongoId().withMessage("Invalid packageId"), body("tierId").isMongoId().withMessage("Invalid tierId"), body("pricing").optional().isArray().withMessage("pricing array is required"), body("pricing.*.locationId").isMongoId().withMessage("Invalid locationId"), body("pricing.*.services")
     .isArray({ min: 1 })
     .withMessage("services array is required"), body("pricing.*.services.*.serviceId")
     .isMongoId()

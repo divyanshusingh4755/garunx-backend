@@ -38,7 +38,7 @@ router.post(
 
   body("services")
     .optional()
-    .isArray({ min: 1 })
+    .isArray()
     .withMessage("services array is required"),
   body("services.*.serviceId").isMongoId().withMessage("Invalid serviceId"),
   body("services.*.name").notEmpty().withMessage("Service name is required"),
@@ -68,6 +68,12 @@ router.put(
   authenticate,
   body("packageId").isMongoId().withMessage("Invalid packageId"),
   body("tierId").isMongoId().withMessage("Invalid tierId"),
+  body("services")
+    .optional()
+    .isArray()
+    .withMessage("services array is required"),
+  body("services.*.serviceId").isMongoId().withMessage("Invalid serviceId"),
+  body("services.*.name").notEmpty().withMessage("Service name is required"),
   body("services.*.isRequired")
     .optional()
     .isBoolean()

@@ -23,6 +23,7 @@ export interface IAddonService {
 export interface ICart extends Document {
     _id: Types.ObjectId;
     userId?: Types.ObjectId | null;
+    guestId?: string;
     serviceId?: Types.ObjectId;
     packageId?: Types.ObjectId;
     name: string;

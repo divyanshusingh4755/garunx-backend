@@ -1,5 +1,6 @@
 import mongoose, { Types } from "mongoose";
 import { type IAddonService, type ICart, type ISelectedComponent, type ISelectedService } from "../models/cart.model.js";
+import { type CartOwner } from "../utils/getCartOwner.js";
 interface CartValidationResult {
     isValid: boolean;
     errors: string[];
@@ -7,28 +8,28 @@ interface CartValidationResult {
     cart: ICart;
 }
 declare class CartService {
-    static createServiceCart(userId: string, payload: any): Promise<mongoose.Document<unknown, {}, ICart, {}, mongoose.DefaultSchemaOptions> & ICart & Required<{
+    static createServiceCart(owner: CartOwner, payload: any): Promise<mongoose.Document<unknown, {}, ICart, {}, mongoose.DefaultSchemaOptions> & ICart & Required<{
         _id: Types.ObjectId;
     }> & {
         __v: number;
     } & {
         id: string;
     }>;
-    static createPackageCart(userId: string, payload: any): Promise<mongoose.Document<unknown, {}, ICart, {}, mongoose.DefaultSchemaOptions> & ICart & Required<{
+    static createPackageCart(owner: CartOwner, payload: any): Promise<mongoose.Document<unknown, {}, ICart, {}, mongoose.DefaultSchemaOptions> & ICart & Required<{
         _id: Types.ObjectId;
     }> & {
         __v: number;
     } & {
         id: string;
     }>;
-    static getUserCarts(userId: string, filters?: any): Promise<(mongoose.Document<unknown, {}, ICart, {}, mongoose.DefaultSchemaOptions> & ICart & Required<{
+    static getUserCarts(owner: CartOwner, filters?: any): Promise<(mongoose.Document<unknown, {}, ICart, {}, mongoose.DefaultSchemaOptions> & ICart & Required<{
         _id: Types.ObjectId;
     }> & {
         __v: number;
     } & {
         id: string;
     })[]>;
-    static getCartById(userId: string, cartId: string): Promise<{
+    static getCartById(owner: CartOwner, cartId: string): Promise<{
         service: import("../models/service.model.js").IService & Required<{
             _id: Types.ObjectId;
         }> & {
@@ -74,6 +75,7 @@ declare class CartService {
         }[];
         _id: Types.ObjectId;
         userId?: Types.ObjectId | null;
+        guestId?: string;
         serviceId?: Types.ObjectId;
         packageId?: Types.ObjectId;
         name: string;
@@ -180,6 +182,7 @@ declare class CartService {
         addonServices: any[];
         _id: Types.ObjectId;
         userId?: Types.ObjectId | null;
+        guestId?: string;
         serviceId?: Types.ObjectId;
         packageId?: Types.ObjectId;
         name: string;
@@ -223,56 +226,56 @@ declare class CartService {
         schema: mongoose.Schema;
         __v: number;
     }>;
-    static updateSelectedComponents(userId: string, cartId: string, payload: any): Promise<mongoose.Document<unknown, {}, ICart, {}, mongoose.DefaultSchemaOptions> & ICart & Required<{
+    static updateSelectedComponents(owner: CartOwner, cartId: string, payload: any): Promise<mongoose.Document<unknown, {}, ICart, {}, mongoose.DefaultSchemaOptions> & ICart & Required<{
         _id: Types.ObjectId;
     }> & {
         __v: number;
     } & {
         id: string;
     }>;
-    static updateAddonComponents(userId: string, cartId: string, payload: any): Promise<mongoose.Document<unknown, {}, ICart, {}, mongoose.DefaultSchemaOptions> & ICart & Required<{
+    static updateAddonComponents(owner: CartOwner, cartId: string, payload: any): Promise<mongoose.Document<unknown, {}, ICart, {}, mongoose.DefaultSchemaOptions> & ICart & Required<{
         _id: Types.ObjectId;
     }> & {
         __v: number;
     } & {
         id: string;
     }>;
-    static updateSelectedServices(userId: string, cartId: string, payload: any): Promise<mongoose.Document<unknown, {}, ICart, {}, mongoose.DefaultSchemaOptions> & ICart & Required<{
+    static updateSelectedServices(owner: CartOwner, cartId: string, payload: any): Promise<mongoose.Document<unknown, {}, ICart, {}, mongoose.DefaultSchemaOptions> & ICart & Required<{
         _id: Types.ObjectId;
     }> & {
         __v: number;
     } & {
         id: string;
     }>;
-    static updateAddonServices(userId: string, cartId: string, payload: any): Promise<mongoose.Document<unknown, {}, ICart, {}, mongoose.DefaultSchemaOptions> & ICart & Required<{
+    static updateAddonServices(owner: CartOwner, cartId: string, payload: any): Promise<mongoose.Document<unknown, {}, ICart, {}, mongoose.DefaultSchemaOptions> & ICart & Required<{
         _id: Types.ObjectId;
     }> & {
         __v: number;
     } & {
         id: string;
     }>;
-    static updateSchedule(userId: string, cartId: string, payload: any): Promise<mongoose.Document<unknown, {}, ICart, {}, mongoose.DefaultSchemaOptions> & ICart & Required<{
+    static updateSchedule(owner: CartOwner, cartId: string, payload: any): Promise<mongoose.Document<unknown, {}, ICart, {}, mongoose.DefaultSchemaOptions> & ICart & Required<{
         _id: Types.ObjectId;
     }> & {
         __v: number;
     } & {
         id: string;
     }>;
-    static updateCustomerDetails(userId: string, cartId: string, payload: any): Promise<mongoose.Document<unknown, {}, ICart, {}, mongoose.DefaultSchemaOptions> & ICart & Required<{
+    static updateCustomerDetails(owner: CartOwner, cartId: string, payload: any): Promise<mongoose.Document<unknown, {}, ICart, {}, mongoose.DefaultSchemaOptions> & ICart & Required<{
         _id: Types.ObjectId;
     }> & {
         __v: number;
     } & {
         id: string;
     }>;
-    static updateCartNotes(userId: string, cartId: string, payload: any): Promise<mongoose.Document<unknown, {}, ICart, {}, mongoose.DefaultSchemaOptions> & ICart & Required<{
+    static updateCartNotes(owner: CartOwner, cartId: string, payload: any): Promise<mongoose.Document<unknown, {}, ICart, {}, mongoose.DefaultSchemaOptions> & ICart & Required<{
         _id: Types.ObjectId;
     }> & {
         __v: number;
     } & {
         id: string;
     }>;
-    static recalculateCart(userId: string, cartId: string, options?: {
+    static recalculateCart(owner: CartOwner, cartId: string, options?: {
         session?: mongoose.ClientSession;
         persist?: boolean;
     }): Promise<{
@@ -285,7 +288,7 @@ declare class CartService {
         };
         changes: string[];
     }>;
-    static validateCart(userId: string, cartId: string, persist: boolean, session?: mongoose.ClientSession): Promise<CartValidationResult>;
+    static validateCart(owner: CartOwner, cartId: string, persist: boolean, session?: mongoose.ClientSession): Promise<CartValidationResult>;
     static checkoutCart(userId: string, cartId: string): Promise<{
         bookingId: Types.ObjectId;
         bookingReference: string;
@@ -299,8 +302,9 @@ declare class CartService {
         paymentSessionId: any;
         paymentCompleted?: never;
     }>;
-    static deleteCart(userId: string, cartId: string): Promise<boolean>;
+    static deleteCart(owner: CartOwner, cartId: string): Promise<boolean>;
     static expireCheckoutPendingCarts(): Promise<void>;
+    static mergeGuestCartToUser(guestId: string, userId: string): Promise<void>;
 }
 export default CartService;
 //# sourceMappingURL=cart.service.d.ts.map

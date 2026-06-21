@@ -68,6 +68,10 @@ const cartSchema = new Schema({
         ref: "User",
         index: true,
     },
+    guestId: {
+        type: String,
+        index: true,
+    },
     serviceId: {
         type: Schema.Types.ObjectId,
         ref: "Service",
@@ -195,8 +199,26 @@ cartSchema.pre("validate", function () {
         throw new Error("Cart must contain either serviceId or packageId");
     }
 });
+cartSchema.pre("validate", function () {
+    const hasUser = !!this.userId;
+    const hasGuest = !!this.guestId;
+    if (!hasUser && !hasGuest) {
+        throw new Error("Cart must belong to a user or guest");
+    }
+    if (hasUser && hasGuest) {
+        throw new Error("Cart cannot belong to both user and guest");
+    }
+    if ((!this.serviceId && !this.packageId) ||
+        (this.serviceId && this.packageId)) {
+        throw new Error("Cart must contain either serviceId or packageId");
+    }
+});
 cartSchema.index({
     userId: 1,
+    status: 1,
+});
+cartSchema.index({
+    guestId: 1,
     status: 1,
 });
 cartSchema.index({

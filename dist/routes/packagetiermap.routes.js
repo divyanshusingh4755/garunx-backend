@@ -20,7 +20,7 @@ const packageTierValidation = [
 ];
 router.post("/bulk", authenticate, body("packageId").isMongoId().withMessage("Invalid packageId"), body("tierId").isMongoId().withMessage("Invalid tierId"), body("services")
     .optional()
-    .isArray({ min: 1 })
+    .isArray()
     .withMessage("services array is required"), body("services.*.serviceId").isMongoId().withMessage("Invalid serviceId"), body("services.*.name").notEmpty().withMessage("Service name is required"), body("services.*.isRequired")
     .optional()
     .isBoolean()
@@ -35,7 +35,10 @@ router.post("/bulk", authenticate, body("packageId").isMongoId().withMessage("In
     }
     return true;
 }), validate, bulkUpsertPackageTierMappings);
-router.put("/replace", authenticate, body("packageId").isMongoId().withMessage("Invalid packageId"), body("tierId").isMongoId().withMessage("Invalid tierId"), body("services.*.isRequired")
+router.put("/replace", authenticate, body("packageId").isMongoId().withMessage("Invalid packageId"), body("tierId").isMongoId().withMessage("Invalid tierId"), body("services")
+    .optional()
+    .isArray()
+    .withMessage("services array is required"), body("services.*.serviceId").isMongoId().withMessage("Invalid serviceId"), body("services.*.name").notEmpty().withMessage("Service name is required"), body("services.*.isRequired")
     .optional()
     .isBoolean()
     .withMessage("isRequired must be boolean"), body("services.*.isRelated")

@@ -1,12 +1,12 @@
-import jwt from 'jsonwebtoken';
+import jwt from "jsonwebtoken";
 export const authenticate = (req, res, next) => {
     // Get token from header
     const authHeader = req.headers.authorization;
-    const token = authHeader && authHeader.split(' ')[1];
+    const token = authHeader && authHeader.split(" ")[1];
     if (!token) {
         return res.status(401).json({
             success: false,
-            message: "Authentication required. Please provide a token."
+            message: "Authentication required. Please provide a token.",
         });
     }
     try {
@@ -14,20 +14,20 @@ export const authenticate = (req, res, next) => {
         // Attach the user info to the request object
         req.user = {
             userId: decoded.userId,
-            role: decoded.role
+            role: decoded.role,
         };
-        next();
+        return next();
     }
     catch (error) {
         return res.status(403).json({
             success: false,
-            message: "Invalid or expired access token"
+            message: "Invalid or expired access token",
         });
     }
 };
 export const optionalAuthenticate = (req, res, next) => {
     const authHeader = req.headers.authorization;
-    const token = authHeader && authHeader.split(' ')[1];
+    const token = authHeader && authHeader.split(" ")[1];
     if (!token) {
         return next();
     }
@@ -36,9 +36,9 @@ export const optionalAuthenticate = (req, res, next) => {
         // Attach the user info to the request object
         req.user = {
             userId: decoded.userId,
-            role: decoded.role
+            role: decoded.role,
         };
-        next();
+        return next();
     }
     catch (error) {
         next();

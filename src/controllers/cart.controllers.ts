@@ -1,14 +1,11 @@
 import type { Request, Response } from "express";
 import CartService from "../services/cart.service.js";
+import { getCartOwner } from "../utils/getCartOwner.js";
 
 export const createServiceCart = async (req: Request, res: Response) => {
   try {
-    const userId = req.user?.userId;
-    if (!userId) {
-      return res.status(401).json({ success: false, message: "Unauthorized" });
-    }
-
-    const cart = await CartService.createServiceCart(userId, req.body);
+    const owner = getCartOwner(req);
+    const cart = await CartService.createServiceCart(owner, req.body);
 
     res.status(201).json({
       success: true,
@@ -25,12 +22,8 @@ export const createServiceCart = async (req: Request, res: Response) => {
 
 export const createPackageCart = async (req: Request, res: Response) => {
   try {
-    const userId = req.user?.userId;
-    if (!userId) {
-      return res.status(401).json({ success: false, message: "Unauthorized" });
-    }
-
-    const cart = await CartService.createPackageCart(userId, req.body);
+    const owner = getCartOwner(req);
+    const cart = await CartService.createPackageCart(owner, req.body);
 
     res.status(201).json({
       success: true,
@@ -47,16 +40,8 @@ export const createPackageCart = async (req: Request, res: Response) => {
 
 export const getUserCarts = async (req: Request, res: Response) => {
   try {
-    const userId = req.user?.userId;
-
-    if (!userId) {
-      return res.status(401).json({
-        success: false,
-        message: "Unauthorized",
-      });
-    }
-
-    const carts = await CartService.getUserCarts(userId, req.query);
+    const owner = getCartOwner(req);
+    const carts = await CartService.getUserCarts(owner, req.query);
 
     res.status(200).json({
       success: true,
@@ -72,13 +57,9 @@ export const getUserCarts = async (req: Request, res: Response) => {
 
 export const getCartById = async (req: Request, res: Response) => {
   try {
-    const userId = req.user?.userId;
-    if (!userId) {
-      return res.status(401).json({ success: false, message: "Unauthorized" });
-    }
-
+    const owner = getCartOwner(req);
     const cart = await CartService.getCartById(
-      userId,
+      owner,
       req.params.cartId as string,
     );
 
@@ -96,13 +77,9 @@ export const getCartById = async (req: Request, res: Response) => {
 
 export const updateSelectedComponents = async (req: Request, res: Response) => {
   try {
-    const userId = req.user?.userId;
-    if (!userId) {
-      return res.status(401).json({ success: false, message: "Unauthorized" });
-    }
-
+    const owner = getCartOwner(req);
     const cart = await CartService.updateSelectedComponents(
-      userId,
+      owner,
       req.params.cartId as string,
       req.body,
     );
@@ -122,13 +99,9 @@ export const updateSelectedComponents = async (req: Request, res: Response) => {
 
 export const updateAddonComponents = async (req: Request, res: Response) => {
   try {
-    const userId = req.user?.userId;
-    if (!userId) {
-      return res.status(401).json({ success: false, message: "Unauthorized" });
-    }
-
+    const owner = getCartOwner(req);
     const cart = await CartService.updateAddonComponents(
-      userId,
+      owner,
       req.params.cartId as string,
       req.body,
     );
@@ -148,13 +121,9 @@ export const updateAddonComponents = async (req: Request, res: Response) => {
 
 export const updateAddonServices = async (req: Request, res: Response) => {
   try {
-    const userId = req.user?.userId;
-    if (!userId) {
-      return res.status(401).json({ success: false, message: "Unauthorized" });
-    }
-
+    const owner = getCartOwner(req);
     const cart = await CartService.updateAddonServices(
-      userId,
+      owner,
       req.params.cartId as string,
       req.body,
     );
@@ -174,13 +143,9 @@ export const updateAddonServices = async (req: Request, res: Response) => {
 
 export const updateSelectedServices = async (req: Request, res: Response) => {
   try {
-    const userId = req.user?.userId;
-    if (!userId) {
-      return res.status(401).json({ success: false, message: "Unauthorized" });
-    }
-
+    const owner = getCartOwner(req);
     const cart = await CartService.updateSelectedServices(
-      userId,
+      owner,
       req.params.cartId as string,
       req.body,
     );
@@ -200,13 +165,9 @@ export const updateSelectedServices = async (req: Request, res: Response) => {
 
 export const updateSchedule = async (req: Request, res: Response) => {
   try {
-    const userId = req.user?.userId;
-    if (!userId) {
-      return res.status(401).json({ success: false, message: "Unauthorized" });
-    }
-
+    const owner = getCartOwner(req);
     const cart = await CartService.updateSchedule(
-      userId,
+      owner,
       req.params.cartId as string,
       req.body,
     );
@@ -226,11 +187,7 @@ export const updateSchedule = async (req: Request, res: Response) => {
 
 export const updateCustomerDetails = async (req: Request, res: Response) => {
   try {
-    const userId = req.user?.userId;
-    if (!userId) {
-      return res.status(401).json({ success: false, message: "Unauthorized" });
-    }
-
+    const owner = getCartOwner(req);
     if (!req.body.name || !req.body.email || !req.body.phone) {
       return res.status(400).json({
         success: false,
@@ -239,7 +196,7 @@ export const updateCustomerDetails = async (req: Request, res: Response) => {
     }
 
     const cart = await CartService.updateCustomerDetails(
-      userId,
+      owner,
       req.params.cartId as string,
       req.body,
     );
@@ -259,13 +216,9 @@ export const updateCustomerDetails = async (req: Request, res: Response) => {
 
 export const updateCartNotes = async (req: Request, res: Response) => {
   try {
-    const userId = req.user?.userId;
-    if (!userId) {
-      return res.status(401).json({ success: false, message: "Unauthorized" });
-    }
-
+    const owner = getCartOwner(req);
     const cart = await CartService.updateCartNotes(
-      userId,
+      owner,
       req.params.cartId as string,
       req.body,
     );
@@ -285,13 +238,9 @@ export const updateCartNotes = async (req: Request, res: Response) => {
 
 export const recalculateCart = async (req: Request, res: Response) => {
   try {
-    const userId = req.user?.userId;
-    if (!userId) {
-      return res.status(401).json({ success: false, message: "Unauthorized" });
-    }
-
+    const owner = getCartOwner(req);
     const cart = await CartService.recalculateCart(
-      userId,
+      owner,
       req.params.cartId as string,
     );
 
@@ -310,12 +259,8 @@ export const recalculateCart = async (req: Request, res: Response) => {
 
 export const validateCart = async (req: Request, res: Response) => {
   try {
-    const userId = req.user?.userId;
+    const owner = getCartOwner(req);
     const { persist } = req.body;
-
-    if (!userId) {
-      return res.status(401).json({ success: false, message: "Unauthorized" });
-    }
 
     if (!persist) {
       return res
@@ -324,7 +269,7 @@ export const validateCart = async (req: Request, res: Response) => {
     }
 
     const validation = await CartService.validateCart(
-      userId,
+      owner,
       req.params.cartId as string,
       Boolean(persist),
     );
@@ -368,12 +313,8 @@ export const checkoutCart = async (req: Request, res: Response) => {
 
 export const deleteCart = async (req: Request, res: Response) => {
   try {
-    const userId = req.user?.userId;
-    if (!userId) {
-      return res.status(401).json({ success: false, message: "Unauthorized" });
-    }
-
-    await CartService.deleteCart(userId, req.params.cartId as string);
+    const owner = getCartOwner(req);
+    await CartService.deleteCart(owner, req.params.cartId as string);
 
     res.status(200).json({
       success: true,
@@ -383,6 +324,40 @@ export const deleteCart = async (req: Request, res: Response) => {
     res.status(400).json({
       success: false,
       message: error.message || "Failed to delete cart",
+    });
+  }
+};
+
+export const mergeGuestCartToUser = async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?.userId;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized",
+      });
+    }
+
+    const guestId = req.headers["x-guest-id"] as string | undefined;
+
+    if (!guestId) {
+      return res.status(400).json({
+        success: false,
+        message: "x-guest-id header is required",
+      });
+    }
+
+    await CartService.mergeGuestCartToUser(guestId, userId);
+
+    res.status(200).json({
+      success: true,
+      message: "Guest carts merged successfully",
+    });
+  } catch (error: any) {
+    res.status(400).json({
+      success: false,
+      message: error.message || "Failed to merge guest cart",
     });
   }
 };
