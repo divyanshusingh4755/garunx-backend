@@ -189,9 +189,49 @@ const bookingSchema = new Schema({
         gotra: String,
     },
     pricing: {
-        taxes: { type: Number, default: 0 },
-        grandTotal: { type: Number, required: true, min: 0 },
-        earnings: { type: Number, default: 0 },
+        baseAmount: {
+            type: Number,
+            required: true,
+            min: 0,
+        },
+        addonAmount: {
+            type: Number,
+            default: 0,
+            min: 0,
+        },
+        subtotal: {
+            type: Number,
+            required: true,
+            min: 0,
+        },
+        couponId: {
+            type: Schema.Types.ObjectId,
+            ref: "Coupon",
+        },
+        couponCode: {
+            type: String,
+            uppercase: true,
+            trim: true,
+        },
+        discountAmount: {
+            type: Number,
+            default: 0,
+            min: 0,
+        },
+        taxes: {
+            type: Number,
+            default: 0,
+            min: 0,
+        },
+        grandTotal: {
+            type: Number,
+            required: true,
+            min: 0,
+        },
+        earnings: {
+            type: Number,
+            default: 0,
+        },
     },
     payment: {
         status: {
@@ -295,6 +335,13 @@ bookingEntrySchema.pre("validate", function () {
     }
     if (this.entryType === "PACKAGE" && !this.packageConfiguration) {
         throw new Error("PACKAGE entry requires packageConfiguration");
+    }
+});
+bookingSchema.pre("validate", function () {
+    const hasCouponId = !!this.pricing?.couponId;
+    const hasCouponCode = !!this.pricing?.couponCode;
+    if (hasCouponId !== hasCouponCode) {
+        throw new Error("pricing.couponId and pricing.couponCode must be provided together");
     }
 });
 bookingSchema.index({ cartId: 1 }, {

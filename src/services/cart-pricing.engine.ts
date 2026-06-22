@@ -68,10 +68,13 @@ export class CartPricingEngine {
 
     addonPrice += itemAddonPrice;
 
+    const subtotal = basePrice + addonPrice;
+
     return {
       basePrice,
       addonPrice,
-      totalAmount: basePrice + addonPrice,
+      subtotal,
+      totalAmount: subtotal,
     };
   }
 
@@ -122,10 +125,13 @@ export class CartPricingEngine {
       }
     }
 
+    const subtotal = basePrice + addonPrice;
+
     return {
       basePrice,
       addonPrice,
-      totalAmount: basePrice + addonPrice,
+      subtotal,
+      totalAmount: subtotal,
     };
   }
 
@@ -141,6 +147,7 @@ export class CartPricingEngine {
     return {
       basePrice: 0,
       addonPrice: 0,
+      subtotal: 0,
       totalAmount: 0,
     };
   }

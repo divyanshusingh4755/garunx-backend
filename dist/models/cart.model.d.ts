@@ -26,6 +26,8 @@ export interface ICart extends Document {
     guestId?: string;
     serviceId?: Types.ObjectId;
     packageId?: Types.ObjectId;
+    couponId?: Types.ObjectId | undefined;
+    couponCode?: string | undefined;
     name: string;
     thumbnailImage?: string;
     categoryId: Types.ObjectId;
@@ -51,6 +53,8 @@ export interface ICart extends Document {
     activeBookingId?: Types.ObjectId;
     basePrice: number;
     addonPrice: number;
+    subtotal: number;
+    discountAmount: number;
     totalAmount: number;
     status: CartStatus;
     createdAt: Date;

@@ -3,6 +3,8 @@ import { CashfreeService } from "./cashfree.service.js";
 import { Booking, type BookingStatus } from "../models/booking.model.js";
 import mongoose, { Types } from "mongoose";
 import { Cart } from "../models/cart.model.js";
+import { Coupon } from "../models/coupon.model.js";
+import { ReferralRewardService } from "./referralreward.service.js";
 
 const STATUS_TRANSITIONS: Record<BookingStatus, BookingStatus[]> = {
   PENDING: ["CONFIRMED", "CANCELLED"],
@@ -82,6 +84,30 @@ export class BookingService {
             },
             { session },
           );
+
+          if (booking.pricing.couponId) {
+            await Coupon.updateOne(
+              {
+                _id: booking.pricing.couponId,
+              },
+              {
+                $inc: {
+                  usedCount: 1,
+                },
+              },
+              { session },
+            );
+          }
+
+          if (!booking.userId) {
+            throw new Error("Booking user not found");
+          }
+
+          await ReferralRewardService.processReferralReward(
+            booking.userId.toString(),
+            booking._id.toString(),
+          );
+
           return;
         }
 

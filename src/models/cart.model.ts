@@ -39,6 +39,8 @@ export interface ICart extends Document {
   guestId?: string;
   serviceId?: Types.ObjectId;
   packageId?: Types.ObjectId;
+  couponId?: Types.ObjectId | undefined;
+  couponCode?: string | undefined;
   name: string;
   thumbnailImage?: string;
   categoryId: Types.ObjectId;
@@ -64,6 +66,8 @@ export interface ICart extends Document {
   activeBookingId?: Types.ObjectId;
   basePrice: number;
   addonPrice: number;
+  subtotal: number;
+  discountAmount: number;
   totalAmount: number;
   status: CartStatus;
   createdAt: Date;
@@ -185,6 +189,18 @@ const cartSchema = new Schema<ICart>(
       index: true,
     },
 
+    couponId: {
+      type: Schema.Types.ObjectId,
+      ref: "Coupon",
+      index: true,
+    },
+
+    couponCode: {
+      type: String,
+      trim: true,
+      uppercase: true,
+    },
+
     name: {
       type: String,
       required: true,
@@ -286,6 +302,18 @@ const cartSchema = new Schema<ICart>(
       min: 0,
     },
 
+    subtotal: {
+      type: Number,
+      required: true,
+      min: 0,
+    },
+
+    discountAmount: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+
     totalAmount: {
       type: Number,
       required: true,
@@ -338,12 +366,14 @@ cartSchema.pre("validate", function () {
   if (hasUser && hasGuest) {
     throw new Error("Cart cannot belong to both user and guest");
   }
+});
 
-  if (
-    (!this.serviceId && !this.packageId) ||
-    (this.serviceId && this.packageId)
-  ) {
-    throw new Error("Cart must contain either serviceId or packageId");
+cartSchema.pre("validate", function () {
+  const hasCouponId = !!this.couponId;
+  const hasCouponCode = !!this.couponCode;
+
+  if (hasCouponId !== hasCouponCode) {
+    throw new Error("couponId and couponCode must be provided together");
   }
 });
 

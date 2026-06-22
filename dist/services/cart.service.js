@@ -13,7 +13,14 @@ import { Booking } from "../models/booking.model.js";
 import { PackageTierMap } from "../models/packagetiermap.model.js";
 import { CashfreeService } from "./cashfree.service.js";
 import { buildCartOwnerQuery } from "../utils/getCartOwner.js";
+import { CouponService } from "./coupon.service.js";
+import { Coupon } from "../models/coupon.model.js";
 class CartService {
+    static ensureCartEditable(cart) {
+        if (!["ACTIVE", "SCHEDULED"].includes(cart.status)) {
+            throw new Error(`Cart cannot be modified in ${cart.status} state`);
+        }
+    }
     static async createServiceCart(owner, payload) {
         const { serviceId, tierId, locationId } = payload;
         const service = await Service.findById(serviceId);
@@ -53,12 +60,16 @@ class CartService {
             addonServices: [],
             basePrice: 0,
             addonPrice: 0,
+            subtotal: 0,
+            discountAmount: 0,
             totalAmount: 0,
             status: "ACTIVE",
         });
         const totals = await CartPricingEngine.calculateCartTotals(cart);
         cart.basePrice = totals.basePrice;
         cart.addonPrice = totals.addonPrice;
+        cart.subtotal = totals.subtotal;
+        cart.discountAmount = 0;
         cart.totalAmount = totals.totalAmount;
         await cart.save();
         return cart;
@@ -99,12 +110,16 @@ class CartService {
             addonServices: [],
             basePrice: 0,
             addonPrice: 0,
+            subtotal: 0,
+            discountAmount: 0,
             totalAmount: 0,
             status: "ACTIVE",
         });
         const totals = await CartPricingEngine.calculateCartTotals(cart);
         cart.basePrice = totals.basePrice;
         cart.addonPrice = totals.addonPrice;
+        cart.subtotal = totals.subtotal;
+        cart.discountAmount = 0;
         cart.totalAmount = totals.totalAmount;
         await cart.save();
         return cart;
@@ -276,6 +291,7 @@ class CartService {
         if (!cart) {
             throw new Error("Cart not found");
         }
+        this.ensureCartEditable(cart);
         if (!cart.serviceId) {
             throw new Error("This operation is only allowed for service carts");
         }
@@ -329,12 +345,11 @@ class CartService {
             });
         }
         cart.selectedComponents = formattedComponents;
-        const totals = await CartPricingEngine.calculateCartTotals(cart);
-        cart.basePrice = totals.basePrice;
-        cart.addonPrice = totals.addonPrice;
-        cart.totalAmount = totals.totalAmount;
         await cart.save();
-        return cart;
+        const result = await this.recalculateCart(owner, cart._id.toString(), {
+            persist: true,
+        });
+        return result.cart;
     }
     static async updateAddonComponents(owner, cartId, payload) {
         const { addonComponents } = payload;
@@ -348,6 +363,7 @@ class CartService {
         if (!cart) {
             throw new Error("Cart not found");
         }
+        this.ensureCartEditable(cart);
         if (!cart.serviceId) {
             throw new Error("This operation is only allowed for service carts");
         }
@@ -391,12 +407,11 @@ class CartService {
             });
         }
         cart.addonComponents = updatedAddonComponents;
-        const totals = await CartPricingEngine.calculateCartTotals(cart);
-        cart.basePrice = totals.basePrice;
-        cart.addonPrice = totals.addonPrice;
-        cart.totalAmount = totals.totalAmount;
         await cart.save();
-        return cart;
+        const result = await this.recalculateCart(owner, cart._id.toString(), {
+            persist: true,
+        });
+        return result.cart;
     }
     static async updateSelectedServices(owner, cartId, payload) {
         const { serviceIds } = payload;
@@ -410,6 +425,7 @@ class CartService {
         if (!cart) {
             throw new Error("Cart not found");
         }
+        this.ensureCartEditable(cart);
         if (!cart.packageId) {
             throw new Error("This operation is only allowed for package carts");
         }
@@ -445,12 +461,11 @@ class CartService {
             });
         }
         cart.selectedServices = selectedServices;
-        const totals = await CartPricingEngine.calculateCartTotals(cart);
-        cart.basePrice = totals.basePrice;
-        cart.addonPrice = totals.addonPrice;
-        cart.totalAmount = totals.totalAmount;
         await cart.save();
-        return cart;
+        const result = await this.recalculateCart(owner, cart._id.toString(), {
+            persist: true,
+        });
+        return result.cart;
     }
     static async updateAddonServices(owner, cartId, payload) {
         const { serviceIds } = payload;
@@ -464,6 +479,7 @@ class CartService {
         if (!cart) {
             throw new Error("Cart not found");
         }
+        this.ensureCartEditable(cart);
         if (!cart.packageId) {
             throw new Error("This operation is only allowed for package carts");
         }
@@ -499,12 +515,11 @@ class CartService {
             });
         }
         cart.addonServices = addonServices;
-        const totals = await CartPricingEngine.calculateCartTotals(cart);
-        cart.basePrice = totals.basePrice;
-        cart.addonPrice = totals.addonPrice;
-        cart.totalAmount = totals.totalAmount;
         await cart.save();
-        return cart;
+        const result = await this.recalculateCart(owner, cart._id.toString(), {
+            persist: true,
+        });
+        return result.cart;
     }
     static async updateSchedule(owner, cartId, payload) {
         const { scheduledDate, scheduledTime } = payload;
@@ -518,9 +533,7 @@ class CartService {
         if (!cart) {
             throw new Error("Cart not found");
         }
-        if (cart.status === "CHECKED_OUT") {
-            throw new Error("Cannot update schedule after checkout");
-        }
+        this.ensureCartEditable(cart);
         if (!scheduledDate) {
             throw new Error("Scheduled date is required");
         }
@@ -557,9 +570,7 @@ class CartService {
         if (!cart) {
             throw new Error("Cart not found");
         }
-        if (cart.status === "CHECKED_OUT") {
-            throw new Error("Cannot update customer details after checkout");
-        }
+        this.ensureCartEditable(cart);
         if (email && !email.includes("@")) {
             throw new Error("Invalid email format");
         }
@@ -589,9 +600,7 @@ class CartService {
         if (!cart) {
             throw new Error("Cart not found");
         }
-        if (cart.status === "CHECKED_OUT") {
-            throw new Error("Cannot update notes after checkout");
-        }
+        this.ensureCartEditable(cart);
         cart.notes = notes;
         await cart.save();
         return cart;
@@ -607,16 +616,66 @@ class CartService {
         if (!cart) {
             throw new Error("Cart not found");
         }
+        if (cart.status === "CHECKOUT_PENDING" && options?.persist) {
+            throw new Error("Cannot recalculate a cart during checkout");
+        }
         const oldValues = {
             basePrice: cart.basePrice,
             addonPrice: cart.addonPrice,
+            subtotal: cart.subtotal,
+            discountAmount: cart.discountAmount,
             totalAmount: cart.totalAmount,
         };
         const totals = await CartPricingEngine.calculateCartTotals(cart);
+        const subtotal = totals.subtotal;
+        let discountAmount = 0;
+        let finalTotal = subtotal;
+        const changes = [];
+        if (cart.couponId) {
+            const coupon = await Coupon.findById(cart.couponId)
+                .session(options?.session || null)
+                .lean();
+            if (!coupon) {
+                changes.push("Applied coupon was removed because it no longer exists");
+                cart.couponId = undefined;
+                cart.couponCode = undefined;
+            }
+            else {
+                const now = new Date();
+                const expired = (coupon.validFrom && coupon.validFrom > now) ||
+                    (coupon.validTill && coupon.validTill < now);
+                if (subtotal < coupon.minOrderAmount) {
+                    changes.push(`Coupon ${coupon.couponCode} was removed because minimum order amount of ₹${coupon.minOrderAmount} is not met`);
+                    cart.couponId = undefined;
+                    cart.couponCode = undefined;
+                }
+                else if (!coupon.isActive ||
+                    expired ||
+                    (coupon.usageLimit > 0 && coupon.usedCount >= coupon.usageLimit)) {
+                    changes.push(`Coupon ${coupon.couponCode} was removed because it is no longer valid`);
+                    cart.couponId = undefined;
+                    cart.couponCode = undefined;
+                }
+                else {
+                    if (coupon.discountType === "PERCENTAGE") {
+                        discountAmount = (subtotal * coupon.discount) / 100;
+                        if (coupon.maxDiscountAmount &&
+                            discountAmount > coupon.maxDiscountAmount) {
+                            discountAmount = coupon.maxDiscountAmount;
+                        }
+                    }
+                    else {
+                        discountAmount = coupon.discount;
+                    }
+                    finalTotal = Math.max(subtotal - discountAmount, 0);
+                }
+            }
+        }
         cart.basePrice = totals.basePrice;
         cart.addonPrice = totals.addonPrice;
-        cart.totalAmount = totals.totalAmount;
-        const changes = [];
+        cart.subtotal = subtotal;
+        cart.discountAmount = discountAmount;
+        cart.totalAmount = finalTotal;
         if (oldValues.basePrice !== cart.basePrice) {
             changes.push(`Base price changed from ${oldValues.basePrice} to ${cart.basePrice}`);
         }
@@ -625,6 +684,12 @@ class CartService {
         }
         if (oldValues.totalAmount !== cart.totalAmount) {
             changes.push(`Total amount changed from ${oldValues.totalAmount} to ${cart.totalAmount}`);
+        }
+        if (oldValues.subtotal !== cart.subtotal) {
+            changes.push(`Subtotal changed from ${oldValues.subtotal} to ${cart.subtotal}`);
+        }
+        if (oldValues.discountAmount !== cart.discountAmount) {
+            changes.push(`Discount changed from ${oldValues.discountAmount} to ${cart.discountAmount}`);
         }
         if (options?.persist) {
             await cart.save({
@@ -668,9 +733,43 @@ class CartService {
                 errors.push("No components selected for service");
             }
         }
-        if (cart.packageId &&
-            !mongoose.Types.ObjectId.isValid(cart.packageId.toString())) {
-            errors.push("Invalid package selection");
+        if (cart.packageId) {
+            const pkg = await Package.findById(cart.packageId)
+                .session(session || null)
+                .lean();
+            if (!pkg) {
+                errors.push("Package no longer exists");
+            }
+            else if (!pkg.isActive) {
+                errors.push("Package is no longer active");
+            }
+            else {
+                const tierExists = pkg.tiers.some((t) => t.tierId.toString() === cart.tierId.toString());
+                const locationExists = pkg.locations.some((l) => l.locationId.toString() === cart.locationId.toString());
+                if (!tierExists) {
+                    errors.push("Selected package tier is no longer available");
+                }
+                if (!locationExists) {
+                    errors.push("Selected package location is no longer available");
+                }
+                const packageTierMap = await PackageTierMap.findOne({
+                    packageId: cart.packageId,
+                    tierId: cart.tierId,
+                })
+                    .session(session || null)
+                    .lean();
+                if (!packageTierMap) {
+                    errors.push("Package tier mapping no longer exists");
+                }
+                const pricingExists = await PackageTierPricing.exists({
+                    packageId: cart.packageId,
+                    tierId: cart.tierId,
+                    locationId: cart.locationId,
+                }).session(session || null);
+                if (!pricingExists) {
+                    errors.push("Package pricing is no longer available");
+                }
+            }
         }
         if (!cart.basePrice || cart.basePrice <= 0) {
             errors.push("Invalid base price");
@@ -823,12 +922,7 @@ class CartService {
         if (!cart) {
             throw new Error("Cart not found");
         }
-        if (cart.status === "CHECKED_OUT") {
-            throw new Error("Cannot delete a checked out cart");
-        }
-        if (["IN_PROGRESS", "COMPLETED"].includes(cart.status)) {
-            throw new Error("Cannot delete an active or completed cart");
-        }
+        this.ensureCartEditable(cart);
         cart.status = "DELETED";
         await cart.save();
         return true;
@@ -846,6 +940,7 @@ class CartService {
             },
             $unset: {
                 checkoutExpiresAt: 1,
+                activeBookingId: 1,
             },
         });
     }
@@ -864,14 +959,14 @@ class CartService {
                         await Cart.deleteMany({
                             userId,
                             serviceId: cart.serviceId,
-                            status: { $in: ["CHECKOUT_PENDING", "ACTIVE"] },
+                            status: { $in: ["ACTIVE"] },
                         }).session(session);
                     }
                     if (cart.packageId) {
                         await Cart.deleteMany({
                             userId,
                             packageId: cart.packageId,
-                            status: { $in: ["CHECKOUT_PENDING", "ACTIVE"] },
+                            status: { $in: ["ACTIVE"] },
                         }).session(session);
                     }
                 }
@@ -891,6 +986,60 @@ class CartService {
         finally {
             await session.endSession();
         }
+    }
+    static async applyCoupon(owner, cartId, couponCode) {
+        if (!mongoose.Types.ObjectId.isValid(cartId)) {
+            throw new Error("Invalid cartId");
+        }
+        const cart = await Cart.findOne({
+            _id: cartId,
+            ...buildCartOwnerQuery(owner),
+        });
+        if (!cart) {
+            throw new Error("Cart not found");
+        }
+        this.ensureCartEditable(cart);
+        if (cart.couponId) {
+            throw new Error("A coupon is already applied. Remove it first.");
+        }
+        const bookingCount = cart.userId
+            ? await Booking.countDocuments({ userId: cart.userId })
+            : 0;
+        const validation = await CouponService.validateCoupon({
+            couponCode,
+            ...(cart.serviceId && { serviceId: cart.serviceId.toString() }),
+            ...(cart.packageId && { packageId: cart.packageId.toString() }),
+            orderAmount: cart.subtotal,
+            ...(owner.userId && { userId: owner.userId }),
+            isFirstOrder: bookingCount === 0,
+        });
+        cart.couponId = validation.couponId;
+        cart.couponCode = validation.couponCode;
+        await cart.save();
+        const result = await this.recalculateCart(owner, cartId, {
+            persist: true,
+        });
+        return result.cart;
+    }
+    static async removeCoupon(owner, cartId) {
+        if (!mongoose.Types.ObjectId.isValid(cartId)) {
+            throw new Error("Invalid cartId");
+        }
+        const cart = await Cart.findOne({
+            _id: cartId,
+            ...buildCartOwnerQuery(owner),
+        });
+        if (!cart) {
+            throw new Error("Cart not found");
+        }
+        this.ensureCartEditable(cart);
+        cart.couponId = undefined;
+        cart.couponCode = undefined;
+        await cart.save();
+        const result = await this.recalculateCart(owner, cartId, {
+            persist: true,
+        });
+        return result.cart;
     }
 }
 export default CartService;

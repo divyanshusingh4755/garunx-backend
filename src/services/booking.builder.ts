@@ -15,6 +15,15 @@ import { ComponentItem } from "../models/componentitem.model.js";
 interface BookingBuildResult {
   entries: IBookingEntry[];
   pricing: {
+    baseAmount: number;
+    addonAmount: number;
+    subtotal: number;
+
+    couponId?: Types.ObjectId;
+    couponCode?: string;
+
+    discountAmount: number;
+
     taxes: number;
     grandTotal: number;
   };
@@ -86,6 +95,19 @@ export class BookingBuilder {
       entries: [entry],
 
       pricing: {
+        baseAmount: cart.basePrice,
+        addonAmount: cart.addonPrice,
+        subtotal: cart.subtotal,
+
+        ...(cart.couponId && cart.couponCode
+          ? {
+              couponId: cart.couponId,
+              couponCode: cart.couponCode,
+            }
+          : {}),
+
+        discountAmount: cart.discountAmount,
+
         taxes: 0,
         grandTotal: cart.totalAmount,
       },
@@ -216,6 +238,19 @@ export class BookingBuilder {
       entries: [entry],
 
       pricing: {
+        baseAmount: cart.basePrice,
+        addonAmount: cart.addonPrice,
+        subtotal: cart.subtotal,
+
+        ...(cart.couponId && cart.couponCode
+          ? {
+              couponId: cart.couponId,
+              couponCode: cart.couponCode,
+            }
+          : {}),
+
+        discountAmount: cart.discountAmount,
+
         taxes: 0,
         grandTotal: cart.totalAmount,
       },

@@ -97,6 +97,12 @@ export interface IBooking extends Document {
         gotra?: string;
     };
     pricing: {
+        baseAmount: number;
+        addonAmount: number;
+        subtotal: number;
+        couponId?: Types.ObjectId;
+        couponCode?: string;
+        discountAmount: number;
         taxes: number;
         grandTotal: number;
         earnings?: number;

@@ -1,0 +1,1 @@
+{"version":3,"file":"generateCouponCode.js","sourceRoot":"","sources":["../../src/utils/generateCouponCode.ts"],"names":[],"mappings":"AAAA,OAAO,MAAM,MAAM,QAAQ,CAAC;AAE5B,MAAM,CAAC,MAAM,kBAAkB,GAAG,CAAC,MAAc,EAAE,EAAE;IACnD,OAAO,GAAG,MAAM,IAAI,MAAM,CAAC,WAAW,CAAC,CAAC,CAAC,CAAC,QAAQ,CAAC,KAAK,CAAC,CAAC,WAAW,EAAE,EAAE,CAAC;AAC5E,CAAC,CAAC"}

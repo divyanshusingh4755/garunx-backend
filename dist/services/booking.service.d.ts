@@ -63,6 +63,12 @@ export declare class BookingService {
             gotra?: string;
         };
         pricing: {
+            baseAmount: number;
+            addonAmount: number;
+            subtotal: number;
+            couponId?: Types.ObjectId;
+            couponCode?: string;
+            discountAmount: number;
             taxes: number;
             grandTotal: number;
             earnings?: number;

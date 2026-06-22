@@ -57,6 +57,16 @@ export class BookingBuilder {
         return {
             entries: [entry],
             pricing: {
+                baseAmount: cart.basePrice,
+                addonAmount: cart.addonPrice,
+                subtotal: cart.subtotal,
+                ...(cart.couponId && cart.couponCode
+                    ? {
+                        couponId: cart.couponId,
+                        couponCode: cart.couponCode,
+                    }
+                    : {}),
+                discountAmount: cart.discountAmount,
                 taxes: 0,
                 grandTotal: cart.totalAmount,
             },
@@ -156,6 +166,16 @@ export class BookingBuilder {
         return {
             entries: [entry],
             pricing: {
+                baseAmount: cart.basePrice,
+                addonAmount: cart.addonPrice,
+                subtotal: cart.subtotal,
+                ...(cart.couponId && cart.couponCode
+                    ? {
+                        couponId: cart.couponId,
+                        couponCode: cart.couponCode,
+                    }
+                    : {}),
+                discountAmount: cart.discountAmount,
                 taxes: 0,
                 grandTotal: cart.totalAmount,
             },

@@ -295,4 +295,45 @@ export const mergeGuestCartToUser = async (req, res) => {
         });
     }
 };
+export const applyCoupon = async (req, res) => {
+    try {
+        const owner = getCartOwner(req);
+        const { couponCode } = req.body;
+        if (!couponCode) {
+            return res.status(400).json({
+                success: false,
+                message: "couponCode is required",
+            });
+        }
+        const cart = await CartService.applyCoupon(owner, req.params.cartId, couponCode);
+        res.status(200).json({
+            success: true,
+            message: "Coupon applied successfully",
+            cart,
+        });
+    }
+    catch (error) {
+        res.status(400).json({
+            success: false,
+            message: error.message,
+        });
+    }
+};
+export const removeCoupon = async (req, res) => {
+    try {
+        const owner = getCartOwner(req);
+        const cart = await CartService.removeCoupon(owner, req.params.cartId);
+        res.status(200).json({
+            success: true,
+            message: "Coupon removed successfully",
+            cart,
+        });
+    }
+    catch (error) {
+        res.status(400).json({
+            success: false,
+            message: error.message,
+        });
+    }
+};
 //# sourceMappingURL=cart.controllers.js.map

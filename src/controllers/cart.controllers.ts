@@ -361,3 +361,57 @@ export const mergeGuestCartToUser = async (req: Request, res: Response) => {
     });
   }
 };
+
+export const applyCoupon = async (req: Request, res: Response) => {
+  try {
+    const owner = getCartOwner(req);
+
+    const { couponCode } = req.body;
+
+    if (!couponCode) {
+      return res.status(400).json({
+        success: false,
+        message: "couponCode is required",
+      });
+    }
+
+    const cart = await CartService.applyCoupon(
+      owner,
+      req.params.cartId as string,
+      couponCode,
+    );
+
+    res.status(200).json({
+      success: true,
+      message: "Coupon applied successfully",
+      cart,
+    });
+  } catch (error: any) {
+    res.status(400).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+export const removeCoupon = async (req: Request, res: Response) => {
+  try {
+    const owner = getCartOwner(req);
+
+    const cart = await CartService.removeCoupon(
+      owner,
+      req.params.cartId as string,
+    );
+
+    res.status(200).json({
+      success: true,
+      message: "Coupon removed successfully",
+      cart,
+    });
+  } catch (error: any) {
+    res.status(400).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};

@@ -8,6 +8,7 @@ interface CartValidationResult {
     cart: ICart;
 }
 declare class CartService {
+    static ensureCartEditable(cart: ICart): void;
     static createServiceCart(owner: CartOwner, payload: any): Promise<mongoose.Document<unknown, {}, ICart, {}, mongoose.DefaultSchemaOptions> & ICart & Required<{
         _id: Types.ObjectId;
     }> & {
@@ -78,6 +79,8 @@ declare class CartService {
         guestId?: string;
         serviceId?: Types.ObjectId;
         packageId?: Types.ObjectId;
+        couponId?: Types.ObjectId | undefined;
+        couponCode?: string | undefined;
         name: string;
         thumbnailImage?: string;
         categoryId: Types.ObjectId;
@@ -101,6 +104,8 @@ declare class CartService {
         activeBookingId?: Types.ObjectId;
         basePrice: number;
         addonPrice: number;
+        subtotal: number;
+        discountAmount: number;
         totalAmount: number;
         status: import("../models/cart.model.js").CartStatus;
         createdAt: Date;
@@ -185,6 +190,8 @@ declare class CartService {
         guestId?: string;
         serviceId?: Types.ObjectId;
         packageId?: Types.ObjectId;
+        couponId?: Types.ObjectId | undefined;
+        couponCode?: string | undefined;
         name: string;
         thumbnailImage?: string;
         categoryId: Types.ObjectId;
@@ -208,6 +215,8 @@ declare class CartService {
         activeBookingId?: Types.ObjectId;
         basePrice: number;
         addonPrice: number;
+        subtotal: number;
+        discountAmount: number;
         totalAmount: number;
         status: import("../models/cart.model.js").CartStatus;
         createdAt: Date;
@@ -305,6 +314,20 @@ declare class CartService {
     static deleteCart(owner: CartOwner, cartId: string): Promise<boolean>;
     static expireCheckoutPendingCarts(): Promise<void>;
     static mergeGuestCartToUser(guestId: string, userId: string): Promise<void>;
+    static applyCoupon(owner: CartOwner, cartId: string, couponCode: string): Promise<mongoose.Document<unknown, {}, ICart, {}, mongoose.DefaultSchemaOptions> & ICart & Required<{
+        _id: Types.ObjectId;
+    }> & {
+        __v: number;
+    } & {
+        id: string;
+    }>;
+    static removeCoupon(owner: CartOwner, cartId: string): Promise<mongoose.Document<unknown, {}, ICart, {}, mongoose.DefaultSchemaOptions> & ICart & Required<{
+        _id: Types.ObjectId;
+    }> & {
+        __v: number;
+    } & {
+        id: string;
+    }>;
 }
 export default CartService;
 //# sourceMappingURL=cart.service.d.ts.map
