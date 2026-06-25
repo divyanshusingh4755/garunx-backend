@@ -1,5 +1,6 @@
 import { Document, Model, Types } from "mongoose";
 export type CartStatus = "ACTIVE" | "SCHEDULED" | "CHECKOUT_PENDING" | "CHECKED_OUT" | "EXPIRED" | "CANCELLED" | "DELETED";
+export type BookingFor = "MYSELF" | "OTHER";
 export interface ISelectedComponentItem {
     itemId: Types.ObjectId;
     name: string;
@@ -35,6 +36,7 @@ export interface ICart extends Document {
     tierName: string;
     locationId: Types.ObjectId;
     locationName: string;
+    bookingFor: BookingFor;
     customerDetails?: {
         name?: string;
         email?: string;

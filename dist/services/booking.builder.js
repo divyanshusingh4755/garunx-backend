@@ -194,7 +194,7 @@ export class BookingBuilder {
             }).lean(),
             ComponentItem.find({
                 _id: {
-                    $in: components.flatMap((c) => c.items.map((i) => i.itemId)),
+                    $in: components.flatMap((c) => (c.items || []).map((i) => i.itemId)),
                 },
             }).lean(),
         ]);
@@ -202,10 +202,11 @@ export class BookingBuilder {
         const serviceComponentMap = new Map(serviceComponents.map((sc) => [String(sc.componentId), sc]));
         const itemPriceMap = new Map(items.map((i) => [String(i._id), i.price]));
         return components.map((component) => {
+            const items = component.items || [];
             const componentDoc = componentMap.get(String(component.componentId));
             const serviceComponent = serviceComponentMap.get(String(component.componentId));
             let itemPrice = 0;
-            for (const item of component.items || []) {
+            for (const item of items) {
                 itemPrice += itemPriceMap.get(String(item.itemId)) || 0;
             }
             // const baseComponentPrice = serviceComponent?.isRequired ? 0 : 0;
@@ -219,7 +220,7 @@ export class BookingBuilder {
                 isRemovable: componentDoc?.isRemovable ?? false,
                 isBundled: componentDoc?.isBundled ?? false,
                 selected: true,
-                selectedItems: component.items.map((item) => ({
+                selectedItems: (component.items || []).map((item) => ({
                     itemId: item.itemId,
                     name: item.name,
                 })),

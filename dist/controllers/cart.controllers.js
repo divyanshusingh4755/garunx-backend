@@ -77,6 +77,7 @@ export const updateSelectedComponents = async (req, res) => {
         });
     }
     catch (error) {
+        console.log("error", error);
         res.status(400).json({
             success: false,
             message: error.message || "Failed to update selected components",
@@ -154,6 +155,14 @@ export const updateSchedule = async (req, res) => {
 export const updateCustomerDetails = async (req, res) => {
     try {
         const owner = getCartOwner(req);
+        const { bookingFor } = req.body;
+        if (bookingFor &&
+            !["MYSELF", "OTHER"].includes(bookingFor)) {
+            return res.status(400).json({
+                success: false,
+                message: "Invalid bookingFor value",
+            });
+        }
         if (!req.body.name || !req.body.email || !req.body.phone) {
             return res.status(400).json({
                 success: false,

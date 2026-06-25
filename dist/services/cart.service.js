@@ -328,7 +328,13 @@ class CartService {
             const allowedItems = componentConfig.items || [];
             const formattedItems = [];
             for (const selectedItem of sc.items || []) {
-                const matchedItem = allowedItems.find((item) => item.itemId.toString() === selectedItem.itemId.toString());
+                const selectedItemId = typeof selectedItem === "string"
+                    ? selectedItem
+                    : selectedItem?.itemId;
+                if (!selectedItemId) {
+                    throw new Error(`Invalid item format in ${componentConfig.name}`);
+                }
+                const matchedItem = allowedItems.find((item) => item.itemId.toString() === selectedItemId.toString());
                 if (!matchedItem) {
                     throw new Error(`Invalid item in ${componentConfig.name}`);
                 }
@@ -345,7 +351,11 @@ class CartService {
             });
         }
         cart.selectedComponents = formattedComponents;
-        await cart.save();
+        await Cart.updateOne({ _id: cart._id }, {
+            $set: {
+                selectedComponents: formattedComponents,
+            },
+        });
         const result = await this.recalculateCart(owner, cart._id.toString(), {
             persist: true,
         });
@@ -407,7 +417,11 @@ class CartService {
             });
         }
         cart.addonComponents = updatedAddonComponents;
-        await cart.save();
+        await Cart.updateOne({ _id: cart._id }, {
+            $set: {
+                addonComponents: updatedAddonComponents,
+            },
+        });
         const result = await this.recalculateCart(owner, cart._id.toString(), {
             persist: true,
         });
@@ -453,7 +467,10 @@ class CartService {
             if (!matchedService) {
                 throw new Error(`Invalid addon service selected`);
             }
-            const price = pricingMap.get(serviceId.toString()) ?? 0;
+            const price = pricingMap.get(serviceId.toString());
+            if (price === undefined) {
+                throw new Error(`Pricing not found for service ${matchedService.name}`);
+            }
             selectedServices.push({
                 serviceId: matchedService.serviceId,
                 name: matchedService.name,
@@ -461,7 +478,11 @@ class CartService {
             });
         }
         cart.selectedServices = selectedServices;
-        await cart.save();
+        await Cart.updateOne({ _id: cart._id }, {
+            $set: {
+                selectedServices,
+            },
+        });
         const result = await this.recalculateCart(owner, cart._id.toString(), {
             persist: true,
         });
@@ -507,7 +528,10 @@ class CartService {
             if (!matchedService) {
                 throw new Error(`Invalid addon service selected`);
             }
-            const price = pricingMap.get(serviceId.toString()) ?? 0;
+            const price = pricingMap.get(serviceId.toString());
+            if (price === undefined) {
+                throw new Error(`Pricing not found for service ${matchedService.name}`);
+            }
             addonServices.push({
                 serviceId: matchedService.serviceId,
                 name: matchedService.name,
@@ -515,7 +539,11 @@ class CartService {
             });
         }
         cart.addonServices = addonServices;
-        await cart.save();
+        await Cart.updateOne({ _id: cart._id }, {
+            $set: {
+                addonServices,
+            },
+        });
         const result = await this.recalculateCart(owner, cart._id.toString(), {
             persist: true,
         });
@@ -559,7 +587,7 @@ class CartService {
         return cart;
     }
     static async updateCustomerDetails(owner, cartId, payload) {
-        const { name, email, phone, address, caste, gotra } = payload;
+        const { bookingFor, name, email, phone, address, caste, gotra } = payload;
         if (!mongoose.Types.ObjectId.isValid(cartId)) {
             throw new Error("Invalid cartId");
         }
@@ -571,11 +599,18 @@ class CartService {
             throw new Error("Cart not found");
         }
         this.ensureCartEditable(cart);
+        if (bookingFor &&
+            !["MYSELF", "OTHER"].includes(bookingFor)) {
+            throw new Error("Invalid bookingFor value");
+        }
         if (email && !email.includes("@")) {
             throw new Error("Invalid email format");
         }
         if (phone && phone.length < 10) {
             throw new Error("Invalid phone number");
+        }
+        if (bookingFor) {
+            cart.bookingFor = bookingFor;
         }
         cart.customerDetails = {
             name: name ?? cart.customerDetails?.name,
@@ -842,6 +877,7 @@ class CartService {
                 const bookingPayload = {
                     userId: new mongoose.Types.ObjectId(userId),
                     cartId: lockedCart._id,
+                    bookingFor: lockedCart.bookingFor,
                     bookedBy: "CUSTOMER",
                     entries: bookingData.entries,
                     customerDetails: lockedCart.customerDetails,

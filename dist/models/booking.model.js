@@ -180,6 +180,12 @@ const bookingSchema = new Schema({
             message: "Booking must contain at least one entry",
         },
     },
+    bookingFor: {
+        type: String,
+        enum: ["MYSELF", "OTHER"],
+        default: "MYSELF",
+        required: true,
+    },
     customerDetails: {
         name: String,
         email: { type: String, lowercase: true, trim: true },

@@ -9,6 +9,8 @@ export type CartStatus =
   | "CANCELLED"
   | "DELETED";
 
+export type BookingFor = "MYSELF" | "OTHER";
+
 export interface ISelectedComponentItem {
   itemId: Types.ObjectId;
   name: string;
@@ -48,6 +50,7 @@ export interface ICart extends Document {
   tierName: string;
   locationId: Types.ObjectId;
   locationName: string;
+  bookingFor: BookingFor;
   customerDetails?: {
     name?: string;
     email?: string;
@@ -238,6 +241,13 @@ const cartSchema = new Schema<ICart>(
 
     locationName: {
       type: String,
+      required: true,
+    },
+
+    bookingFor: {
+      type: String,
+      enum: ["MYSELF", "OTHER"] as BookingFor[],
+      default: "MYSELF",
       required: true,
     },
 

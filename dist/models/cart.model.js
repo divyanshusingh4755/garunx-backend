@@ -125,6 +125,12 @@ const cartSchema = new Schema({
         type: String,
         required: true,
     },
+    bookingFor: {
+        type: String,
+        enum: ["MYSELF", "OTHER"],
+        default: "MYSELF",
+        required: true,
+    },
     customerDetails: {
         name: String,
         email: { type: String, lowercase: true, trim: true },

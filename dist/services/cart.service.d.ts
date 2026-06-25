@@ -88,6 +88,7 @@ declare class CartService {
         tierName: string;
         locationId: Types.ObjectId;
         locationName: string;
+        bookingFor: import("../models/cart.model.js").BookingFor;
         customerDetails?: {
             name?: string;
             email?: string;
@@ -199,6 +200,7 @@ declare class CartService {
         tierName: string;
         locationId: Types.ObjectId;
         locationName: string;
+        bookingFor: import("../models/cart.model.js").BookingFor;
         customerDetails?: {
             name?: string;
             email?: string;

@@ -101,9 +101,9 @@ export class BookingBuilder {
 
         ...(cart.couponId && cart.couponCode
           ? {
-              couponId: cart.couponId,
-              couponCode: cart.couponCode,
-            }
+            couponId: cart.couponId,
+            couponCode: cart.couponCode,
+          }
           : {}),
 
         discountAmount: cart.discountAmount,
@@ -244,9 +244,9 @@ export class BookingBuilder {
 
         ...(cart.couponId && cart.couponCode
           ? {
-              couponId: cart.couponId,
-              couponCode: cart.couponCode,
-            }
+            couponId: cart.couponId,
+            couponCode: cart.couponCode,
+          }
           : {}),
 
         discountAmount: cart.discountAmount,
@@ -277,7 +277,9 @@ export class BookingBuilder {
       }).lean(),
       ComponentItem.find({
         _id: {
-          $in: components.flatMap((c) => c.items.map((i) => i.itemId)),
+          $in: components.flatMap((c) =>
+            (c.items || []).map((i) => i.itemId),
+          ),
         },
       }).lean(),
     ]);
@@ -291,6 +293,8 @@ export class BookingBuilder {
     const itemPriceMap = new Map(items.map((i) => [String(i._id), i.price]));
 
     return components.map((component) => {
+      const items = component.items || [];
+
       const componentDoc = componentMap.get(String(component.componentId));
 
       const serviceComponent = serviceComponentMap.get(
@@ -299,7 +303,7 @@ export class BookingBuilder {
 
       let itemPrice = 0;
 
-      for (const item of component.items || []) {
+      for (const item of items) {
         itemPrice += itemPriceMap.get(String(item.itemId)) || 0;
       }
 
@@ -316,7 +320,7 @@ export class BookingBuilder {
         isRemovable: componentDoc?.isRemovable ?? false,
         isBundled: componentDoc?.isBundled ?? false,
         selected: true,
-        selectedItems: component.items.map((item) => ({
+        selectedItems: (component.items || []).map((item) => ({
           itemId: item.itemId,
           name: item.name,
         })),

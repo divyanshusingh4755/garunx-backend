@@ -1,6 +1,7 @@
 import { Types, Document, Model } from "mongoose";
 import type { ICart } from "./cart.model.js";
 export type BookingStatus = "PENDING" | "CONFIRMED" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED";
+export type BookingFor = "MYSELF" | "OTHER";
 export type PaymentStatus = "PENDING" | "PAID" | "FAILED" | "REFUNDED" | "PARTIAL_REFUND";
 export type BookedBy = "CUSTOMER" | "ADMIN" | "SUBADMIN";
 export type EntryType = "SERVICE" | "PACKAGE";
@@ -88,6 +89,7 @@ export interface IBooking extends Document {
     bookingReference: string;
     bookedBy: BookedBy;
     entries: IBookingEntry[];
+    bookingFor: BookingFor;
     customerDetails: {
         name?: string;
         email?: string;

@@ -9,6 +9,8 @@ export type BookingStatus =
   | "COMPLETED"
   | "CANCELLED";
 
+export type BookingFor = "MYSELF" | "OTHER";
+
 export type PaymentStatus =
   | "PENDING"
   | "PAID"
@@ -319,6 +321,7 @@ export interface IBooking extends Document {
   bookingReference: string;
   bookedBy: BookedBy;
   entries: IBookingEntry[];
+  bookingFor: BookingFor;
   customerDetails: {
     name?: string;
     email?: string;
@@ -418,6 +421,13 @@ const bookingSchema = new Schema<IBooking>(
         validator: (v: IBookingEntry[]) => v.length > 0,
         message: "Booking must contain at least one entry",
       },
+    },
+
+    bookingFor: {
+      type: String,
+      enum: ["MYSELF", "OTHER"] as BookingFor[],
+      default: "MYSELF",
+      required: true,
     },
 
     customerDetails: {
