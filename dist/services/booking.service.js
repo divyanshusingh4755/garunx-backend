@@ -139,6 +139,7 @@ export class BookingService {
             },
         });
         return {
+            orderId: newOrderId,
             paymentSessionId: order.payment_session_id,
         };
     }

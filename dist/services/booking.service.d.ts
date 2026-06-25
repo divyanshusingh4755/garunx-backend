@@ -4,6 +4,10 @@ import { Types } from "mongoose";
 export declare class BookingService {
     static process(req: Request): Promise<void>;
     static retryPayment(bookingId: string, userId: string): Promise<{
+        paymentSessionId: string | undefined;
+        orderId?: never;
+    } | {
+        orderId: string;
         paymentSessionId: any;
     }>;
     static getPaymentStatus(cartId: string, userId: string): Promise<{
