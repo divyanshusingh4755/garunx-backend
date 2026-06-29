@@ -886,7 +886,7 @@ class CartService {
                         status: "PENDING",
                     },
                     paymentExpiresAt: paymentExpiry,
-                    status: "PENDING",
+                    status: "PENDING_PAYMENT",
                     scheduledAt: lockedCart.scheduledDate,
                     ...(lockedCart.notes ? { notes: lockedCart.notes } : {}),
                     cartSnapshot: lockedCart.toObject(),

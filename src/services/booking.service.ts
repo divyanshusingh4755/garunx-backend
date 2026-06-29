@@ -7,11 +7,16 @@ import { Coupon } from "../models/coupon.model.js";
 import { ReferralRewardService } from "./referralreward.service.js";
 
 const STATUS_TRANSITIONS: Record<BookingStatus, BookingStatus[]> = {
-  PENDING: ["CONFIRMED", "CANCELLED"],
-  CONFIRMED: ["IN_PROGRESS", "CANCELLED"],
+  PENDING_PAYMENT: ["CONFIRMED", "CANCELLED"],
+  CONFIRMED: ["PENDING_COORDINATOR_SELECTION", "CANCELLED"],
+  PENDING_COORDINATOR_SELECTION: ["PENDING_COORDINATOR_RESPONSE", "CANCELLED"],
+  PENDING_COORDINATOR_RESPONSE: ["ASSIGNED", "CANCELLED"],
+  ASSIGNED: ["IN_PROGRESS", "REASSIGNMENT_REQUESTED", "CANCELLED", "PENDING_COORDINATOR_RESPONSE"],
+  REASSIGNMENT_REQUESTED: ["PENDING_COORDINATOR_RESPONSE", "CANCELLED"],
   IN_PROGRESS: ["COMPLETED", "CANCELLED"],
   COMPLETED: [],
-  CANCELLED: [],
+  REFUNDED: [],
+  CANCELLED: ["REFUNDED"],
 };
 
 export class BookingService {
@@ -46,7 +51,9 @@ export class BookingService {
       throw new Error("Missing order id");
     }
 
-    const booking = await Booking.findOne({ bookingReference: orderId });
+    const booking = await Booking.findOne({
+      "payment.providerOrderId": orderId,
+    });
     if (!booking) {
       throw new Error(`Booking not found for ${orderId}`);
     }
@@ -71,7 +78,6 @@ export class BookingService {
                 "payment.paymentMethod": paymentGroup,
                 "payment.paidAt": new Date(),
                 status: "CONFIRMED",
-                "lifecycle.confirmedAt": new Date(),
               },
             },
             { session },
@@ -98,16 +104,6 @@ export class BookingService {
               { session },
             );
           }
-
-          if (!booking.userId) {
-            throw new Error("Booking user not found");
-          }
-
-          await ReferralRewardService.processReferralReward(
-            booking.userId.toString(),
-            booking._id.toString(),
-          );
-
           return;
         }
 
@@ -126,6 +122,13 @@ export class BookingService {
           { session },
         );
       });
+
+      if (paymentStatus === "SUCCESS" && booking.userId) {
+        await ReferralRewardService.processReferralReward(
+          booking.userId.toString(),
+          booking._id.toString(),
+        );
+      }
     } catch (error: any) {
       throw error;
     } finally {
@@ -161,6 +164,7 @@ export class BookingService {
       // CASE 1: reuse
       if (order.order_status === "ACTIVE") {
         return {
+          orderId: booking.payment.providerOrderId,
           paymentSessionId: booking.payment.paymentSessionId,
         };
       }
@@ -238,6 +242,8 @@ export class BookingService {
       }
     }
 
+    const paidAt = new Date();
+
     // Sync DB if needed
     if (cashfreeStatus === "PAID" && booking.payment.status !== "PAID") {
       await Booking.updateOne(
@@ -246,9 +252,14 @@ export class BookingService {
           $set: {
             "payment.status": "PAID",
             status: "CONFIRMED",
+            "payment.paidAt": paidAt,
           },
         },
       );
+
+      booking.payment.status = "PAID";
+      booking.status = "CONFIRMED";
+      booking.payment.paidAt = paidAt;
     }
 
     const hasPending =
@@ -400,8 +411,10 @@ export class BookingService {
       entries: booking.entries,
       scheduledAt: booking.scheduledAt,
       notes: booking.notes,
-      lifecycle: booking.lifecycle,
+      assignment: booking.assignment,
       cancellation: booking.cancellation,
+      rescheduleHistory: booking.rescheduleHistory,
+      reassignmentHistory: booking.reassignmentHistory,
       createdAt: booking.createdAt,
       updatedAt: booking.updatedAt,
     };
@@ -503,12 +516,16 @@ export class BookingService {
           0,
         ),
 
-        pendingBookings: bookingMap.PENDING || 0,
+        pendingPaymentBookings: bookingMap.PENDING_PAYMENT || 0,
         confirmedBookings: bookingMap.CONFIRMED || 0,
+        pendingCoordinatorSelectionBookings: bookingMap.PENDING_COORDINATOR_SELECTION || 0,
+        pendingCoordinatorResponseBookings: bookingMap.PENDING_COORDINATOR_RESPONSE || 0,
+        assignedBookings: bookingMap.ASSIGNED || 0,
+        reassignmentRequestedBookings: bookingMap.REASSIGNMENT_REQUESTED || 0,
         inProgressBookings: bookingMap.IN_PROGRESS || 0,
         completedBookings: bookingMap.COMPLETED || 0,
         cancelledBookings: bookingMap.CANCELLED || 0,
-
+        refundedBookings: bookingMap.REFUNDED || 0,
         pendingPayments: paymentMap.PENDING || 0,
         paidPayments: paymentMap.PAID || 0,
         failedPayments: paymentMap.FAILED || 0,
@@ -610,6 +627,14 @@ export class BookingService {
       throw new Error("Scheduled date must be in the future");
     }
 
+    booking.rescheduleHistory.push({
+      oldDate: booking.scheduledAt ?? scheduleDate,
+      newDate: scheduleDate,
+      reason: "Booking rescheduled",
+      rescheduledBy: new Types.ObjectId(userId),
+      createdAt: new Date(),
+    });
+
     booking.scheduledAt = scheduleDate;
     await booking.save();
 
@@ -653,17 +678,19 @@ export class BookingService {
     }
 
     const now = new Date();
+    const previousStatus = booking.status;
 
     switch (status) {
       case "CONFIRMED":
         booking.status = "CONFIRMED";
+        break;
 
-        booking.lifecycle = {
-          ...booking.lifecycle,
-          confirmedAt: now,
-          confirmedBy: new Types.ObjectId(userId),
+      case "ASSIGNED":
+        booking.status = "ASSIGNED";
+        booking.assignment = {
+          ...booking.assignment,
+          assignedAt: now,
         };
-
         break;
 
       case "IN_PROGRESS":
@@ -672,18 +699,11 @@ export class BookingService {
 
       case "COMPLETED":
         booking.status = "COMPLETED";
-
-        booking.lifecycle = {
-          ...booking.lifecycle,
-          completedAt: now,
-          completedBy: new Types.ObjectId(userId),
-        };
-
         break;
 
       case "CANCELLED":
         if (!reason?.trim()) {
-          throw new Error("Cancellation reason is required");
+          throw new Error("Cancellation reason required");
         }
 
         booking.status = "CANCELLED";
@@ -692,12 +712,10 @@ export class BookingService {
           reason,
           cancelledAt: now,
           cancelledBy: new Types.ObjectId(userId),
-          cancelledByRole: role as "CUSTOMER" | "ADMIN" | "SUBADMIN" | "SYSTEM",
-        };
-
-        booking.lifecycle = {
-          ...booking.lifecycle,
-          cancelledAt: now,
+          cancelledByRole:
+            role as "CUSTOMER" | "ADMIN" | "SUBADMIN" | "SYSTEM",
+          refundPercentage: 0,
+          refundAmount: 0,
         };
 
         break;
@@ -708,8 +726,8 @@ export class BookingService {
     return {
       bookingId: booking._id,
       bookingReference: booking.bookingReference,
-      previousStatus: booking.status,
-      currentStatus: status,
+      previousStatus: previousStatus,
+      currentStatus: booking.status,
     };
   }
 
@@ -756,7 +774,8 @@ export class BookingService {
       reason,
     });
 
-    booking.payment.refundAmount = alreadyRefunded + amount;
+    const totalRefunded = alreadyRefunded + amount;
+    booking.payment.refundAmount = totalRefunded;
     booking.payment.refundedAt = new Date();
     booking.payment.refunds = booking.payment.refunds || [];
 
@@ -771,12 +790,16 @@ export class BookingService {
       refundedBy: refundedBy as any,
     });
 
-    const totalRefunded = (booking.payment.refundAmount || 0) + amount;
     booking.payment.refundAmount = totalRefunded;
-    booking.payment.status =
-      totalRefunded >= booking.pricing.grandTotal
-        ? "REFUNDED"
-        : "PARTIAL_REFUND";
+    if (totalRefunded >= booking.pricing.grandTotal) {
+      booking.payment.status = "REFUNDED";
+
+      if (booking.status === "CANCELLED") {
+        booking.status = "REFUNDED";
+      }
+    } else {
+      booking.payment.status = "PARTIAL_REFUND";
+    }
 
     await booking.save();
     return {
@@ -803,7 +826,7 @@ export class BookingService {
       await session.withTransaction(async () => {
         const expiredBookings = await Booking.find(
           {
-            status: "PENDING",
+            status: "PENDING_PAYMENT",
             "payment.status": "PENDING",
             paymentExpiresAt: {
               $lte: now,
@@ -853,11 +876,11 @@ export class BookingService {
             $set: {
               status: "CANCELLED",
               "payment.status": "FAILED",
-              "lifecycle.expiredAt": now,
-              "lifecycle.cancelledAt": now,
               "cancellation.cancelledAt": now,
               "cancellation.cancelledByRole": "SYSTEM",
               "cancellation.reason": "Payment expired",
+              "cancellation.refundAmount": 0,
+              "cancellation.refundPercentage": 0,
             },
             $unset: {
               paymentExpiresAt: 1,
@@ -880,5 +903,55 @@ export class BookingService {
     } finally {
       await session.endSession();
     }
+  }
+
+  static async cancelBooking(
+    bookingId: string,
+    userId: string,
+    role: string,
+    reason: string,
+  ) {
+    return this.updateBookingStatus(
+      bookingId,
+      "CANCELLED",
+      userId,
+      role,
+      reason,
+    );
+  }
+
+  static async getMyBookingById(
+    bookingId: string,
+    userId: string,
+  ) {
+    const booking = await Booking.findOne({
+      _id: bookingId,
+      userId,
+      isDeleted: false,
+    });
+
+    if (!booking) {
+      throw new Error("Booking not found");
+    }
+
+    return booking;
+  }
+
+  static async getMyBookings(params: {
+    userId: string;
+    status?: string;
+    page?: number;
+    limit?: number;
+    sortBy?: string;
+    sortOrder?: "asc" | "desc";
+  }) {
+    return this.findBookings({
+      userId: params.userId,
+      ...(params.status && { status: params.status }),
+      ...(params.page && { page: params.page }),
+      ...(params.limit && { limit: params.limit }),
+      ...(params.sortBy && { sortBy: params.sortBy }),
+      ...(params.sortOrder && { sortOrder: params.sortOrder }),
+    });
   }
 }

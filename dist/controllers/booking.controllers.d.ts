@@ -10,4 +10,7 @@ export declare const updateBookingSchedule: (req: Request, res: Response) => Pro
 export declare const updateBookingStatus: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
 export declare const refundBooking: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
 export declare const expirePayments: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
+export declare const getMyBookings: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
+export declare const getMyBookingById: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
+export declare const cancelBooking: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
 //# sourceMappingURL=booking.controllers.d.ts.map

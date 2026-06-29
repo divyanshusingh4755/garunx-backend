@@ -2,6 +2,38 @@ import { Schema, Types, model, Document } from "mongoose";
 import { Role } from "../types/rbac.js";
 import { Counter } from "./counter.model.js";
 
+export interface ICoordinatorProfile {
+  averageRating: number;
+  totalRatings: number;
+  ratingSum: number;
+  totalCompletedBookings: number;
+  totalAssignedBookings: number;
+  acceptanceRate: number;
+
+  approvalStatus:
+  | "PENDING"
+  | "APPROVED"
+  | "REJECTED";
+
+  availabilityStatus:
+  | "AVAILABLE"
+  | "OFF_DUTY"
+  | "ON_LEAVE"
+  | "SUSPENDED";
+
+  maxDailyBookings: number;
+
+  autoAssignmentEnabled: boolean;
+
+  lastAvailabilityChangedAt?: Date;
+
+  serviceableLocations?: {
+    locationId: Types.ObjectId;
+    caste?: string[];
+    gotra?: string[];
+  }[];
+}
+
 export interface IUser extends Document {
   // Auth & Identity
   phoneNumber?: string;
@@ -33,11 +65,6 @@ export interface IUser extends Document {
 
   // Location
   savedLocations?: string[];
-  serviceableLocations?: {
-    locationId: Types.ObjectId;
-    caste?: string[];
-    gotra?: string[];
-  }[];
 
   // Document Verification
   documentVerification: {
@@ -57,17 +84,19 @@ export interface IUser extends Document {
   };
   caste?: "SC" | "ST" | "OBC" | "GENERAL";
   gotra?:
-    | "Bharadvaja"
-    | "Kashyapa"
-    | "Vashistha"
-    | "Vishvamitra"
-    | "Gautama"
-    | "Atri"
-    | "Jamadagni"
-    | "Agastya";
+  | "Bharadvaja"
+  | "Kashyapa"
+  | "Vashistha"
+  | "Vishvamitra"
+  | "Gautama"
+  | "Atri"
+  | "Jamadagni"
+  | "Agastya";
   isDocumentVerified: boolean;
   isBankDocumentVerified: boolean;
   userReference: string;
+
+  coordinatorProfile?: ICoordinatorProfile;
 }
 
 const userSchema = new Schema<IUser>(
@@ -85,7 +114,7 @@ const userSchema = new Schema<IUser>(
     otpExpiresAt: { type: Date, default: null },
     isOtpVerified: { type: Boolean, default: false },
     isActive: { type: Boolean, default: true },
-    fullName: { type: String, lowercase: true, trim: true },
+    fullName: { type: String, trim: true },
     dob: { type: Date },
     gender: { type: String, enum: ["Male", "Female", "Other"] },
     profileImage: { type: String, default: null },
@@ -96,37 +125,6 @@ const userSchema = new Schema<IUser>(
     resetPasswordToken: { type: String, default: null },
     resetPasswordExpires: { type: Date, default: null },
     savedLocations: [{ type: String }],
-    serviceableLocations: [
-      {
-        locationId: {
-          type: Schema.Types.ObjectId,
-          ref: "Location",
-          required: true,
-        },
-        caste: [
-          {
-            type: String,
-            enum: ["SC", "ST", "OBC", "GENERAL"],
-          },
-        ],
-        gotra: [
-          {
-            type: String,
-            enum: [
-              "Bharadvaja",
-              "Kashyapa",
-              "Vashistha",
-              "Vishvamitra",
-              "Gautama",
-              "Atri",
-              "Jamadagni",
-              "Agastya",
-            ],
-          },
-        ],
-      },
-    ],
-
     documentVerification: {
       aadharCard: { type: String },
       panCard: { type: String },
@@ -176,6 +174,106 @@ const userSchema = new Schema<IUser>(
       unique: true,
       index: true,
     },
+
+    coordinatorProfile: {
+      type: {
+        averageRating: {
+          type: Number,
+          default: 0,
+          min: 0,
+        },
+
+        totalRatings: {
+          type: Number,
+          default: 0,
+          min: 0,
+        },
+
+        ratingSum: {
+          type: Number,
+          default: 0,
+          min: 0,
+        },
+
+        totalCompletedBookings: {
+          type: Number,
+          default: 0,
+        },
+
+        totalAssignedBookings: {
+          type: Number,
+          default: 0,
+        },
+
+        acceptanceRate: {
+          type: Number,
+          default: 0,
+        },
+
+        approvalStatus: {
+          type: String,
+          enum: ["PENDING", "APPROVED", "REJECTED"],
+          default: "PENDING",
+        },
+
+        availabilityStatus: {
+          type: String,
+          enum: [
+            "AVAILABLE",
+            "OFF_DUTY",
+            "ON_LEAVE",
+            "SUSPENDED",
+          ],
+          default: "AVAILABLE",
+        },
+
+        maxDailyBookings: {
+          type: Number,
+          default: 5,
+          min: 1,
+        },
+
+        autoAssignmentEnabled: {
+          type: Boolean,
+          default: true,
+        },
+
+        lastAvailabilityChangedAt: Date,
+
+        serviceableLocations: [
+          {
+            locationId: {
+              type: Schema.Types.ObjectId,
+              ref: "Location",
+              required: true,
+            },
+            caste: [
+              {
+                type: String,
+                enum: ["SC", "ST", "OBC", "GENERAL"],
+              },
+            ],
+            gotra: [
+              {
+                type: String,
+                enum: [
+                  "Bharadvaja",
+                  "Kashyapa",
+                  "Vashistha",
+                  "Vishvamitra",
+                  "Gautama",
+                  "Atri",
+                  "Jamadagni",
+                  "Agastya",
+                ],
+              },
+            ],
+          },
+        ],
+      },
+
+      default: undefined,
+    },
   },
   { timestamps: true },
 );
@@ -198,6 +296,7 @@ userSchema.pre("save", async function (this: IUser) {
     throw error;
   }
 });
+
 
 // Allow same phone/email across DIFFERENT roles
 userSchema.index(
@@ -230,6 +329,20 @@ userSchema.index({ fullName: 1 });
 userSchema.index({ email: 1 });
 userSchema.index({ phoneNumber: 1 });
 userSchema.index({ role: 1, createdAt: -1 });
+
+userSchema.index({
+  role: 1,
+  isActive: 1,
+  isDocumentVerified: 1,
+  isBankDocumentVerified: 1,
+  "coordinatorProfile.approvalStatus": 1,
+  "coordinatorProfile.availabilityStatus": 1,
+});
+
+userSchema.index({
+  role: 1,
+  "coordinatorProfile.averageRating": -1,
+});
 
 userSchema.index(
   {

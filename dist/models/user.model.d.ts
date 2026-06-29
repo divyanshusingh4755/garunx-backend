@@ -1,5 +1,23 @@
 import { Types, Document } from "mongoose";
 import { Role } from "../types/rbac.js";
+export interface ICoordinatorProfile {
+    averageRating: number;
+    totalRatings: number;
+    ratingSum: number;
+    totalCompletedBookings: number;
+    totalAssignedBookings: number;
+    acceptanceRate: number;
+    approvalStatus: "PENDING" | "APPROVED" | "REJECTED";
+    availabilityStatus: "AVAILABLE" | "OFF_DUTY" | "ON_LEAVE" | "SUSPENDED";
+    maxDailyBookings: number;
+    autoAssignmentEnabled: boolean;
+    lastAvailabilityChangedAt?: Date;
+    serviceableLocations?: {
+        locationId: Types.ObjectId;
+        caste?: string[];
+        gotra?: string[];
+    }[];
+}
 export interface IUser extends Document {
     phoneNumber?: string;
     email?: string;
@@ -20,11 +38,6 @@ export interface IUser extends Document {
     resetPasswordToken?: string | null;
     resetPasswordExpires?: Date | null;
     savedLocations?: string[];
-    serviceableLocations?: {
-        locationId: Types.ObjectId;
-        caste?: string[];
-        gotra?: string[];
-    }[];
     documentVerification: {
         aadharCard?: string;
         panCard?: string;
@@ -45,6 +58,7 @@ export interface IUser extends Document {
     isDocumentVerified: boolean;
     isBankDocumentVerified: boolean;
     userReference: string;
+    coordinatorProfile?: ICoordinatorProfile;
 }
 export declare const User: import("mongoose").Model<IUser, {}, {}, {}, Document<unknown, {}, IUser, {}, import("mongoose").DefaultSchemaOptions> & IUser & Required<{
     _id: Types.ObjectId;

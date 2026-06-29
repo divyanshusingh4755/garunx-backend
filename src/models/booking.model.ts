@@ -3,11 +3,16 @@ import { Counter } from "./counter.model.js";
 import type { ICart } from "./cart.model.js";
 
 export type BookingStatus =
-  | "PENDING"
+  | "PENDING_PAYMENT"
   | "CONFIRMED"
+  | "PENDING_COORDINATOR_SELECTION"
+  | "PENDING_COORDINATOR_RESPONSE"
+  | "ASSIGNED"
+  | "REASSIGNMENT_REQUESTED"
   | "IN_PROGRESS"
   | "COMPLETED"
-  | "CANCELLED";
+  | "CANCELLED"
+  | "REFUNDED";
 
 export type BookingFor = "MYSELF" | "OTHER";
 
@@ -316,7 +321,6 @@ const bookingEntrySchema = new Schema<IBookingEntry>(
 
 export interface IBooking extends Document {
   userId?: Types.ObjectId;
-  subAdminId?: Types.ObjectId;
   cartId: Types.ObjectId;
   bookingReference: string;
   bookedBy: BookedBy;
@@ -370,18 +374,42 @@ export interface IBooking extends Document {
     cancelledBy?: Types.ObjectId;
     cancelledByRole?: "CUSTOMER" | "ADMIN" | "SUBADMIN" | "SYSTEM";
     cancelledAt?: Date;
+    refundPercentage: number;
+    refundAmount: number;
   };
 
-  lifecycle?: {
-    confirmedBy?: Types.ObjectId;
-    completedBy?: Types.ObjectId;
-    confirmedAt?: Date;
-    completedAt?: Date;
-    cancelledAt?: Date;
-    expiredAt?: Date;
+  assignment?: {
+    assignedCoordinatorId?: Types.ObjectId;
+    assignedBy?: Types.ObjectId;
+    assignedAt?: Date;
+    assignmentType?: "MANUAL" | "AUTO";
+    coordinatorAcceptedAt?: Date
+    responseDeadlineAt?: Date;
   };
+
+  rescheduleHistory: {
+    oldDate: Date,
+    newDate: Date,
+    reason: string,
+    rescheduledBy: Types.ObjectId,
+    createdAt: Date,
+  }[];
+
+  reassignmentHistory: {
+    oldCoordinatorId: Types.ObjectId;
+    newCoordinatorId: Types.ObjectId;
+    reason: string;
+    reassignedBy: Types.ObjectId;
+    createdAt: Date
+  }[];
+
+  preferredCoordinators: {
+    coordinatorId: Types.ObjectId,
+    priorityOrder: number
+  }[],
 
   scheduledAt?: Date;
+  completedAt?: Date;
   notes?: string;
   cartSnapshot?: Partial<ICart>;
   isDeleted?: boolean;
@@ -393,7 +421,6 @@ export interface IBooking extends Document {
 const bookingSchema = new Schema<IBooking>(
   {
     userId: { type: Schema.Types.ObjectId, ref: "User", index: true },
-    subAdminId: { type: Schema.Types.ObjectId, ref: "User", index: true },
 
     cartId: {
       type: Schema.Types.ObjectId,
@@ -532,8 +559,8 @@ const bookingSchema = new Schema<IBooking>(
 
     status: {
       type: String,
-      enum: ["PENDING", "CONFIRMED", "IN_PROGRESS", "COMPLETED", "CANCELLED"],
-      default: "PENDING",
+      enum: ["PENDING_PAYMENT", "CONFIRMED", "PENDING_COORDINATOR_SELECTION", "PENDING_COORDINATOR_RESPONSE", "ASSIGNED", "REASSIGNMENT_REQUESTED", "IN_PROGRESS", "COMPLETED", "CANCELLED", "REFUNDED"],
+      default: "PENDING_PAYMENT",
       index: true,
     },
 
@@ -545,24 +572,83 @@ const bookingSchema = new Schema<IBooking>(
         enum: ["CUSTOMER", "ADMIN", "SUBADMIN", "SYSTEM"],
       },
       cancelledAt: Date,
+      refundPercentage: Number,
+      refundAmount: Number,
     },
 
-    lifecycle: {
-      confirmedAt: Date,
-      completedAt: Date,
-      cancelledAt: Date,
-      expiredAt: Date,
-      confirmedBy: {
+    assignment: {
+      assignedAt: Date,
+      assignmentType: {
+        type: String,
+        enum: ["MANUAL", "AUTO"],
+      },
+      assignedCoordinatorId: {
         type: Schema.Types.ObjectId,
         ref: "User",
       },
-      completedBy: {
+      assignedBy: {
         type: Schema.Types.ObjectId,
         ref: "User",
       },
+      coordinatorAcceptedAt: Date,
+      responseDeadlineAt: Date,
     },
+
+    rescheduleHistory: [
+      {
+        oldDate: Date,
+        newDate: Date,
+        reason: String,
+        rescheduledBy: {
+          type: Schema.Types.ObjectId,
+          ref: "User",
+        },
+        createdAt: Date,
+      }
+    ],
+
+    reassignmentHistory: [
+      {
+        oldCoordinatorId: {
+          type: Schema.Types.ObjectId,
+          ref: "User",
+        },
+
+        newCoordinatorId: {
+          type: Schema.Types.ObjectId,
+          ref: "User",
+        },
+
+        reason: String,
+
+        reassignedBy: {
+          type: Schema.Types.ObjectId,
+          ref: "User",
+        },
+
+        createdAt: {
+          type: Date,
+          default: Date.now,
+        },
+      },
+    ],
+
+    preferredCoordinators: [
+      {
+        coordinatorId: {
+          type: Schema.Types.ObjectId,
+          ref: "User",
+        },
+
+        priorityOrder: {
+          type: Number,
+          required: true,
+        },
+      },
+    ],
 
     scheduledAt: Date,
+    completedAt: Date,
     notes: { type: String, maxlength: 1000 },
     cartSnapshot: Schema.Types.Mixed,
     isDeleted: { type: Boolean, default: false },

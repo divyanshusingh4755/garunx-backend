@@ -1,12 +1,9 @@
 import type { Request } from "express";
 import { type BookingStatus } from "../models/booking.model.js";
-import { Types } from "mongoose";
+import mongoose, { Types } from "mongoose";
 export declare class BookingService {
     static process(req: Request): Promise<void>;
     static retryPayment(bookingId: string, userId: string): Promise<{
-        paymentSessionId: string | undefined;
-        orderId?: never;
-    } | {
         orderId: string;
         paymentSessionId: any;
     }>;
@@ -92,30 +89,51 @@ export declare class BookingService {
         entries: import("../models/booking.model.js").IBookingEntry[];
         scheduledAt: Date | undefined;
         notes: string | undefined;
-        lifecycle: {
-            confirmedBy?: Types.ObjectId;
-            completedBy?: Types.ObjectId;
-            confirmedAt?: Date;
-            completedAt?: Date;
-            cancelledAt?: Date;
-            expiredAt?: Date;
+        assignment: {
+            assignedCoordinatorId?: Types.ObjectId;
+            assignedBy?: Types.ObjectId;
+            assignedAt?: Date;
+            assignmentType?: "MANUAL" | "AUTO";
+            coordinatorAcceptedAt?: Date;
+            responseDeadlineAt?: Date;
         } | undefined;
         cancellation: {
             reason?: string;
             cancelledBy?: Types.ObjectId;
             cancelledByRole?: "CUSTOMER" | "ADMIN" | "SUBADMIN" | "SYSTEM";
             cancelledAt?: Date;
+            refundPercentage: number;
+            refundAmount: number;
         } | undefined;
+        rescheduleHistory: {
+            oldDate: Date;
+            newDate: Date;
+            reason: string;
+            rescheduledBy: Types.ObjectId;
+            createdAt: Date;
+        }[];
+        reassignmentHistory: {
+            oldCoordinatorId: Types.ObjectId;
+            newCoordinatorId: Types.ObjectId;
+            reason: string;
+            reassignedBy: Types.ObjectId;
+            createdAt: Date;
+        }[];
         createdAt: Date;
         updatedAt: Date;
     }>;
     static getBookingStats(): Promise<{
         totalBookings: number;
-        pendingBookings: any;
+        pendingPaymentBookings: any;
         confirmedBookings: any;
+        pendingCoordinatorSelectionBookings: any;
+        pendingCoordinatorResponseBookings: any;
+        assignedBookings: any;
+        reassignmentRequestedBookings: any;
         inProgressBookings: any;
         completedBookings: any;
         cancelledBookings: any;
+        refundedBookings: any;
         pendingPayments: any;
         paidPayments: any;
         failedPayments: any;
@@ -151,6 +169,36 @@ export declare class BookingService {
     static expirePendingPayments(): Promise<{
         expiredBookings: number;
         releasedCarts: number;
+    }>;
+    static cancelBooking(bookingId: string, userId: string, role: string, reason: string): Promise<{
+        bookingId: Types.ObjectId;
+        bookingReference: string;
+        previousStatus: BookingStatus;
+        currentStatus: BookingStatus;
+    }>;
+    static getMyBookingById(bookingId: string, userId: string): Promise<mongoose.Document<unknown, {}, import("../models/booking.model.js").IBooking, {}, mongoose.DefaultSchemaOptions> & import("../models/booking.model.js").IBooking & Required<{
+        _id: Types.ObjectId;
+    }> & {
+        __v: number;
+    } & {
+        id: string;
+    }>;
+    static getMyBookings(params: {
+        userId: string;
+        status?: string;
+        page?: number;
+        limit?: number;
+        sortBy?: string;
+        sortOrder?: "asc" | "desc";
+    }): Promise<{
+        data: (import("../models/booking.model.js").IBooking & Required<{
+            _id: Types.ObjectId;
+        }> & {
+            __v: number;
+        })[];
+        total: number;
+        page: number;
+        totalPages: number;
     }>;
 }
 //# sourceMappingURL=booking.service.d.ts.map

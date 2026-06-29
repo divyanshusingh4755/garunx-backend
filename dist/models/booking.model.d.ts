@@ -1,6 +1,6 @@
 import { Types, Document, Model } from "mongoose";
 import type { ICart } from "./cart.model.js";
-export type BookingStatus = "PENDING" | "CONFIRMED" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED";
+export type BookingStatus = "PENDING_PAYMENT" | "CONFIRMED" | "PENDING_COORDINATOR_SELECTION" | "PENDING_COORDINATOR_RESPONSE" | "ASSIGNED" | "REASSIGNMENT_REQUESTED" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED" | "REFUNDED";
 export type BookingFor = "MYSELF" | "OTHER";
 export type PaymentStatus = "PENDING" | "PAID" | "FAILED" | "REFUNDED" | "PARTIAL_REFUND";
 export type BookedBy = "CUSTOMER" | "ADMIN" | "SUBADMIN";
@@ -84,7 +84,6 @@ export interface IBookingEntry {
 }
 export interface IBooking extends Document {
     userId?: Types.ObjectId;
-    subAdminId?: Types.ObjectId;
     cartId: Types.ObjectId;
     bookingReference: string;
     bookedBy: BookedBy;
@@ -132,16 +131,37 @@ export interface IBooking extends Document {
         cancelledBy?: Types.ObjectId;
         cancelledByRole?: "CUSTOMER" | "ADMIN" | "SUBADMIN" | "SYSTEM";
         cancelledAt?: Date;
+        refundPercentage: number;
+        refundAmount: number;
     };
-    lifecycle?: {
-        confirmedBy?: Types.ObjectId;
-        completedBy?: Types.ObjectId;
-        confirmedAt?: Date;
-        completedAt?: Date;
-        cancelledAt?: Date;
-        expiredAt?: Date;
+    assignment?: {
+        assignedCoordinatorId?: Types.ObjectId;
+        assignedBy?: Types.ObjectId;
+        assignedAt?: Date;
+        assignmentType?: "MANUAL" | "AUTO";
+        coordinatorAcceptedAt?: Date;
+        responseDeadlineAt?: Date;
     };
+    rescheduleHistory: {
+        oldDate: Date;
+        newDate: Date;
+        reason: string;
+        rescheduledBy: Types.ObjectId;
+        createdAt: Date;
+    }[];
+    reassignmentHistory: {
+        oldCoordinatorId: Types.ObjectId;
+        newCoordinatorId: Types.ObjectId;
+        reason: string;
+        reassignedBy: Types.ObjectId;
+        createdAt: Date;
+    }[];
+    preferredCoordinators: {
+        coordinatorId: Types.ObjectId;
+        priorityOrder: number;
+    }[];
     scheduledAt?: Date;
+    completedAt?: Date;
     notes?: string;
     cartSnapshot?: Partial<ICart>;
     isDeleted?: boolean;

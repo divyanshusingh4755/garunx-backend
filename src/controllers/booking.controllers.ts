@@ -304,3 +304,111 @@ export const expirePayments = async (req: Request, res: Response) => {
     });
   }
 };
+
+
+export const getMyBookings = async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?.userId;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized",
+      });
+    }
+
+    const {
+      status,
+      page,
+      limit,
+      sortBy,
+      sortOrder,
+    } = req.query;
+
+    const result = await BookingService.getMyBookings({
+      userId,
+      status: status as string,
+      page: Number(page) || 1,
+      limit: Number(limit) || 20,
+      sortBy: (sortBy as string) || "createdAt",
+      sortOrder: (sortOrder as "asc" | "desc") || "desc",
+    });
+
+    return res.status(200).json({
+      success: true,
+      data: result.data,
+      total: result.total,
+      currentPage: result.page,
+      totalPages: result.totalPages,
+    });
+  } catch (error: any) {
+    return res.status(400).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+export const getMyBookingById = async (req: Request, res: Response) => {
+  try {
+    const { bookingId } = req.params;
+
+    const userId = req.user?.userId;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized",
+      });
+    }
+
+    const result = await BookingService.getMyBookingById(
+      bookingId as string,
+      userId,
+    );
+
+    return res.status(200).json({
+      success: true,
+      data: result,
+    });
+  } catch (error: any) {
+    return res.status(400).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+export const cancelBooking = async (req: Request, res: Response) => {
+  try {
+    const { bookingId } = req.params;
+    const { reason } = req.body;
+
+    const userId = req.user?.userId;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized",
+      });
+    }
+
+    const result = await BookingService.cancelBooking(
+      bookingId as string,
+      userId,
+      req.user!.role,
+      reason,
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: "Booking cancelled successfully",
+      data: result,
+    });
+  } catch (error: any) {
+    return res.status(400).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
