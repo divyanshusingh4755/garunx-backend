@@ -49,19 +49,24 @@ export class BookingBuilder {
       throw new Error("Service not found");
     }
 
+    const plainCart = cart.toObject() as ICart;
+
+    const selectedComponents = [
+      ...(plainCart.selectedComponents ?? []).map((c) => ({
+        ...c,
+        componentType: "DEFAULT" as const,
+      })),
+      ...(plainCart.addonComponents ?? []).map((c) => ({
+        ...c,
+        componentType: "ADDON" as const,
+      })),
+    ];
+
     const components = await this.buildComponentSnapshots(
       cart,
-      [
-        ...(cart.selectedComponents ?? []).map((c) => ({
-          ...c,
-          componentType: "DEFAULT" as const,
-        })),
-        ...(cart.addonComponents ?? []).map((c) => ({
-          ...c,
-          componentType: "ADDON" as const,
-        })),
-      ],
+      selectedComponents,
       service._id,
+      cart.tierId,
     );
 
     const entry: IBookingEntry = {
@@ -263,6 +268,7 @@ export class BookingBuilder {
       componentType: ComponentType;
     })[],
     serviceId: Types.ObjectId,
+    tierId: Types.ObjectId,
   ): Promise<IBookingComponent[]> {
     if (!components.length) return [];
 
@@ -272,7 +278,7 @@ export class BookingBuilder {
       Component.find({ _id: { $in: componentIds } }).lean(),
       ServiceComponent.find({
         serviceId,
-        tierId: cart.tierId,
+        tierId: tierId,
         componentId: { $in: componentIds },
       }).lean(),
       ComponentItem.find({
