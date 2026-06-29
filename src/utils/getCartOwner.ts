@@ -1,4 +1,5 @@
 import type { Request } from "express";
+import { HttpError } from "../utils/httpError.js";
 
 export interface CartOwner {
   userId?: string;
@@ -10,7 +11,7 @@ export const getCartOwner = (req: Request): CartOwner => {
   const guestId = req.headers["x-guest-id"] as string | undefined;
 
   if (!userId && !guestId) {
-    throw new Error("Either authentication or guestId is required");
+    throw new HttpError(401, "Authentication or guestId is required");
   }
 
   return {

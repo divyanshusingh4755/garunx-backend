@@ -11,7 +11,7 @@ export const createServiceCart = async (req, res) => {
         });
     }
     catch (error) {
-        res.status(400).json({
+        res.status(error.statusCode || 400).json({
             success: false,
             message: error.message || "Failed to create service cart",
         });
@@ -28,7 +28,7 @@ export const createPackageCart = async (req, res) => {
         });
     }
     catch (error) {
-        res.status(400).json({
+        res.status(error.statusCode || 400).json({
             success: false,
             message: error.message || "Failed to create package cart",
         });
@@ -44,7 +44,7 @@ export const getUserCarts = async (req, res) => {
         });
     }
     catch (error) {
-        res.status(400).json({
+        res.status(error.statusCode || 400).json({
             success: false,
             message: error.message || "Failed to fetch carts",
         });
@@ -60,7 +60,7 @@ export const getCartById = async (req, res) => {
         });
     }
     catch (error) {
-        res.status(404).json({
+        res.status(error.statusCode || 400).json({
             success: false,
             message: error.message || "Failed to fetch cart",
         });
@@ -77,8 +77,7 @@ export const updateSelectedComponents = async (req, res) => {
         });
     }
     catch (error) {
-        console.log("error", error);
-        res.status(400).json({
+        res.status(error.statusCode || 400).json({
             success: false,
             message: error.message || "Failed to update selected components",
         });
@@ -95,7 +94,7 @@ export const updateAddonComponents = async (req, res) => {
         });
     }
     catch (error) {
-        res.status(400).json({
+        res.status(error.statusCode || 400).json({
             success: false,
             message: error.message || "Failed to update addon components",
         });
@@ -112,7 +111,7 @@ export const updateAddonServices = async (req, res) => {
         });
     }
     catch (error) {
-        res.status(400).json({
+        res.status(error.statusCode || 400).json({
             success: false,
             message: error.message || "Failed to update addon services",
         });
@@ -129,7 +128,7 @@ export const updateSelectedServices = async (req, res) => {
         });
     }
     catch (error) {
-        res.status(400).json({
+        res.status(error.statusCode || 400).json({
             success: false,
             message: error.message || "Failed to update addon services",
         });
@@ -146,7 +145,7 @@ export const updateSchedule = async (req, res) => {
         });
     }
     catch (error) {
-        res.status(400).json({
+        res.status(error.statusCode || 400).json({
             success: false,
             message: error.message || "Failed to update schedule",
         });
@@ -177,7 +176,7 @@ export const updateCustomerDetails = async (req, res) => {
         });
     }
     catch (error) {
-        res.status(400).json({
+        res.status(error.statusCode || 400).json({
             success: false,
             message: error.message || "Failed to update customer details",
         });
@@ -194,7 +193,7 @@ export const updateCartNotes = async (req, res) => {
         });
     }
     catch (error) {
-        res.status(400).json({
+        res.status(error.statusCode || 400).json({
             success: false,
             message: error.message || "Failed to update cart notes",
         });
@@ -211,7 +210,7 @@ export const recalculateCart = async (req, res) => {
         });
     }
     catch (error) {
-        res.status(400).json({
+        res.status(error.statusCode || 400).json({
             success: false,
             message: error.message || "Failed to recalculate cart",
         });
@@ -233,7 +232,7 @@ export const validateCart = async (req, res) => {
         });
     }
     catch (error) {
-        res.status(400).json({
+        res.status(error.statusCode || 400).json({
             success: false,
             message: error.message || "Failed to validate cart",
         });
@@ -253,7 +252,7 @@ export const checkoutCart = async (req, res) => {
         });
     }
     catch (error) {
-        res.status(400).json({
+        res.status(error.statusCode || 400).json({
             success: false,
             message: error.message || "Failed to checkout cart",
         });
@@ -269,7 +268,7 @@ export const deleteCart = async (req, res) => {
         });
     }
     catch (error) {
-        res.status(400).json({
+        res.status(error.statusCode || 400).json({
             success: false,
             message: error.message || "Failed to delete cart",
         });
@@ -322,7 +321,7 @@ export const applyCoupon = async (req, res) => {
         });
     }
     catch (error) {
-        res.status(400).json({
+        res.status(error.statusCode || 400).json({
             success: false,
             message: error.message,
         });
@@ -339,7 +338,7 @@ export const removeCoupon = async (req, res) => {
         });
     }
     catch (error) {
-        res.status(400).json({
+        res.status(error.statusCode || 400).json({
             success: false,
             message: error.message,
         });

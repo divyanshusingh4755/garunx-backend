@@ -1,8 +1,9 @@
+import { HttpError } from "../utils/httpError.js";
 export const getCartOwner = (req) => {
     const userId = req.user?.userId;
     const guestId = req.headers["x-guest-id"];
     if (!userId && !guestId) {
-        throw new Error("Either authentication or guestId is required");
+        throw new HttpError(401, "Authentication or guestId is required");
     }
     return {
         ...(userId ? { userId } : {}),
