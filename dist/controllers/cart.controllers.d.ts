@@ -17,4 +17,5 @@ export declare const deleteCart: (req: Request, res: Response) => Promise<void>;
 export declare const mergeGuestCartToUser: (req: Request, res: Response) => Promise<Response<any, Record<string, any>> | undefined>;
 export declare const applyCoupon: (req: Request, res: Response) => Promise<Response<any, Record<string, any>> | undefined>;
 export declare const removeCoupon: (req: Request, res: Response) => Promise<void>;
+export declare const reopenCart: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
 //# sourceMappingURL=cart.controllers.d.ts.map

@@ -19,6 +19,7 @@ import {
   mergeGuestCartToUser,
   applyCoupon,
   removeCoupon,
+  reopenCart
 } from "../controllers/cart.controllers.js";
 
 import {
@@ -64,6 +65,7 @@ router.post("/:cartId/validate", optionalAuthenticate, validateCart);
 router.post("/:cartId/checkout", authenticate, checkoutCart);
 router.post("/merge", authenticate, mergeGuestCartToUser);
 router.post("/:cartId/apply-coupon", optionalAuthenticate, applyCoupon);
+router.post("/:cartId/reopen", authenticate, reopenCart);
 router.delete("/:cartId/remove-coupon", optionalAuthenticate, removeCoupon);
 router.delete("/:cartId", optionalAuthenticate, deleteCart);
 

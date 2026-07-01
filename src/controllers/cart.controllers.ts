@@ -427,3 +427,25 @@ export const removeCoupon = async (req: Request, res: Response) => {
     });
   }
 };
+
+export const reopenCart = async (req: Request, res: Response) => {
+  try {
+    const owner = getCartOwner(req);
+
+    const cart = await CartService.reopenCart(
+      owner,
+      req.params.cartId as string,
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: "Cart reopened successfully",
+      data: cart,
+    });
+  } catch (error: any) {
+    return res.status(400).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};

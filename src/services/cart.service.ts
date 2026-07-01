@@ -190,7 +190,7 @@ class CartService {
     const carts = await Cart.find(query)
       .sort({ updatedAt: -1 })
       .select(
-        "serviceId packageId name thumbnailImage tierName locationName status totalAmount updatedAt scheduledDate scheduledTime",
+        "serviceId packageId name thumbnailImage tierName locationName status totalAmount updatedAt scheduledDate scheduledTime activeBookingId",
       );
 
     return carts;
@@ -1563,6 +1563,41 @@ class CartService {
     });
 
     return result.cart;
+  }
+
+  static async reopenCart(owner: CartOwner, cartId: string) {
+
+    if (!mongoose.Types.ObjectId.isValid(cartId)) {
+      throw new Error("Invalid cartId");
+    }
+
+    const cart = await Cart.findOne({
+      _id: cartId,
+      ...buildCartOwnerQuery(owner),
+    });
+
+    if (!cart) {
+      throw new Error("Cart not found");
+    }
+
+    if (cart.status !== "CHECKOUT_PENDING") {
+      throw new Error(
+        "Only checkout pending carts can be reopened.",
+      );
+    }
+
+    cart.status = "ACTIVE";
+
+    cart.set({
+      checkedOutAt: undefined,
+      checkoutExpiresAt: undefined,
+      convertedToBookingAt: undefined,
+      activeBookingId: undefined,
+    });
+
+    await cart.save();
+
+    return cart;
   }
 }
 

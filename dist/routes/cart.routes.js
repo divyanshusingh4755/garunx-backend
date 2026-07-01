@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { createServiceCart, createPackageCart, getUserCarts, getCartById, updateSelectedComponents, updateAddonComponents, updateAddonServices, updateSchedule, updateCustomerDetails, updateCartNotes, recalculateCart, validateCart, checkoutCart, deleteCart, updateSelectedServices, mergeGuestCartToUser, applyCoupon, removeCoupon, } from "../controllers/cart.controllers.js";
+import { createServiceCart, createPackageCart, getUserCarts, getCartById, updateSelectedComponents, updateAddonComponents, updateAddonServices, updateSchedule, updateCustomerDetails, updateCartNotes, recalculateCart, validateCart, checkoutCart, deleteCart, updateSelectedServices, mergeGuestCartToUser, applyCoupon, removeCoupon, reopenCart } from "../controllers/cart.controllers.js";
 import { authenticate, optionalAuthenticate, } from "../middleware/authenticate.js";
 const router = Router();
 router.post("/service", optionalAuthenticate, createServiceCart);
@@ -18,6 +18,7 @@ router.post("/:cartId/validate", optionalAuthenticate, validateCart);
 router.post("/:cartId/checkout", authenticate, checkoutCart);
 router.post("/merge", authenticate, mergeGuestCartToUser);
 router.post("/:cartId/apply-coupon", optionalAuthenticate, applyCoupon);
+router.post("/:cartId/reopen", authenticate, reopenCart);
 router.delete("/:cartId/remove-coupon", optionalAuthenticate, removeCoupon);
 router.delete("/:cartId", optionalAuthenticate, deleteCart);
 export default router;

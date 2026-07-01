@@ -330,6 +330,13 @@ declare class CartService {
     } & {
         id: string;
     }>;
+    static reopenCart(owner: CartOwner, cartId: string): Promise<mongoose.Document<unknown, {}, ICart, {}, mongoose.DefaultSchemaOptions> & ICart & Required<{
+        _id: Types.ObjectId;
+    }> & {
+        __v: number;
+    } & {
+        id: string;
+    }>;
 }
 export default CartService;
 //# sourceMappingURL=cart.service.d.ts.map
