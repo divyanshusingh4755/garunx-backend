@@ -166,8 +166,8 @@ export const toggleCouponStatus = async (req, res) => {
 };
 export const getAllCoupons = async (req, res) => {
     try {
-        const { searchTerm, isActive, assignedUserId, limit, page, sortBy, sortOrder, } = req.query;
-        const result = await CouponService.findCoupons(searchTerm, Number(limit) || 20, Number(page) || 1, isActive === "true" ? true : isActive === "false" ? false : undefined, assignedUserId, sortBy || "createdAt", sortOrder || "desc");
+        const { searchTerm, isActive, assignedUserId, applicableOn, limit, page, sortBy, sortOrder, } = req.query;
+        const result = await CouponService.findCoupons(searchTerm, Number(limit) || 20, Number(page) || 1, isActive === "true" ? true : isActive === "false" ? false : undefined, assignedUserId, applicableOn, sortBy || "createdAt", sortOrder || "desc");
         res.status(200).json({
             success: true,
             ...result,

@@ -41,7 +41,7 @@ export declare class CouponService {
     } & {
         id: string;
     }>;
-    static findCoupons(searchTerm?: string, limit?: number, page?: number, isActive?: boolean, assignedUserId?: string, sortBy?: string, sortOrder?: "asc" | "desc"): Promise<{
+    static findCoupons(searchTerm?: string, limit?: number, page?: number, isActive?: boolean, assignedUserId?: string, applicableOn?: "ALL" | "SERVICE" | "PACKAGE", sortBy?: string, sortOrder?: "asc" | "desc"): Promise<{
         data: (ICoupon & Required<{
             _id: import("mongoose").Types.ObjectId;
         }> & {

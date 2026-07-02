@@ -147,6 +147,7 @@ export class CouponService {
     page: number = 1,
     isActive?: boolean,
     assignedUserId?: string,
+    applicableOn?: "ALL" | "SERVICE" | "PACKAGE",
     sortBy: string = "createdAt",
     sortOrder: "asc" | "desc" = "desc",
   ) {
@@ -160,6 +161,10 @@ export class CouponService {
 
     if (assignedUserId) {
       query.assignedUserId = assignedUserId;
+    }
+
+    if (applicableOn) {
+      query.applicableOn = applicableOn;
     }
 
     if (searchTerm) {

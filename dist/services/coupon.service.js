@@ -86,7 +86,7 @@ export class CouponService {
         await coupon.save();
         return coupon;
     }
-    static async findCoupons(searchTerm, limit = 20, page = 1, isActive, assignedUserId, sortBy = "createdAt", sortOrder = "desc") {
+    static async findCoupons(searchTerm, limit = 20, page = 1, isActive, assignedUserId, applicableOn, sortBy = "createdAt", sortOrder = "desc") {
         const skip = limit * (page - 1);
         const query = {};
         if (typeof isActive === "boolean") {
@@ -94,6 +94,9 @@ export class CouponService {
         }
         if (assignedUserId) {
             query.assignedUserId = assignedUserId;
+        }
+        if (applicableOn) {
+            query.applicableOn = applicableOn;
         }
         if (searchTerm) {
             query.$or = [
