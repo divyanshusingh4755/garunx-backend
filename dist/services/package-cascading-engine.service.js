@@ -127,13 +127,15 @@ export class PackageCascadingEngine {
         if (!mappings.length)
             return false;
         const priceSet = new Set(pricing.map((p) => `${p.tierId.toString()}_${p.locationId.toString()}_${p.serviceId.toString()}`));
+        let totalServicesValidated = 0;
         for (const tier of pkg.tiers) {
             const tierId = tier.tierId.toString();
             const tierServices = mappings
                 .filter((m) => m.tierId.toString() === tierId)
                 .flatMap((m) => m.services || []);
-            if (!tierServices.length)
-                continue;
+            if (!tierServices.length) {
+                return false;
+            }
             for (const loc of activeLocations) {
                 const locationId = loc.locationId.toString();
                 for (const svc of tierServices) {
@@ -142,10 +144,11 @@ export class PackageCascadingEngine {
                     if (!priceSet.has(key)) {
                         return false;
                     }
+                    totalServicesValidated++;
                 }
             }
         }
-        return true;
+        return totalServicesValidated > 0;
     }
 }
 //# sourceMappingURL=package-cascading-engine.service.js.map

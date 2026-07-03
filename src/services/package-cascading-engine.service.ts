@@ -181,6 +181,8 @@ export class PackageCascadingEngine {
       ),
     );
 
+    let totalServicesValidated = 0;
+
     for (const tier of pkg.tiers) {
       const tierId = tier.tierId.toString();
 
@@ -188,7 +190,9 @@ export class PackageCascadingEngine {
         .filter((m) => m.tierId.toString() === tierId)
         .flatMap((m) => m.services || []);
 
-      if (!tierServices.length) continue;
+      if (!tierServices.length) {
+        return false;
+      }
 
       for (const loc of activeLocations) {
         const locationId = loc.locationId.toString();
@@ -201,10 +205,11 @@ export class PackageCascadingEngine {
           if (!priceSet.has(key)) {
             return false;
           }
+          totalServicesValidated++;
         }
       }
     }
 
-    return true;
+    return totalServicesValidated > 0;
   }
 }
