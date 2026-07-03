@@ -37,9 +37,10 @@ router.post(
   body("tierId").isMongoId().withMessage("Invalid tierId"),
 
   body("services")
-    .optional()
+    .optional({ checkFalsy: true })
     .isArray()
-    .withMessage("services array is required"),
+    .withMessage("services must be an array"),
+
   body("services.*.serviceId").isMongoId().withMessage("Invalid serviceId"),
   body("services.*.name").notEmpty().withMessage("Service name is required"),
   body("services.*.isRequired")
@@ -50,7 +51,10 @@ router.post(
     .optional()
     .isBoolean()
     .withMessage("isRelated must be boolean"),
+
   body("services").custom((services) => {
+    if (!services || !services.length) return true;
+
     for (const s of services) {
       if (s.isRequired && s.isRelated) {
         throw new Error("Service cannot be both required and related");
@@ -68,10 +72,12 @@ router.put(
   authenticate,
   body("packageId").isMongoId().withMessage("Invalid packageId"),
   body("tierId").isMongoId().withMessage("Invalid tierId"),
+
   body("services")
-    .optional()
+    .optional({ checkFalsy: true })
     .isArray()
-    .withMessage("services array is required"),
+    .withMessage("services must be an array"),
+
   body("services.*.serviceId").isMongoId().withMessage("Invalid serviceId"),
   body("services.*.name").notEmpty().withMessage("Service name is required"),
   body("services.*.isRequired")
@@ -84,6 +90,8 @@ router.put(
     .withMessage("isRelated must be boolean"),
 
   body("services").custom((services) => {
+    if (!services || !services.length) return true;
+
     for (const s of services) {
       if (s.isRequired && s.isRelated) {
         throw new Error("Service cannot be both required and related");

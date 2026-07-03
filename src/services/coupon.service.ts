@@ -249,13 +249,16 @@ export class CouponService {
           throw new Error("This coupon is applicable only for services");
         }
 
-        if (
-          coupon.services.length > 0 &&
-          !coupon.services.some((id) => id.toString() === serviceId)
-        ) {
-          throw new Error("Coupon is not applicable for this service");
-        }
+        if (coupon.services && coupon.services.length > 0) {
+          const isApplicable = coupon.services.some((item) => {
+            const targetId = item && typeof item === 'object' && '_id' in item ? item._id : item;
+            return targetId?.toString() === serviceId;
+          });
 
+          if (!isApplicable) {
+            throw new Error("Coupon is not applicable for this service");
+          }
+        }
         break;
 
       case "PACKAGE":
@@ -263,13 +266,16 @@ export class CouponService {
           throw new Error("This coupon is applicable only for packages");
         }
 
-        if (
-          coupon.packages.length > 0 &&
-          !coupon.packages.some((id) => id.toString() === packageId)
-        ) {
-          throw new Error("Coupon is not applicable for this package");
-        }
+        if (coupon.packages && coupon.packages.length > 0) {
+          const isApplicable = coupon.packages.some((item) => {
+            const targetId = item && typeof item === 'object' && '_id' in item ? item._id : item;
+            return targetId?.toString() === packageId;
+          });
 
+          if (!isApplicable) {
+            throw new Error("Coupon is not applicable for this package");
+          }
+        }
         break;
 
       case "ALL":

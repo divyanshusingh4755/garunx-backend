@@ -19,15 +19,17 @@ const packageTierValidation = [
     validate,
 ];
 router.post("/bulk", authenticate, body("packageId").isMongoId().withMessage("Invalid packageId"), body("tierId").isMongoId().withMessage("Invalid tierId"), body("services")
-    .optional()
+    .optional({ checkFalsy: true })
     .isArray()
-    .withMessage("services array is required"), body("services.*.serviceId").isMongoId().withMessage("Invalid serviceId"), body("services.*.name").notEmpty().withMessage("Service name is required"), body("services.*.isRequired")
+    .withMessage("services must be an array"), body("services.*.serviceId").isMongoId().withMessage("Invalid serviceId"), body("services.*.name").notEmpty().withMessage("Service name is required"), body("services.*.isRequired")
     .optional()
     .isBoolean()
     .withMessage("isRequired must be boolean"), body("services.*.isRelated")
     .optional()
     .isBoolean()
     .withMessage("isRelated must be boolean"), body("services").custom((services) => {
+    if (!services || !services.length)
+        return true;
     for (const s of services) {
         if (s.isRequired && s.isRelated) {
             throw new Error("Service cannot be both required and related");
@@ -36,15 +38,17 @@ router.post("/bulk", authenticate, body("packageId").isMongoId().withMessage("In
     return true;
 }), validate, bulkUpsertPackageTierMappings);
 router.put("/replace", authenticate, body("packageId").isMongoId().withMessage("Invalid packageId"), body("tierId").isMongoId().withMessage("Invalid tierId"), body("services")
-    .optional()
+    .optional({ checkFalsy: true })
     .isArray()
-    .withMessage("services array is required"), body("services.*.serviceId").isMongoId().withMessage("Invalid serviceId"), body("services.*.name").notEmpty().withMessage("Service name is required"), body("services.*.isRequired")
+    .withMessage("services must be an array"), body("services.*.serviceId").isMongoId().withMessage("Invalid serviceId"), body("services.*.name").notEmpty().withMessage("Service name is required"), body("services.*.isRequired")
     .optional()
     .isBoolean()
     .withMessage("isRequired must be boolean"), body("services.*.isRelated")
     .optional()
     .isBoolean()
     .withMessage("isRelated must be boolean"), body("services").custom((services) => {
+    if (!services || !services.length)
+        return true;
     for (const s of services) {
         if (s.isRequired && s.isRelated) {
             throw new Error("Service cannot be both required and related");

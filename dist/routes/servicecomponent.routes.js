@@ -18,8 +18,8 @@ const serviceTierValidation = [
     param("tierId").isMongoId().withMessage("Invalid tierId"),
     validate,
 ];
-router.post("/bulk", authenticate, body("serviceId").isMongoId(), body("tierId").isMongoId(), body("components").isArray({ min: 1 }), validate, bulkUpsertServiceComponents);
-router.put("/replace", authenticate, body("serviceId").isMongoId(), body("tierId").isMongoId(), body("components").isArray({ min: 1 }), validate, replaceServiceComponents);
+router.post("/bulk", authenticate, body("serviceId").isMongoId(), body("tierId").isMongoId(), body("components").optional().isArray({ min: 1 }), validate, bulkUpsertServiceComponents);
+router.put("/replace", authenticate, body("serviceId").isMongoId(), body("tierId").isMongoId(), body("components").optional().isArray({ min: 1 }), validate, replaceServiceComponents);
 router.get("/:serviceId/:tierId", authenticate, serviceTierValidation, getComponentsByServiceAndTier);
 router.patch("/", authenticate, body("serviceId").isMongoId(), body("tierId").isMongoId(), body("componentId").isMongoId(), validate, updateServiceComponent);
 export default router;
