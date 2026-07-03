@@ -14,8 +14,8 @@ export class ServiceComponentService {
         if (!Types.ObjectId.isValid(tierId)) {
             throw new Error("Invalid tierId");
         }
-        if (!Array.isArray(components) || components.length === 0) {
-            throw new Error("Components array is required");
+        if (!Array.isArray(components)) {
+            throw new Error("Components field must be an array");
         }
         const service = await Service.findById(serviceId);
         if (!service) {
@@ -24,6 +24,18 @@ export class ServiceComponentService {
         const tierExists = service.tiers.some((t) => t.tierId.toString() === tierId);
         if (!tierExists) {
             throw new Error("Tier does not belong to service");
+        }
+        if (components.length === 0) {
+            await ServiceComponent.deleteMany({
+                serviceId,
+                tierId,
+            });
+            await service.save();
+            await ServiceCascadingEngine.run(serviceId);
+            return {
+                success: true,
+                message: "Components cleared successfully",
+            };
         }
         const componentIds = [
             ...new Set(components.map((c) => c.componentId)),
@@ -132,12 +144,29 @@ export class ServiceComponentService {
             if (!Types.ObjectId.isValid(tierId)) {
                 throw new Error("Invalid tierId");
             }
+            if (!Array.isArray(components)) {
+                throw new Error("Components field must be an array");
+            }
             const service = await Service.findById(serviceId).session(session);
             if (!service)
                 throw new Error("Service not found");
             const tierExists = service.tiers.some((t) => t.tierId.toString() === tierId);
             if (!tierExists) {
                 throw new Error("Tier does not belong to service");
+            }
+            if (components.length === 0) {
+                await ServiceComponent.deleteMany({
+                    serviceId,
+                    tierId,
+                }).session(session);
+                await service.save({ session });
+                await session.commitTransaction();
+                session.endSession();
+                await ServiceCascadingEngine.run(serviceId);
+                return {
+                    success: true,
+                    message: "Components cleared successfully",
+                };
             }
             const componentIds = [
                 ...new Set(components.map((c) => c.componentId)),
