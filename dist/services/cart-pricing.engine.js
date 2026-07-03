@@ -1,6 +1,5 @@
 import { ServicePricing } from "../models/servicepricing.model.js";
 import { PackageTierPricing } from "../models/packagetierpricing.model.js";
-import { ComponentItem } from "../models/componentitem.model.js";
 import { ServiceComponent } from "../models/servicecomponent.model.js";
 import { PackageTierMap } from "../models/packagetiermap.model.js";
 export class CartPricingEngine {
@@ -34,24 +33,6 @@ export class CartPricingEngine {
         for (const comp of cart.addonComponents || []) {
             addonPrice += pricingMap.get(comp.componentId.toString()) || 0;
         }
-        const itemIds = [
-            ...(cart.selectedComponents || []),
-            ...(cart.addonComponents || []),
-        ].flatMap((c) => (c.items || []).map((i) => i.itemId));
-        const items = await ComponentItem.find({
-            _id: { $in: itemIds },
-        }).lean();
-        const itemMap = new Map(items.map((i) => [i._id.toString(), i.price]));
-        let itemAddonPrice = 0;
-        for (const comp of [
-            ...(cart.selectedComponents || []),
-            ...(cart.addonComponents || []),
-        ]) {
-            for (const item of comp.items || []) {
-                itemAddonPrice += itemMap.get(item.itemId.toString()) || 0;
-            }
-        }
-        addonPrice += itemAddonPrice;
         const subtotal = basePrice + addonPrice;
         return {
             basePrice,
