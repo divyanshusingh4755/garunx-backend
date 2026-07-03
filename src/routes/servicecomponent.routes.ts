@@ -33,7 +33,7 @@ router.post(
   authenticate,
   body("serviceId").isMongoId(),
   body("tierId").isMongoId(),
-  body("components").optional().isArray({ min: 1 }),
+  body("components").optional().isArray(),
   validate,
   bulkUpsertServiceComponents,
 );
@@ -43,7 +43,7 @@ router.put(
   authenticate,
   body("serviceId").isMongoId(),
   body("tierId").isMongoId(),
-  body("components").optional().isArray({ min: 1 }),
+  body("components").optional().isArray(),
   validate,
   replaceServiceComponents,
 );

@@ -13,8 +13,8 @@ export class PackageTierMapService {
         if (!Types.ObjectId.isValid(tierId)) {
             throw new Error("Invalid tierId");
         }
-        if (!Array.isArray(services) || services.length === 0) {
-            throw new Error("Services array is required");
+        if (!Array.isArray(services)) {
+            throw new Error("Services field must be an array");
         }
         const pkg = await Package.findById(packageId);
         if (!pkg)
@@ -24,6 +24,20 @@ export class PackageTierMapService {
             .some((t) => t.tierId.toString() === tierId);
         if (!tierExists) {
             throw new Error("Tier does not belong to package");
+        }
+        if (services.length === 0) {
+            await PackageTierMap.updateOne({ packageId, tierId }, {
+                $set: {
+                    packageId,
+                    tierId,
+                    services: [],
+                },
+            }, { upsert: true });
+            await PackageCascadingEngine.run(packageId);
+            return {
+                success: true,
+                message: "Package tier services cleared successfully",
+            };
         }
         const serviceIds = [...new Set(services.map((s) => s.serviceId))];
         const objectIds = serviceIds.map((id) => {
@@ -92,8 +106,8 @@ export class PackageTierMapService {
             if (!Types.ObjectId.isValid(tierId)) {
                 throw new Error("Invalid tierId");
             }
-            if (!Array.isArray(services) || services.length === 0) {
-                throw new Error("At least one service is required");
+            if (!Array.isArray(services)) {
+                throw new Error("Services field must be an array");
             }
             const pkg = await Package.findById(packageId).session(session);
             if (!pkg)
@@ -103,6 +117,20 @@ export class PackageTierMapService {
                 .some((t) => t.tierId.toString() === tierId);
             if (!tierExists) {
                 throw new Error("Tier does not belong to package");
+            }
+            if (services.length === 0) {
+                await PackageTierMap.updateOne({ packageId, tierId }, {
+                    $set: {
+                        packageId,
+                        tierId,
+                        services: [],
+                    },
+                }, { upsert: true });
+                await PackageCascadingEngine.run(packageId);
+                return {
+                    success: true,
+                    message: "Package tier services cleared successfully",
+                };
             }
             const serviceIds = [...new Set(services.map((s) => s.serviceId))];
             const objectIds = serviceIds.map((id) => {
