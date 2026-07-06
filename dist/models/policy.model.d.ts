@@ -1,6 +1,7 @@
 import { Document } from "mongoose";
 export interface IContent extends Document {
     type: "TERMS" | "PRIVACY" | "REFUND";
+    userType: "User" | "Coordinator";
     title: string;
     content: string;
     isActive: boolean;

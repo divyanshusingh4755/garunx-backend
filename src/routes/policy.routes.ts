@@ -36,11 +36,15 @@ const validate = (req: Request, res: Response, next: NextFunction) => {
 };
 
 const policyTypes = ["TERMS", "PRIVACY", "REFUND"];
+const userTypes = ["User", "Coordinator"];
 
 const createPolicyValidation = [
   body("type").isIn(policyTypes).withMessage("Invalid policy type"),
   body("title").trim().notEmpty().withMessage("Title is required"),
   body("content").trim().notEmpty().withMessage("Content is required"),
+  body("userType")
+    .isIn(userTypes)
+    .withMessage("Invalid user type"),
 
   validate,
 ];
@@ -70,12 +74,21 @@ const statusValidation = [
 
 const getPoliciesValidation = [
   query("type").optional().isIn(policyTypes).withMessage("Invalid policy type"),
+  query("userType")
+    .optional()
+    .isIn(userTypes)
+    .withMessage("Invalid user type"),
 
   validate,
 ];
 
 const getPolicyByTypeValidation = [
   param("type").isIn(policyTypes).withMessage("Invalid policy type"),
+  query("userType")
+    .exists()
+    .withMessage("userType is required")
+    .isIn(userTypes)
+    .withMessage("Invalid user type"),
 
   validate,
 ];

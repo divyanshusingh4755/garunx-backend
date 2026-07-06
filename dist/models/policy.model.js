@@ -20,6 +20,7 @@ const contentSchema = new Schema({
         default: false,
         index: true,
     },
+    userType: { type: String, enum: ["User", "Coordinator"], default: "User" },
     version: {
         type: Number,
         required: true,
@@ -34,6 +35,7 @@ const contentSchema = new Schema({
 });
 contentSchema.index({
     type: 1,
+    userType: 1,
     isActive: 1,
 }, {
     unique: true,
@@ -43,10 +45,12 @@ contentSchema.index({
 });
 contentSchema.index({
     type: 1,
+    userType: 1,
     version: -1,
 });
 contentSchema.index({
     type: 1,
+    userType: 1,
     publishedAt: -1,
 });
 export const Content = model("Content", contentSchema);

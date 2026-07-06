@@ -1,8 +1,14 @@
 import { FAQ } from "../models/faq.model.js";
 export class FAQService {
     static async createFaq(faqData) {
+        if (!faqData.name) {
+            throw new Error("Name is required");
+        }
         if (!faqData.question) {
             throw new Error("Question is required");
+        }
+        if (!faqData.answer) {
+            throw new Error("Answer is required");
         }
         const faq = new FAQ(faqData);
         return await faq.save();
@@ -22,11 +28,11 @@ export class FAQService {
         return faq;
     }
     static async deleteFaq(id) {
-        const faq = await FAQ.findById(id);
+        const faq = await FAQ.findByIdAndDelete(id);
         if (!faq) {
             throw new Error("FAQ not found");
         }
-        return await FAQ.findByIdAndDelete(id);
+        return faq;
     }
     static async toggleFaqStatus(id) {
         const faq = await FAQ.findById(id);
@@ -37,9 +43,12 @@ export class FAQService {
         await faq.save();
         return faq;
     }
-    static async findFaqs(searchTerm, limit = 20, page = 1, isActive, sortBy = "displayOrder", sortOrder = "asc") {
+    static async findFaqs(searchTerm, faqType, limit = 20, page = 1, isActive, sortBy = "displayOrder", sortOrder = "asc") {
         const skip = limit * (page - 1);
         const query = {};
+        if (faqType) {
+            query.faqType = faqType;
+        }
         if (typeof isActive === "boolean") {
             query.isActive = isActive;
         }
@@ -52,7 +61,7 @@ export class FAQService {
         }
         const sortCriteria = {};
         sortCriteria[sortBy] = sortOrder === "desc" ? -1 : 1;
-        if (sortBy === "createdAt") {
+        if (sortBy !== "createdAt") {
             sortCriteria.createdAt = -1;
         }
         try {

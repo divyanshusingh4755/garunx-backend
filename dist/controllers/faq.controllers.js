@@ -1,13 +1,14 @@
 import { FAQService } from "../services/faq.service.js";
 export const createFaq = async (req, res) => {
     try {
-        const { name, question, answer, displayOrder, isActive } = req.body;
+        const { name, question, answer, faqType, displayOrder, isActive, } = req.body;
         const faq = await FAQService.createFaq({
             name,
             question,
             answer,
-            displayOrder: Number(displayOrder) || 0,
-            isActive: isActive !== undefined ? isActive : true,
+            faqType,
+            displayOrder: Number(displayOrder ?? 0),
+            isActive: isActive ?? true,
         });
         res.status(201).json({
             success: true,
@@ -25,11 +26,12 @@ export const createFaq = async (req, res) => {
 export const updateFaq = async (req, res) => {
     try {
         const { id } = req.params;
-        const { name, question, answer, displayOrder, isActive } = req.body;
+        const { name, question, answer, faqType, displayOrder, isActive, } = req.body;
         const updateData = {
             name,
             question,
             answer,
+            faqType,
             isActive,
         };
         if (displayOrder !== undefined) {
@@ -100,8 +102,8 @@ export const toggleFaqStatus = async (req, res) => {
 };
 export const getAllFaqs = async (req, res) => {
     try {
-        const { searchTerm, isActive, limit, page, sortBy, sortOrder } = req.query;
-        const result = await FAQService.findFaqs(searchTerm, Number(limit) || 20, Number(page) || 1, isActive === "true" ? true : isActive === "false" ? false : undefined, sortBy || "displayOrder", sortOrder || "asc");
+        const { searchTerm, faqType, isActive, limit, page, sortBy, sortOrder, } = req.query;
+        const result = await FAQService.findFaqs(searchTerm, faqType, Number(limit) || 20, Number(page) || 1, isActive === "true" ? true : isActive === "false" ? false : undefined, sortBy || "displayOrder", sortOrder || "asc");
         res.status(200).json({
             success: true,
             ...result,

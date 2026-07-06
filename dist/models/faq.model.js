@@ -17,6 +17,7 @@ const faqSchema = new Schema({
         trim: true,
     },
     isActive: { type: Boolean, default: true },
+    faqType: { type: String, enum: ["User", "Coordinator"], default: "User" },
     displayOrder: {
         type: Number,
         default: 0,

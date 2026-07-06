@@ -48,11 +48,22 @@ const createBannerValidation = [
     .isIn(["WEB", "MOBILE", "BOTH"])
     .withMessage("Invalid format"),
 
-  body("images")
-    .isArray({ min: 1 })
-    .withMessage("At least one image is required"),
+  body("image")
+    .notEmpty()
+    .withMessage("Image is required")
+    .isURL()
+    .withMessage("Image must be a valid URL"),
 
-  body("images.*").isURL().withMessage("Each image must be a valid URL"),
+  body("description")
+    .notEmpty()
+    .withMessage("Description is required")
+    .isString()
+    .trim(),
+
+  body("buttonText")
+    .optional()
+    .isString()
+    .trim(),
 
   body("isActive")
     .optional()
@@ -80,15 +91,20 @@ const updateBannerValidation = [
     .isIn(["WEB", "MOBILE", "BOTH"])
     .withMessage("Invalid format"),
 
-  body("images")
-    .optional()
-    .isArray({ min: 1 })
-    .withMessage("Images must be an array"),
-
-  body("images.*")
+  body("image")
     .optional()
     .isURL()
-    .withMessage("Each image must be a valid URL"),
+    .withMessage("Image must be a valid URL"),
+
+  body("description")
+    .optional()
+    .isString()
+    .trim(),
+
+  body("buttonText")
+    .optional()
+    .isString()
+    .trim(),
 
   body("isActive")
     .optional()

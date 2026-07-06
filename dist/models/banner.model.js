@@ -6,6 +6,13 @@ const bannerSchema = new Schema({
         required: true,
         trim: true,
     },
+    description: {
+        type: String,
+        required: true,
+    },
+    buttonText: {
+        type: String
+    },
     placement: {
         type: String,
         required: true,
@@ -17,9 +24,8 @@ const bannerSchema = new Schema({
         enum: ["WEB", "MOBILE", "BOTH"],
     },
     isActive: { type: Boolean, default: true },
-    images: {
-        type: [String],
-        default: [],
+    image: {
+        type: String,
     },
     displayOrder: {
         type: Number,

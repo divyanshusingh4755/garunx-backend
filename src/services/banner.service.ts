@@ -6,6 +6,14 @@ export class BannerService {
       throw new Error("Banner name is required");
     }
 
+    if (!bannerData.image) {
+      throw new Error("Image is required");
+    }
+
+    if (!bannerData.description) {
+      throw new Error("Description is required");
+    }
+
     const banner = new Banner(bannerData);
     return await banner.save();
   }
@@ -80,6 +88,12 @@ export class BannerService {
       query.$or = [
         {
           name: {
+            $regex: searchTerm,
+            $options: "i",
+          },
+        },
+        {
+          description: {
             $regex: searchTerm,
             $options: "i",
           },

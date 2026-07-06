@@ -1,7 +1,9 @@
 import { Types } from "mongoose";
 type PolicyType = "TERMS" | "PRIVACY" | "REFUND";
+type UserType = "User" | "Coordinator";
 interface CreatePolicyPayload {
     type: PolicyType;
+    userType: UserType;
     title: string;
     content: string;
 }
@@ -24,7 +26,7 @@ export declare class PolicyService {
     } & {
         id: string;
     }>;
-    static getAllPolicies(page?: number, limit?: number, type?: PolicyType): Promise<{
+    static getAllPolicies(page?: number, limit?: number, type?: PolicyType, userType?: UserType): Promise<{
         data: (import("../models/policy.model.js").IContent & Required<{
             _id: Types.ObjectId;
         }> & {
@@ -41,7 +43,7 @@ export declare class PolicyService {
     } & {
         id: string;
     }>;
-    static getPolicyByType(type: PolicyType): Promise<import("../models/policy.model.js").IContent & Required<{
+    static getPolicyByType(type: PolicyType, userType: UserType): Promise<import("../models/policy.model.js").IContent & Required<{
         _id: Types.ObjectId;
     }> & {
         __v: number;

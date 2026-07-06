@@ -1,14 +1,16 @@
 import { BannerService } from "../services/banner.service.js";
 export const createBanner = async (req, res) => {
     try {
-        const { name, placement, format, images, displayOrder, isActive } = req.body;
+        const { name, description, buttonText, placement, format, image, displayOrder, isActive, } = req.body;
         const banner = await BannerService.createBanner({
             name,
+            description,
+            buttonText,
             placement,
             format,
-            images,
-            displayOrder: Number(displayOrder) || 0,
-            isActive: isActive !== undefined ? isActive : true,
+            image,
+            displayOrder: Number(displayOrder ?? 0),
+            isActive: isActive ?? true,
         });
         res.status(201).json({
             success: true,
@@ -26,12 +28,14 @@ export const createBanner = async (req, res) => {
 export const updateBanner = async (req, res) => {
     try {
         const { id } = req.params;
-        const { name, placement, format, images, displayOrder, isActive } = req.body;
+        const { name, description, buttonText, placement, format, image, displayOrder, isActive, } = req.body;
         const updateData = {
             name,
+            description,
+            buttonText,
             placement,
             format,
-            images,
+            image,
             isActive,
         };
         if (displayOrder !== undefined) {

@@ -4,6 +4,7 @@ export class PolicyService {
     static async createPolicy(payload) {
         const latestPolicy = await Content.findOne({
             type: payload.type,
+            userType: payload.userType,
         })
             .sort({ version: -1 })
             .lean();
@@ -28,16 +29,20 @@ export class PolicyService {
         }
         return policy;
     }
-    static async getAllPolicies(page = 1, limit = 20, type) {
+    static async getAllPolicies(page = 1, limit = 20, type, userType) {
         const skip = (page - 1) * limit;
         const query = {};
         if (type) {
             query.type = type;
         }
+        if (userType) {
+            query.userType = userType;
+        }
         const [data, total] = await Promise.all([
             Content.find(query)
                 .sort({
                 type: 1,
+                userType: 1,
                 version: -1,
             })
                 .skip(skip)
@@ -63,6 +68,7 @@ export class PolicyService {
         if (isActive) {
             await Content.updateMany({
                 type: policy.type,
+                userType: policy.userType,
                 isActive: true,
             }, {
                 $set: {
@@ -78,13 +84,15 @@ export class PolicyService {
         await policy.save();
         return policy;
     }
-    static async getPolicyByType(type) {
+    static async getPolicyByType(type, userType) {
         const policy = await Content.findOne({
             type,
+            userType,
             isActive: true,
         })
             .select({
             type: 1,
+            userType: 1,
             title: 1,
             content: 1,
             version: 1,

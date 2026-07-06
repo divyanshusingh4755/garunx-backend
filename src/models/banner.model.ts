@@ -3,10 +3,12 @@ import { model, Schema, Document } from "mongoose";
 export interface IBanner extends Document {
   version: number;
   name: string;
+  description: string;
+  buttonText?: string;
   placement: string;
   format: string;
   isActive: boolean;
-  images: string[];
+  image: string;
   displayOrder: number;
 }
 
@@ -18,6 +20,15 @@ const bannerSchema = new Schema<IBanner>(
       type: String,
       required: true,
       trim: true,
+    },
+
+    description: {
+      type: String,
+      required: true,
+    },
+
+    buttonText: {
+      type: String
     },
 
     placement: {
@@ -34,9 +45,8 @@ const bannerSchema = new Schema<IBanner>(
 
     isActive: { type: Boolean, default: true },
 
-    images: {
-      type: [String],
-      default: [],
+    image: {
+      type: String,
     },
 
     displayOrder: {

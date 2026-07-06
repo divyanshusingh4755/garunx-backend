@@ -2,10 +2,12 @@ import { Document } from "mongoose";
 export interface IBanner extends Document {
     version: number;
     name: string;
+    description: string;
+    buttonText?: string;
     placement: string;
     format: string;
     isActive: boolean;
-    images: string[];
+    image: string;
     displayOrder: number;
 }
 export declare const Banner: import("mongoose").Model<IBanner, {}, {}, {}, Document<unknown, {}, IBanner, {}, import("mongoose").DefaultSchemaOptions> & IBanner & Required<{

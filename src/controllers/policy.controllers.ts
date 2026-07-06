@@ -2,6 +2,9 @@ import type { Request, Response } from "express";
 
 import { PolicyService } from "../services/policy.service.js";
 
+type PolicyType = "TERMS" | "PRIVACY" | "REFUND";
+type UserType = "User" | "Coordinator";
+
 export const createPolicy = async (req: Request, res: Response) => {
   try {
     const data = await PolicyService.createPolicy(req.body);
@@ -38,7 +41,7 @@ export const updatePolicy = async (req: Request, res: Response) => {
 
 export const getAllPolicies = async (req: Request, res: Response) => {
   try {
-    const { page, limit, type } = req.query;
+    const { page, limit, type, userType } = req.query;
 
     const {
       data,
@@ -48,7 +51,8 @@ export const getAllPolicies = async (req: Request, res: Response) => {
     } = await PolicyService.getAllPolicies(
       Number(page) || 1,
       Number(limit) || 20,
-      type as "TERMS" | "PRIVACY" | "REFUND" | undefined,
+      type as PolicyType | undefined,
+      userType as UserType | undefined,
     );
 
     return res.status(200).json({
@@ -88,9 +92,11 @@ export const togglePolicyStatus = async (req: Request, res: Response) => {
 export const getPolicyByType = async (req: Request, res: Response) => {
   try {
     const { type } = req.params;
+    const { userType } = req.query;
 
     const data = await PolicyService.getPolicyByType(
-      type as "TERMS" | "PRIVACY" | "REFUND",
+      type as PolicyType,
+      userType as UserType,
     );
 
     return res.status(200).json({

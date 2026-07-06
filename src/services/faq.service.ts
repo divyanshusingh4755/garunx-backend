@@ -2,8 +2,16 @@ import { FAQ, type IFAQ } from "../models/faq.model.js";
 
 export class FAQService {
   static async createFaq(faqData: Partial<IFAQ>) {
+    if (!faqData.name) {
+      throw new Error("Name is required");
+    }
+
     if (!faqData.question) {
       throw new Error("Question is required");
+    }
+
+    if (!faqData.answer) {
+      throw new Error("Answer is required");
     }
 
     const faq = new FAQ(faqData);
@@ -35,13 +43,13 @@ export class FAQService {
   }
 
   static async deleteFaq(id: string) {
-    const faq = await FAQ.findById(id);
+    const faq = await FAQ.findByIdAndDelete(id);
 
     if (!faq) {
       throw new Error("FAQ not found");
     }
 
-    return await FAQ.findByIdAndDelete(id);
+    return faq;
   }
 
   static async toggleFaqStatus(id: string) {
@@ -60,6 +68,7 @@ export class FAQService {
 
   static async findFaqs(
     searchTerm?: string,
+    faqType?: string,
     limit: number = 20,
     page: number = 1,
     isActive?: boolean,
@@ -69,6 +78,10 @@ export class FAQService {
     const skip = limit * (page - 1);
 
     const query: any = {};
+
+    if (faqType) {
+      query.faqType = faqType;
+    }
 
     if (typeof isActive === "boolean") {
       query.isActive = isActive;
@@ -85,7 +98,7 @@ export class FAQService {
     const sortCriteria: any = {};
     sortCriteria[sortBy] = sortOrder === "desc" ? -1 : 1;
 
-    if (sortBy === "createdAt") {
+    if (sortBy !== "createdAt") {
       sortCriteria.createdAt = -1;
     }
 

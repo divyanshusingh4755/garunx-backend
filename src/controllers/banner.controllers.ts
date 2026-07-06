@@ -4,16 +4,26 @@ import type { IBanner } from "../models/banner.model.js";
 
 export const createBanner = async (req: Request, res: Response) => {
   try {
-    const { name, placement, format, images, displayOrder, isActive } =
-      req.body;
+    const {
+      name,
+      description,
+      buttonText,
+      placement,
+      format,
+      image,
+      displayOrder,
+      isActive,
+    } = req.body;
 
     const banner = await BannerService.createBanner({
       name,
+      description,
+      buttonText,
       placement,
       format,
-      images,
-      displayOrder: Number(displayOrder) || 0,
-      isActive: isActive !== undefined ? isActive : true,
+      image,
+      displayOrder: Number(displayOrder ?? 0),
+      isActive: isActive ?? true,
     });
 
     res.status(201).json({
@@ -33,14 +43,24 @@ export const updateBanner = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
 
-    const { name, placement, format, images, displayOrder, isActive } =
-      req.body;
+    const {
+      name,
+      description,
+      buttonText,
+      placement,
+      format,
+      image,
+      displayOrder,
+      isActive,
+    } = req.body;
 
     const updateData: Partial<IBanner> = {
       name,
+      description,
+      buttonText,
       placement,
       format,
-      images,
+      image,
       isActive,
     };
 
@@ -107,9 +127,8 @@ export const toggleBannerStatus = async (req: Request, res: Response) => {
 
     res.status(200).json({
       success: true,
-      message: `Banner ${
-        banner.isActive ? "activated" : "deactivated"
-      } successfully`,
+      message: `Banner ${banner.isActive ? "activated" : "deactivated"
+        } successfully`,
       data: banner,
     });
   } catch (error: any) {

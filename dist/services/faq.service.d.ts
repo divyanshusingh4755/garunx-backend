@@ -19,13 +19,13 @@ export declare class FAQService {
     }> & {
         __v: number;
     }>;
-    static deleteFaq(id: string): Promise<(import("mongoose").Document<unknown, {}, IFAQ, {}, import("mongoose").DefaultSchemaOptions> & IFAQ & Required<{
+    static deleteFaq(id: string): Promise<import("mongoose").Document<unknown, {}, IFAQ, {}, import("mongoose").DefaultSchemaOptions> & IFAQ & Required<{
         _id: import("mongoose").Types.ObjectId;
     }> & {
         __v: number;
     } & {
         id: string;
-    }) | null>;
+    }>;
     static toggleFaqStatus(id: string): Promise<import("mongoose").Document<unknown, {}, IFAQ, {}, import("mongoose").DefaultSchemaOptions> & IFAQ & Required<{
         _id: import("mongoose").Types.ObjectId;
     }> & {
@@ -33,7 +33,7 @@ export declare class FAQService {
     } & {
         id: string;
     }>;
-    static findFaqs(searchTerm?: string, limit?: number, page?: number, isActive?: boolean, sortBy?: string, sortOrder?: "asc" | "desc"): Promise<{
+    static findFaqs(searchTerm?: string, faqType?: string, limit?: number, page?: number, isActive?: boolean, sortBy?: string, sortOrder?: "asc" | "desc"): Promise<{
         data: (IFAQ & Required<{
             _id: import("mongoose").Types.ObjectId;
         }> & {

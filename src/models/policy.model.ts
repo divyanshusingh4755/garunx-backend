@@ -2,6 +2,7 @@ import { Document, model, Schema } from "mongoose";
 
 export interface IContent extends Document {
   type: "TERMS" | "PRIVACY" | "REFUND";
+  userType: "User" | "Coordinator"
   title: string;
   content: string;
   isActive: boolean;
@@ -35,6 +36,8 @@ const contentSchema = new Schema<IContent>(
       index: true,
     },
 
+    userType: { type: String, enum: ["User", "Coordinator"], default: "User" },
+
     version: {
       type: Number,
       required: true,
@@ -54,6 +57,7 @@ const contentSchema = new Schema<IContent>(
 contentSchema.index(
   {
     type: 1,
+    userType: 1,
     isActive: 1,
   },
   {
@@ -66,11 +70,13 @@ contentSchema.index(
 
 contentSchema.index({
   type: 1,
+  userType: 1,
   version: -1,
 });
 
 contentSchema.index({
   type: 1,
+  userType: 1,
   publishedAt: -1,
 });
 

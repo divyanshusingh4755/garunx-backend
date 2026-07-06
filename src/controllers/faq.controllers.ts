@@ -1,16 +1,25 @@
 import type { Request, Response } from "express";
 import { FAQService } from "../services/faq.service.js";
+import type { IFAQ } from "../models/faq.model.js";
 
 export const createFaq = async (req: Request, res: Response) => {
   try {
-    const { name, question, answer, displayOrder, isActive } = req.body;
+    const {
+      name,
+      question,
+      answer,
+      faqType,
+      displayOrder,
+      isActive,
+    } = req.body;
 
     const faq = await FAQService.createFaq({
       name,
       question,
       answer,
-      displayOrder: Number(displayOrder) || 0,
-      isActive: isActive !== undefined ? isActive : true,
+      faqType,
+      displayOrder: Number(displayOrder ?? 0),
+      isActive: isActive ?? true,
     });
 
     res.status(201).json({
@@ -30,12 +39,20 @@ export const updateFaq = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
 
-    const { name, question, answer, displayOrder, isActive } = req.body;
-
-    const updateData: any = {
+    const {
       name,
       question,
       answer,
+      faqType,
+      displayOrder,
+      isActive,
+    } = req.body;
+
+    const updateData: Partial<IFAQ> = {
+      name,
+      question,
+      answer,
+      faqType,
       isActive,
     };
 
@@ -115,10 +132,19 @@ export const toggleFaqStatus = async (req: Request, res: Response) => {
 
 export const getAllFaqs = async (req: Request, res: Response) => {
   try {
-    const { searchTerm, isActive, limit, page, sortBy, sortOrder } = req.query;
+    const {
+      searchTerm,
+      faqType,
+      isActive,
+      limit,
+      page,
+      sortBy,
+      sortOrder,
+    } = req.query;
 
     const result = await FAQService.findFaqs(
       searchTerm as string,
+      faqType as string,
       Number(limit) || 20,
       Number(page) || 1,
       isActive === "true" ? true : isActive === "false" ? false : undefined,

@@ -33,6 +33,11 @@ const faqValidation = [
     .isBoolean()
     .withMessage("isActive must be a boolean"),
 
+  body("faqType")
+    .optional()
+    .isIn(["User", "Coordinator"])
+    .withMessage("Invalid FAQ type"),
+
   body("displayOrder")
     .optional()
     .isInt({ min: 0 })

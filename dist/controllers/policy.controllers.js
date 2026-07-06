@@ -32,8 +32,8 @@ export const updatePolicy = async (req, res) => {
 };
 export const getAllPolicies = async (req, res) => {
     try {
-        const { page, limit, type } = req.query;
-        const { data, total, page: currentPage, totalPages, } = await PolicyService.getAllPolicies(Number(page) || 1, Number(limit) || 20, type);
+        const { page, limit, type, userType } = req.query;
+        const { data, total, page: currentPage, totalPages, } = await PolicyService.getAllPolicies(Number(page) || 1, Number(limit) || 20, type, userType);
         return res.status(200).json({
             success: true,
             data,
@@ -69,7 +69,8 @@ export const togglePolicyStatus = async (req, res) => {
 export const getPolicyByType = async (req, res) => {
     try {
         const { type } = req.params;
-        const data = await PolicyService.getPolicyByType(type);
+        const { userType } = req.query;
+        const data = await PolicyService.getPolicyByType(type, userType);
         return res.status(200).json({
             success: true,
             data,

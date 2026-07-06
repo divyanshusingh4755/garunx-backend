@@ -6,6 +6,7 @@ export interface IFAQ extends Document {
     answer: string;
     isActive: boolean;
     displayOrder: number;
+    faqType: "User" | "Coordinator";
 }
 export declare const FAQ: import("mongoose").Model<IFAQ, {}, {}, {}, Document<unknown, {}, IFAQ, {}, import("mongoose").DefaultSchemaOptions> & IFAQ & Required<{
     _id: import("mongoose").Types.ObjectId;
