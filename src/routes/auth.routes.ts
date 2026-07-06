@@ -213,7 +213,7 @@ router.post('/forgot-password', passwordResetRateLimiter, forgotPassword);
 router.post('/reset-password', passwordResetRateLimiter, resetPassword);
 
 // --- PROFILE COMPLETION ---
-router.patch('/complete-profile', authenticate, profileValidation, completeProfile);
+router.patch('/complete-profile', profileValidation, completeProfile);
 
 // --- PROTECTED ROUTES ---
 router.post('/change-password', authenticate, changePassword);
