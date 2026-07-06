@@ -1,6 +1,7 @@
 import type { Request, Response } from 'express';
 import AuthService from '../services/auth.service.js';
 import { Role } from '../types/rbac.js';
+import { getClientIp } from '../utils/clientIp.js';
 
 export const register = async (req: Request, res: Response) => {
     try {
@@ -35,18 +36,7 @@ export const register = async (req: Request, res: Response) => {
 export const socialAuth = async (req: Request, res: Response) => {
     try {
         const { role, idToken, email } = req.body;
-        const userAgent = req.get('User-Agent') || 'unknown';
-        const forwarded = req.headers['x-forwarded-for'];
-        const ip = typeof forwarded === 'string'
-            ? forwarded.split(',')[0]
-            : (req.headers['x-real-ip'] as string) || req.socket.remoteAddress || '0.0.0.0';
-
-        if (!idToken && !email && !role) {
-            return res.status(400).json({
-                success: false,
-                message: 'token, role and email is required'
-            });
-        }
+        const { userAgent, ip } = getClientIp(req)
 
         const result = await AuthService.socialAuth(role, email, userAgent, ip);
 
@@ -73,13 +63,6 @@ export const socialAuth = async (req: Request, res: Response) => {
 export const verifyOtp = async (req: Request, res: Response) => {
     try {
         const { userId, otp, email } = req.body;
-
-        if (!otp || (!userId && !email)) {
-            return res.status(400).json({
-                success: false,
-                message: 'OTP and either User ID and email is required'
-            });
-        }
 
         const user = await AuthService.verifyOtp(userId, otp, email);
 
@@ -121,7 +104,7 @@ export const resendOtp = async (req: Request, res: Response) => {
         if (!userId && !email) {
             return res.status(400).json({
                 success: false,
-                message: 'User ID and email is required to resend OTP'
+                message: 'Either User ID or email is required.'
             });
         }
 
@@ -149,11 +132,7 @@ export const login = async (req: Request, res: Response) => {
             return res.status(400).json({ success: false, message: "Please specify the role for login." });
         }
 
-        const userAgent = req.get('User-Agent') || 'unknown';
-        const forwarded = req.headers['x-forwarded-for'];
-        const ip = typeof forwarded === 'string'
-            ? forwarded.split(',')[0]
-            : (req.headers['x-real-ip'] as string) || req.socket.remoteAddress || '0.0.0.0';
+        const { userAgent, ip } = getClientIp(req)
 
         const { user, accessToken, refreshToken } = await AuthService.loginUser(
             identifier,
@@ -210,11 +189,7 @@ export const refreshToken = async (req: Request, res: Response) => {
     }
 
     try {
-        const userAgent = req.get('User-Agent') || 'unknown';
-        const forwarded = req.headers['x-forwarded-for'];
-        const ip = typeof forwarded === 'string'
-            ? forwarded.split(',')[0]
-            : (req.headers['x-real-ip'] as string) || req.socket.remoteAddress || '0.0.0.0';
+        const { userAgent, ip } = getClientIp(req)
 
         const { accessToken, refreshToken: newRefreshToken } = await AuthService.refreshAccesToken(
             oldToken,
@@ -393,7 +368,7 @@ export const changePassword = async (req: Request, res: Response) => {
     }
 };
 
-export const getGetAllUser = async (req: Request, res: Response) => {
+export const getAllUsers = async (req: Request, res: Response) => {
     try {
         const { limit, page, role, isComplete, isActive, search, sortBy, sortOrder } = req.query;
 
@@ -423,7 +398,7 @@ export const getGetAllUser = async (req: Request, res: Response) => {
     }
 };
 
-export const GetUserById = async (req: Request, res: Response) => {
+export const getUserById = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
 
@@ -513,7 +488,13 @@ export const deactivateUser = async (req: Request, res: Response) => {
 
 export const completeProfile = async (req: Request, res: Response) => {
     try {
-        const { userId, fullName, dob, gender, referralCode, password, profileImage, email, phoneNumber, caste, gotra } = req.body;
+
+        const userId = req.user?.userId;
+        if (!userId) {
+            return res.status(401).json({ success: false, message: "Unauthorized" });
+        }
+
+        const { fullName, dob, gender, referralCode, password, profileImage, email, phoneNumber, caste, gotra } = req.body;
 
         if (!userId || !fullName) {
             return res.status(400).json({
@@ -522,11 +503,7 @@ export const completeProfile = async (req: Request, res: Response) => {
             });
         }
 
-        const userAgent = req.get('User-Agent') || 'unknown';
-        const forwarded = req.headers['x-forwarded-for'];
-        const ip = typeof forwarded === 'string'
-            ? forwarded.split(',')[0]
-            : (req.headers['x-real-ip'] as string) || req.socket.remoteAddress || '0.0.0.0';
+        const { userAgent, ip } = getClientIp(req)
 
         const { user, accessToken, refreshToken } = await AuthService.completeProfile(
             userId,

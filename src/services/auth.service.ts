@@ -8,6 +8,7 @@ import { Session } from "../models/session.model.js";
 import crypto from "crypto";
 import nodemailer from "nodemailer";
 import { generateUniqueCode } from "../utils/generateUniqueCode.js";
+import type { Caste, Gender, Gotra } from "../types/enums.js";
 
 class AuthService {
   private static async generateUserSession(
@@ -658,7 +659,7 @@ class AuthService {
     userId: string,
     fullName: string,
     dob?: Date,
-    gender?: "Male" | "Female" | "Other",
+    gender?: Gender,
     referralCode?: string,
     password?: string,
     profileImage?: string,
@@ -666,16 +667,8 @@ class AuthService {
     ip?: string,
     email?: string,
     phoneNumber?: string,
-    caste?: "SC" | "ST" | "OBC" | "GENERAL",
-    gotra?:
-      | "Bharadvaja"
-      | "Kashyapa"
-      | "Vashistha"
-      | "Vishvamitra"
-      | "Gautama"
-      | "Atri"
-      | "Jamadagni"
-      | "Agastya",
+    caste?: Caste,
+    gotra?: Gotra
   ) {
     const session = await mongoose.startSession();
     session.startTransaction();
@@ -812,8 +805,8 @@ class AuthService {
       savedLocations?: string[];
       serviceableLocations?: {
         locationId: string | Types.ObjectId;
-        caste?: string[];
-        gotra?: string[];
+        caste?: Caste[];
+        gotra?: Gotra[];
       }[];
     },
   ) {

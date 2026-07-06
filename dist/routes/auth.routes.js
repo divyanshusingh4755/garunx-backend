@@ -1,14 +1,16 @@
 import { Router } from 'express';
-import { body, validationResult } from 'express-validator';
+import { body } from 'express-validator';
 import { Role } from '../types/rbac.js';
-import { login, register, resendOtp, verifyOtp, refreshToken, logout, forgotPassword, resetPassword, GetUserById, getGetAllUser, deactivateUser, completeProfile, updateProfile, uploadSingle, uploadMutliple, getUserByEmailOrPhone, verifyDocuments, approveOrRejectDocs, changePassword, socialAuth } from '../controllers/auth.controllers.js';
-import { passwordRateLimiter } from '../utils/passwordRateLimiter.js';
+import { login, register, resendOtp, verifyOtp, refreshToken, logout, forgotPassword, resetPassword, getUserById, getAllUsers, deactivateUser, completeProfile, updateProfile, uploadSingle, uploadMutliple, getUserByEmailOrPhone, verifyDocuments, approveOrRejectDocs, changePassword, socialAuth } from '../controllers/auth.controllers.js';
+import { authRateLimiter, otpRateLimiter, passwordResetRateLimiter } from '../utils/rateLimiter.js';
 import { authenticate } from '../middleware/authenticate.js';
 import { upload } from '../middleware/upload.js';
+import { Caste, Gender, Gotra } from '../types/enums.js';
+import { validate } from '../utils/validate.js';
 const router = Router();
 // Validation Middleware
 const registerValidation = [
-    body('email')
+    body('userEmail')
         .optional()
         .isEmail().withMessage('Please enter a valid email address')
         .normalizeEmail(),
@@ -19,22 +21,22 @@ const registerValidation = [
     body('role')
         .isIn(Object.values(Role))
         .withMessage('Invalid user type'),
-    body('password')
-        .optional()
-        .isLength({ min: 6 })
-        .withMessage('Password must be at least 6 characters'),
-    (req, res, next) => {
-        const errors = validationResult(req);
-        if (!errors.isEmpty()) {
-            const firstError = errors.array()[0];
-            return res.status(400).json({
-                success: false,
-                message: firstError?.msg,
-                error: firstError
-            });
+    body("password")
+        .isStrongPassword({
+        minLength: 8,
+        minLowercase: 1,
+        minUppercase: 1,
+        minNumbers: 1,
+        minSymbols: 0,
+    })
+        .withMessage("Password must be at least 8 characters long and include uppercase, lowercase, and a number."),
+    body().custom(({ email, phoneNumber }) => {
+        if (!email && !phoneNumber) {
+            throw new Error("Email or phone number is required");
         }
-        next();
-    }
+        return true;
+    }),
+    validate
 ];
 const socialRegisterValidation = [
     body('email')
@@ -47,24 +49,10 @@ const socialRegisterValidation = [
     body('idToken')
         .notEmpty()
         .withMessage('Token is missing'),
-    (req, res, next) => {
-        const errors = validationResult(req);
-        if (!errors.isEmpty()) {
-            const firstError = errors.array()[0];
-            return res.status(400).json({
-                success: false,
-                message: firstError?.msg,
-                error: firstError
-            });
-        }
-        next();
-    }
+    validate
 ];
 // Validation Middleware
 const profileValidation = [
-    body('userId')
-        .notEmpty().withMessage('User Id is required')
-        .isMongoId().withMessage('Invalid User ID format'),
     body('fullName')
         .notEmpty().withMessage('Full name is required')
         .isString().trim().isLength({ min: 2 }),
@@ -76,40 +64,32 @@ const profileValidation = [
         .optional()
         .isMobilePhone('en-IN')
         .withMessage('Enter valid Indian Phone Number'),
-    body('password')
-        .optional()
-        .isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
+    body("password")
+        .isStrongPassword({
+        minLength: 8,
+        minLowercase: 1,
+        minUppercase: 1,
+        minNumbers: 1,
+        minSymbols: 0,
+    })
+        .withMessage("Password must be at least 8 characters long and include uppercase, lowercase, and a number."),
     body('dob')
         .optional()
         .isISO8601()
         .withMessage('DOB must be a valid date (YYYY-MM-DD)'),
-    body('gender')
+    body("gender")
         .optional()
-        .isIn(['Male', 'Female', 'Other'])
-        .withMessage('Invalid gender value'),
-    body('caste')
+        .isIn(Object.values(Gender)),
+    body("caste")
         .optional()
-        .isIn(['SC', 'ST', 'OBC', 'GENERAL'])
-        .withMessage('Invalid Caste value'),
-    body('gotra')
+        .isIn(Object.values(Caste)),
+    body("gotra")
         .optional()
-        .isIn(['Bharadvaja', 'Kashyapa', 'Vashistha', 'Vishvamitra', 'Gautama', 'Atri', 'Jamadagni', 'Agastya'])
-        .withMessage('Invalid gotra value'),
+        .isIn(Object.values(Gotra)),
     body('referralCode')
         .optional()
         .isString().trim().toUpperCase(),
-    (req, res, next) => {
-        const errors = validationResult(req);
-        if (!errors.isEmpty()) {
-            const firstError = errors.array()[0];
-            return res.status(400).json({
-                success: false,
-                message: firstError?.msg,
-                error: firstError
-            });
-        }
-        next();
-    }
+    validate
 ];
 const documentUploadValidation = [
     body().custom((value, { req }) => {
@@ -137,39 +117,59 @@ const documentUploadValidation = [
         .toUpperCase()
         .matches(/^[A-Z]{4}0[A-Z0-9]{6}$/)
         .withMessage('Invalid IFSC code format (e.g., SBIN0012345)'),
-    (req, res, next) => {
-        const errors = validationResult(req);
-        if (!errors.isEmpty()) {
-            const firstError = errors.array()[0];
-            return res.status(400).json({
-                success: false,
-                message: firstError?.msg,
-                error: firstError
-            });
-        }
-        next();
-    }
+    validate
+];
+export const updateProfileValidation = [
+    body("fullName")
+        .optional()
+        .trim()
+        .isLength({ min: 2 })
+        .withMessage("Full name must be at least 2 characters"),
+    body("email")
+        .optional()
+        .isEmail()
+        .normalizeEmail()
+        .withMessage("Invalid email"),
+    body("phoneNumber")
+        .optional()
+        .isMobilePhone("en-IN")
+        .withMessage("Invalid phone number"),
+    body("dob")
+        .optional()
+        .isISO8601()
+        .toDate()
+        .withMessage("Invalid date of birth"),
+    body("gender")
+        .optional()
+        .isIn(Object.values(Gender)),
+    body("caste")
+        .optional()
+        .isIn(Object.values(Caste)),
+    body("gotra")
+        .optional()
+        .isIn(Object.values(Gotra)),
+    validate,
 ];
 // --- PUBLIC ROUTES (Registration & Auth) ---
 router.post('/register', registerValidation, register);
-router.post('/verify-otp', verifyOtp);
-router.post('/resend-otp', resendOtp);
-router.post('/login', login);
-router.post('/social', socialRegisterValidation, socialAuth);
+router.post('/verify-otp', otpRateLimiter, verifyOtp);
+router.post('/resend-otp', otpRateLimiter, resendOtp);
+router.post('/login', authRateLimiter, login);
+router.post('/social', authRateLimiter, socialRegisterValidation, socialAuth);
 router.post('/refresh-token', refreshToken);
 router.post('/logout', logout);
 // --- PASSWORD RECOVERY ---
-router.post('/forgot-password', passwordRateLimiter, forgotPassword);
-router.post('/reset-password', passwordRateLimiter, resetPassword);
+router.post('/forgot-password', passwordResetRateLimiter, forgotPassword);
+router.post('/reset-password', passwordResetRateLimiter, resetPassword);
 // --- PROFILE COMPLETION ---
-router.patch('/complete-profile', profileValidation, completeProfile);
+router.patch('/complete-profile', authenticate, profileValidation, completeProfile);
 // --- PROTECTED ROUTES ---
 router.post('/change-password', authenticate, changePassword);
-router.patch('/update-profile', authenticate, updateProfile);
-router.get('/get-user-by-id/:id', authenticate, GetUserById);
+router.patch('/update-profile', authenticate, updateProfileValidation, updateProfile);
+router.get('/get-user-by-id/:id', authenticate, getUserById);
 router.get('/get-user-by-email-or-phone/:identifier', authenticate, getUserByEmailOrPhone);
 // --- ADMIN / MANAGEMENT ROUTES ---
-router.get('/get-all-user', authenticate, getGetAllUser);
+router.get('/get-all-user', authenticate, getAllUsers);
 router.patch('/deactivate-user/:id', authenticate, deactivateUser);
 router.patch('/verify-documents', authenticate, approveOrRejectDocs);
 // --- MEDIA UPLOADS ---

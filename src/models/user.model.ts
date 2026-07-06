@@ -1,6 +1,7 @@
 import { Schema, Types, model, Document } from "mongoose";
 import { Role } from "../types/rbac.js";
 import { Counter } from "./counter.model.js";
+import { ApprovalStatus, AvailabilityStatus, Caste, Gender, Gotra, VerificationStatus } from "../types/enums.js";
 
 export interface ICoordinatorProfile {
   averageRating: number;
@@ -9,28 +10,15 @@ export interface ICoordinatorProfile {
   totalCompletedBookings: number;
   totalAssignedBookings: number;
   acceptanceRate: number;
-
-  approvalStatus:
-  | "PENDING"
-  | "APPROVED"
-  | "REJECTED";
-
-  availabilityStatus:
-  | "AVAILABLE"
-  | "OFF_DUTY"
-  | "ON_LEAVE"
-  | "SUSPENDED";
-
+  approvalStatus: ApprovalStatus
+  availabilityStatus: AvailabilityStatus
   maxDailyBookings: number;
-
   autoAssignmentEnabled: boolean;
-
   lastAvailabilityChangedAt?: Date;
-
   serviceableLocations?: {
     locationId: Types.ObjectId;
-    caste?: string[];
-    gotra?: string[];
+    caste?: Caste[];
+    gotra?: Gotra[];
   }[];
 }
 
@@ -50,7 +38,7 @@ export interface IUser extends Document {
   // Profile Fields
   fullName?: string;
   dob?: Date;
-  gender?: "Male" | "Female" | "Other";
+  gender?: Gender;
   profileImage?: string;
   isComplete: boolean;
   isResetVerified: boolean;
@@ -70,7 +58,7 @@ export interface IUser extends Document {
   documentVerification: {
     aadharCard?: string;
     panCard?: string;
-    status: "PENDING" | "APPROVED" | "REJECTED";
+    status: VerificationStatus;
     rejectionReason?: string;
   };
   bankDocumentVerification: {
@@ -79,25 +67,147 @@ export interface IUser extends Document {
     accountName?: string;
     bankName?: string;
     ifscCode?: string;
-    status: "PENDING" | "APPROVED" | "REJECTED";
+    status: VerificationStatus;
     rejectionReason?: string;
   };
-  caste?: "SC" | "ST" | "OBC" | "GENERAL";
-  gotra?:
-  | "Bharadvaja"
-  | "Kashyapa"
-  | "Vashistha"
-  | "Vishvamitra"
-  | "Gautama"
-  | "Atri"
-  | "Jamadagni"
-  | "Agastya";
+  caste?: Caste;
+  gotra?: Gotra;
   isDocumentVerified: boolean;
   isBankDocumentVerified: boolean;
   userReference: string;
 
   coordinatorProfile?: ICoordinatorProfile;
 }
+
+const documentVerificationSchema = new Schema(
+  {
+    aadharCard: String,
+    panCard: String,
+    status: {
+      type: String,
+      enum: Object.values(VerificationStatus),
+      default: VerificationStatus.PENDING,
+    },
+    rejectionReason: String,
+  },
+  {
+    _id: false,
+  }
+);
+
+const bankVerificationSchema = new Schema(
+  {
+    bankPassbook: String,
+    accountNumber: String,
+    accountName: String,
+    bankName: String,
+    ifscCode: String,
+    status: {
+      type: String,
+      enum: Object.values(VerificationStatus),
+      default: VerificationStatus.PENDING,
+    },
+    rejectionReason: String,
+  },
+  {
+    _id: false,
+  }
+);
+
+const serviceableLocationSchema = new Schema(
+  {
+    locationId: {
+      type: Schema.Types.ObjectId,
+      ref: "Location",
+      required: true,
+    },
+    caste: [
+      {
+        type: String,
+        enum: Object.values(Caste),
+      },
+    ],
+    gotra: [
+      {
+        type: String,
+        enum: Object.values(Gotra),
+      },
+    ],
+  },
+  {
+    _id: false,
+  }
+);
+
+const coordinatorProfileSchema = new Schema(
+  {
+    averageRating: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+
+    totalRatings: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+
+    ratingSum: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+
+    totalCompletedBookings: {
+      type: Number,
+      default: 0,
+    },
+
+    totalAssignedBookings: {
+      type: Number,
+      default: 0,
+    },
+
+    acceptanceRate: {
+      type: Number,
+      default: 0,
+    },
+
+    approvalStatus: {
+      type: String,
+      enum: Object.values(ApprovalStatus),
+      default: ApprovalStatus.PENDING,
+    },
+
+    availabilityStatus: {
+      type: String,
+      enum: Object.values(AvailabilityStatus),
+      default: AvailabilityStatus.AVAILABLE,
+    },
+
+    maxDailyBookings: {
+      type: Number,
+      default: 5,
+      min: 1,
+    },
+
+    autoAssignmentEnabled: {
+      type: Boolean,
+      default: true,
+    },
+
+    lastAvailabilityChangedAt: Date,
+
+    serviceableLocations: {
+      type: [serviceableLocationSchema],
+      default: [],
+    },
+  },
+  {
+    _id: false,
+  }
+);
 
 const userSchema = new Schema<IUser>(
   {
@@ -116,7 +226,7 @@ const userSchema = new Schema<IUser>(
     isActive: { type: Boolean, default: true },
     fullName: { type: String, trim: true },
     dob: { type: Date },
-    gender: { type: String, enum: ["Male", "Female", "Other"] },
+    gender: { type: String, enum: Object.values(Gender) },
     profileImage: { type: String, default: null },
     isComplete: { type: Boolean, default: false },
     isResetVerified: { type: Boolean, default: false },
@@ -126,46 +236,22 @@ const userSchema = new Schema<IUser>(
     resetPasswordExpires: { type: Date, default: null },
     savedLocations: [{ type: String }],
     documentVerification: {
-      aadharCard: { type: String },
-      panCard: { type: String },
-      status: {
-        type: String,
-        enum: ["PENDING", "APPROVED", "REJECTED"],
-        default: "PENDING",
-      },
-      rejectionReason: { type: String },
+      type: documentVerificationSchema,
+      default: {},
     },
     bankDocumentVerification: {
-      bankPassbook: { type: String },
-      accountNumber: { type: String },
-      accountName: { type: String },
-      bankName: { type: String },
-      ifscCode: { type: String },
-      status: {
-        type: String,
-        enum: ["PENDING", "APPROVED", "REJECTED"],
-        default: "PENDING",
-      },
-      rejectionReason: { type: String },
+      type: bankVerificationSchema,
+      default: {},
     },
     caste: {
       index: true,
       type: String,
-      enum: ["SC", "ST", "OBC", "GENERAL"],
+      enum: Object.values(Caste),
     },
     gotra: {
       index: true,
       type: String,
-      enum: [
-        "Bharadvaja",
-        "Kashyapa",
-        "Vashistha",
-        "Vishvamitra",
-        "Gautama",
-        "Atri",
-        "Jamadagni",
-        "Agastya",
-      ],
+      enum: Object.values(Gotra),
     },
     isDocumentVerified: { type: Boolean, default: false },
     isBankDocumentVerified: { type: Boolean, default: false },
@@ -176,102 +262,7 @@ const userSchema = new Schema<IUser>(
     },
 
     coordinatorProfile: {
-      type: {
-        averageRating: {
-          type: Number,
-          default: 0,
-          min: 0,
-        },
-
-        totalRatings: {
-          type: Number,
-          default: 0,
-          min: 0,
-        },
-
-        ratingSum: {
-          type: Number,
-          default: 0,
-          min: 0,
-        },
-
-        totalCompletedBookings: {
-          type: Number,
-          default: 0,
-        },
-
-        totalAssignedBookings: {
-          type: Number,
-          default: 0,
-        },
-
-        acceptanceRate: {
-          type: Number,
-          default: 0,
-        },
-
-        approvalStatus: {
-          type: String,
-          enum: ["PENDING", "APPROVED", "REJECTED"],
-          default: "PENDING",
-        },
-
-        availabilityStatus: {
-          type: String,
-          enum: [
-            "AVAILABLE",
-            "OFF_DUTY",
-            "ON_LEAVE",
-            "SUSPENDED",
-          ],
-          default: "AVAILABLE",
-        },
-
-        maxDailyBookings: {
-          type: Number,
-          default: 5,
-          min: 1,
-        },
-
-        autoAssignmentEnabled: {
-          type: Boolean,
-          default: true,
-        },
-
-        lastAvailabilityChangedAt: Date,
-
-        serviceableLocations: [
-          {
-            locationId: {
-              type: Schema.Types.ObjectId,
-              ref: "Location",
-              required: true,
-            },
-            caste: [
-              {
-                type: String,
-                enum: ["SC", "ST", "OBC", "GENERAL"],
-              },
-            ],
-            gotra: [
-              {
-                type: String,
-                enum: [
-                  "Bharadvaja",
-                  "Kashyapa",
-                  "Vashistha",
-                  "Vishvamitra",
-                  "Gautama",
-                  "Atri",
-                  "Jamadagni",
-                  "Agastya",
-                ],
-              },
-            ],
-          },
-        ],
-      },
-
+      type: coordinatorProfileSchema,
       default: undefined,
     },
   },
@@ -344,17 +335,24 @@ userSchema.index({
   "coordinatorProfile.averageRating": -1,
 });
 
+userSchema.index({
+  role: 1,
+  "coordinatorProfile.serviceableLocations.locationId": 1
+});
+
 userSchema.index(
   {
     fullName: "text",
     email: "text",
     phoneNumber: "text",
+    userReference: "text",
   },
   {
     weights: {
       fullName: 10,
       email: 5,
       phoneNumber: 2,
+      userReference: 1,
     },
     name: "UserSearchIndex",
   },

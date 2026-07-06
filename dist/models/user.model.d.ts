@@ -1,5 +1,6 @@
 import { Types, Document } from "mongoose";
 import { Role } from "../types/rbac.js";
+import { ApprovalStatus, AvailabilityStatus, Caste, Gender, Gotra, VerificationStatus } from "../types/enums.js";
 export interface ICoordinatorProfile {
     averageRating: number;
     totalRatings: number;
@@ -7,15 +8,15 @@ export interface ICoordinatorProfile {
     totalCompletedBookings: number;
     totalAssignedBookings: number;
     acceptanceRate: number;
-    approvalStatus: "PENDING" | "APPROVED" | "REJECTED";
-    availabilityStatus: "AVAILABLE" | "OFF_DUTY" | "ON_LEAVE" | "SUSPENDED";
+    approvalStatus: ApprovalStatus;
+    availabilityStatus: AvailabilityStatus;
     maxDailyBookings: number;
     autoAssignmentEnabled: boolean;
     lastAvailabilityChangedAt?: Date;
     serviceableLocations?: {
         locationId: Types.ObjectId;
-        caste?: string[];
-        gotra?: string[];
+        caste?: Caste[];
+        gotra?: Gotra[];
     }[];
 }
 export interface IUser extends Document {
@@ -29,7 +30,7 @@ export interface IUser extends Document {
     isActive: boolean;
     fullName?: string;
     dob?: Date;
-    gender?: "Male" | "Female" | "Other";
+    gender?: Gender;
     profileImage?: string;
     isComplete: boolean;
     isResetVerified: boolean;
@@ -41,7 +42,7 @@ export interface IUser extends Document {
     documentVerification: {
         aadharCard?: string;
         panCard?: string;
-        status: "PENDING" | "APPROVED" | "REJECTED";
+        status: VerificationStatus;
         rejectionReason?: string;
     };
     bankDocumentVerification: {
@@ -50,11 +51,11 @@ export interface IUser extends Document {
         accountName?: string;
         bankName?: string;
         ifscCode?: string;
-        status: "PENDING" | "APPROVED" | "REJECTED";
+        status: VerificationStatus;
         rejectionReason?: string;
     };
-    caste?: "SC" | "ST" | "OBC" | "GENERAL";
-    gotra?: "Bharadvaja" | "Kashyapa" | "Vashistha" | "Vishvamitra" | "Gautama" | "Atri" | "Jamadagni" | "Agastya";
+    caste?: Caste;
+    gotra?: Gotra;
     isDocumentVerified: boolean;
     isBankDocumentVerified: boolean;
     userReference: string;

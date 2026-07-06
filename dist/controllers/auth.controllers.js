@@ -1,5 +1,6 @@
 import AuthService from '../services/auth.service.js';
 import { Role } from '../types/rbac.js';
+import { getClientIp } from '../utils/clientIp.js';
 export const register = async (req, res) => {
     try {
         const { role, password, userEmail, phoneNumber } = req.body;
@@ -29,17 +30,7 @@ export const register = async (req, res) => {
 export const socialAuth = async (req, res) => {
     try {
         const { role, idToken, email } = req.body;
-        const userAgent = req.get('User-Agent') || 'unknown';
-        const forwarded = req.headers['x-forwarded-for'];
-        const ip = typeof forwarded === 'string'
-            ? forwarded.split(',')[0]
-            : req.headers['x-real-ip'] || req.socket.remoteAddress || '0.0.0.0';
-        if (!idToken && !email && !role) {
-            return res.status(400).json({
-                success: false,
-                message: 'token, role and email is required'
-            });
-        }
+        const { userAgent, ip } = getClientIp(req);
         const result = await AuthService.socialAuth(role, email, userAgent, ip);
         const nextStep = result.isNewUser ? "COMPLETE_PROFILE" : "DASHBOARD";
         res.status(200).json({
@@ -61,12 +52,6 @@ export const socialAuth = async (req, res) => {
 export const verifyOtp = async (req, res) => {
     try {
         const { userId, otp, email } = req.body;
-        if (!otp || (!userId && !email)) {
-            return res.status(400).json({
-                success: false,
-                message: 'OTP and either User ID and email is required'
-            });
-        }
         const user = await AuthService.verifyOtp(userId, otp, email);
         if (!user) {
             return res.status(400).json({
@@ -102,7 +87,7 @@ export const resendOtp = async (req, res) => {
         if (!userId && !email) {
             return res.status(400).json({
                 success: false,
-                message: 'User ID and email is required to resend OTP'
+                message: 'Either User ID or email is required.'
             });
         }
         const result = await AuthService.resendOtp(userId, email);
@@ -125,11 +110,7 @@ export const login = async (req, res) => {
         if (!role) {
             return res.status(400).json({ success: false, message: "Please specify the role for login." });
         }
-        const userAgent = req.get('User-Agent') || 'unknown';
-        const forwarded = req.headers['x-forwarded-for'];
-        const ip = typeof forwarded === 'string'
-            ? forwarded.split(',')[0]
-            : req.headers['x-real-ip'] || req.socket.remoteAddress || '0.0.0.0';
+        const { userAgent, ip } = getClientIp(req);
         const { user, accessToken, refreshToken } = await AuthService.loginUser(identifier, role, password, userAgent, ip);
         res.cookie('refreshToken', refreshToken, {
             httpOnly: true,
@@ -173,11 +154,7 @@ export const refreshToken = async (req, res) => {
         return res.status(401).json({ success: false, message: "Session expired. Please login again." });
     }
     try {
-        const userAgent = req.get('User-Agent') || 'unknown';
-        const forwarded = req.headers['x-forwarded-for'];
-        const ip = typeof forwarded === 'string'
-            ? forwarded.split(',')[0]
-            : req.headers['x-real-ip'] || req.socket.remoteAddress || '0.0.0.0';
+        const { userAgent, ip } = getClientIp(req);
         const { accessToken, refreshToken: newRefreshToken } = await AuthService.refreshAccesToken(oldToken, userAgent, ip);
         res.cookie('refreshToken', newRefreshToken, {
             httpOnly: true,
@@ -323,7 +300,7 @@ export const changePassword = async (req, res) => {
         });
     }
 };
-export const getGetAllUser = async (req, res) => {
+export const getAllUsers = async (req, res) => {
     try {
         const { limit, page, role, isComplete, isActive, search, sortBy, sortOrder } = req.query;
         const { users, pagination } = await AuthService.GetAllUsers(Number(page) || 1, Number(limit) || 40, role, isComplete === 'true' ? true : isComplete === 'false' ? false : undefined, isActive === 'true' ? true : isActive === 'false' ? false : undefined, search, sortBy || 'fullName', sortOrder || 'asc');
@@ -341,7 +318,7 @@ export const getGetAllUser = async (req, res) => {
         });
     }
 };
-export const GetUserById = async (req, res) => {
+export const getUserById = async (req, res) => {
     try {
         const { id } = req.params;
         if (!id) {
@@ -413,18 +390,18 @@ export const deactivateUser = async (req, res) => {
 };
 export const completeProfile = async (req, res) => {
     try {
-        const { userId, fullName, dob, gender, referralCode, password, profileImage, email, phoneNumber, caste, gotra } = req.body;
+        const userId = req.user?.userId;
+        if (!userId) {
+            return res.status(401).json({ success: false, message: "Unauthorized" });
+        }
+        const { fullName, dob, gender, referralCode, password, profileImage, email, phoneNumber, caste, gotra } = req.body;
         if (!userId || !fullName) {
             return res.status(400).json({
                 success: false,
                 message: "User ID and Full Name are required."
             });
         }
-        const userAgent = req.get('User-Agent') || 'unknown';
-        const forwarded = req.headers['x-forwarded-for'];
-        const ip = typeof forwarded === 'string'
-            ? forwarded.split(',')[0]
-            : req.headers['x-real-ip'] || req.socket.remoteAddress || '0.0.0.0';
+        const { userAgent, ip } = getClientIp(req);
         const { user, accessToken, refreshToken } = await AuthService.completeProfile(userId, fullName, dob, gender, referralCode, password, profileImage, userAgent, ip, email, phoneNumber, caste, gotra);
         res.cookie('refreshToken', refreshToken, {
             httpOnly: true,
