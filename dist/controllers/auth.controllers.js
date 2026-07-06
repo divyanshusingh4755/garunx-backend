@@ -429,7 +429,8 @@ export const updateProfile = async (req, res) => {
             fullName, dob, gender, profileImage, savedLocations
         };
         if (serviceableLocations && userRole === Role.COORDINATOR) {
-            dataToUpdate.serviceableLocations = serviceableLocations;
+            dataToUpdate["coordinatorProfile.serviceableLocations"] =
+                serviceableLocations;
         }
         const user = await AuthService.updateProfile(userId, dataToUpdate);
         if (!user) {

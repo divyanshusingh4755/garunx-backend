@@ -819,7 +819,7 @@ class AuthService {
       { new: true, runValidators: true },
     )
       .select("-password -otp")
-      .populate("serviceableLocations.locationId");
+      .populate("coordinatorProfile.serviceableLocations.locationId");
 
     return updatedUser;
   }

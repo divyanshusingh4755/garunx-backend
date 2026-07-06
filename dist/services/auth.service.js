@@ -579,7 +579,7 @@ class AuthService {
             throw new Error("User not found");
         const updatedUser = await User.findByIdAndUpdate(userId, { $set: updateData }, { new: true, runValidators: true })
             .select("-password -otp")
-            .populate("serviceableLocations.locationId");
+            .populate("coordinatorProfile.serviceableLocations.locationId");
         return updatedUser;
     }
     static async uploadVerificationDocuments(userId, docs) {
