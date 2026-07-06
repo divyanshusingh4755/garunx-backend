@@ -390,11 +390,7 @@ export const deactivateUser = async (req, res) => {
 };
 export const completeProfile = async (req, res) => {
     try {
-        const userId = req.user?.userId;
-        if (!userId) {
-            return res.status(401).json({ success: false, message: "Unauthorized" });
-        }
-        const { fullName, dob, gender, referralCode, password, profileImage, email, phoneNumber, caste, gotra } = req.body;
+        const { userId, fullName, dob, gender, referralCode, password, profileImage, email, phoneNumber, caste, gotra } = req.body;
         if (!userId || !fullName) {
             return res.status(400).json({
                 success: false,

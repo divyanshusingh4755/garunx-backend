@@ -54,6 +54,9 @@ const socialRegisterValidation = [
 ];
 // Validation Middleware
 const profileValidation = [
+    body('userId')
+        .notEmpty().withMessage('User Id is required')
+        .isMongoId().withMessage('Invalid User ID format'),
     body('fullName')
         .notEmpty().withMessage('Full name is required')
         .isString().trim().isLength({ min: 2 }),
