@@ -27,6 +27,7 @@ const registerValidation = [
         .withMessage('Invalid user type'),
 
     body("password")
+        .optional()
         .isStrongPassword({
             minLength: 8,
             minLowercase: 1,
@@ -82,6 +83,7 @@ const profileValidation = [
         .withMessage('Enter valid Indian Phone Number'),
 
     body("password")
+        .optional()
         .isStrongPassword({
             minLength: 8,
             minLowercase: 1,
