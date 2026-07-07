@@ -191,7 +191,7 @@ export class PackageCascadingEngine {
         .flatMap((m) => m.services || []);
 
       if (!tierServices.length) {
-        return false;
+        continue;
       }
 
       for (const loc of activeLocations) {
@@ -205,6 +205,7 @@ export class PackageCascadingEngine {
           if (!priceSet.has(key)) {
             return false;
           }
+
           totalServicesValidated++;
         }
       }

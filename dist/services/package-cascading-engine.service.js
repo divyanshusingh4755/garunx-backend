@@ -134,7 +134,7 @@ export class PackageCascadingEngine {
                 .filter((m) => m.tierId.toString() === tierId)
                 .flatMap((m) => m.services || []);
             if (!tierServices.length) {
-                return false;
+                continue;
             }
             for (const loc of activeLocations) {
                 const locationId = loc.locationId.toString();
