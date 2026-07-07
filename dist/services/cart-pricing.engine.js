@@ -62,12 +62,10 @@ export class CartPricingEngine {
         for (const service of allowedServices) {
             const serviceId = service.serviceId.toString();
             const price = pricingMap.get(serviceId) || 0;
-            const isSelected = selectedServiceIds.has(serviceId);
-            const isAddon = addonServiceIds.has(serviceId);
-            if (isSelected && service.isRequired) {
+            if (selectedServiceIds.has(serviceId) && !service.isRelated) {
                 basePrice += price;
             }
-            if (isAddon && !service.isRequired) {
+            if (addonServiceIds.has(serviceId) && service.isRelated) {
                 addonPrice += price;
             }
         }

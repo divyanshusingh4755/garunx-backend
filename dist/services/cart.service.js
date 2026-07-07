@@ -467,6 +467,9 @@ class CartService {
             if (!matchedService) {
                 throw new Error(`Invalid addon service selected`);
             }
+            if (matchedService.isRelated) {
+                throw new Error(`${matchedService.name} is an addon service. Use updateAddonServices instead.`);
+            }
             const price = pricingMap.get(serviceId.toString());
             if (price === undefined) {
                 throw new Error(`Pricing not found for service ${matchedService.name}`);
@@ -527,6 +530,9 @@ class CartService {
             const matchedService = allowedServices.find((s) => s.serviceId.toString() === serviceId.toString());
             if (!matchedService) {
                 throw new Error(`Invalid addon service selected`);
+            }
+            if (!matchedService.isRelated) {
+                throw new Error(`${matchedService.name} is not an addon service.`);
             }
             const price = pricingMap.get(serviceId.toString());
             if (price === undefined) {
