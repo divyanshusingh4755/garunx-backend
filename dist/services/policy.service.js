@@ -6,11 +6,9 @@ export class PolicyService {
             type: payload.type,
             userType: payload.userType,
         })
-            .sort({ version: -1 })
             .lean();
         const policy = await Content.create({
             ...payload,
-            version: (latestPolicy?.version || 0) + 1,
         });
         return policy;
     }
@@ -42,7 +40,6 @@ export class PolicyService {
                 .sort({
                 type: 1,
                 userType: 1,
-                version: -1,
             })
                 .skip(skip)
                 .limit(limit)
@@ -95,7 +92,6 @@ export class PolicyService {
             title: 1,
             content: 1,
             version: 1,
-            publishedAt: 1,
         })
             .lean();
         if (!policy) {

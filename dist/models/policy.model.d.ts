@@ -5,7 +5,6 @@ export interface IContent extends Document {
     title: string;
     content: string;
     isActive: boolean;
-    version: number;
     publishedAt?: Date;
 }
 export declare const Content: import("mongoose").Model<IContent, {}, {}, {}, Document<unknown, {}, IContent, {}, import("mongoose").DefaultSchemaOptions> & IContent & Required<{

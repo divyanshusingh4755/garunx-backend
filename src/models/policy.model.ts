@@ -6,7 +6,6 @@ export interface IContent extends Document {
   title: string;
   content: string;
   isActive: boolean;
-  version: number;
   publishedAt?: Date;
 }
 
@@ -38,13 +37,6 @@ const contentSchema = new Schema<IContent>(
 
     userType: { type: String, enum: ["User", "Coordinator"], default: "User" },
 
-    version: {
-      type: Number,
-      required: true,
-      min: 1,
-      default: 1,
-    },
-
     publishedAt: {
       type: Date,
     },
@@ -71,7 +63,6 @@ contentSchema.index(
 contentSchema.index({
   type: 1,
   userType: 1,
-  version: -1,
 });
 
 contentSchema.index({
