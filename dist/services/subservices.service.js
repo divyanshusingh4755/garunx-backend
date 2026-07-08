@@ -1,4 +1,5 @@
 import { SubServiceComponent, } from "../models/subservices.model.js";
+import { escapeRegex } from "../utils/escapeRegex.js";
 export class SubServiceComponentService {
     static applyFilter(filterValue) {
         if (!filterValue)
@@ -22,23 +23,49 @@ export class SubServiceComponentService {
         if (typeof isActive === "boolean") {
             query.isActive = isActive;
         }
-        if (searchTerm) {
-            query.$or = [
-                { name: { $regex: searchTerm, $options: "i" } },
-                { description: { $regex: searchTerm, $options: "i" } },
-            ];
-        }
         if (serviceId) {
             query.serviceId = this.applyFilter(serviceId);
         }
+        const isTextSearch = !!searchTerm?.trim() && searchTerm.trim().length >= 3;
+        if (searchTerm?.trim()) {
+            const term = searchTerm.trim();
+            if (isTextSearch) {
+                query.$text = {
+                    $search: term,
+                };
+            }
+            else {
+                query.name = {
+                    $regex: `^${escapeRegex(term)}`,
+                    $options: "i",
+                };
+            }
+        }
         let sortCriteria = {};
-        sortCriteria[sortBy] = sortOrder === "desc" ? -1 : 1;
-        if (sortBy !== "createdAt") {
-            sortCriteria.createdAt = -1;
+        if (isTextSearch && sortBy === "relevance") {
+            sortCriteria = {
+                score: {
+                    $meta: "textScore",
+                },
+            };
+        }
+        else {
+            sortCriteria[sortBy] = sortOrder === "desc" ? -1 : 1;
+            if (sortBy !== "createdAt") {
+                sortCriteria.createdAt = -1;
+            }
+        }
+        let projection = {};
+        if (isTextSearch && sortBy === "relevance") {
+            projection = {
+                score: {
+                    $meta: "textScore",
+                },
+            };
         }
         try {
             const [data, total] = await Promise.all([
-                SubServiceComponent.find(query)
+                SubServiceComponent.find(query, projection)
                     .populate("serviceId")
                     .sort(sortCriteria)
                     .skip(skip)

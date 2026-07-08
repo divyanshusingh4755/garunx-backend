@@ -105,6 +105,8 @@ serviceSchema.index({
   "tiers.tierId": 1,
 });
 
+serviceSchema.index({ name: 1 });
+
 // Text Search Index
 serviceSchema.index(
   {

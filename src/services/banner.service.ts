@@ -1,17 +1,26 @@
 import { Banner, type IBanner } from "../models/banner.model.js";
+import { escapeRegex } from "../utils/escapeRegex.js";
 
 export class BannerService {
   static async createBanner(bannerData: Partial<IBanner>) {
-    if (!bannerData.name) {
+    if (!bannerData.name?.trim()) {
       throw new Error("Banner name is required");
     }
 
-    if (!bannerData.image) {
+    if (!bannerData.description?.trim()) {
+      throw new Error("Description is required");
+    }
+
+    if (!bannerData.image?.trim()) {
       throw new Error("Image is required");
     }
 
-    if (!bannerData.description) {
-      throw new Error("Description is required");
+    if (!bannerData.placement) {
+      throw new Error("Placement is required");
+    }
+
+    if (!bannerData.format) {
+      throw new Error("Format is required");
     }
 
     const banner = new Banner(bannerData);
@@ -19,10 +28,19 @@ export class BannerService {
   }
 
   static async updateBanner(id: string, updateData: Partial<IBanner>) {
+    delete (updateData as any)._id;
+    delete (updateData as any).version;
+    delete (updateData as any).createdAt;
+    delete (updateData as any).updatedAt;
+
     const banner = await Banner.findByIdAndUpdate(
       id,
-      { $set: updateData },
-      { new: true, runValidators: true },
+      updateData,
+      {
+        new: true,
+        runValidators: true,
+        overwriteDiscriminatorKey: false,
+      }
     );
 
     if (!banner) {
@@ -70,6 +88,7 @@ export class BannerService {
     searchTerm?: string,
     placement?: string,
     format?: string,
+    redirectType?: "NONE" | "SERVICE" | "PACKAGE" | "CATEGORY" | "PRODUCT" | "URL",
     limit: number = 20,
     page: number = 1,
     isActive?: boolean,
@@ -84,23 +103,6 @@ export class BannerService {
       query.isActive = isActive;
     }
 
-    if (searchTerm) {
-      query.$or = [
-        {
-          name: {
-            $regex: searchTerm,
-            $options: "i",
-          },
-        },
-        {
-          description: {
-            $regex: searchTerm,
-            $options: "i",
-          },
-        },
-      ];
-    }
-
     if (placement) {
       query.placement = placement;
     }
@@ -109,17 +111,54 @@ export class BannerService {
       query.format = format;
     }
 
-    const sortCriteria: any = {};
+    if (redirectType) {
+      query["redirect.type"] = redirectType;
+    }
 
-    sortCriteria[sortBy] = sortOrder === "desc" ? -1 : 1;
+    const isTextSearch =
+      !!searchTerm?.trim() && searchTerm.trim().length >= 3;
 
-    if (sortBy === "createdAt") {
-      sortCriteria.createdAt = -1;
+    if (searchTerm?.trim()) {
+      const term = searchTerm.trim();
+
+      if (isTextSearch) {
+        query.$text = {
+          $search: term,
+        };
+      } else {
+        query.name = {
+          $regex: `^${escapeRegex(term)}`,
+          $options: "i",
+        };
+      }
+    }
+
+    let projection: any = {};
+    let sortCriteria: any = {};
+
+    if (isTextSearch && sortBy === "relevance") {
+      projection = {
+        score: { $meta: "textScore" },
+      };
+
+      sortCriteria = {
+        score: { $meta: "textScore" },
+      };
+    } else {
+      sortCriteria[sortBy] = sortOrder === "desc" ? -1 : 1;
+
+      if (sortBy !== "createdAt") {
+        sortCriteria.createdAt = -1;
+      }
     }
 
     try {
       const [data, total] = await Promise.all([
-        Banner.find(query).sort(sortCriteria).skip(skip).limit(limit).lean(),
+        Banner.find(query, projection)
+          .sort(sortCriteria)
+          .skip(skip)
+          .limit(limit)
+          .lean(),
 
         Banner.countDocuments(query),
       ]);

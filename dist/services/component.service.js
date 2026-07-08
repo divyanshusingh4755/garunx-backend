@@ -3,6 +3,7 @@ import { Component } from "../models/component.model.js";
 import { ServiceComponent } from "../models/servicecomponent.model.js";
 import { ServicePricing } from "../models/servicepricing.model.js";
 import mongoose from "mongoose";
+import { escapeRegex } from "../utils/escapeRegex.js";
 export class ComponentService {
     static async createComponent(payload) {
         try {
@@ -109,19 +110,40 @@ export class ComponentService {
             query.isRemovable = isRemovable;
         if (typeof isBundled === "boolean")
             query.isBundled = isBundled;
-        if (searchTerm)
-            query.$text = { $search: searchTerm };
         if (categoryId) {
             if (!Types.ObjectId.isValid(categoryId)) {
                 throw new Error("Invalid categoryId");
             }
             query.categoryId = new Types.ObjectId(categoryId);
         }
+        const isTextSearch = !!searchTerm?.trim() && searchTerm.trim().length >= 3;
+        if (searchTerm?.trim()) {
+            const term = searchTerm.trim();
+            if (isTextSearch) {
+                query.$text = {
+                    $search: term,
+                };
+            }
+            else {
+                query.name = {
+                    $regex: `^${escapeRegex(term)}`,
+                    $options: "i",
+                };
+            }
+        }
         let sortCriteria = {};
         let projection = {};
-        if (searchTerm && sortBy === "relevance") {
-            projection = { score: { $meta: "textScore" } };
-            sortCriteria = { score: { $meta: "textScore" } };
+        if (isTextSearch && sortBy === "relevance") {
+            projection = {
+                score: {
+                    $meta: "textScore",
+                },
+            };
+            sortCriteria = {
+                score: {
+                    $meta: "textScore",
+                },
+            };
         }
         else {
             sortCriteria[sortBy] = sortOrder === "desc" ? -1 : 1;

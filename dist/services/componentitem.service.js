@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import { ComponentItem, } from "../models/componentitem.model.js";
 import { Types } from "mongoose";
 import { ServiceComponent } from "../models/servicecomponent.model.js";
+import { escapeRegex } from "../utils/escapeRegex.js";
 export class ComponentItemService {
     static async createComponentItem(payload) {
         try {
@@ -46,13 +47,34 @@ export class ComponentItemService {
         const query = {};
         if (typeof isActive === "boolean")
             query.isActive = isActive;
-        if (searchTerm)
-            query.$text = { $search: searchTerm };
+        const isTextSearch = !!searchTerm?.trim() && searchTerm.trim().length >= 3;
+        if (searchTerm?.trim()) {
+            const term = searchTerm.trim();
+            if (isTextSearch) {
+                query.$text = {
+                    $search: term,
+                };
+            }
+            else {
+                query.name = {
+                    $regex: `^${escapeRegex(term)}`,
+                    $options: "i",
+                };
+            }
+        }
         let sortCriteria = {};
         let projection = {};
-        if (searchTerm && sortBy === "relevance") {
-            projection = { score: { $meta: "textScore" } };
-            sortCriteria = { score: { $meta: "textScore" } };
+        if (isTextSearch && sortBy === "relevance") {
+            projection = {
+                score: {
+                    $meta: "textScore",
+                },
+            };
+            sortCriteria = {
+                score: {
+                    $meta: "textScore",
+                },
+            };
         }
         else {
             sortCriteria[sortBy] = sortOrder === "desc" ? -1 : 1;

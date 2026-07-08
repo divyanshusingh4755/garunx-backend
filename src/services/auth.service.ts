@@ -9,6 +9,7 @@ import crypto from "crypto";
 import nodemailer from "nodemailer";
 import { generateUniqueCode } from "../utils/generateUniqueCode.js";
 import type { Caste, Gender, Gotra } from "../types/enums.js";
+import { escapeRegex } from "../utils/escapeRegex.js";
 
 class AuthService {
   private static async generateUserSession(
@@ -557,16 +558,58 @@ class AuthService {
       if (role) filter.role = role;
       if (typeof isComplete === "boolean") filter.isComplete = isComplete;
       if (typeof isActive === "boolean") filter.isActive = isActive;
-      if (search) filter.$text = { $search: search };
+
+      const isTextSearch = !!search?.trim() && search.trim().length >= 3;
+
+      if (search?.trim()) {
+        const term = search.trim();
+
+        if (isTextSearch) {
+          filter.$text = {
+            $search: term,
+          };
+        } else {
+          filter.$or = [
+            {
+              fullName: {
+                $regex: `^${escapeRegex(term)}`,
+                $options: "i",
+              },
+            },
+            {
+              email: {
+                $regex: `^${escapeRegex(term)}`,
+                $options: "i",
+              },
+            },
+            {
+              phoneNumber: {
+                $regex: `^${escapeRegex(term)}`,
+                $options: "i",
+              },
+            },
+            {
+              userReference: {
+                $regex: `^${escapeRegex(term)}`,
+                $options: "i",
+              },
+            },
+          ];
+        }
+      }
 
       // Defined sort order
       let sortCriteria: any = {};
 
-      if (search && sortBy === "relevance") {
-        sortCriteria = { score: { $meta: "textScore" } };
+      if (isTextSearch && sortBy === "relevance") {
+        sortCriteria = {
+          score: {
+            $meta: "textScore",
+          },
+        };
       } else {
         sortCriteria[sortBy] = sortOrder === "desc" ? -1 : 1;
-        sortCriteria["createdAt"] = -1;
+        sortCriteria.createdAt = -1;
       }
 
       // Fetch data and count in parallel for better performance

@@ -6,6 +6,7 @@ import { Session } from "../models/session.model.js";
 import crypto from "crypto";
 import nodemailer from "nodemailer";
 import { generateUniqueCode } from "../utils/generateUniqueCode.js";
+import { escapeRegex } from "../utils/escapeRegex.js";
 class AuthService {
     static async generateUserSession(user, userAgent, ip) {
         const familyId = crypto.randomUUID();
@@ -394,16 +395,55 @@ class AuthService {
                 filter.isComplete = isComplete;
             if (typeof isActive === "boolean")
                 filter.isActive = isActive;
-            if (search)
-                filter.$text = { $search: search };
+            const isTextSearch = !!search?.trim() && search.trim().length >= 3;
+            if (search?.trim()) {
+                const term = search.trim();
+                if (isTextSearch) {
+                    filter.$text = {
+                        $search: term,
+                    };
+                }
+                else {
+                    filter.$or = [
+                        {
+                            fullName: {
+                                $regex: `^${escapeRegex(term)}`,
+                                $options: "i",
+                            },
+                        },
+                        {
+                            email: {
+                                $regex: `^${escapeRegex(term)}`,
+                                $options: "i",
+                            },
+                        },
+                        {
+                            phoneNumber: {
+                                $regex: `^${escapeRegex(term)}`,
+                                $options: "i",
+                            },
+                        },
+                        {
+                            userReference: {
+                                $regex: `^${escapeRegex(term)}`,
+                                $options: "i",
+                            },
+                        },
+                    ];
+                }
+            }
             // Defined sort order
             let sortCriteria = {};
-            if (search && sortBy === "relevance") {
-                sortCriteria = { score: { $meta: "textScore" } };
+            if (isTextSearch && sortBy === "relevance") {
+                sortCriteria = {
+                    score: {
+                        $meta: "textScore",
+                    },
+                };
             }
             else {
                 sortCriteria[sortBy] = sortOrder === "desc" ? -1 : 1;
-                sortCriteria["createdAt"] = -1;
+                sortCriteria.createdAt = -1;
             }
             // Fetch data and count in parallel for better performance
             const [users, total] = await Promise.all([

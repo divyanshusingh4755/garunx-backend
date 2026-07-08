@@ -1,4 +1,5 @@
 import { FAQ } from "../models/faq.model.js";
+import { escapeRegex } from "../utils/escapeRegex.js";
 export class FAQService {
     static async createFaq(faqData) {
         if (!faqData.name) {
@@ -52,21 +53,44 @@ export class FAQService {
         if (typeof isActive === "boolean") {
             query.isActive = isActive;
         }
-        if (searchTerm) {
-            query.$or = [
-                { name: { $regex: searchTerm, $options: "i" } },
-                { question: { $regex: searchTerm, $options: "i" } },
-                { answer: { $regex: searchTerm, $options: "i" } },
-            ];
+        const isTextSearch = !!searchTerm?.trim() && searchTerm.trim().length >= 3;
+        if (searchTerm?.trim()) {
+            const term = searchTerm.trim();
+            if (isTextSearch) {
+                query.$text = {
+                    $search: term,
+                };
+            }
+            else {
+                query.name = {
+                    $regex: `^${escapeRegex(term)}`,
+                    $options: "i",
+                };
+            }
         }
-        const sortCriteria = {};
-        sortCriteria[sortBy] = sortOrder === "desc" ? -1 : 1;
-        if (sortBy !== "createdAt") {
-            sortCriteria.createdAt = -1;
+        let sortCriteria = {};
+        let projection = {};
+        if (isTextSearch && sortBy === "relevance") {
+            projection = {
+                score: {
+                    $meta: "textScore",
+                },
+            };
+            sortCriteria = {
+                score: {
+                    $meta: "textScore",
+                },
+            };
+        }
+        else {
+            sortCriteria[sortBy] = sortOrder === "desc" ? -1 : 1;
+            if (sortBy !== "createdAt") {
+                sortCriteria.createdAt = -1;
+            }
         }
         try {
             const [data, total] = await Promise.all([
-                FAQ.find(query).sort(sortCriteria).skip(skip).limit(limit).lean(),
+                FAQ.find(query, projection).sort(sortCriteria).skip(skip).limit(limit).lean(),
                 FAQ.countDocuments(query),
             ]);
             return {

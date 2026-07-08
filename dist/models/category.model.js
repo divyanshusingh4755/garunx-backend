@@ -15,6 +15,7 @@ const categorySchema = new Schema({
     displayOrder: { type: Number, default: 0 },
 }, { timestamps: true });
 categorySchema.index({ type: 1, isActive: 1, displayOrder: 1 });
+categorySchema.index({ label: 1 });
 categorySchema.index({
     label: "text",
     value: "text",

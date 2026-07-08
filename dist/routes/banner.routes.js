@@ -2,6 +2,22 @@ import { Router, } from "express";
 import { body, validationResult } from "express-validator";
 import { authenticate } from "../middleware/authenticate.js";
 import { getAllBanners, getBannerById, createBanner, updateBanner, toggleBannerStatus, deleteBanner, } from "../controllers/banner.controllers.js";
+const PLACEMENTS = [
+    "HOME_TOP",
+    "HOME_MIDDLE",
+    "HOME_BOTTOM",
+    "CATEGORY",
+    "PRODUCT",
+];
+const FORMATS = ["WEB", "MOBILE", "BOTH"];
+const REDIRECT_TYPES = [
+    "NONE",
+    "SERVICE",
+    "PACKAGE",
+    "CATEGORY",
+    "PRODUCT",
+    "URL",
+];
 const validateRequest = (req, res, next) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -19,12 +35,12 @@ const createBannerValidation = [
     body("placement")
         .notEmpty()
         .withMessage("Placement is required")
-        .isIn(["HOME_TOP", "HOME_MIDDLE", "HOME_BOTTOM", "CATEGORY", "PRODUCT"])
+        .isIn(PLACEMENTS)
         .withMessage("Invalid placement"),
     body("format")
         .notEmpty()
         .withMessage("Format is required")
-        .isIn(["WEB", "MOBILE", "BOTH"])
+        .isIn(FORMATS)
         .withMessage("Invalid format"),
     body("image")
         .notEmpty()
@@ -48,17 +64,29 @@ const createBannerValidation = [
         .optional()
         .isInt({ min: 0 })
         .withMessage("Display order must be a non-negative integer"),
+    body("redirect.type")
+        .optional()
+        .isIn(REDIRECT_TYPES)
+        .withMessage("Invalid redirect type"),
+    body("redirect.refId")
+        .optional()
+        .isMongoId()
+        .withMessage("redirect.refId must be a valid MongoDB ObjectId"),
+    body("redirect.url")
+        .optional()
+        .isURL()
+        .withMessage("redirect.url must be a valid URL"),
     validateRequest,
 ];
 const updateBannerValidation = [
     body("name").optional().isString().trim(),
     body("placement")
         .optional()
-        .isIn(["HOME_TOP", "HOME_MIDDLE", "HOME_BOTTOM", "CATEGORY", "PRODUCT"])
+        .isIn(PLACEMENTS)
         .withMessage("Invalid placement"),
     body("format")
         .optional()
-        .isIn(["WEB", "MOBILE", "BOTH"])
+        .isIn(FORMATS)
         .withMessage("Invalid format"),
     body("image")
         .optional()
@@ -80,6 +108,18 @@ const updateBannerValidation = [
         .optional()
         .isInt({ min: 0 })
         .withMessage("Display order must be a non-negative integer"),
+    body("redirect.type")
+        .optional()
+        .isIn(REDIRECT_TYPES)
+        .withMessage("Invalid redirect type"),
+    body("redirect.refId")
+        .optional()
+        .isMongoId()
+        .withMessage("redirect.refId must be a valid MongoDB ObjectId"),
+    body("redirect.url")
+        .optional()
+        .isURL()
+        .withMessage("redirect.url must be a valid URL"),
     validateRequest,
 ];
 const router = Router();

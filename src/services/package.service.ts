@@ -16,6 +16,7 @@ import { generateSlug } from "../utils/generateSlug.js";
 import { getNextSequence } from "../utils/getNextSequence.js";
 
 import { PackageCascadingEngine } from "./package-cascading-engine.service.js";
+import { escapeRegex } from "../utils/escapeRegex.js";
 
 export class PackageService {
   static async createPackage(payload: any) {
@@ -251,20 +252,35 @@ export class PackageService {
       matchQuery["locations.locationId"] = locationId;
     }
 
-    if (searchTerm) {
-      matchQuery.$text = {
-        $search: searchTerm,
-      };
+    if (searchTerm?.trim()) {
+      const term = searchTerm.trim();
+
+      if (term.length < 3) {
+        matchQuery.name = {
+          $regex: `^${escapeRegex(term)}`,
+          $options: "i",
+        };
+      } else {
+        matchQuery.$text = {
+          $search: term,
+        };
+      }
     }
 
     let sortCriteria: any = {};
 
-    if (searchTerm && sortBy === "relevance") {
-      sortCriteria = {
-        score: {
-          $meta: "textScore",
-        },
-      };
+    if (searchTerm?.trim()) {
+      const term = searchTerm.trim();
+
+      if (term.length >= 3 && sortBy === "relevance") {
+        sortCriteria = {
+          score: {
+            $meta: "textScore",
+          },
+        };
+      } else {
+        sortCriteria[sortBy] = sortOrder === "desc" ? -1 : 1;
+      }
     } else {
       sortCriteria[sortBy] = sortOrder === "desc" ? -1 : 1;
     }
@@ -283,7 +299,8 @@ export class PackageService {
           tiers: 1,
           startingPrice: 1,
           createdAt: 1,
-          ...(searchTerm && {
+          ...(searchTerm?.trim() &&
+            searchTerm.trim().length >= 3 && {
             score: {
               $meta: "textScore",
             },
@@ -616,11 +633,11 @@ export class PackageService {
 
           category: category
             ? {
-                id: category._id,
-                label: category.label,
-                value: category.value,
-                image: category.image,
-              }
+              id: category._id,
+              label: category.label,
+              value: category.value,
+              image: category.image,
+            }
             : null,
 
           pricing: pricingMap.get(pricingKey) || [],
@@ -643,11 +660,11 @@ export class PackageService {
 
         category: packageCategory
           ? {
-              id: packageCategory._id,
-              label: packageCategory.label,
-              value: packageCategory.value,
-              image: packageCategory.image,
-            }
+            id: packageCategory._id,
+            label: packageCategory.label,
+            value: packageCategory.value,
+            image: packageCategory.image,
+          }
           : null,
 
         isActive: pkg.isActive,
@@ -773,11 +790,11 @@ export class PackageService {
 
         category: category
           ? {
-              id: category._id,
-              label: category.label,
-              value: category.value,
-              image: category.image,
-            }
+            id: category._id,
+            label: category.label,
+            value: category.value,
+            image: category.image,
+          }
           : null,
 
         pricing: pricingMap.get(service.serviceId.toString()) || null,
@@ -799,11 +816,11 @@ export class PackageService {
 
         category: packageCategory
           ? {
-              id: packageCategory._id,
-              label: packageCategory.label,
-              value: packageCategory.value,
-              image: packageCategory.image,
-            }
+            id: packageCategory._id,
+            label: packageCategory.label,
+            value: packageCategory.value,
+            image: packageCategory.image,
+          }
           : null,
 
         isActive: pkg.isActive,

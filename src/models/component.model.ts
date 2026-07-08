@@ -12,7 +12,7 @@ export interface IComponent extends Document {
 
 const componentSchema = new Schema<IComponent>(
   {
-    name: { type: String, required: true, trim: true },
+    name: { type: String, required: true, trim: true, index: true },
     isRemovable: { type: Boolean, default: true },
     isBundled: { type: Boolean, default: true },
     categoryId: {
@@ -36,10 +36,11 @@ componentSchema.index({ categoryId: 1 });
 componentSchema.index(
   {
     name: "text",
-    categoryName: "text",
     description: "text",
   },
-  { name: "ComponentTextSearchIndex" },
+  {
+    name: "ComponentTextSearchIndex",
+  },
 );
 
 componentSchema.index({ isRemovable: 1, createdAt: -1 });

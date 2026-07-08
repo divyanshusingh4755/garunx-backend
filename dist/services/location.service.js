@@ -2,6 +2,7 @@ import mongoose, { Types } from "mongoose";
 import { Location } from "../models/location.model.js";
 import { Service } from "../models/service.model.js";
 import { Package } from "../models/package.model.js";
+import { escapeRegex } from "../utils/escapeRegex.js";
 export class LocationService {
     static async createLocation(data) {
         const newLocation = new Location(data);
@@ -20,8 +21,6 @@ export class LocationService {
         if (typeof isActive === "boolean") {
             query.isActive = isActive;
         }
-        if (searchTerm)
-            query.$text = { $search: searchTerm };
         if (countryFilter)
             query.country = this.applyFilter(countryFilter);
         if (stateIdFilter)
@@ -30,14 +29,43 @@ export class LocationService {
             query.cityId = this.applyFilter(cityIdFilter);
         if (pincodeFilter)
             query.pincode = this.applyFilter(pincodeFilter);
+        const isTextSearch = !!searchTerm?.trim() && searchTerm.trim().length >= 3;
+        if (searchTerm?.trim()) {
+            const term = searchTerm.trim();
+            if (isTextSearch) {
+                query.$text = {
+                    $search: term,
+                };
+            }
+            else {
+                query.$or = [
+                    {
+                        name: {
+                            $regex: `^${escapeRegex(term)}`,
+                            $options: "i",
+                        },
+                    },
+                    {
+                        pincode: {
+                            $regex: `^${escapeRegex(term)}`,
+                        },
+                    },
+                ];
+            }
+        }
         let sortCriteria = {};
-        if (searchTerm && sortBy === "relevance") {
-            sortCriteria = { score: { $meta: "textScore" } };
+        if (isTextSearch && sortBy === "relevance") {
+            sortCriteria = {
+                score: {
+                    $meta: "textScore",
+                },
+            };
         }
         else {
             sortCriteria[sortBy] = sortOrder === "desc" ? -1 : 1;
-            if (sortBy !== "createdAt")
-                sortCriteria["createdAt"] = -1;
+            if (sortBy !== "createdAt") {
+                sortCriteria.createdAt = -1;
+            }
         }
         try {
             const [data, total] = await Promise.all([

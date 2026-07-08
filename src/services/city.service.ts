@@ -1,5 +1,6 @@
 import { City, type ICity } from "../models/city.model.js";
 import { State } from "../models/state.model.js";
+import { escapeRegex } from "../utils/escapeRegex.js";
 
 export class CityService {
   private static applyFilter(filterValue?: string) {
@@ -72,23 +73,52 @@ export class CityService {
       query.isActive = isActive;
     }
 
-    if (searchTerm) query.$text = { $search: searchTerm };
     if (cityFilter) query.name = this.applyFilter(cityFilter);
     if (stateIdFilter) query.stateId = this.applyFilter(stateIdFilter);
     if (countryFilter) {
       query.country = this.applyFilter(countryFilter);
     }
 
+    const isTextSearch =
+      !!searchTerm?.trim() && searchTerm.trim().length >= 3;
+
+    if (searchTerm?.trim()) {
+      const term = searchTerm.trim();
+
+      if (isTextSearch) {
+        query.$text = {
+          $search: term,
+        };
+      } else {
+        query.name = {
+          $regex: `^${escapeRegex(term)}`,
+          $options: "i",
+        };
+      }
+    }
+
     // Sorting and Projection
     let sortCriteria: any = {};
     let projection: any = {};
 
-    if (searchTerm && sortBy === "relevance") {
-      projection = { score: { $meta: "textScore" } };
-      sortCriteria = { score: { $meta: "textScore" } };
+    if (isTextSearch && sortBy === "relevance") {
+      projection = {
+        score: {
+          $meta: "textScore",
+        },
+      };
+
+      sortCriteria = {
+        score: {
+          $meta: "textScore",
+        },
+      };
     } else {
       sortCriteria[sortBy] = sortOrder === "desc" ? -1 : 1;
-      if (sortBy !== "createdAt") sortCriteria["createdAt"] = -1;
+
+      if (sortBy !== "createdAt") {
+        sortCriteria.createdAt = -1;
+      }
     }
 
     try {

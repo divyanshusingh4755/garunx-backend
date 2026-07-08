@@ -44,4 +44,23 @@ const faqSchema = new Schema<IFAQ>(
   { timestamps: true },
 );
 
+faqSchema.index({ name: 1 });
+
+faqSchema.index(
+  {
+    name: "text",
+    question: "text",
+    answer: "text",
+  },
+  {
+    name: "FAQTextSearchIndex",
+  },
+);
+
+faqSchema.index({
+  faqType: 1,
+  isActive: 1,
+  displayOrder: 1,
+});
+
 export const FAQ = model<IFAQ>("FAQ", faqSchema);

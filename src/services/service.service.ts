@@ -13,6 +13,7 @@ import mongoose from "mongoose";
 import { PackageTierMap } from "../models/packagetiermap.model.js";
 import { PackageTierPricing } from "../models/packagetierpricing.model.js";
 import { ComponentItem } from "../models/componentitem.model.js";
+import { escapeRegex } from "../utils/escapeRegex.js";
 
 export class ServiceService {
   static async createService(payload: any) {
@@ -255,9 +256,8 @@ export class ServiceService {
 
       return {
         success: true,
-        message: `Service ${
-          isActive ? "activated" : "deactivated"
-        } successfully`,
+        message: `Service ${isActive ? "activated" : "deactivated"
+          } successfully`,
       };
     } finally {
       await session.endSession();
@@ -412,11 +412,35 @@ export class ServiceService {
       matchQuery["locations.locationId"] = new Types.ObjectId(locationId);
     }
 
-    if (searchTerm) matchQuery.$text = { $search: searchTerm };
+    if (searchTerm?.trim()) {
+      const term = searchTerm.trim();
+
+      if (term.length < 3) {
+        matchQuery.name = {
+          $regex: `^${escapeRegex(term)}`,
+          $options: "i",
+        };
+      } else {
+        matchQuery.$text = {
+          $search: term,
+        };
+      }
+    }
 
     let sortCriteria: any = {};
-    if (searchTerm && sortBy === "relevance") {
-      sortCriteria = { score: { $meta: "textScore" } };
+
+    if (searchTerm?.trim()) {
+      const term = searchTerm.trim();
+
+      if (term.length >= 3 && sortBy === "relevance") {
+        sortCriteria = {
+          score: {
+            $meta: "textScore",
+          },
+        };
+      } else {
+        sortCriteria[sortBy] = sortOrder === "desc" ? -1 : 1;
+      }
     } else {
       sortCriteria[sortBy] = sortOrder === "desc" ? -1 : 1;
     }
@@ -440,7 +464,12 @@ export class ServiceService {
             isComplete: 1,
             locations: 1,
             tiers: 1,
-            ...(searchTerm && { score: { $meta: "textScore" } }),
+            ...(searchTerm?.trim() &&
+              searchTerm.trim().length >= 3 && {
+              score: {
+                $meta: "textScore",
+              },
+            }),
           })
           .sort(sortCriteria)
           .skip(skip)
@@ -739,12 +768,12 @@ export class ServiceService {
         isRequired: comp.isRequired,
         component: componentDetails
           ? {
-              id: componentDetails._id,
-              image: componentDetails.imageUrl,
-              isRemovable: componentDetails.isRemovable,
-              isBundled: componentDetails.isBundled,
-              isActive: componentDetails.isActive,
-            }
+            id: componentDetails._id,
+            image: componentDetails.imageUrl,
+            isRemovable: componentDetails.isRemovable,
+            isBundled: componentDetails.isBundled,
+            isActive: componentDetails.isActive,
+          }
           : null,
 
         items: (comp.items || []).map((item) => ({
@@ -768,11 +797,11 @@ export class ServiceService {
 
         category: serviceCategory
           ? {
-              id: serviceCategory._id,
-              label: serviceCategory.label,
-              value: serviceCategory.value,
-              image: serviceCategory.image,
-            }
+            id: serviceCategory._id,
+            label: serviceCategory.label,
+            value: serviceCategory.value,
+            image: serviceCategory.image,
+          }
           : null,
 
         isActive: service.isActive,

@@ -1,4 +1,5 @@
 import { State } from "../models/state.model.js";
+import { escapeRegex } from "../utils/escapeRegex.js";
 export class StateService {
     static applyFilter(filterValue) {
         if (!filterValue)
@@ -22,22 +23,44 @@ export class StateService {
         if (typeof isActive === "boolean") {
             query.isActive = isActive;
         }
-        if (searchTerm)
-            query.$text = { $search: searchTerm };
         if (countryFilter)
             query.country = this.applyFilter(countryFilter);
         if (stateFilter)
             query.state = this.applyFilter(stateFilter);
+        const isTextSearch = !!searchTerm?.trim() && searchTerm.trim().length >= 3;
+        if (searchTerm?.trim()) {
+            const term = searchTerm.trim();
+            if (isTextSearch) {
+                query.$text = {
+                    $search: term,
+                };
+            }
+            else {
+                query.name = {
+                    $regex: `^${escapeRegex(term)}`,
+                    $options: "i",
+                };
+            }
+        }
         let sortCriteria = {};
         let projection = {};
-        if (searchTerm && sortBy === "relevance") {
-            projection = { score: { $meta: "textScore" } };
-            sortCriteria = { score: { $meta: "textScore" } };
+        if (isTextSearch && sortBy === "relevance") {
+            projection = {
+                score: {
+                    $meta: "textScore",
+                },
+            };
+            sortCriteria = {
+                score: {
+                    $meta: "textScore",
+                },
+            };
         }
         else {
             sortCriteria[sortBy] = sortOrder === "desc" ? -1 : 1;
-            if (sortBy !== "createdAt")
-                sortCriteria["createdAt"] = -1;
+            if (sortBy !== "createdAt") {
+                sortCriteria.createdAt = -1;
+            }
         }
         try {
             const [data, total] = await Promise.all([

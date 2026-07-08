@@ -30,6 +30,7 @@ const categorySchema = new Schema<ICategory>(
 );
 
 categorySchema.index({ type: 1, isActive: 1, displayOrder: 1 });
+categorySchema.index({ label: 1 });
 categorySchema.index(
   {
     label: "text",

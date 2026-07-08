@@ -13,6 +13,7 @@ export const createBanner = async (req: Request, res: Response) => {
       image,
       displayOrder,
       isActive,
+      redirect,
     } = req.body;
 
     const banner = await BannerService.createBanner({
@@ -24,6 +25,7 @@ export const createBanner = async (req: Request, res: Response) => {
       image,
       displayOrder: Number(displayOrder ?? 0),
       isActive: isActive ?? true,
+      redirect,
     });
 
     res.status(201).json({
@@ -43,29 +45,12 @@ export const updateBanner = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
 
-    const {
-      name,
-      description,
-      buttonText,
-      placement,
-      format,
-      image,
-      displayOrder,
-      isActive,
-    } = req.body;
-
     const updateData: Partial<IBanner> = {
-      name,
-      description,
-      buttonText,
-      placement,
-      format,
-      image,
-      isActive,
+      ...req.body,
     };
 
-    if (displayOrder !== undefined) {
-      updateData.displayOrder = Number(displayOrder);
+    if (updateData.displayOrder !== undefined) {
+      updateData.displayOrder = Number(updateData.displayOrder);
     }
 
     const banner = await BannerService.updateBanner(id as string, updateData);
@@ -145,6 +130,7 @@ export const getAllBanners = async (req: Request, res: Response) => {
       searchTerm,
       placement,
       format,
+      redirectType,
       isActive,
       limit,
       page,
@@ -156,11 +142,23 @@ export const getAllBanners = async (req: Request, res: Response) => {
       searchTerm as string,
       placement as string,
       format as string,
+      redirectType as
+      | "NONE"
+      | "SERVICE"
+      | "PACKAGE"
+      | "CATEGORY"
+      | "PRODUCT"
+      | "URL"
+      | undefined,
       Number(limit) || 20,
       Number(page) || 1,
-      isActive === "true" ? true : isActive === "false" ? false : undefined,
+      isActive === "true"
+        ? true
+        : isActive === "false"
+          ? false
+          : undefined,
       (sortBy as string) || "displayOrder",
-      (sortOrder as "asc" | "desc") || "asc",
+      (sortOrder as "asc" | "desc") || "asc"
     );
 
     res.status(200).json({

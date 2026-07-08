@@ -161,6 +161,8 @@ packageSchema.index({
   "tiers.tierId": 1,
 });
 
+packageSchema.index({ name: 1 });
+
 packageSchema.index(
   {
     name: "text",

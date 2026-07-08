@@ -24,6 +24,18 @@ const subServiceComponentSchema = new Schema<ISubServiceComponent>(
   { timestamps: true },
 );
 
+subServiceComponentSchema.index({ name: 1 });
+
+subServiceComponentSchema.index(
+  {
+    name: "text",
+    description: "text",
+  },
+  {
+    name: "SubServiceComponentTextSearchIndex",
+  },
+);
+
 export const SubServiceComponent = model<ISubServiceComponent>(
   "SubServiceComponent",
   subServiceComponentSchema,

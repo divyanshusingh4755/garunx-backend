@@ -5,6 +5,7 @@ import mongoose, { Types } from "mongoose";
 import { Cart } from "../models/cart.model.js";
 import { Coupon } from "../models/coupon.model.js";
 import { ReferralRewardService } from "./referralreward.service.js";
+import { escapeRegex } from "../utils/escapeRegex.js";
 
 const STATUS_TRANSITIONS: Record<BookingStatus, BookingStatus[]> = {
   PENDING_PAYMENT: ["CONFIRMED", "CANCELLED"],
@@ -335,25 +336,50 @@ export class BookingService {
       if (toDate) query.createdAt.$lte = new Date(toDate);
     }
 
-    if (searchTerm) {
-      query.$or = [
-        { bookingReference: { $regex: searchTerm, $options: "i" } },
-        { "customerDetails.name": { $regex: searchTerm, $options: "i" } },
-        { "customerDetails.email": { $regex: searchTerm, $options: "i" } },
-        { "customerDetails.phone": { $regex: searchTerm, $options: "i" } },
-      ];
+    const isTextSearch =
+      !!searchTerm?.trim() && searchTerm.trim().length >= 3;
+
+    if (searchTerm?.trim()) {
+      const term = searchTerm.trim();
+
+      if (isTextSearch) {
+        query.$text = {
+          $search: term,
+        };
+      } else {
+        query.bookingReference = {
+          $regex: `^${escapeRegex(term)}`,
+          $options: "i",
+        };
+      }
     }
 
     let sortCriteria: any = {};
-    sortCriteria[sortBy] = sortOrder === "desc" ? -1 : 1;
+    let projection: any = {};
 
-    if (sortBy !== "createdAt") {
-      sortCriteria["createdAt"] = -1;
+    if (isTextSearch && sortBy === "relevance") {
+      projection = {
+        score: {
+          $meta: "textScore",
+        },
+      };
+
+      sortCriteria = {
+        score: {
+          $meta: "textScore",
+        },
+      };
+    } else {
+      sortCriteria[sortBy] = sortOrder === "desc" ? -1 : 1;
+
+      if (sortBy !== "createdAt") {
+        sortCriteria.createdAt = -1;
+      }
     }
 
     try {
       const [data, total] = await Promise.all([
-        Booking.find(query)
+        Booking.find(query, projection)
           .populate("userId", "name email phone")
           .populate("cartId", "totalAmount status")
           .sort(sortCriteria)

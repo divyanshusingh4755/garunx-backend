@@ -3,6 +3,7 @@ import { Component, type IComponent } from "../models/component.model.js";
 import { ServiceComponent } from "../models/servicecomponent.model.js";
 import { ServicePricing } from "../models/servicepricing.model.js";
 import mongoose from "mongoose";
+import { escapeRegex } from "../utils/escapeRegex.js";
 
 export class ComponentService {
   static async createComponent(payload: Partial<IComponent>) {
@@ -111,9 +112,8 @@ export class ComponentService {
 
       return {
         success: true,
-        message: `Component ${
-          isActive ? "activated" : "deactivated"
-        } successfully`,
+        message: `Component ${isActive ? "activated" : "deactivated"
+          } successfully`,
       };
     } finally {
       await session.endSession();
@@ -149,7 +149,6 @@ export class ComponentService {
     if (typeof isRemovable === "boolean") query.isRemovable = isRemovable;
     if (typeof isBundled === "boolean") query.isBundled = isBundled;
 
-    if (searchTerm) query.$text = { $search: searchTerm };
     if (categoryId) {
       if (!Types.ObjectId.isValid(categoryId)) {
         throw new Error("Invalid categoryId");
@@ -157,12 +156,39 @@ export class ComponentService {
       query.categoryId = new Types.ObjectId(categoryId);
     }
 
+    const isTextSearch =
+      !!searchTerm?.trim() && searchTerm.trim().length >= 3;
+
+    if (searchTerm?.trim()) {
+      const term = searchTerm.trim();
+
+      if (isTextSearch) {
+        query.$text = {
+          $search: term,
+        };
+      } else {
+        query.name = {
+          $regex: `^${escapeRegex(term)}`,
+          $options: "i",
+        };
+      }
+    }
+
     let sortCriteria: any = {};
     let projection: any = {};
 
-    if (searchTerm && sortBy === "relevance") {
-      projection = { score: { $meta: "textScore" } };
-      sortCriteria = { score: { $meta: "textScore" } };
+    if (isTextSearch && sortBy === "relevance") {
+      projection = {
+        score: {
+          $meta: "textScore",
+        },
+      };
+
+      sortCriteria = {
+        score: {
+          $meta: "textScore",
+        },
+      };
     } else {
       sortCriteria[sortBy] = sortOrder === "desc" ? -1 : 1;
     }

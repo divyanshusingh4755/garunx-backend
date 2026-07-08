@@ -1,4 +1,5 @@
 import { Coupon } from "../models/coupon.model.js";
+import { escapeRegex } from "../utils/escapeRegex.js";
 export class CouponService {
     static async createCoupon(couponData) {
         if (!couponData.couponCode) {
@@ -98,28 +99,53 @@ export class CouponService {
         if (applicableOn) {
             query.applicableOn = applicableOn;
         }
-        if (searchTerm) {
-            query.$or = [
-                {
-                    name: {
-                        $regex: searchTerm,
-                        $options: "i",
+        const isTextSearch = !!searchTerm?.trim() && searchTerm.trim().length >= 3;
+        if (searchTerm?.trim()) {
+            const term = searchTerm.trim();
+            if (isTextSearch) {
+                query.$text = {
+                    $search: term,
+                };
+            }
+            else {
+                query.$or = [
+                    {
+                        name: {
+                            $regex: `^${escapeRegex(term)}`,
+                            $options: "i",
+                        },
                     },
-                },
-                {
-                    couponCode: {
-                        $regex: searchTerm,
-                        $options: "i",
+                    {
+                        couponCode: {
+                            $regex: `^${escapeRegex(term.toUpperCase())}`,
+                        },
                     },
-                },
-            ];
+                ];
+            }
         }
-        const sortCriteria = {
-            [sortBy]: sortOrder === "desc" ? -1 : 1,
-        };
+        let sortCriteria = {};
+        let projection = {};
+        if (isTextSearch && sortBy === "relevance") {
+            projection = {
+                score: {
+                    $meta: "textScore",
+                },
+            };
+            sortCriteria = {
+                score: {
+                    $meta: "textScore",
+                },
+            };
+        }
+        else {
+            sortCriteria[sortBy] = sortOrder === "desc" ? -1 : 1;
+            if (sortBy !== "createdAt") {
+                sortCriteria.createdAt = -1;
+            }
+        }
         try {
             const [data, total] = await Promise.all([
-                Coupon.find(query)
+                Coupon.find(query, projection)
                     .populate("services", "name")
                     .populate("packages", "name")
                     .sort(sortCriteria)

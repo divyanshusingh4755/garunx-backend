@@ -3,6 +3,7 @@ import { Location, type ILocation } from "../models/location.model.js";
 import type { QueryFilter } from "mongoose";
 import { Service } from "../models/service.model.js";
 import { Package } from "../models/package.model.js";
+import { escapeRegex } from "../utils/escapeRegex.js";
 
 export class LocationService {
   static async createLocation(data: {
@@ -61,18 +62,52 @@ export class LocationService {
       query.isActive = isActive;
     }
 
-    if (searchTerm) query.$text = { $search: searchTerm };
     if (countryFilter) query.country = this.applyFilter(countryFilter);
     if (stateIdFilter) query.stateId = this.applyFilter(stateIdFilter);
     if (cityIdFilter) query.cityId = this.applyFilter(cityIdFilter);
     if (pincodeFilter) query.pincode = this.applyFilter(pincodeFilter);
 
+    const isTextSearch =
+      !!searchTerm?.trim() && searchTerm.trim().length >= 3;
+
+    if (searchTerm?.trim()) {
+      const term = searchTerm.trim();
+
+      if (isTextSearch) {
+        query.$text = {
+          $search: term,
+        };
+      } else {
+        query.$or = [
+          {
+            name: {
+              $regex: `^${escapeRegex(term)}`,
+              $options: "i",
+            },
+          },
+          {
+            pincode: {
+              $regex: `^${escapeRegex(term)}`,
+            },
+          },
+        ];
+      }
+    }
+
     let sortCriteria: any = {};
-    if (searchTerm && sortBy === "relevance") {
-      sortCriteria = { score: { $meta: "textScore" } };
+
+    if (isTextSearch && sortBy === "relevance") {
+      sortCriteria = {
+        score: {
+          $meta: "textScore",
+        },
+      };
     } else {
       sortCriteria[sortBy] = sortOrder === "desc" ? -1 : 1;
-      if (sortBy !== "createdAt") sortCriteria["createdAt"] = -1;
+
+      if (sortBy !== "createdAt") {
+        sortCriteria.createdAt = -1;
+      }
     }
 
     try {

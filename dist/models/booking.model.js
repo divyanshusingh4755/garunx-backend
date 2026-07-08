@@ -365,17 +365,6 @@ const bookingSchema = new Schema({
 }, {
     timestamps: true,
 });
-bookingSchema.index({ userId: 1, status: 1 });
-bookingSchema.index({ userId: 1, createdAt: -1 });
-bookingSchema.index({ createdAt: -1 });
-bookingSchema.index({ scheduledAt: 1, status: 1 });
-bookingSchema.index({ "payment.status": 1 });
-bookingSchema.index({ bookingReference: 1 });
-bookingSchema.index({ userId: 1, scheduledAt: 1 });
-bookingSchema.index({
-    status: 1,
-    paymentExpiresAt: 1,
-});
 bookingSchema.pre("save", async function () {
     if (!this.isNew)
         return;
@@ -400,6 +389,17 @@ bookingSchema.pre("validate", function () {
         throw new Error("pricing.couponId and pricing.couponCode must be provided together");
     }
 });
+bookingSchema.index({ userId: 1, status: 1 });
+bookingSchema.index({ userId: 1, createdAt: -1 });
+bookingSchema.index({ createdAt: -1 });
+bookingSchema.index({ scheduledAt: 1, status: 1 });
+bookingSchema.index({ "payment.status": 1 });
+bookingSchema.index({ bookingReference: 1 });
+bookingSchema.index({ userId: 1, scheduledAt: 1 });
+bookingSchema.index({
+    status: 1,
+    paymentExpiresAt: 1,
+});
 bookingSchema.index({ cartId: 1 }, {
     unique: true,
     partialFilterExpression: {
@@ -408,6 +408,17 @@ bookingSchema.index({ cartId: 1 }, {
 });
 bookingSchema.index({
     "payment.refunds.refundId": 1,
+});
+bookingSchema.index({
+    bookingReference: 1,
+});
+bookingSchema.index({
+    bookingReference: "text",
+    "customerDetails.name": "text",
+    "customerDetails.email": "text",
+    "customerDetails.phone": "text",
+}, {
+    name: "BookingTextSearchIndex",
 });
 export const Booking = model("Booking", bookingSchema);
 //# sourceMappingURL=booking.model.js.map

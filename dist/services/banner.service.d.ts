@@ -33,7 +33,7 @@ export declare class BannerService {
     } & {
         id: string;
     }>;
-    static findBanners(searchTerm?: string, placement?: string, format?: string, limit?: number, page?: number, isActive?: boolean, sortBy?: string, sortOrder?: "asc" | "desc"): Promise<{
+    static findBanners(searchTerm?: string, placement?: string, format?: string, redirectType?: "NONE" | "SERVICE" | "PACKAGE" | "CATEGORY" | "PRODUCT" | "URL", limit?: number, page?: number, isActive?: boolean, sortBy?: string, sortOrder?: "asc" | "desc"): Promise<{
         data: (IBanner & Required<{
             _id: import("mongoose").Types.ObjectId;
         }> & {

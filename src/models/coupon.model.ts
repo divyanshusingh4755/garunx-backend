@@ -161,4 +161,23 @@ couponSchema.pre("validate", function () {
   }
 });
 
+couponSchema.index({ name: 1 });
+
+couponSchema.index({
+  isActive: 1,
+  applicableOn: 1,
+  assignedUserId: 1,
+  createdAt: -1,
+});
+
+couponSchema.index(
+  {
+    name: "text",
+    couponCode: "text",
+  },
+  {
+    name: "CouponTextSearchIndex",
+  },
+);
+
 export const Coupon = model<ICoupon>("Coupon", couponSchema);

@@ -1,7 +1,7 @@
 import { BannerService } from "../services/banner.service.js";
 export const createBanner = async (req, res) => {
     try {
-        const { name, description, buttonText, placement, format, image, displayOrder, isActive, } = req.body;
+        const { name, description, buttonText, placement, format, image, displayOrder, isActive, redirect, } = req.body;
         const banner = await BannerService.createBanner({
             name,
             description,
@@ -11,6 +11,7 @@ export const createBanner = async (req, res) => {
             image,
             displayOrder: Number(displayOrder ?? 0),
             isActive: isActive ?? true,
+            redirect,
         });
         res.status(201).json({
             success: true,
@@ -28,18 +29,11 @@ export const createBanner = async (req, res) => {
 export const updateBanner = async (req, res) => {
     try {
         const { id } = req.params;
-        const { name, description, buttonText, placement, format, image, displayOrder, isActive, } = req.body;
         const updateData = {
-            name,
-            description,
-            buttonText,
-            placement,
-            format,
-            image,
-            isActive,
+            ...req.body,
         };
-        if (displayOrder !== undefined) {
-            updateData.displayOrder = Number(displayOrder);
+        if (updateData.displayOrder !== undefined) {
+            updateData.displayOrder = Number(updateData.displayOrder);
         }
         const banner = await BannerService.updateBanner(id, updateData);
         res.status(200).json({
@@ -106,8 +100,12 @@ export const toggleBannerStatus = async (req, res) => {
 };
 export const getAllBanners = async (req, res) => {
     try {
-        const { searchTerm, placement, format, isActive, limit, page, sortBy, sortOrder, } = req.query;
-        const result = await BannerService.findBanners(searchTerm, placement, format, Number(limit) || 20, Number(page) || 1, isActive === "true" ? true : isActive === "false" ? false : undefined, sortBy || "displayOrder", sortOrder || "asc");
+        const { searchTerm, placement, format, redirectType, isActive, limit, page, sortBy, sortOrder, } = req.query;
+        const result = await BannerService.findBanners(searchTerm, placement, format, redirectType, Number(limit) || 20, Number(page) || 1, isActive === "true"
+            ? true
+            : isActive === "false"
+                ? false
+                : undefined, sortBy || "displayOrder", sortOrder || "asc");
         res.status(200).json({
             success: true,
             ...result,
