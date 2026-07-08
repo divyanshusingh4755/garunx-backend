@@ -217,6 +217,7 @@ export class PackageService {
     searchTerm?: string,
     categoryId?: string,
     locationId?: string,
+    tierId?: string,
     limit: number = 20,
     page: number = 1,
     isActive?: boolean,
@@ -250,6 +251,14 @@ export class PackageService {
       }
 
       matchQuery["locations.locationId"] = locationId;
+    }
+
+    if (tierId) {
+      if (!Types.ObjectId.isValid(tierId)) {
+        throw new Error("Invalid tierId");
+      }
+
+      matchQuery["tiers.tierId"] = tierId;
     }
 
     if (searchTerm?.trim()) {

@@ -75,10 +75,10 @@ export const getPackageById = async (req, res) => {
 };
 export const getAllPackages = async (req, res) => {
     try {
-        const { searchTerm, categoryId, locationId, limit, page, isActive, isComplete, sortBy, sortOrder, } = req.query;
+        const { searchTerm, categoryId, locationId, tierId, limit, page, isActive, isComplete, sortBy, sortOrder, } = req.query;
         const activeBool = isActive === "true" ? true : isActive === "false" ? false : undefined;
         const completeBool = isComplete === "true" ? true : isComplete === "false" ? false : undefined;
-        const { data, total, page: currentPage, totalPages, } = await PackageService.findPackages(searchTerm, categoryId, locationId, Number(limit) || 20, Number(page) || 1, activeBool, completeBool, sortBy || "name", sortOrder || "asc");
+        const { data, total, page: currentPage, totalPages, } = await PackageService.findPackages(searchTerm, categoryId, locationId, tierId, Number(limit) || 20, Number(page) || 1, activeBool, completeBool, sortBy || "name", sortOrder || "asc");
         return res.status(200).json({
             success: true,
             data,

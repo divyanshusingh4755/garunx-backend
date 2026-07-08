@@ -30,7 +30,6 @@ export class PolicyService {
     const policy = await Content.create({
       ...payload,
       version: (latestPolicy?.version || 0) + 1,
-      isActive: false,
     });
 
     return policy;

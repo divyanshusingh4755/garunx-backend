@@ -141,7 +141,7 @@ export class PackageService {
             message: `Package ${isActive ? "activated" : "deactivated"} successfully`,
         };
     }
-    static async findPackages(searchTerm, categoryId, locationId, limit = 20, page = 1, isActive, isComplete, sortBy = "createdAt", sortOrder = "desc") {
+    static async findPackages(searchTerm, categoryId, locationId, tierId, limit = 20, page = 1, isActive, isComplete, sortBy = "createdAt", sortOrder = "desc") {
         const skip = (page - 1) * limit;
         const matchQuery = {};
         if (isActive !== undefined) {
@@ -161,6 +161,12 @@ export class PackageService {
                 throw new Error("Invalid locationId");
             }
             matchQuery["locations.locationId"] = locationId;
+        }
+        if (tierId) {
+            if (!Types.ObjectId.isValid(tierId)) {
+                throw new Error("Invalid tierId");
+            }
+            matchQuery["tiers.tierId"] = tierId;
         }
         if (searchTerm?.trim()) {
             const term = searchTerm.trim();

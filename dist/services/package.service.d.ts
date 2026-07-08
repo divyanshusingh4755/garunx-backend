@@ -23,7 +23,7 @@ export declare class PackageService {
         success: boolean;
         message: string;
     }>;
-    static findPackages(searchTerm?: string, categoryId?: string, locationId?: string, limit?: number, page?: number, isActive?: boolean, isComplete?: boolean, sortBy?: string, sortOrder?: "asc" | "desc"): Promise<{
+    static findPackages(searchTerm?: string, categoryId?: string, locationId?: string, tierId?: string, limit?: number, page?: number, isActive?: boolean, isComplete?: boolean, sortBy?: string, sortOrder?: "asc" | "desc"): Promise<{
         data: (import("../models/package.model.js").IPackage & Required<{
             _id: Types.ObjectId;
         }> & {
