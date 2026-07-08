@@ -82,7 +82,7 @@ export class ComponentService {
       throw new Error("Component not found");
     }
 
-    // If deactivating → ask confirmation first
+    // Confirmation only when deactivating
     if (!isActive && !confirmed) {
       const impact = await this.getDeactivationImpact(componentId);
 
@@ -96,24 +96,30 @@ export class ComponentService {
 
     try {
       await session.withTransaction(async () => {
-        // 1. Update Component
+        // Always update the component status
         await Component.findByIdAndUpdate(
           componentId,
           { isActive },
           { session },
         );
 
-        // 2. Remove/Deactivate from ServiceComponent
-        await ServiceComponent.deleteMany({ componentId }, { session });
+        // Only remove related records when deactivating
+        if (!isActive) {
+          await ServiceComponent.deleteMany(
+            { componentId },
+            { session },
+          );
 
-        // 3. Delete pricing
-        await ServicePricing.deleteMany({ componentId }, { session });
+          await ServicePricing.deleteMany(
+            { componentId },
+            { session },
+          );
+        }
       });
 
       return {
         success: true,
-        message: `Component ${isActive ? "activated" : "deactivated"
-          } successfully`,
+        message: `Component ${isActive ? "activated" : "deactivated"} successfully`,
       };
     } finally {
       await session.endSession();

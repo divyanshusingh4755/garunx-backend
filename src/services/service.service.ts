@@ -204,6 +204,7 @@ export class ServiceService {
       };
     }
 
+    // Confirmation only when deactivating
     if (!isActive && !confirmed) {
       const impact = await ServiceService.getDeactivationImpact(serviceId);
 
@@ -214,6 +215,7 @@ export class ServiceService {
       };
     }
 
+    // Validate only when activating
     if (isActive) {
       const validation =
         await ServiceService.validateServiceConfiguration(serviceId);
@@ -227,29 +229,37 @@ export class ServiceService {
 
     try {
       await session.withTransaction(async () => {
-        // 1. Update Service
-        await Service.findByIdAndUpdate(serviceId, { isActive }, { session });
-
-        // 2. REMOVE service from Package mappings
-        await PackageTierMap.updateMany(
-          {
-            "services.serviceId": serviceId,
-          },
-          {
-            $pull: {
-              services: {
-                serviceId: new mongoose.Types.ObjectId(serviceId),
-              },
-            },
-          },
+        // Always update the service
+        await Service.findByIdAndUpdate(
+          serviceId,
+          { isActive },
           { session },
         );
 
-        // 3. DELETE package pricing for this service
-        await PackageTierPricing.deleteMany({ serviceId }, { session });
+        // Only clean up related data when deactivating
+        if (!isActive) {
+          await PackageTierMap.updateMany(
+            {
+              "services.serviceId": new mongoose.Types.ObjectId(serviceId),
+            },
+            {
+              $pull: {
+                services: {
+                  serviceId: new mongoose.Types.ObjectId(serviceId),
+                },
+              },
+            },
+            { session },
+          );
+
+          await PackageTierPricing.deleteMany(
+            { serviceId },
+            { session },
+          );
+        }
       });
 
-      // 4. Run downstream cascading (components etc.)
+      // Run cascading only when activating
       if (isActive) {
         await ServiceCascadingEngine.run(serviceId);
       }

@@ -156,6 +156,7 @@ export class ComponentItemService {
       throw new Error("Component Item not found");
     }
 
+    // Confirmation only when deactivating
     if (!isActive && !confirmed) {
       const impact = await this.getDeactivationImpact(componentItemId);
 
@@ -169,35 +170,36 @@ export class ComponentItemService {
 
     try {
       await session.withTransaction(async () => {
-        // 1. Update ComponentItem itself
+        // Always update the ComponentItem
         await ComponentItem.findByIdAndUpdate(
           componentItemId,
           { isActive },
           { session },
         );
 
-        // 2. REMOVE from ServiceComponent.items[]
-        await ServiceComponent.updateMany(
-          {
-            "items.itemId": componentItemId,
-          },
-          {
-            $pull: {
-              items: {
-                itemId: new mongoose.Types.ObjectId(componentItemId),
+        // Only remove references when deactivating
+        if (!isActive) {
+          await ServiceComponent.updateMany(
+            {
+              "items.itemId": new mongoose.Types.ObjectId(componentItemId),
+            },
+            {
+              $pull: {
+                items: {
+                  itemId: new mongoose.Types.ObjectId(componentItemId),
+                },
               },
             },
-          },
-          { session },
-        );
+            { session },
+          );
+        }
       });
 
       return {
         success: true,
-        message: `Component item ${isActive ? "activated" : "deactivated"
-          } successfully`,
+        message: `Component item ${isActive ? "activated" : "deactivated"} successfully`,
       };
-    } catch (err: any) {
+    } catch (err) {
       throw err;
     } finally {
       await session.endSession();

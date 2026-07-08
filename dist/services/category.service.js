@@ -73,6 +73,7 @@ export class CategoryService {
             throw new Error("Category not found");
         }
         const newStatus = !category.isActive;
+        // Confirmation only when deactivating
         if (!newStatus && !confirmed) {
             const impact = await this.getDeactivationImpact(categoryId);
             return {
@@ -83,14 +84,14 @@ export class CategoryService {
         const session = await mongoose.startSession();
         try {
             await session.withTransaction(async () => {
-                // 1. Update Category
+                // Always update the category
                 await Category.findByIdAndUpdate(categoryId, { isActive: newStatus }, { session });
-                // 2. Update Components
-                await Component.updateMany({ categoryId }, { isActive: newStatus }, { session });
-                // 3. Update Services
-                await Service.updateMany({ categoryId }, { isActive: newStatus }, { session });
-                // 4. Update Packages
-                await Package.updateMany({ categoryId }, { isActive: newStatus }, { session });
+                // Only cascade when deactivating
+                if (!newStatus) {
+                    await Component.updateMany({ categoryId }, { isActive: false }, { session });
+                    await Service.updateMany({ categoryId }, { isActive: false }, { session });
+                    await Package.updateMany({ categoryId }, { isActive: false }, { session });
+                }
             });
             return await Category.findById(categoryId).lean();
         }

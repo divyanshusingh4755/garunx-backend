@@ -230,56 +230,63 @@ export class LocationService {
     status: boolean,
     confirmed: boolean = false,
   ) {
-    // 1. Fetch location first to verify existence
+    // Verify location exists
     const location = await Location.findById(locationId).lean();
+
     if (!location) {
       throw new Error("Location not found");
     }
 
+    // Confirmation only when deactivating
     if (!status && !confirmed) {
       const impact = await this.getDeactivationImpact(locationId);
+
       return {
         requiresConfirmation: true,
         impact,
       };
     }
 
-    // 3. Execute updates inside a transaction
     const session = await Location.db.startSession();
 
     try {
-      let result = null;
-
       await session.withTransaction(async () => {
-        // Update parent location status
+        // Always update the parent location
         await Location.findByIdAndUpdate(
           locationId,
           { isActive: status },
           { session },
         );
 
-        // Convert ID format dynamically
-        const targetId = mongoose.Types.ObjectId.isValid(locationId)
-          ? new mongoose.Types.ObjectId(locationId)
-          : locationId;
+        // Only cascade when deactivating
+        if (!status) {
+          const targetId = mongoose.Types.ObjectId.isValid(locationId)
+            ? new mongoose.Types.ObjectId(locationId)
+            : locationId;
 
-        // Update related mappings in Services and Packages
-        const updatePayload = { $set: { "locations.$[loc].isActive": status } };
-        const options = {
-          session,
-          arrayFilters: [{ "loc.locationId": targetId }],
-        };
+          const updatePayload = {
+            $set: {
+              "locations.$[loc].isActive": false,
+            },
+          };
 
-        await Service.updateMany(
-          { "locations.locationId": locationId },
-          updatePayload,
-          options,
-        );
-        await Package.updateMany(
-          { "locations.locationId": locationId },
-          updatePayload,
-          options,
-        );
+          const options = {
+            session,
+            arrayFilters: [{ "loc.locationId": targetId }],
+          };
+
+          await Service.updateMany(
+            { "locations.locationId": targetId },
+            updatePayload,
+            options,
+          );
+
+          await Package.updateMany(
+            { "locations.locationId": targetId },
+            updatePayload,
+            options,
+          );
+        }
       });
 
       return { success: true };

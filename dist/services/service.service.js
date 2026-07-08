@@ -143,6 +143,7 @@ export class ServiceService {
                 message: `Service already ${isActive ? "active" : "inactive"}`,
             };
         }
+        // Confirmation only when deactivating
         if (!isActive && !confirmed) {
             const impact = await ServiceService.getDeactivationImpact(serviceId);
             return {
@@ -151,6 +152,7 @@ export class ServiceService {
                 impact,
             };
         }
+        // Validate only when activating
         if (isActive) {
             const validation = await ServiceService.validateServiceConfiguration(serviceId);
             if (!validation.isComplete) {
@@ -160,22 +162,23 @@ export class ServiceService {
         const session = await mongoose.startSession();
         try {
             await session.withTransaction(async () => {
-                // 1. Update Service
+                // Always update the service
                 await Service.findByIdAndUpdate(serviceId, { isActive }, { session });
-                // 2. REMOVE service from Package mappings
-                await PackageTierMap.updateMany({
-                    "services.serviceId": serviceId,
-                }, {
-                    $pull: {
-                        services: {
-                            serviceId: new mongoose.Types.ObjectId(serviceId),
+                // Only clean up related data when deactivating
+                if (!isActive) {
+                    await PackageTierMap.updateMany({
+                        "services.serviceId": new mongoose.Types.ObjectId(serviceId),
+                    }, {
+                        $pull: {
+                            services: {
+                                serviceId: new mongoose.Types.ObjectId(serviceId),
+                            },
                         },
-                    },
-                }, { session });
-                // 3. DELETE package pricing for this service
-                await PackageTierPricing.deleteMany({ serviceId }, { session });
+                    }, { session });
+                    await PackageTierPricing.deleteMany({ serviceId }, { session });
+                }
             });
-            // 4. Run downstream cascading (components etc.)
+            // Run cascading only when activating
             if (isActive) {
                 await ServiceCascadingEngine.run(serviceId);
             }

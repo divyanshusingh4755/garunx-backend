@@ -123,9 +123,7 @@ export class TierService {
       };
     }
 
-    /**
-     * CONFIRMATION FLOW
-     */
+    // Confirmation only when deactivating
     if (!isActive && !confirmed) {
       const impact = await TierService.getDeactivationImpact(id);
 
@@ -140,22 +138,42 @@ export class TierService {
 
     try {
       await session.withTransaction(async () => {
-        await Tier.findByIdAndUpdate(id, { isActive: false }, { session });
+        // Always update tier status
+        await Tier.findByIdAndUpdate(
+          id,
+          { isActive },
+          { session },
+        );
 
-        await ServiceComponent.deleteMany({ tierId: id }, { session });
+        // Only remove mappings when deactivating
+        if (!isActive) {
+          await ServiceComponent.deleteMany(
+            { tierId: id },
+            { session },
+          );
 
-        await ServicePricing.deleteMany({ tierId: id }, { session });
+          await ServicePricing.deleteMany(
+            { tierId: id },
+            { session },
+          );
 
-        await PackageTierMap.deleteMany({ tierId: id }, { session });
+          await PackageTierMap.deleteMany(
+            { tierId: id },
+            { session },
+          );
 
-        await PackageTierPricing.deleteMany({ tierId: id }, { session });
+          await PackageTierPricing.deleteMany(
+            { tierId: id },
+            { session },
+          );
+        }
       });
 
       return {
         success: true,
         message: `Tier ${isActive ? "activated" : "deactivated"} successfully`,
       };
-    } catch (err: any) {
+    } catch (err) {
       throw err;
     } finally {
       await session.endSession();

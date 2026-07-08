@@ -96,64 +96,65 @@ export class CategoryService {
     };
   }
 
-  static async toggleCategoryStatus(categoryId: string, confirmed = false) {
-    const category = await Category.findById(categoryId);
+static async toggleCategoryStatus(categoryId: string, confirmed = false) {
+  const category = await Category.findById(categoryId);
 
-    if (!category) {
-      throw new Error("Category not found");
-    }
+  if (!category) {
+    throw new Error("Category not found");
+  }
 
-    const newStatus = !category.isActive;
+  const newStatus = !category.isActive;
 
-    if (!newStatus && !confirmed) {
-      const impact = await this.getDeactivationImpact(categoryId);
+  // Confirmation only when deactivating
+  if (!newStatus && !confirmed) {
+    const impact = await this.getDeactivationImpact(categoryId);
 
-      return {
-        requiresConfirmation: true,
-        impact,
-      };
-    }
+    return {
+      requiresConfirmation: true,
+      impact,
+    };
+  }
 
-    const session = await mongoose.startSession();
+  const session = await mongoose.startSession();
 
-    try {
-      await session.withTransaction(async () => {
-        // 1. Update Category
-        await Category.findByIdAndUpdate(
-          categoryId,
-          { isActive: newStatus },
-          { session },
-        );
+  try {
+    await session.withTransaction(async () => {
+      // Always update the category
+      await Category.findByIdAndUpdate(
+        categoryId,
+        { isActive: newStatus },
+        { session },
+      );
 
-        // 2. Update Components
+      // Only cascade when deactivating
+      if (!newStatus) {
         await Component.updateMany(
           { categoryId },
-          { isActive: newStatus },
+          { isActive: false },
           { session },
         );
 
-        // 3. Update Services
         await Service.updateMany(
           { categoryId },
-          { isActive: newStatus },
+          { isActive: false },
           { session },
         );
 
-        // 4. Update Packages
         await Package.updateMany(
           { categoryId },
-          { isActive: newStatus },
+          { isActive: false },
           { session },
         );
-      });
+      }
+    });
 
-      return await Category.findById(categoryId).lean();
-    } catch (error) {
-      throw error;
-    } finally {
-      await session.endSession();
-    }
+    return await Category.findById(categoryId).lean();
+  } catch (error) {
+    throw error;
+  } finally {
+    await session.endSession();
   }
+}
 
   static async FindCategories(
     searchTerm?: string,

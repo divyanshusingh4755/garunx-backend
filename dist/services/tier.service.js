@@ -83,9 +83,7 @@ export class TierService {
                 message: `Tier already ${isActive ? "active" : "inactive"}`,
             };
         }
-        /**
-         * CONFIRMATION FLOW
-         */
+        // Confirmation only when deactivating
         if (!isActive && !confirmed) {
             const impact = await TierService.getDeactivationImpact(id);
             return {
@@ -97,11 +95,15 @@ export class TierService {
         const session = await mongoose.startSession();
         try {
             await session.withTransaction(async () => {
-                await Tier.findByIdAndUpdate(id, { isActive: false }, { session });
-                await ServiceComponent.deleteMany({ tierId: id }, { session });
-                await ServicePricing.deleteMany({ tierId: id }, { session });
-                await PackageTierMap.deleteMany({ tierId: id }, { session });
-                await PackageTierPricing.deleteMany({ tierId: id }, { session });
+                // Always update tier status
+                await Tier.findByIdAndUpdate(id, { isActive }, { session });
+                // Only remove mappings when deactivating
+                if (!isActive) {
+                    await ServiceComponent.deleteMany({ tierId: id }, { session });
+                    await ServicePricing.deleteMany({ tierId: id }, { session });
+                    await PackageTierMap.deleteMany({ tierId: id }, { session });
+                    await PackageTierPricing.deleteMany({ tierId: id }, { session });
+                }
             });
             return {
                 success: true,
