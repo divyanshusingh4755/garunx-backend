@@ -31,7 +31,7 @@ const contentSchema = new Schema<IContent>(
 
     isActive: {
       type: Boolean,
-      default: false,
+      default: true,
       index: true,
     },
 

@@ -17,7 +17,7 @@ const contentSchema = new Schema({
     },
     isActive: {
         type: Boolean,
-        default: false,
+        default: true,
         index: true,
     },
     userType: { type: String, enum: ["User", "Coordinator"], default: "User" },
