@@ -144,6 +144,13 @@ export declare class BookingService {
         todayBookings: number;
         thisMonthBookings: number;
     }>;
+    static searchBookings(searchQuery: string): Promise<(mongoose.Document<unknown, {}, import("../models/booking.model.js").IBooking, {}, mongoose.DefaultSchemaOptions> & import("../models/booking.model.js").IBooking & Required<{
+        _id: Types.ObjectId;
+    }> & {
+        __v: number;
+    } & {
+        id: string;
+    })[]>;
     static updateBookingNotes(bookingId: string, notes: string): Promise<{
         bookingId: Types.ObjectId;
         notes: string;

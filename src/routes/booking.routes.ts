@@ -15,6 +15,7 @@ import {
   updateBookingNotes,
   updateBookingSchedule,
   updateBookingStatus,
+  searchBookings
 } from "../controllers/booking.controllers.js";
 
 const router = Router();
@@ -74,9 +75,16 @@ router.get(
   getBookingStats,
 );
 
+// API to search booking using email and phone. Especially to show data for bookingFor - OTHERS
+router.get(
+  "/search",
+  authenticate,
+  searchBookings,
+);
+
+// This api can be used to show status of booking for booking for others flow
 router.get(
   "/:bookingId",
-  authenticate,
   getBookingById,
 );
 

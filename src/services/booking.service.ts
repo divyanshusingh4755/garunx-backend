@@ -408,7 +408,7 @@ export class BookingService {
 
     const booking = await Booking.findById(bookingId)
       .populate("userId", "name email phone")
-      .populate("subAdminId", "name email")
+      .populate("assignment.assignedCoordinatorId", "name email")
       .lean();
 
     if (!booking) {
@@ -567,6 +567,20 @@ export class BookingService {
     } catch (error: any) {
       throw new Error(`Booking stats fetch failed: ${error.message}`);
     }
+  }
+
+  static async searchBookings(searchQuery: string) {
+    const normalizedQuery = searchQuery.trim().toLowerCase();
+
+    return await Booking.find({
+      isDeleted: false,
+      $or: [
+        { "customerDetails.email": normalizedQuery },
+        { "customerDetails.phone": normalizedQuery },
+        { "cartSnapshot.customerDetails.email": normalizedQuery },
+        { "cartSnapshot.customerDetails.phone": normalizedQuery }
+      ]
+    }).populate("userId", "name email phone");
   }
 
   static async updateBookingNotes(bookingId: string, notes: string) {

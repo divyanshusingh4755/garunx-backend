@@ -175,6 +175,41 @@ export const getBookingStats = async (req: Request, res: Response) => {
   }
 };
 
+export const searchBookings = async (req: Request, res: Response) => {
+  try {
+    const { query } = req.query;
+    const userId = req.user?.userId;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized",
+      });
+    }
+
+    if (!query) {
+      return res.status(400).json({
+        success: false,
+        message: "Search query (email or phone) is required",
+      });
+    }
+
+    const result = await BookingService.searchBookings(
+      query as string
+    );
+
+    return res.status(200).json({
+      success: true,
+      data: result,
+    });
+  } catch (error: any) {
+    return res.status(400).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
 export const updateBookingNotes = async (req: Request, res: Response) => {
   try {
     const { bookingId } = req.params;

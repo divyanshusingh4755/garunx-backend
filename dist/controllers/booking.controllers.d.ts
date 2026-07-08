@@ -5,6 +5,7 @@ export declare const paymentStatus: (req: Request, res: Response) => Promise<Res
 export declare const getAllBookings: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
 export declare const getBookingById: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
 export declare const getBookingStats: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
+export declare const searchBookings: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
 export declare const updateBookingNotes: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
 export declare const updateBookingSchedule: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
 export declare const updateBookingStatus: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;

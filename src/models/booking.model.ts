@@ -730,6 +730,18 @@ bookingSchema.index({
   bookingReference: 1,
 });
 
+// Index for searching by main customer details email
+bookingSchema.index({ userId: 1, isDeleted: 1, "customerDetails.email": 1 });
+
+// Index for searching by main customer details phone
+bookingSchema.index({ userId: 1, isDeleted: 1, "customerDetails.phone": 1 });
+
+// Index for searching by snapshot email
+bookingSchema.index({ userId: 1, isDeleted: 1, "cartSnapshot.customerDetails.email": 1 });
+
+// Index for searching by snapshot phone
+bookingSchema.index({ userId: 1, isDeleted: 1, "cartSnapshot.customerDetails.phone": 1 });
+
 bookingSchema.index(
   {
     bookingReference: "text",
