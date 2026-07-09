@@ -26,7 +26,7 @@ export class PolicyService {
         }
         return policy;
     }
-    static async getAllPolicies(page = 1, limit = 20, type, userType) {
+    static async getAllPolicies(page = 1, limit = 20, isActive, type, userType) {
         const skip = (page - 1) * limit;
         const query = {};
         if (type) {
@@ -34,6 +34,9 @@ export class PolicyService {
         }
         if (userType) {
             query.userType = userType;
+        }
+        if (typeof isActive === "boolean") {
+            query.isActive = isActive;
         }
         const [data, total] = await Promise.all([
             Content.find(query)

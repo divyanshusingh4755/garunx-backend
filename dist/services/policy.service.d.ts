@@ -26,7 +26,7 @@ export declare class PolicyService {
     } & {
         id: string;
     }>;
-    static getAllPolicies(page?: number, limit?: number, type?: PolicyType, userType?: UserType): Promise<{
+    static getAllPolicies(page?: number, limit?: number, isActive?: boolean, type?: PolicyType, userType?: UserType): Promise<{
         data: (import("../models/policy.model.js").IContent & Required<{
             _id: Types.ObjectId;
         }> & {

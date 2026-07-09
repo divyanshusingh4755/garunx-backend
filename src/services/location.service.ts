@@ -1,6 +1,5 @@
 import mongoose, { Types } from "mongoose";
-import { Location, type ILocation } from "../models/location.model.js";
-import type { QueryFilter } from "mongoose";
+import { Location } from "../models/location.model.js";
 import { Service } from "../models/service.model.js";
 import { Package } from "../models/package.model.js";
 import { escapeRegex } from "../utils/escapeRegex.js";
@@ -68,7 +67,7 @@ export class LocationService {
     if (pincodeFilter) query.pincode = this.applyFilter(pincodeFilter);
 
     const isTextSearch =
-      !!searchTerm?.trim() && searchTerm.trim().length >= 3;
+      !!searchTerm?.trim() && searchTerm.trim().length > 4;
 
     if (searchTerm?.trim()) {
       const term = searchTerm.trim();

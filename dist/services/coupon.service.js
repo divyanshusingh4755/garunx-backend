@@ -99,7 +99,7 @@ export class CouponService {
         if (applicableOn) {
             query.applicableOn = applicableOn;
         }
-        const isTextSearch = !!searchTerm?.trim() && searchTerm.trim().length >= 3;
+        const isTextSearch = !!searchTerm?.trim() && searchTerm.trim().length > 4;
         if (searchTerm?.trim()) {
             const term = searchTerm.trim();
             if (isTextSearch) {

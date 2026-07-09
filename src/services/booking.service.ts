@@ -336,50 +336,48 @@ export class BookingService {
       if (toDate) query.createdAt.$lte = new Date(toDate);
     }
 
-    const isTextSearch =
-      !!searchTerm?.trim() && searchTerm.trim().length >= 3;
-
     if (searchTerm?.trim()) {
-      const term = searchTerm.trim();
+      const term = escapeRegex(searchTerm.trim());
 
-      if (isTextSearch) {
-        query.$text = {
-          $search: term,
-        };
-      } else {
-        query.bookingReference = {
-          $regex: `^${escapeRegex(term)}`,
-          $options: "i",
-        };
-      }
+      query.$or = [
+        {
+          bookingReference: {
+            $regex: term,
+            $options: "i",
+          },
+        },
+        {
+          "customerDetails.name": {
+            $regex: term,
+            $options: "i",
+          },
+        },
+        {
+          "customerDetails.email": {
+            $regex: term,
+            $options: "i",
+          },
+        },
+        {
+          "customerDetails.phone": {
+            $regex: term,
+            $options: "i",
+          },
+        },
+      ];
     }
 
-    let sortCriteria: any = {};
-    let projection: any = {};
+    const sortCriteria: any = {};
 
-    if (isTextSearch && sortBy === "relevance") {
-      projection = {
-        score: {
-          $meta: "textScore",
-        },
-      };
+    sortCriteria[sortBy] = sortOrder === "desc" ? -1 : 1;
 
-      sortCriteria = {
-        score: {
-          $meta: "textScore",
-        },
-      };
-    } else {
-      sortCriteria[sortBy] = sortOrder === "desc" ? -1 : 1;
-
-      if (sortBy !== "createdAt") {
-        sortCriteria.createdAt = -1;
-      }
+    if (sortBy !== "createdAt") {
+      sortCriteria.createdAt = -1;
     }
 
     try {
       const [data, total] = await Promise.all([
-        Booking.find(query, projection)
+        Booking.find(query)
           .populate("userId", "name email phone")
           .populate("cartId", "totalAmount status")
           .sort(sortCriteria)

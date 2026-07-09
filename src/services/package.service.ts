@@ -261,35 +261,28 @@ export class PackageService {
       matchQuery["tiers.tierId"] = tierId;
     }
 
+    const useTextSearch =
+      !!searchTerm?.trim() && searchTerm.trim().length > 4;
+
     if (searchTerm?.trim()) {
       const term = searchTerm.trim();
 
-      if (term.length < 3) {
-        matchQuery.name = {
-          $regex: `^${escapeRegex(term)}`,
-          $options: "i",
-        };
+      if (useTextSearch) {
+        matchQuery.$text = { $search: term };
       } else {
-        matchQuery.$text = {
-          $search: term,
+        matchQuery.name = {
+          $regex: escapeRegex(term),
+          $options: "i",
         };
       }
     }
 
     let sortCriteria: any = {};
 
-    if (searchTerm?.trim()) {
-      const term = searchTerm.trim();
-
-      if (term.length >= 3 && sortBy === "relevance") {
-        sortCriteria = {
-          score: {
-            $meta: "textScore",
-          },
-        };
-      } else {
-        sortCriteria[sortBy] = sortOrder === "desc" ? -1 : 1;
-      }
+    if (useTextSearch && sortBy === "relevance") {
+      sortCriteria = {
+        score: { $meta: "textScore" },
+      };
     } else {
       sortCriteria[sortBy] = sortOrder === "desc" ? -1 : 1;
     }
@@ -308,11 +301,8 @@ export class PackageService {
           tiers: 1,
           startingPrice: 1,
           createdAt: 1,
-          ...(searchTerm?.trim() &&
-            searchTerm.trim().length >= 3 && {
-            score: {
-              $meta: "textScore",
-            },
+          ...(useTextSearch && {
+            score: { $meta: "textScore" },
           }),
         })
         .sort(sortCriteria)

@@ -93,9 +93,9 @@ const getPolicyByTypeValidation = [
   validate,
 ];
 
+router.get("/", authenticate, getPoliciesValidation, getAllPolicies);
 router.post("/", authenticate, createPolicyValidation, createPolicy);
 router.put("/:id", authenticate, updatePolicyValidation, updatePolicy);
-router.get("/", authenticate, getPoliciesValidation, getAllPolicies);
 router.patch("/:id/status", authenticate, statusValidation, togglePolicyStatus);
 router.get("/:type", getPolicyByTypeValidation, getPolicyByType);
 

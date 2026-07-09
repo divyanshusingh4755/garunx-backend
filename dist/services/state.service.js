@@ -27,7 +27,7 @@ export class StateService {
             query.country = this.applyFilter(countryFilter);
         if (stateFilter)
             query.state = this.applyFilter(stateFilter);
-        const isTextSearch = !!searchTerm?.trim() && searchTerm.trim().length >= 3;
+        const isTextSearch = !!searchTerm?.trim() && searchTerm.trim().length > 4;
         if (searchTerm?.trim()) {
             const term = searchTerm.trim();
             if (isTextSearch) {

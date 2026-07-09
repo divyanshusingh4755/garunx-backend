@@ -41,7 +41,7 @@ export const updatePolicy = async (req: Request, res: Response) => {
 
 export const getAllPolicies = async (req: Request, res: Response) => {
   try {
-    const { page, limit, type, userType } = req.query;
+    const { page, isActive, limit, type, userType } = req.query;
 
     const {
       data,
@@ -51,6 +51,7 @@ export const getAllPolicies = async (req: Request, res: Response) => {
     } = await PolicyService.getAllPolicies(
       Number(page) || 1,
       Number(limit) || 20,
+      isActive === "true" ? true : isActive === "false" ? false : undefined,
       type as PolicyType | undefined,
       userType as UserType | undefined,
     );

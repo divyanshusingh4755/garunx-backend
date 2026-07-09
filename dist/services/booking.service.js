@@ -231,44 +231,43 @@ export class BookingService {
             if (toDate)
                 query.createdAt.$lte = new Date(toDate);
         }
-        const isTextSearch = !!searchTerm?.trim() && searchTerm.trim().length >= 3;
         if (searchTerm?.trim()) {
-            const term = searchTerm.trim();
-            if (isTextSearch) {
-                query.$text = {
-                    $search: term,
-                };
-            }
-            else {
-                query.bookingReference = {
-                    $regex: `^${escapeRegex(term)}`,
-                    $options: "i",
-                };
-            }
-        }
-        let sortCriteria = {};
-        let projection = {};
-        if (isTextSearch && sortBy === "relevance") {
-            projection = {
-                score: {
-                    $meta: "textScore",
+            const term = escapeRegex(searchTerm.trim());
+            query.$or = [
+                {
+                    bookingReference: {
+                        $regex: term,
+                        $options: "i",
+                    },
                 },
-            };
-            sortCriteria = {
-                score: {
-                    $meta: "textScore",
+                {
+                    "customerDetails.name": {
+                        $regex: term,
+                        $options: "i",
+                    },
                 },
-            };
+                {
+                    "customerDetails.email": {
+                        $regex: term,
+                        $options: "i",
+                    },
+                },
+                {
+                    "customerDetails.phone": {
+                        $regex: term,
+                        $options: "i",
+                    },
+                },
+            ];
         }
-        else {
-            sortCriteria[sortBy] = sortOrder === "desc" ? -1 : 1;
-            if (sortBy !== "createdAt") {
-                sortCriteria.createdAt = -1;
-            }
+        const sortCriteria = {};
+        sortCriteria[sortBy] = sortOrder === "desc" ? -1 : 1;
+        if (sortBy !== "createdAt") {
+            sortCriteria.createdAt = -1;
         }
         try {
             const [data, total] = await Promise.all([
-                Booking.find(query, projection)
+                Booking.find(query)
                     .populate("userId", "name email phone")
                     .populate("cartId", "totalAmount status")
                     .sort(sortCriteria)

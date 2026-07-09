@@ -175,7 +175,7 @@ static async toggleCategoryStatus(categoryId: string, confirmed = false) {
     if (typeFilter) query.type = typeFilter;
 
     const isTextSearch =
-      !!searchTerm?.trim() && searchTerm.trim().length >= 3;
+      !!searchTerm?.trim() && searchTerm.trim().length > 4;
 
     if (searchTerm?.trim()) {
       const term = searchTerm.trim();

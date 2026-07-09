@@ -169,7 +169,7 @@ export class CouponService {
     }
 
     const isTextSearch =
-      !!searchTerm?.trim() && searchTerm.trim().length >= 3;
+      !!searchTerm?.trim() && searchTerm.trim().length > 4;
 
     if (searchTerm?.trim()) {
       const term = searchTerm.trim();

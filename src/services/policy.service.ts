@@ -58,15 +58,13 @@ export class PolicyService {
   static async getAllPolicies(
     page = 1,
     limit = 20,
+    isActive?: boolean,
     type?: PolicyType,
     userType?: UserType,
   ) {
     const skip = (page - 1) * limit;
 
-    const query: {
-      type?: PolicyType;
-      userType?: UserType;
-    } = {};
+    const query: any = {};
 
     if (type) {
       query.type = type;
@@ -74,6 +72,10 @@ export class PolicyService {
 
     if (userType) {
       query.userType = userType;
+    }
+
+    if (typeof isActive === "boolean") {
+      query.isActive = isActive;
     }
 
     const [data, total] = await Promise.all([

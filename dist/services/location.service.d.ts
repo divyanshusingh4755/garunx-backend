@@ -1,5 +1,4 @@
 import mongoose, { Types } from "mongoose";
-import { type ILocation } from "../models/location.model.js";
 export declare class LocationService {
     static createLocation(data: {
         name: string;
@@ -14,7 +13,7 @@ export declare class LocationService {
             type: "Point";
             coordinates: [number, number];
         };
-    }): Promise<mongoose.Document<unknown, {}, ILocation, {}, mongoose.DefaultSchemaOptions> & ILocation & Required<{
+    }): Promise<mongoose.Document<unknown, {}, import("../models/location.model.js").ILocation, {}, mongoose.DefaultSchemaOptions> & import("../models/location.model.js").ILocation & Required<{
         _id: Types.ObjectId;
     }> & {
         __v: number;
@@ -71,7 +70,7 @@ export declare class LocationService {
             coordinates: [number, number];
         };
         isActive?: boolean;
-    }): Promise<ILocation & Required<{
+    }): Promise<import("../models/location.model.js").ILocation & Required<{
         _id: Types.ObjectId;
     }> & {
         __v: number;
@@ -112,7 +111,7 @@ export declare class LocationService {
         requiresConfirmation?: never;
         impact?: never;
     }>;
-    static getLocationById(locationId: string): Promise<ILocation & Required<{
+    static getLocationById(locationId: string): Promise<import("../models/location.model.js").ILocation & Required<{
         _id: Types.ObjectId;
     }> & {
         __v: number;

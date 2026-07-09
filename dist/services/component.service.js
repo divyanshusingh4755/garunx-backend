@@ -117,7 +117,7 @@ export class ComponentService {
             }
             query.categoryId = new Types.ObjectId(categoryId);
         }
-        const isTextSearch = !!searchTerm?.trim() && searchTerm.trim().length >= 3;
+        const isTextSearch = !!searchTerm?.trim() && searchTerm.trim().length > 4;
         if (searchTerm?.trim()) {
             const term = searchTerm.trim();
             if (isTextSearch) {

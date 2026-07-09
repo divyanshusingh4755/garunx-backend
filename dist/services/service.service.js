@@ -301,33 +301,26 @@ export class ServiceService {
             }
             matchQuery["locations.locationId"] = new Types.ObjectId(locationId);
         }
-        if (searchTerm?.trim()) {
-            const term = searchTerm.trim();
-            if (term.length < 3) {
-                matchQuery.name = {
-                    $regex: `^${escapeRegex(term)}`,
-                    $options: "i",
-                };
-            }
-            else {
+        const term = searchTerm?.trim() ?? "";
+        const useTextSearch = term.length > 4;
+        if (term) {
+            if (useTextSearch) {
                 matchQuery.$text = {
                     $search: term,
                 };
             }
-        }
-        let sortCriteria = {};
-        if (searchTerm?.trim()) {
-            const term = searchTerm.trim();
-            if (term.length >= 3 && sortBy === "relevance") {
-                sortCriteria = {
-                    score: {
-                        $meta: "textScore",
-                    },
+            else {
+                matchQuery.name = {
+                    $regex: escapeRegex(term),
+                    $options: "i",
                 };
             }
-            else {
-                sortCriteria[sortBy] = sortOrder === "desc" ? -1 : 1;
-            }
+        }
+        let sortCriteria = {};
+        if (useTextSearch && sortBy === "relevance") {
+            sortCriteria = {
+                score: { $meta: "textScore" },
+            };
         }
         else {
             sortCriteria[sortBy] = sortOrder === "desc" ? -1 : 1;
@@ -351,11 +344,8 @@ export class ServiceService {
                     isComplete: 1,
                     locations: 1,
                     tiers: 1,
-                    ...(searchTerm?.trim() &&
-                        searchTerm.trim().length >= 3 && {
-                        score: {
-                            $meta: "textScore",
-                        },
+                    ...(useTextSearch && {
+                        score: { $meta: "textScore" },
                     }),
                 })
                     .sort(sortCriteria)

@@ -559,7 +559,7 @@ class AuthService {
       if (typeof isComplete === "boolean") filter.isComplete = isComplete;
       if (typeof isActive === "boolean") filter.isActive = isActive;
 
-      const isTextSearch = !!search?.trim() && search.trim().length >= 3;
+      const isTextSearch = !!search?.trim() && search.trim().length > 4;
 
       if (search?.trim()) {
         const term = search.trim();
