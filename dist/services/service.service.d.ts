@@ -70,8 +70,12 @@ export declare class ServiceService {
         };
         success?: never;
     }>;
-    static getServicesByLocation(cityIds: string[], limit?: number, page?: number, isActive?: boolean, isComplete?: boolean, sortBy?: string, sortOrder?: "asc" | "desc"): Promise<{
-        data: any[];
+    static getServicesByLocation(cityIds?: string[], categoryIds?: string[], limit?: number, page?: number, isActive?: boolean, isComplete?: boolean, sortBy?: string, sortOrder?: "asc" | "desc"): Promise<{
+        data: (import("../models/service.model.js").IService & Required<{
+            _id: Types.ObjectId;
+        }> & {
+            __v: number;
+        })[];
         total: number;
         page: number;
         totalPages: number;

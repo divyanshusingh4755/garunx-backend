@@ -146,7 +146,7 @@ const removeTierValidation = [
     validate,
 ];
 router.get("/", getAllPackages);
-router.post("/getPackagesByLocation", authenticate, getPackagesByLocation);
+router.get("/getPackagesByLocation", authenticate, getPackagesByLocation);
 router.post("/:packageId/getFullPackagesByCities", packageIdValidation, getFullPackageByCities);
 router.get("/:packageId/full", packageIdValidation, getFullPackage);
 router.get("/:packageId/:tierId/:locationId/relatedService", packageIdValidation, getRelatedPackageService);

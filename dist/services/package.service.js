@@ -788,42 +788,41 @@ export class PackageService {
             components: grouped, // (services grouped under tiers)
         };
     }
-    static async getPackagesByLocation(cityIds, limit = 20, page = 1, isActive, isComplete, sortBy = "createdAt", sortOrder = "desc") {
+    static async getPackagesByLocation(cityIds, categoryIds, limit = 20, page = 1, isActive, isComplete, sortBy = "createdAt", sortOrder = "desc") {
         const skip = (page - 1) * limit;
-        if (!Array.isArray(cityIds) || cityIds.length === 0) {
-            throw new Error("cityIds must be a non-empty array");
+        const matchQuery = {};
+        if (cityIds?.length) {
+            const invalidIds = cityIds.filter((id) => !Types.ObjectId.isValid(id));
+            if (invalidIds.length > 0) {
+                throw new Error(`Invalid cityIds: ${invalidIds.join(", ")}`);
+            }
         }
-        const invalidIds = cityIds.filter((id) => !Types.ObjectId.isValid(id));
-        if (invalidIds.length > 0) {
-            throw new Error(`Invalid cityIds: ${invalidIds.join(", ")}`);
+        if (categoryIds?.length) {
+            const invalidCategoryIds = categoryIds.filter((id) => !Types.ObjectId.isValid(id));
+            if (invalidCategoryIds.length > 0) {
+                throw new Error(`Invalid categoryIds: ${invalidCategoryIds.join(", ")}`);
+            }
         }
         try {
-            const locations = await Location.find({
-                cityId: {
-                    $in: cityIds.map((id) => new Types.ObjectId(id)),
-                },
-                isActive: true,
-            })
-                .populate({
-                path: "cityId",
-                select: "name",
-            })
-                .select("_id cityId name")
-                .lean();
-            const locationIds = locations.map((loc) => loc._id);
-            const locationMap = new Map(locations.map((loc) => [
-                loc._id.toString(),
-                {
-                    locationId: loc._id,
-                    locationName: loc.name,
-                    city: loc.cityId,
-                },
-            ]));
-            const matchQuery = {
-                "locations.locationId": {
+            if (cityIds?.length) {
+                const locations = await Location.find({
+                    cityId: {
+                        $in: cityIds.map((id) => new Types.ObjectId(id)),
+                    },
+                    isActive: true,
+                })
+                    .select("_id")
+                    .lean();
+                const locationIds = locations.map((loc) => loc._id);
+                matchQuery["locations.locationId"] = {
                     $in: locationIds,
-                },
-            };
+                };
+            }
+            if (categoryIds?.length) {
+                matchQuery.categoryId = {
+                    $in: categoryIds.map((id) => new Types.ObjectId(id)),
+                };
+            }
             if (isActive !== undefined) {
                 matchQuery.isActive = isActive;
             }
@@ -833,12 +832,8 @@ export class PackageService {
             const sortCriteria = {
                 [sortBy]: sortOrder === "desc" ? -1 : 1,
             };
-            const [packages, total] = await Promise.all([
+            const [data, total] = await Promise.all([
                 Package.find(matchQuery)
-                    .populate({
-                    path: "tiers.tierId",
-                    select: "name",
-                })
                     .select({
                     name: 1,
                     shortDescription: 1,
@@ -858,16 +853,6 @@ export class PackageService {
                     .lean({ virtuals: true }),
                 Package.countDocuments(matchQuery),
             ]);
-            const data = packages.map((pkg) => ({
-                ...pkg,
-                locations: pkg.locations.map((loc) => {
-                    const mappedLocation = locationMap.get(loc.locationId.toString());
-                    return {
-                        ...loc,
-                        locationDetails: mappedLocation || null,
-                    };
-                }),
-            }));
             return {
                 data,
                 total,

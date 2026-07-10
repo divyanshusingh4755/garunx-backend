@@ -146,11 +146,11 @@ const removeTierValidation = [
     validate,
 ];
 router.get("/", getAllServices);
+router.get("/getServicesByLocation", authenticate, getServicesByLocation);
 router.get("/:serviceId/full", serviceIdValidation, getFullService);
 router.get("/:serviceId/diagnostics", authenticate, serviceIdValidation, getServiceDiagnostics);
 router.get("/:serviceId", serviceIdValidation, getServiceById);
 router.post("/", authenticate, serviceValidation, createService);
-router.post("/getServicesByLocation", authenticate, getServicesByLocation);
 router.post("/:serviceId/getFullServiceByCities", serviceIdValidation, getFullServiceByCities);
 router.patch("/:serviceId", authenticate, updateServiceValidation, updateService);
 router.patch("/:serviceId/status", authenticate, serviceStatusValidation, toggleServiceStatus);

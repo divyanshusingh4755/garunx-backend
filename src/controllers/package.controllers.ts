@@ -341,8 +341,22 @@ export const getFullPackageByCities = async (req: Request, res: Response) => {
 
 export const getPackagesByLocation = async (req: Request, res: Response) => {
   try {
-    const { cityIds, limit, page, isActive, isComplete, sortBy, sortOrder } =
-      req.body;
+    const {
+      cityIds,
+      categoryIds,
+      limit,
+      page,
+      isActive,
+      isComplete,
+      sortBy,
+      sortOrder,
+    } = req.query;
+
+    const cityIdArray =
+      typeof cityIds === "string" ? cityIds.split(",") : undefined;
+
+    const categoryIdArray =
+      typeof categoryIds === "string" ? categoryIds.split(",") : undefined;
 
     const activeBool =
       isActive === "true" ? true : isActive === "false" ? false : undefined;
@@ -356,7 +370,8 @@ export const getPackagesByLocation = async (req: Request, res: Response) => {
       page: currentPage,
       totalPages,
     } = await PackageService.getPackagesByLocation(
-      cityIds as string[],
+      cityIdArray,
+      categoryIdArray,
       Number(limit) || 20,
       Number(page) || 1,
       activeBool,

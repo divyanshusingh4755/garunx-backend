@@ -275,7 +275,8 @@ export class ServiceService {
   }
 
   static async getServicesByLocation(
-    cityIds: string[],
+    cityIds?: string[],
+    categoryIds?: string[],
     limit: number = 20,
     page: number = 1,
     isActive?: boolean,
@@ -284,49 +285,48 @@ export class ServiceService {
     sortOrder: "asc" | "desc" = "desc",
   ) {
     const skip = (page - 1) * limit;
+    const matchQuery: any = {};
 
-    if (!Array.isArray(cityIds) || cityIds.length === 0) {
-      throw new Error("cityIds must be a non-empty array");
+    if (cityIds?.length) {
+      const invalidIds = cityIds.filter(
+        (id) => !Types.ObjectId.isValid(id),
+      );
+
+      if (invalidIds.length > 0) {
+        throw new Error(`Invalid cityIds: ${invalidIds.join(", ")}`);
+      }
     }
 
-    const invalidIds = cityIds.filter((id) => !Types.ObjectId.isValid(id));
+    if (categoryIds?.length) {
+      const invalidCategoryIds = categoryIds.filter(
+        (id) => !Types.ObjectId.isValid(id),
+      );
 
-    if (invalidIds.length > 0) {
-      throw new Error(`Invalid cityIds: ${invalidIds.join(", ")}`);
+      if (invalidCategoryIds.length > 0) {
+        throw new Error(
+          `Invalid categoryIds: ${invalidCategoryIds.join(", ")}`
+        );
+      }
     }
 
     try {
-      const locations = await Location.find({
-        cityId: {
-          $in: cityIds.map((id) => new Types.ObjectId(id)),
-        },
-        isActive: true,
-      })
-        .populate({
-          path: "cityId",
-          select: "name",
-        })
-        .select("_id cityId name")
-        .lean();
 
-      const locationIds = locations.map((loc) => loc._id);
-
-      const locationMap = new Map(
-        locations.map((loc: any) => [
-          loc._id.toString(),
-          {
-            locationId: loc._id,
-            locationName: loc.name,
-            city: loc.cityId,
+      if (cityIds?.length) {
+        const locations = await Location.find({
+          cityId: {
+            $in: cityIds.map((id) => new Types.ObjectId(id)),
           },
-        ]),
-      );
+          isActive: true,
+        })
+          .select("_id")
+          .lean();
 
-      const matchQuery: any = {
-        "locations.locationId": {
+        const locationIds = locations.map((loc) => loc._id);
+
+        matchQuery["locations.locationId"] = {
           $in: locationIds,
-        },
-      };
+        };
+      }
 
       if (isActive !== undefined) {
         matchQuery.isActive = isActive;
@@ -334,6 +334,12 @@ export class ServiceService {
 
       if (isComplete !== undefined) {
         matchQuery.isComplete = isComplete;
+      }
+
+      if (categoryIds?.length) {
+        matchQuery.categoryId = {
+          $in: categoryIds.map((id) => new Types.ObjectId(id)),
+        };
       }
 
       const sortCriteria: any = {
@@ -367,20 +373,8 @@ export class ServiceService {
         Service.countDocuments(matchQuery),
       ]);
 
-      const data = services.map((service: any) => ({
-        ...service,
-        locations: service.locations.map((loc: any) => {
-          const mappedLocation = locationMap.get(loc.locationId.toString());
-
-          return {
-            ...loc,
-            locationDetails: mappedLocation || null,
-          };
-        }),
-      }));
-
       return {
-        data,
+        data: services,
         total,
         page,
         totalPages: Math.ceil(total / limit),

@@ -154,8 +154,12 @@ export declare class PackageService {
         }[];
         components: Record<string, any>;
     }>;
-    static getPackagesByLocation(cityIds: string[], limit?: number, page?: number, isActive?: boolean, isComplete?: boolean, sortBy?: string, sortOrder?: "asc" | "desc"): Promise<{
-        data: any[];
+    static getPackagesByLocation(cityIds?: string[], categoryIds?: string[], limit?: number, page?: number, isActive?: boolean, isComplete?: boolean, sortBy?: string, sortOrder?: "asc" | "desc"): Promise<{
+        data: (import("../models/package.model.js").IPackage & Required<{
+            _id: Types.ObjectId;
+        }> & {
+            __v: number;
+        })[];
         total: number;
         page: number;
         totalPages: number;

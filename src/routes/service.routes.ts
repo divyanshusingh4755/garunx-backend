@@ -225,6 +225,12 @@ const removeTierValidation = [
 
 router.get("/", getAllServices);
 
+router.get(
+  "/getServicesByLocation",
+  authenticate,
+  getServicesByLocation,
+);
+
 router.get("/:serviceId/full", serviceIdValidation, getFullService);
 
 router.get(
@@ -237,8 +243,6 @@ router.get(
 router.get("/:serviceId", serviceIdValidation, getServiceById);
 
 router.post("/", authenticate, serviceValidation, createService);
-
-router.post("/getServicesByLocation", authenticate, getServicesByLocation);
 
 router.post(
   "/:serviceId/getFullServiceByCities",
