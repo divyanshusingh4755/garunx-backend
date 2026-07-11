@@ -41,11 +41,11 @@ export const createPackageCart = async (req: Request, res: Response) => {
 export const getUserCarts = async (req: Request, res: Response) => {
   try {
     const owner = getCartOwner(req);
-    const carts = await CartService.getUserCarts(owner, req.query);
+    const result = await CartService.getUserCarts(owner, req.query);
 
     res.status(200).json({
       success: true,
-      carts,
+      ...result,
     });
   } catch (error: any) {
     res.status(error.statusCode || 400).json({

@@ -130,7 +130,9 @@ class CartService {
             ...ownerQuery,
         };
         if (filters.status) {
-            const statuses = filters.status.split(",").map((s) => s.trim());
+            const statuses = filters.status
+                .split(",")
+                .map((s) => s.trim());
             query.status = { $in: statuses };
         }
         else {
@@ -138,10 +140,28 @@ class CartService {
                 $nin: ["EXPIRED", "DELETED"],
             };
         }
-        const carts = await Cart.find(query)
-            .sort({ updatedAt: -1 })
-            .select("serviceId packageId name thumbnailImage tierName locationName status totalAmount updatedAt scheduledDate scheduledTime activeBookingId");
-        return carts;
+        const page = Math.max(Number(filters.page) || 1, 1);
+        const limit = Math.min(Number(filters.limit) || 10, 100);
+        const skip = (page - 1) * limit;
+        const [carts, total] = await Promise.all([
+            Cart.find(query)
+                .sort({ updatedAt: -1 })
+                .skip(skip)
+                .limit(limit)
+                .select("serviceId packageId name thumbnailImage tierName locationName status totalAmount updatedAt scheduledDate scheduledTime activeBookingId"),
+            Cart.countDocuments(query),
+        ]);
+        return {
+            carts,
+            pagination: {
+                total,
+                page,
+                limit,
+                totalPages: Math.ceil(total / limit),
+                hasNextPage: page < Math.ceil(total / limit),
+                hasPreviousPage: page > 1,
+            },
+        };
     }
     static async getCartById(owner, cartId) {
         if (!mongoose.Types.ObjectId.isValid(cartId)) {

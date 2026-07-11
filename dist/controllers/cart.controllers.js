@@ -37,10 +37,10 @@ export const createPackageCart = async (req, res) => {
 export const getUserCarts = async (req, res) => {
     try {
         const owner = getCartOwner(req);
-        const carts = await CartService.getUserCarts(owner, req.query);
+        const result = await CartService.getUserCarts(owner, req.query);
         res.status(200).json({
             success: true,
-            carts,
+            ...result,
         });
     }
     catch (error) {

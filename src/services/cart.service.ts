@@ -178,7 +178,9 @@ class CartService {
     };
 
     if (filters.status) {
-      const statuses = filters.status.split(",").map((s: string) => s.trim());
+      const statuses = filters.status
+        .split(",")
+        .map((s: string) => s.trim());
 
       query.status = { $in: statuses };
     } else {
@@ -187,13 +189,32 @@ class CartService {
       };
     }
 
-    const carts = await Cart.find(query)
-      .sort({ updatedAt: -1 })
-      .select(
-        "serviceId packageId name thumbnailImage tierName locationName status totalAmount updatedAt scheduledDate scheduledTime activeBookingId",
-      );
+    const page = Math.max(Number(filters.page) || 1, 1);
+    const limit = Math.min(Number(filters.limit) || 10, 100);
+    const skip = (page - 1) * limit;
 
-    return carts;
+    const [carts, total] = await Promise.all([
+      Cart.find(query)
+        .sort({ updatedAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .select(
+          "serviceId packageId name thumbnailImage tierName locationName status totalAmount updatedAt scheduledDate scheduledTime activeBookingId",
+        ),
+      Cart.countDocuments(query),
+    ]);
+
+    return {
+      carts,
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+        hasNextPage: page < Math.ceil(total / limit),
+        hasPreviousPage: page > 1,
+      },
+    };
   }
 
   static async getCartById(owner: CartOwner, cartId: string) {

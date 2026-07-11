@@ -23,13 +23,23 @@ declare class CartService {
     } & {
         id: string;
     }>;
-    static getUserCarts(owner: CartOwner, filters?: any): Promise<(mongoose.Document<unknown, {}, ICart, {}, mongoose.DefaultSchemaOptions> & ICart & Required<{
-        _id: Types.ObjectId;
-    }> & {
-        __v: number;
-    } & {
-        id: string;
-    })[]>;
+    static getUserCarts(owner: CartOwner, filters?: any): Promise<{
+        carts: (mongoose.Document<unknown, {}, ICart, {}, mongoose.DefaultSchemaOptions> & ICart & Required<{
+            _id: Types.ObjectId;
+        }> & {
+            __v: number;
+        } & {
+            id: string;
+        })[];
+        pagination: {
+            total: number;
+            page: number;
+            limit: number;
+            totalPages: number;
+            hasNextPage: boolean;
+            hasPreviousPage: boolean;
+        };
+    }>;
     static getCartById(owner: CartOwner, cartId: string): Promise<{
         service: import("../models/service.model.js").IService & Required<{
             _id: Types.ObjectId;
