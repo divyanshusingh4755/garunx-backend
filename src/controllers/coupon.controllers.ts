@@ -239,7 +239,7 @@ export const getAllCoupons = async (req: Request, res: Response) => {
       Number(page) || 1,
       isActive === "true" ? true : isActive === "false" ? false : undefined,
       assignedUserId as string,
-      applicableOn as "ALL" | "SERVICE" | "PACKAGE",
+      applicableOn as string | string[],
       (sortBy as string) || "createdAt",
       (sortOrder as "asc" | "desc") || "desc",
     );

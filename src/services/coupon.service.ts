@@ -148,7 +148,7 @@ export class CouponService {
     page: number = 1,
     isActive?: boolean,
     assignedUserId?: string,
-    applicableOn?: "ALL" | "SERVICE" | "PACKAGE",
+    applicableOn?: string | string[],
     sortBy: string = "createdAt",
     sortOrder: "asc" | "desc" = "desc",
   ) {
@@ -165,7 +165,13 @@ export class CouponService {
     }
 
     if (applicableOn) {
-      query.applicableOn = applicableOn;
+      const values = Array.isArray(applicableOn)
+        ? applicableOn
+        : applicableOn.split(",").map(item => item.trim().toUpperCase());
+
+      query.applicableOn = {
+        $in: values,
+      };
     }
 
     const isTextSearch =

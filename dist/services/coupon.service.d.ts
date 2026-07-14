@@ -41,7 +41,7 @@ export declare class CouponService {
     } & {
         id: string;
     }>;
-    static findCoupons(searchTerm?: string, limit?: number, page?: number, isActive?: boolean, assignedUserId?: string, applicableOn?: "ALL" | "SERVICE" | "PACKAGE", sortBy?: string, sortOrder?: "asc" | "desc"): Promise<{
+    static findCoupons(searchTerm?: string, limit?: number, page?: number, isActive?: boolean, assignedUserId?: string, applicableOn?: string | string[], sortBy?: string, sortOrder?: "asc" | "desc"): Promise<{
         data: (ICoupon & Required<{
             _id: import("mongoose").Types.ObjectId;
         }> & {
@@ -54,7 +54,7 @@ export declare class CouponService {
     static validateCoupon({ couponCode, serviceId, packageId, orderAmount, userId, isFirstOrder, }: ValidateCouponInput): Promise<{
         couponId: import("mongoose").Types.ObjectId;
         couponCode: string;
-        applicableOn: "SERVICE" | "PACKAGE" | "ALL";
+        applicableOn: "SERVICE" | "PACKAGE" | "ALL" | "REFERRAL";
         discountType: "PERCENTAGE" | "FIXED";
         discount: number;
         discountAmount: number;

@@ -23,7 +23,7 @@ const couponSchema = new Schema({
     },
     applicableOn: {
         type: String,
-        enum: ["ALL", "SERVICE", "PACKAGE"],
+        enum: ["ALL", "SERVICE", "PACKAGE", "REFERRAL"],
         default: "ALL",
         required: true,
     },

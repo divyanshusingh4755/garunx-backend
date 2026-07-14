@@ -3,7 +3,7 @@ export interface ICoupon extends Document {
     version: number;
     name: string;
     couponCode: string;
-    applicableOn: "ALL" | "SERVICE" | "PACKAGE";
+    applicableOn: "ALL" | "SERVICE" | "PACKAGE" | "REFERRAL";
     services: Types.ObjectId[];
     packages: Types.ObjectId[];
     discount: number;

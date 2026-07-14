@@ -97,7 +97,12 @@ export class CouponService {
             query.assignedUserId = assignedUserId;
         }
         if (applicableOn) {
-            query.applicableOn = applicableOn;
+            const values = Array.isArray(applicableOn)
+                ? applicableOn
+                : applicableOn.split(",").map(item => item.trim().toUpperCase());
+            query.applicableOn = {
+                $in: values,
+            };
         }
         const isTextSearch = !!searchTerm?.trim() && searchTerm.trim().length > 4;
         if (searchTerm?.trim()) {

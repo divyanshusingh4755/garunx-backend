@@ -5,7 +5,7 @@ export interface ICoupon extends Document {
   name: string;
   couponCode: string;
 
-  applicableOn: "ALL" | "SERVICE" | "PACKAGE";
+  applicableOn: "ALL" | "SERVICE" | "PACKAGE" | "REFERRAL";
 
   services: Types.ObjectId[];
   packages: Types.ObjectId[];
@@ -57,7 +57,7 @@ const couponSchema = new Schema<ICoupon>(
 
     applicableOn: {
       type: String,
-      enum: ["ALL", "SERVICE", "PACKAGE"],
+      enum: ["ALL", "SERVICE", "PACKAGE", "REFERRAL"],
       default: "ALL",
       required: true,
     },
