@@ -41,4 +41,45 @@ export var VerificationStatus;
     VerificationStatus["APPROVED"] = "APPROVED";
     VerificationStatus["REJECTED"] = "REJECTED";
 })(VerificationStatus || (VerificationStatus = {}));
+export var FamilyRelation;
+(function (FamilyRelation) {
+    FamilyRelation["SELF"] = "SELF";
+    FamilyRelation["FATHER"] = "FATHER";
+    FamilyRelation["MOTHER"] = "MOTHER";
+    FamilyRelation["GRANDFATHER"] = "GRANDFATHER";
+    FamilyRelation["GRANDMOTHER"] = "GRANDMOTHER";
+    FamilyRelation["HUSBAND"] = "HUSBAND";
+    FamilyRelation["WIFE"] = "WIFE";
+    FamilyRelation["SON"] = "SON";
+    FamilyRelation["DAUGHTER"] = "DAUGHTER";
+    FamilyRelation["BROTHER"] = "BROTHER";
+    FamilyRelation["SISTER"] = "SISTER";
+    FamilyRelation["GRANDSON"] = "GRANDSON";
+    FamilyRelation["GRANDDAUGHTER"] = "GRANDDAUGHTER";
+    FamilyRelation["UNCLE"] = "UNCLE";
+    FamilyRelation["AUNT"] = "AUNT";
+    FamilyRelation["NEPHEW"] = "NEPHEW";
+    FamilyRelation["NIECE"] = "NIECE";
+    FamilyRelation["COUSIN"] = "COUSIN";
+    FamilyRelation["FATHER_IN_LAW"] = "FATHER_IN_LAW";
+    FamilyRelation["MOTHER_IN_LAW"] = "MOTHER_IN_LAW";
+    FamilyRelation["BROTHER_IN_LAW"] = "BROTHER_IN_LAW";
+    FamilyRelation["SISTER_IN_LAW"] = "SISTER_IN_LAW";
+    FamilyRelation["SON_IN_LAW"] = "SON_IN_LAW";
+    FamilyRelation["DAUGHTER_IN_LAW"] = "DAUGHTER_IN_LAW";
+    FamilyRelation["GUARDIAN"] = "GUARDIAN";
+    FamilyRelation["OTHER"] = "OTHER";
+})(FamilyRelation || (FamilyRelation = {}));
+export var FamilyEdgeType;
+(function (FamilyEdgeType) {
+    FamilyEdgeType["PARENT"] = "PARENT";
+    FamilyEdgeType["MARRIAGE"] = "MARRIAGE";
+    // GUARDIAN = "GUARDIAN",
+    // CUSTOM = "CUSTOM",
+})(FamilyEdgeType || (FamilyEdgeType = {}));
+export var MemberLifeStatus;
+(function (MemberLifeStatus) {
+    MemberLifeStatus["ALIVE"] = "ALIVE";
+    MemberLifeStatus["DECEASED"] = "DECEASED";
+})(MemberLifeStatus || (MemberLifeStatus = {}));
 //# sourceMappingURL=enums.js.map

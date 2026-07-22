@@ -1,68 +1,161 @@
-import type { Request, Response, NextFunction } from "express";
-import jwt from "jsonwebtoken";
+import type {
+  Request,
+  Response,
+  NextFunction,
+} from "express";
+
+import jwt, {
+  type JwtPayload,
+} from "jsonwebtoken";
+
+import { Role } from "../types/rbac.js";
+
+interface AccessTokenPayload
+  extends JwtPayload {
+  userId: string;
+  role: Role;
+}
+
+const isAccessTokenPayload = (
+  value: string | JwtPayload,
+): value is AccessTokenPayload => {
+  if (
+    typeof value === "string"
+  ) {
+    return false;
+  }
+
+  return (
+    typeof value.userId === "string" &&
+    Object.values(Role).includes(
+      value.role as Role,
+    )
+  );
+};
 
 export const authenticate = (
   req: Request,
   res: Response,
   next: NextFunction,
 ) => {
-  // Get token from header
-  const authHeader = req.headers.authorization;
-  const token = authHeader && authHeader.split(" ")[1];
+  const authorization =
+    req.headers.authorization;
 
-  if (!token) {
+  if (
+    !authorization?.startsWith(
+      "Bearer ",
+    )
+  ) {
     return res.status(401).json({
       success: false,
-      message: "Authentication required. Please provide a token.",
+      message:
+        "Authentication required. Please provide a Bearer token.",
+    });
+  }
+
+  const token =
+    authorization.slice(
+      "Bearer ".length,
+    );
+
+  const secret =
+    process.env.JWT_ACCESS_SECRET;
+
+  if (!secret) {
+    console.error(
+      "JWT_ACCESS_SECRET is not configured",
+    );
+
+    return res.status(500).json({
+      success: false,
+      message:
+        "Authentication configuration error",
     });
   }
 
   try {
-    const decoded = jwt.verify(
-      token,
-      process.env.JWT_ACCESS_SECRET as string,
-    ) as { userId: string; role: string };
+    const decoded =
+      jwt.verify(
+        token,
+        secret,
+      );
 
-    // Attach the user info to the request object
+    if (
+      !isAccessTokenPayload(
+        decoded,
+      )
+    ) {
+      return res.status(401).json({
+        success: false,
+        message:
+          "Invalid access token payload",
+      });
+    }
+
     req.user = {
       userId: decoded.userId,
-      role: decoded.role as any,
+      role: decoded.role,
     };
 
     return next();
-  } catch (error) {
-    return res.status(403).json({
+  } catch {
+    return res.status(401).json({
       success: false,
-      message: "Invalid or expired access token",
+      message:
+        "Invalid or expired access token",
     });
   }
 };
 
 export const optionalAuthenticate = (
   req: Request,
-  res: Response,
+  _res: Response,
   next: NextFunction,
 ) => {
-  const authHeader = req.headers.authorization;
-  const token = authHeader && authHeader.split(" ")[1];
+  const authorization =
+    req.headers.authorization;
 
-  if (!token) {
+  if (
+    !authorization?.startsWith(
+      "Bearer ",
+    )
+  ) {
     return next();
   }
+
+  const secret =
+    process.env.JWT_ACCESS_SECRET;
+
+  if (!secret) {
+    return next();
+  }
+
+  const token =
+    authorization.slice(
+      "Bearer ".length,
+    );
 
   try {
-    const decoded = jwt.verify(
-      token,
-      process.env.JWT_ACCESS_SECRET as string,
-    ) as { userId: string; role: string };
-    // Attach the user info to the request object
-    req.user = {
-      userId: decoded.userId,
-      role: decoded.role as any,
-    };
+    const decoded =
+      jwt.verify(
+        token,
+        secret,
+      );
 
-    return next();
-  } catch (error) {
-    next();
+    if (
+      isAccessTokenPayload(
+        decoded,
+      )
+    ) {
+      req.user = {
+        userId: decoded.userId,
+        role: decoded.role,
+      };
+    }
+  } catch {
+    // Authentication is optional,
+    // so continue as unauthenticated.
   }
+
+  return next();
 };
