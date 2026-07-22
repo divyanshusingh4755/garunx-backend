@@ -10,8 +10,9 @@ export interface ICoordinatorProfile {
   totalCompletedBookings: number;
   totalAssignedBookings: number;
   acceptanceRate: number;
-  approvalStatus: ApprovalStatus
-  availabilityStatus: AvailabilityStatus
+  approvalStatus: ApprovalStatus;
+  approvalRejectionReason?: string | null;
+  availabilityStatus: AvailabilityStatus;
   maxDailyBookings: number;
   autoAssignmentEnabled: boolean;
   lastAvailabilityChangedAt?: Date;
@@ -59,7 +60,7 @@ export interface IUser extends Document {
     aadharCard?: string;
     panCard?: string;
     status: VerificationStatus;
-    rejectionReason?: string;
+    rejectionReason?: string | null;
   };
   bankDocumentVerification: {
     bankPassbook?: string;
@@ -68,8 +69,8 @@ export interface IUser extends Document {
     bankName?: string;
     ifscCode?: string;
     status: VerificationStatus;
-    rejectionReason?: string;
-  };
+    rejectionReason?: string | null;
+  }
   caste?: Caste;
   gotra?: Gotra;
   isDocumentVerified: boolean;
@@ -88,7 +89,10 @@ const documentVerificationSchema = new Schema(
       enum: Object.values(VerificationStatus),
       default: VerificationStatus.PENDING,
     },
-    rejectionReason: String,
+    rejectionReason: {
+      type: String,
+      default: null,
+    },
   },
   {
     _id: false,
@@ -107,7 +111,10 @@ const bankVerificationSchema = new Schema(
       enum: Object.values(VerificationStatus),
       default: VerificationStatus.PENDING,
     },
-    rejectionReason: String,
+    rejectionReason: {
+      type: String,
+      default: null,
+    },
   },
   {
     _id: false,
@@ -184,6 +191,12 @@ const coordinatorProfileSchema = new Schema(
       type: String,
       enum: Object.values(AvailabilityStatus),
       default: AvailabilityStatus.AVAILABLE,
+    },
+
+    approvalRejectionReason: {
+      type: String,
+      trim: true,
+      default: null,
     },
 
     maxDailyBookings: {

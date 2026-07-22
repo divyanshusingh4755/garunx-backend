@@ -72,15 +72,6 @@ const referralRewardSchema = new Schema<IReferralReward>(
   },
 );
 
-referralRewardSchema.index(
-  {
-    referredUserId: 1,
-  },
-  {
-    unique: true,
-  },
-);
-
 referralRewardSchema.index({
   referrerUserId: 1,
   createdAt: -1,
@@ -89,10 +80,6 @@ referralRewardSchema.index({
 referralRewardSchema.index({
   referredUserId: 1,
   createdAt: -1,
-});
-
-referralRewardSchema.index({
-  bookingId: 1,
 });
 
 export const ReferralReward = model<IReferralReward>(

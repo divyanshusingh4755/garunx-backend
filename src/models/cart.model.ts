@@ -397,13 +397,6 @@ cartSchema.index({
   status: 1,
 });
 
-cartSchema.index({
-  serviceId: 1,
-});
-
-cartSchema.index({
-  packageId: 1,
-});
 
 cartSchema.index({
   status: 1,

@@ -1,12 +1,34 @@
 import { Types, Document, Model } from "mongoose";
 import type { ICart } from "./cart.model.js";
-export type BookingStatus = "PENDING_PAYMENT" | "CONFIRMED" | "PENDING_COORDINATOR_SELECTION" | "PENDING_COORDINATOR_RESPONSE" | "ASSIGNED" | "REASSIGNMENT_REQUESTED" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED" | "REFUNDED";
+export type BookingStatus = "PENDING_PAYMENT" | "CONFIRMED" | "ASSIGNMENT_PENDING" | "ASSIGNED" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED" | "EXPIRED";
 export type BookingFor = "MYSELF" | "OTHER";
-export type PaymentStatus = "PENDING" | "PAID" | "FAILED" | "REFUNDED" | "PARTIAL_REFUND";
+export type PaymentStatus = "PENDING" | "PROCESSING" | "PAID" | "FAILED" | "PARTIAL_REFUND" | "REFUNDED";
+export type AssignmentStatus = "NOT_STARTED" | "PENDING_SELECTION" | "PENDING_RESPONSE" | "ACCEPTED" | "REJECTED" | "REASSIGNMENT_REQUESTED";
+export type BookingCategory = "UPCOMING" | "ONGOING" | "COMPLETED" | "CANCELLED" | "PAYMENT_PENDING" | "EXPIRED";
+export type BookingExecutionStage = "NOT_STARTED" | "COORDINATOR_ARRIVED" | "CUSTOMER_VERIFICATION_PENDING" | "SERVICE_EXECUTION" | "CUSTOMER_REVIEW_PENDING" | "FINALIZATION" | "FINISHED";
+export type BookingMilestone = "COORDINATOR_ARRIVED" | "OTP_VERIFIED" | "SERVICE_STARTED" | "CUSTOMER_DETAILS_VERIFIED" | "DOCUMENTS_COLLECTED" | "FAMILY_TREE_STARTED" | "FAMILY_TREE_COMPLETED" | "ALL_SERVICES_COMPLETED" | "CUSTOMER_CONFIRMATION_RECEIVED" | "FINAL_REPORT_GENERATED";
+export type AssignmentRequestStatus = "PENDING" | "ACCEPTED" | "REJECTED" | "EXPIRED" | "CANCELLED";
+export type ReassignmentRequestedByRole = "CUSTOMER" | "ADMIN" | "COORDINATOR" | "SYSTEM";
+export interface IAssignmentRequest {
+    coordinatorId: Types.ObjectId;
+    status: AssignmentRequestStatus;
+    assignmentType: "MANUAL" | "AUTO";
+    requestedBy?: Types.ObjectId;
+    requestedAt: Date;
+    responseDeadlineAt: Date;
+    respondedAt?: Date;
+    rejectionReason?: string;
+}
 export type BookedBy = "CUSTOMER" | "ADMIN" | "SUBADMIN";
 export type EntryType = "SERVICE" | "PACKAGE";
 export type ComponentType = "DEFAULT" | "ADDON";
 export type ServiceRole = "PRIMARY" | "INCLUDED" | "ADDON";
+export interface IBookingMilestone {
+    code: BookingMilestone;
+    completedAt: Date;
+    completedBy?: Types.ObjectId;
+    notes?: string;
+}
 export interface IBookingSelectedItem {
     itemId: Types.ObjectId;
     name: string;
@@ -20,6 +42,16 @@ export interface IBookingRefund {
     status?: "PENDING" | "SUCCESS" | "FAILED";
     refundedBy?: Types.ObjectId;
 }
+export type ServiceExecutionStatus = "PENDING" | "IN_PROGRESS" | "COMPLETED" | "SKIPPED" | "CANCELLED";
+export interface IServiceExecution {
+    executionId: string;
+    serviceId: Types.ObjectId;
+    status: ServiceExecutionStatus;
+    startedAt?: Date;
+    completedAt?: Date;
+    completedBy?: Types.ObjectId;
+    notes?: string;
+}
 export interface IBookingComponent {
     componentType: ComponentType;
     componentId: Types.ObjectId;
@@ -32,6 +64,7 @@ export interface IBookingComponent {
     selected: boolean;
     selectedItems: IBookingSelectedItem[];
     pricing: {
+        basePrice: number;
         total: number;
     };
 }
@@ -108,6 +141,25 @@ export interface IBooking extends Document {
         grandTotal: number;
         earnings?: number;
     };
+    execution?: {
+        stage: BookingExecutionStage;
+        startedAt?: Date;
+        finishedAt?: Date;
+        otpVerification?: {
+            status: "PENDING" | "VERIFIED" | "FAILED" | "EXPIRED";
+            otpHash?: string;
+            expiresAt?: Date;
+            generatedAt?: Date;
+            verifiedAt?: Date;
+            verifiedBy?: Types.ObjectId;
+            attempts?: number;
+            resendCount?: number;
+            lastSentAt?: Date;
+        };
+        serviceExecutions: IServiceExecution[];
+        milestones: IBookingMilestone[];
+        progressPercentage?: number;
+    };
     payment: {
         status: PaymentStatus;
         paymentMethod?: string;
@@ -131,35 +183,26 @@ export interface IBooking extends Document {
         cancelledBy?: Types.ObjectId;
         cancelledByRole?: "CUSTOMER" | "ADMIN" | "SUBADMIN" | "SYSTEM";
         cancelledAt?: Date;
-        refundPercentage: number;
-        refundAmount: number;
+        refundPercentage?: number;
+        refundAmount?: number;
     };
     assignment?: {
+        status: AssignmentStatus;
         assignedCoordinatorId?: Types.ObjectId;
         assignedBy?: Types.ObjectId;
         assignedAt?: Date;
         assignmentType?: "MANUAL" | "AUTO";
         coordinatorAcceptedAt?: Date;
         responseDeadlineAt?: Date;
+        assignmentExpiresAt?: Date;
+        requests: IAssignmentRequest[];
+        reassignment?: {
+            requestedBy: Types.ObjectId;
+            requestedByRole: ReassignmentRequestedByRole;
+            reason?: string;
+            requestedAt: Date;
+        };
     };
-    rescheduleHistory: {
-        oldDate: Date;
-        newDate: Date;
-        reason: string;
-        rescheduledBy: Types.ObjectId;
-        createdAt: Date;
-    }[];
-    reassignmentHistory: {
-        oldCoordinatorId: Types.ObjectId;
-        newCoordinatorId: Types.ObjectId;
-        reason: string;
-        reassignedBy: Types.ObjectId;
-        createdAt: Date;
-    }[];
-    preferredCoordinators: {
-        coordinatorId: Types.ObjectId;
-        priorityOrder: number;
-    }[];
     scheduledAt?: Date;
     completedAt?: Date;
     notes?: string;

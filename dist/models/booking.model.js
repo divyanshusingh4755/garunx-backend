@@ -1,5 +1,79 @@
 import { model, Schema, Types, Document, Model } from "mongoose";
 import { Counter } from "./counter.model.js";
+const assignmentRequestSchema = new Schema({
+    coordinatorId: {
+        type: Schema.Types.ObjectId,
+        ref: "User",
+        required: true,
+    },
+    status: {
+        type: String,
+        enum: [
+            "PENDING",
+            "ACCEPTED",
+            "REJECTED",
+            "EXPIRED",
+            "CANCELLED",
+        ],
+        default: "PENDING",
+        required: true,
+    },
+    assignmentType: {
+        type: String,
+        enum: ["MANUAL", "AUTO"],
+        required: true,
+    },
+    requestedBy: {
+        type: Schema.Types.ObjectId,
+        ref: "User",
+    },
+    requestedAt: {
+        type: Date,
+        default: Date.now,
+        required: true,
+    },
+    responseDeadlineAt: {
+        type: Date,
+        required: true,
+    },
+    respondedAt: Date,
+    rejectionReason: {
+        type: String,
+        maxlength: 500,
+    },
+}, { _id: true });
+const serviceExecutionSchema = new Schema({
+    executionId: {
+        type: String,
+        required: true,
+    },
+    serviceId: {
+        type: Schema.Types.ObjectId,
+        ref: "Service",
+        required: true,
+    },
+    status: {
+        type: String,
+        enum: [
+            "PENDING",
+            "IN_PROGRESS",
+            "COMPLETED",
+            "SKIPPED",
+            "CANCELLED",
+        ],
+        default: "PENDING",
+    },
+    startedAt: Date,
+    completedAt: Date,
+    completedBy: {
+        type: Schema.Types.ObjectId,
+        ref: "User",
+    },
+    notes: {
+        type: String,
+        maxlength: 500,
+    },
+}, { _id: false });
 const bookingSelectedItemSchema = new Schema({
     itemId: {
         type: Schema.Types.ObjectId,
@@ -153,13 +227,39 @@ const bookingEntrySchema = new Schema({
     serviceConfiguration: bookingServiceConfigurationSchema,
     packageConfiguration: bookingPackageConfigurationSchema,
 }, { _id: false });
+const bookingMilestoneSchema = new Schema({
+    code: {
+        type: String,
+        enum: [
+            "COORDINATOR_ARRIVED",
+            "OTP_VERIFIED",
+            "SERVICE_STARTED",
+            "CUSTOMER_DETAILS_VERIFIED",
+            "DOCUMENTS_COLLECTED",
+            "FAMILY_TREE_STARTED",
+            "FAMILY_TREE_COMPLETED",
+            "ALL_SERVICES_COMPLETED",
+            "CUSTOMER_CONFIRMATION_RECEIVED",
+            "FINAL_REPORT_GENERATED",
+        ],
+        required: true,
+    },
+    completedAt: Date,
+    completedBy: {
+        type: Schema.Types.ObjectId,
+        ref: "User",
+    },
+    notes: {
+        type: String,
+        maxlength: 500,
+    },
+}, { _id: false });
 const bookingSchema = new Schema({
     userId: { type: Schema.Types.ObjectId, ref: "User", index: true },
     cartId: {
         type: Schema.Types.ObjectId,
         ref: "Cart",
         required: true,
-        index: true,
     },
     bookingReference: {
         type: String,
@@ -241,7 +341,14 @@ const bookingSchema = new Schema({
     payment: {
         status: {
             type: String,
-            enum: ["PENDING", "PAID", "FAILED", "REFUNDED", "PARTIAL_REFUND"],
+            enum: [
+                "PENDING",
+                "PROCESSING",
+                "PAID",
+                "FAILED",
+                "PARTIAL_REFUND",
+                "REFUNDED",
+            ],
             default: "PENDING",
         },
         providerOrderId: String,
@@ -276,7 +383,16 @@ const bookingSchema = new Schema({
     },
     status: {
         type: String,
-        enum: ["PENDING_PAYMENT", "CONFIRMED", "PENDING_COORDINATOR_SELECTION", "PENDING_COORDINATOR_RESPONSE", "ASSIGNED", "REASSIGNMENT_REQUESTED", "IN_PROGRESS", "COMPLETED", "CANCELLED", "REFUNDED"],
+        enum: [
+            "PENDING_PAYMENT",
+            "CONFIRMED",
+            "ASSIGNMENT_PENDING",
+            "ASSIGNED",
+            "IN_PROGRESS",
+            "COMPLETED",
+            "CANCELLED",
+            "EXPIRED",
+        ],
         default: "PENDING_PAYMENT",
         index: true,
     },
@@ -292,10 +408,17 @@ const bookingSchema = new Schema({
         refundAmount: Number,
     },
     assignment: {
-        assignedAt: Date,
-        assignmentType: {
+        status: {
             type: String,
-            enum: ["MANUAL", "AUTO"],
+            enum: [
+                "NOT_STARTED",
+                "PENDING_SELECTION",
+                "PENDING_RESPONSE",
+                "ACCEPTED",
+                "REJECTED",
+                "REASSIGNMENT_REQUESTED",
+            ],
+            default: "NOT_STARTED",
         },
         assignedCoordinatorId: {
             type: Schema.Types.ObjectId,
@@ -305,54 +428,102 @@ const bookingSchema = new Schema({
             type: Schema.Types.ObjectId,
             ref: "User",
         },
+        assignedAt: Date,
+        assignmentType: {
+            type: String,
+            enum: ["MANUAL", "AUTO"],
+        },
         coordinatorAcceptedAt: Date,
+        // deadline for one coordinator
         responseDeadlineAt: Date,
+        // final deadline for the complete coordinator-selection process
+        assignmentExpiresAt: Date,
+        requests: {
+            type: [assignmentRequestSchema],
+            default: [],
+        },
+        reassignment: {
+            requestedBy: {
+                type: Schema.Types.ObjectId,
+                ref: "User",
+            },
+            requestedByRole: {
+                type: String,
+                enum: [
+                    "CUSTOMER",
+                    "COORDINATOR",
+                    "ADMIN",
+                    "SYSTEM",
+                ],
+                default: "CUSTOMER",
+            },
+            reason: String,
+            requestedAt: Date,
+        },
     },
-    rescheduleHistory: [
-        {
-            oldDate: Date,
-            newDate: Date,
-            reason: String,
-            rescheduledBy: {
-                type: Schema.Types.ObjectId,
-                ref: "User",
-            },
-            createdAt: Date,
-        }
-    ],
-    reassignmentHistory: [
-        {
-            oldCoordinatorId: {
-                type: Schema.Types.ObjectId,
-                ref: "User",
-            },
-            newCoordinatorId: {
-                type: Schema.Types.ObjectId,
-                ref: "User",
-            },
-            reason: String,
-            reassignedBy: {
-                type: Schema.Types.ObjectId,
-                ref: "User",
-            },
-            createdAt: {
-                type: Date,
-                default: Date.now,
-            },
+    execution: {
+        stage: {
+            type: String,
+            enum: [
+                "NOT_STARTED",
+                "COORDINATOR_ARRIVED",
+                "CUSTOMER_VERIFICATION_PENDING",
+                "SERVICE_EXECUTION",
+                "CUSTOMER_REVIEW_PENDING",
+                "FINALIZATION",
+                "FINISHED",
+            ],
+            default: "NOT_STARTED",
         },
-    ],
-    preferredCoordinators: [
-        {
-            coordinatorId: {
+        startedAt: Date,
+        finishedAt: Date,
+        otpVerification: {
+            status: {
+                type: String,
+                enum: [
+                    "PENDING",
+                    "VERIFIED",
+                    "FAILED",
+                    "EXPIRED",
+                ],
+                default: "PENDING",
+            },
+            otpHash: {
+                type: String,
+                select: false,
+            },
+            expiresAt: Date,
+            generatedAt: Date,
+            verifiedAt: Date,
+            verifiedBy: {
                 type: Schema.Types.ObjectId,
                 ref: "User",
             },
-            priorityOrder: {
+            attempts: {
                 type: Number,
-                required: true,
+                default: 0,
             },
+            resendCount: {
+                type: Number,
+                default: 0,
+            },
+            lastSentAt: Date,
         },
-    ],
+        milestones: {
+            type: [bookingMilestoneSchema],
+            default: [],
+        },
+        serviceExecutions: {
+            type: [serviceExecutionSchema],
+            default: [],
+        },
+        progressPercentage: {
+            type: Number,
+            default: 0,
+            min: 0,
+            max: 100,
+        },
+    },
     scheduledAt: Date,
     completedAt: Date,
     notes: { type: String, maxlength: 1000 },
@@ -394,7 +565,6 @@ bookingSchema.index({ userId: 1, createdAt: -1 });
 bookingSchema.index({ createdAt: -1 });
 bookingSchema.index({ scheduledAt: 1, status: 1 });
 bookingSchema.index({ "payment.status": 1 });
-bookingSchema.index({ bookingReference: 1 });
 bookingSchema.index({ userId: 1, scheduledAt: 1 });
 bookingSchema.index({
     status: 1,
@@ -408,9 +578,6 @@ bookingSchema.index({ cartId: 1 }, {
 });
 bookingSchema.index({
     "payment.refunds.refundId": 1,
-});
-bookingSchema.index({
-    bookingReference: 1,
 });
 // Index for searching by main customer details email
 bookingSchema.index({ userId: 1, isDeleted: 1, "customerDetails.email": 1 });
@@ -427,6 +594,19 @@ bookingSchema.index({
     "customerDetails.phone": "text",
 }, {
     name: "BookingTextSearchIndex",
+});
+bookingSchema.index({
+    "assignment.status": 1,
+    "assignment.responseDeadlineAt": 1,
+});
+bookingSchema.index({
+    "assignment.assignedCoordinatorId": 1,
+    status: 1,
+    scheduledAt: 1,
+});
+bookingSchema.index({
+    "assignment.status": 1,
+    "assignment.assignmentExpiresAt": 1,
 });
 export const Booking = model("Booking", bookingSchema);
 //# sourceMappingURL=booking.model.js.map

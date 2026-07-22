@@ -1,7 +1,25 @@
 import type { Request } from "express";
-import { type BookingStatus } from "../models/booking.model.js";
+import { type BookingCategory, type BookingMilestone, type BookingStatus, type ReassignmentRequestedByRole } from "../models/booking.model.js";
 import mongoose, { Types } from "mongoose";
+type AssignmentAction = "ACCEPT" | "REJECT";
+export interface CoordinatorFilters {
+    matchCaste?: boolean;
+    matchGotra?: boolean;
+    minRating?: number;
+    minCompletedBookings?: number;
+    autoAssignmentEnabled?: boolean;
+    sortBy?: "rating" | "completedBookings" | "acceptanceRate";
+    sortOrder?: "asc" | "desc";
+}
 export declare class BookingService {
+    private static generateOtp;
+    private static validateBookingOtp;
+    private static getBookingLocationIds;
+    private static getRequestedCoordinatorIds;
+    private static findNextAvailableCoordinator;
+    private static assignCoordinatorRequest;
+    private static calculateExecutionProgress;
+    private static addMilestoneIfMissing;
     static process(req: Request): Promise<void>;
     static retryPayment(bookingId: string, userId: string): Promise<{
         orderId: string;
@@ -90,35 +108,49 @@ export declare class BookingService {
         scheduledAt: Date | undefined;
         notes: string | undefined;
         assignment: {
+            status: import("../models/booking.model.js").AssignmentStatus;
             assignedCoordinatorId?: Types.ObjectId;
             assignedBy?: Types.ObjectId;
             assignedAt?: Date;
             assignmentType?: "MANUAL" | "AUTO";
             coordinatorAcceptedAt?: Date;
             responseDeadlineAt?: Date;
+            assignmentExpiresAt?: Date;
+            requests: import("../models/booking.model.js").IAssignmentRequest[];
+            reassignment?: {
+                requestedBy: Types.ObjectId;
+                requestedByRole: ReassignmentRequestedByRole;
+                reason?: string;
+                requestedAt: Date;
+            };
         } | undefined;
         cancellation: {
             reason?: string;
             cancelledBy?: Types.ObjectId;
             cancelledByRole?: "CUSTOMER" | "ADMIN" | "SUBADMIN" | "SYSTEM";
             cancelledAt?: Date;
-            refundPercentage: number;
-            refundAmount: number;
+            refundPercentage?: number;
+            refundAmount?: number;
         } | undefined;
-        rescheduleHistory: {
-            oldDate: Date;
-            newDate: Date;
-            reason: string;
-            rescheduledBy: Types.ObjectId;
-            createdAt: Date;
-        }[];
-        reassignmentHistory: {
-            oldCoordinatorId: Types.ObjectId;
-            newCoordinatorId: Types.ObjectId;
-            reason: string;
-            reassignedBy: Types.ObjectId;
-            createdAt: Date;
-        }[];
+        execution: {
+            stage: import("../models/booking.model.js").BookingExecutionStage;
+            startedAt?: Date;
+            finishedAt?: Date;
+            otpVerification?: {
+                status: "PENDING" | "VERIFIED" | "FAILED" | "EXPIRED";
+                otpHash?: string;
+                expiresAt?: Date;
+                generatedAt?: Date;
+                verifiedAt?: Date;
+                verifiedBy?: Types.ObjectId;
+                attempts?: number;
+                resendCount?: number;
+                lastSentAt?: Date;
+            };
+            serviceExecutions: import("../models/booking.model.js").IServiceExecution[];
+            milestones: import("../models/booking.model.js").IBookingMilestone[];
+            progressPercentage?: number;
+        } | undefined;
         createdAt: Date;
         updatedAt: Date;
     }>;
@@ -126,15 +158,14 @@ export declare class BookingService {
         totalBookings: number;
         pendingPaymentBookings: any;
         confirmedBookings: any;
-        pendingCoordinatorSelectionBookings: any;
-        pendingCoordinatorResponseBookings: any;
+        assignmentPendingBookings: any;
         assignedBookings: any;
-        reassignmentRequestedBookings: any;
         inProgressBookings: any;
         completedBookings: any;
         cancelledBookings: any;
-        refundedBookings: any;
+        expiredBookings: any;
         pendingPayments: any;
+        processingPayments: any;
         paidPayments: any;
         failedPayments: any;
         refundedPayments: any;
@@ -164,11 +195,14 @@ export declare class BookingService {
         bookingReference: string;
         previousStatus: BookingStatus;
         currentStatus: BookingStatus;
+        paymentStatus: import("../models/booking.model.js").PaymentStatus;
+        assignmentStatus: import("../models/booking.model.js").AssignmentStatus | undefined;
+        executionStage: import("../models/booking.model.js").BookingExecutionStage | undefined;
     }>;
     static refundBooking(bookingId: string, amount: number, reason: string, refundedBy?: string): Promise<{
         bookingId: Types.ObjectId;
         bookingReference: string;
-        paymentStatus: "REFUNDED" | "PARTIAL_REFUND";
+        paymentStatus: "PARTIAL_REFUND" | "REFUNDED";
         refundedAmount: number;
         totalRefunded: number;
         remainingAmount: number;
@@ -182,6 +216,9 @@ export declare class BookingService {
         bookingReference: string;
         previousStatus: BookingStatus;
         currentStatus: BookingStatus;
+        paymentStatus: import("../models/booking.model.js").PaymentStatus;
+        assignmentStatus: import("../models/booking.model.js").AssignmentStatus | undefined;
+        executionStage: import("../models/booking.model.js").BookingExecutionStage | undefined;
     }>;
     static getMyBookingById(bookingId: string, userId: string): Promise<mongoose.Document<unknown, {}, import("../models/booking.model.js").IBooking, {}, mongoose.DefaultSchemaOptions> & import("../models/booking.model.js").IBooking & Required<{
         _id: Types.ObjectId;
@@ -207,5 +244,242 @@ export declare class BookingService {
         page: number;
         totalPages: number;
     }>;
+    static getBookingCategory(status: BookingStatus): Promise<BookingCategory>;
+    static getAvailableCoordinators(bookingId: string, userId: string, filters?: CoordinatorFilters): Promise<{
+        bookingId: Types.ObjectId;
+        bookingLocationIds: Types.ObjectId[];
+        bookingPreferences: {
+            caste: string | undefined;
+            gotra: string | undefined;
+        };
+        appliedFilters: {
+            matchCaste: boolean;
+            matchGotra: boolean;
+            minRating: number | undefined;
+            minCompletedBookings: number | undefined;
+            autoAssignmentEnabled: boolean | undefined;
+            sortBy: "acceptanceRate" | "rating" | "completedBookings";
+            sortOrder: "asc" | "desc";
+        };
+        assignmentStatus: import("../models/booking.model.js").AssignmentStatus | undefined;
+        assignmentExpiresAt: Date | undefined;
+        total: number;
+        coordinators: (import("../models/user.model.js").IUser & Required<{
+            _id: Types.ObjectId;
+        }> & {
+            __v: number;
+        })[];
+    }>;
+    static selectCoordinator(params: {
+        bookingId: string;
+        coordinatorId: string;
+        selectedBy: string;
+        assignmentType: "MANUAL" | "AUTO";
+    }): Promise<{
+        bookingId: any;
+        bookingStatus: any;
+        assignmentStatus: any;
+        coordinatorId: any;
+        responseDeadlineAt: any;
+        assignmentExpiresAt: any;
+    }>;
+    static respondToAssignment(params: {
+        bookingId: string;
+        coordinatorId: string;
+        action: AssignmentAction;
+        reason?: string;
+    }): Promise<{
+        bookingId: Types.ObjectId;
+        bookingStatus: "ASSIGNED";
+        assignmentStatus: "ACCEPTED";
+        coordinatorId: string;
+        acceptedAt: Date;
+        rejectedCoordinatorId?: never;
+        canSelectAnotherCoordinator?: never;
+    } | {
+        bookingId: Types.ObjectId;
+        bookingStatus: "ASSIGNMENT_PENDING";
+        assignmentStatus: "REJECTED";
+        rejectedCoordinatorId: string;
+        canSelectAnotherCoordinator: boolean;
+        coordinatorId?: never;
+        acceptedAt?: never;
+    }>;
+    static requestReassignment(params: {
+        bookingId: string;
+        requestedBy: string;
+        requestedByRole: ReassignmentRequestedByRole;
+        reason: string;
+    }): Promise<{
+        bookingId: Types.ObjectId;
+        bookingStatus: "ASSIGNMENT_PENDING";
+        assignmentStatus: "REASSIGNMENT_REQUESTED";
+        reassignment: {
+            requestedBy: Types.ObjectId;
+            requestedByRole: ReassignmentRequestedByRole;
+            reason?: string;
+            requestedAt: Date;
+        };
+    }>;
+    static getCoordinatorAssignmentRequests(params: {
+        coordinatorId: string;
+        page?: number;
+        limit?: number;
+        sortOrder?: "asc" | "desc";
+    }): Promise<{
+        data: (import("../models/booking.model.js").IBooking & Required<{
+            _id: Types.ObjectId;
+        }> & {
+            __v: number;
+        })[];
+        total: number;
+        page: number;
+        totalPages: number;
+    }>;
+    static getCoordinatorBookings(params: {
+        coordinatorId: string;
+        status?: string;
+        page?: number;
+        limit?: number;
+        sortBy?: string;
+        sortOrder?: "asc" | "desc";
+    }): Promise<{
+        data: (import("../models/booking.model.js").IBooking & Required<{
+            _id: Types.ObjectId;
+        }> & {
+            __v: number;
+        })[];
+        total: number;
+        page: number;
+        totalPages: number;
+    }>;
+    static processAssignmentTimeouts(): Promise<{
+        processed: number;
+        reassigned: number;
+        waitingForSelection: number;
+        assignmentExpired: number;
+    }>;
+    static getBookingExecution(bookingId: string): Promise<{
+        bookingId: Types.ObjectId;
+        bookingReference: string;
+        bookingStatus: BookingStatus;
+        scheduledAt: Date | undefined;
+        coordinator: Types.ObjectId | undefined;
+        assignmentStatus: import("../models/booking.model.js").AssignmentStatus | undefined;
+        execution: {
+            stage: import("../models/booking.model.js").BookingExecutionStage;
+            startedAt?: Date;
+            finishedAt?: Date;
+            otpVerification?: {
+                status: "PENDING" | "VERIFIED" | "FAILED" | "EXPIRED";
+                otpHash?: string;
+                expiresAt?: Date;
+                generatedAt?: Date;
+                verifiedAt?: Date;
+                verifiedBy?: Types.ObjectId;
+                attempts?: number;
+                resendCount?: number;
+                lastSentAt?: Date;
+            };
+            serviceExecutions: import("../models/booking.model.js").IServiceExecution[];
+            milestones: import("../models/booking.model.js").IBookingMilestone[];
+            progressPercentage?: number;
+        };
+        completedAt: Date | undefined;
+    }>;
+    static markCoordinatorArrived(params: {
+        bookingId: string;
+        coordinatorId: string;
+    }): Promise<{
+        bookingId: Types.ObjectId;
+        bookingStatus: "IN_PROGRESS";
+        executionStage: "CUSTOMER_VERIFICATION_PENDING";
+        startedAt: Date;
+        milestones: import("../models/booking.model.js").IBookingMilestone[];
+    }>;
+    static verifyBookingOtp(params: {
+        bookingId: string;
+        otp: string;
+        verifiedBy: string;
+    }): Promise<{
+        bookingId: Types.ObjectId;
+        otpStatus: "VERIFIED";
+        executionStage: "SERVICE_EXECUTION";
+        verifiedAt: Date;
+    }>;
+    static startBookingService(params: {
+        bookingId: string;
+        executionId: string;
+        startedBy: string;
+    }): Promise<{
+        bookingId: Types.ObjectId;
+        executionId: string;
+        serviceId: Types.ObjectId;
+        status: "IN_PROGRESS";
+        startedAt: Date;
+    }>;
+    static completeBookingService(params: {
+        bookingId: string;
+        executionId: string;
+        completedBy: string;
+        notes?: string;
+    }): Promise<{
+        bookingId: Types.ObjectId;
+        executionId: string;
+        serviceId: Types.ObjectId;
+        serviceStatus: "COMPLETED";
+        progressPercentage: number;
+        executionStage: import("../models/booking.model.js").BookingExecutionStage;
+        allServicesResolved: boolean;
+    }>;
+    static skipBookingService(params: {
+        bookingId: string;
+        executionId: string;
+        skippedBy: string;
+        reason: string;
+    }): Promise<{
+        bookingId: Types.ObjectId;
+        executionId: string;
+        serviceStatus: "SKIPPED";
+        progressPercentage: number;
+        executionStage: import("../models/booking.model.js").BookingExecutionStage;
+        allServicesResolved: boolean;
+    }>;
+    static addBookingMilestone(params: {
+        bookingId: string;
+        code: BookingMilestone;
+        notes?: string;
+        completedBy: string;
+    }): Promise<{
+        bookingId: Types.ObjectId;
+        code: BookingMilestone;
+        executionStage: import("../models/booking.model.js").BookingExecutionStage;
+        milestones: import("../models/booking.model.js").IBookingMilestone[];
+    }>;
+    static completeBookingExecution(params: {
+        bookingId: string;
+        completedBy: string;
+        notes?: string;
+    }): Promise<{
+        bookingId: Types.ObjectId;
+        bookingReference: string;
+        bookingStatus: "COMPLETED";
+        executionStage: "FINISHED";
+        progressPercentage: number;
+        completedAt: Date;
+    }>;
+    static generateBookingOtp(params: {
+        bookingId: string;
+        coordinatorId: string;
+    }): Promise<{
+        otp?: string;
+        bookingId: Types.ObjectId;
+        bookingReference: string;
+        expiresAt: Date | undefined;
+        resendAvailableAt: Date;
+        resendCount: number | undefined;
+        remainingResends: number;
+    }>;
 }
+export {};
 //# sourceMappingURL=booking.service.d.ts.map

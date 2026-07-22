@@ -10,7 +10,10 @@ const documentVerificationSchema = new Schema({
         enum: Object.values(VerificationStatus),
         default: VerificationStatus.PENDING,
     },
-    rejectionReason: String,
+    rejectionReason: {
+        type: String,
+        default: null,
+    },
 }, {
     _id: false,
 });
@@ -25,7 +28,10 @@ const bankVerificationSchema = new Schema({
         enum: Object.values(VerificationStatus),
         default: VerificationStatus.PENDING,
     },
-    rejectionReason: String,
+    rejectionReason: {
+        type: String,
+        default: null,
+    },
 }, {
     _id: false,
 });
@@ -87,6 +93,11 @@ const coordinatorProfileSchema = new Schema({
         type: String,
         enum: Object.values(AvailabilityStatus),
         default: AvailabilityStatus.AVAILABLE,
+    },
+    approvalRejectionReason: {
+        type: String,
+        trim: true,
+        default: null,
     },
     maxDailyBookings: {
         type: Number,

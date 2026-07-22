@@ -153,14 +153,6 @@ packageSchema.index({
   isComplete: 1,
 });
 
-packageSchema.index({
-  "locations.locationId": 1,
-});
-
-packageSchema.index({
-  "tiers.tierId": 1,
-});
-
 packageSchema.index({ name: 1 });
 
 packageSchema.index(

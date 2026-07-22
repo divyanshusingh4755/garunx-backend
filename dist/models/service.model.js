@@ -54,12 +54,6 @@ serviceSchema.index({
     isActive: 1,
     isComplete: 1,
 });
-serviceSchema.index({
-    "locations.locationId": 1,
-});
-serviceSchema.index({
-    "tiers.tierId": 1,
-});
 serviceSchema.index({ name: 1 });
 // Text Search Index
 serviceSchema.index({

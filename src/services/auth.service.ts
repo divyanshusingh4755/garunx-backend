@@ -1,14 +1,14 @@
 import bcrypt from "bcrypt";
 import { User, type IUser } from "../models/user.model.js";
-import type { Role } from "../types/rbac.js";
-import type { HydratedDocument, Types } from "mongoose";
+import { Role } from "../types/rbac.js";
+import type { ClientSession, HydratedDocument, Types } from "mongoose";
 import mongoose from "mongoose";
 import jwt from "jsonwebtoken";
 import { Session } from "../models/session.model.js";
 import crypto from "crypto";
 import nodemailer from "nodemailer";
 import { generateUniqueCode } from "../utils/generateUniqueCode.js";
-import type { Caste, Gender, Gotra } from "../types/enums.js";
+import { ApprovalStatus, AvailabilityStatus, VerificationStatus, type Caste, type Gender, type Gotra } from "../types/enums.js";
 import { escapeRegex } from "../utils/escapeRegex.js";
 
 class AuthService {
@@ -16,33 +16,67 @@ class AuthService {
     user: HydratedDocument<IUser>,
     userAgent?: string,
     ip?: string,
+    mongoSession?: ClientSession,
   ) {
     const familyId = crypto.randomUUID();
+
     const accessToken = jwt.sign(
-      { userId: user._id, role: user.role },
+      {
+        userId: user._id,
+        role: user.role,
+      },
       process.env.JWT_ACCESS_SECRET as string,
-      { expiresIn: "15m" },
+      {
+        expiresIn: "15m",
+      },
     );
 
     const refreshToken = jwt.sign(
-      { userId: user._id, familyId },
+      {
+        userId: user._id,
+        familyId,
+      },
       process.env.JWT_REFRESH_SECRET as string,
-      { expiresIn: "30d" },
+      {
+        expiresIn: "30d",
+      },
     );
 
-    const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + 30);
-
-    await Session.findOneAndUpdate(
-      { userId: user._id, deviceInfo: userAgent || "unknown" },
-      { refreshToken, familyId, expiresAt, ...(ip && { ipAddress: ip }) },
-      { upsert: true },
+    const expiresAt = new Date(
+      Date.now() + 30 * 24 * 60 * 60 * 1000,
     );
+
+    const query = Session.findOneAndUpdate(
+      {
+        userId: user._id,
+        deviceInfo: userAgent || "unknown",
+      },
+      {
+        refreshToken,
+        familyId,
+        expiresAt,
+        ...(ip && { ipAddress: ip }),
+      },
+      {
+        upsert: true,
+        new: true,
+      },
+    );
+
+    if (mongoSession) {
+      query.session(mongoSession);
+    }
+
+    await query;
 
     const userObject = user.toObject();
     delete userObject.password;
 
-    return { user: userObject, accessToken, refreshToken };
+    return {
+      user: userObject,
+      accessToken,
+      refreshToken,
+    };
   }
 
   static async registerUser(
@@ -674,27 +708,47 @@ class AuthService {
     }
   }
 
-  static async deactivateUser(userId: String, status: String) {
+  static async deactivateUser(
+    userId: string,
+    status: boolean,
+  ) {
     const session = await mongoose.startSession();
     session.startTransaction();
 
     try {
       const user = await User.findByIdAndUpdate(
         userId,
-        { isActive: status },
-        { session, new: true, runValidators: true },
+        {
+          $set: {
+            isActive: status,
+          },
+        },
+        {
+          session,
+          new: true,
+          runValidators: true,
+        },
       );
 
-      if (!user) throw new Error("User not found");
+      if (!user) {
+        throw new Error("User not found");
+      }
 
-      // Kill all active session
-      await Session.deleteMany({ userId }, { session });
+      if (!status) {
+        await Session.deleteMany(
+          { userId },
+          { session },
+        );
+      }
+
       await session.commitTransaction();
-    } catch (error: any) {
+
+      return user;
+    } catch (error) {
       await session.abortTransaction();
       throw error;
     } finally {
-      session.endSession();
+      await session.endSession();
     }
   }
 
@@ -846,23 +900,24 @@ class AuthService {
       gender?: string;
       profileImage?: string;
       savedLocations?: string[];
-      serviceableLocations?: {
-        locationId: string | Types.ObjectId;
-        caste?: Caste[];
-        gotra?: Gotra[];
-      }[];
     },
   ) {
-    const user = await User.findById(userId);
-    if (!user) throw new Error("User not found");
-
     const updatedUser = await User.findByIdAndUpdate(
       userId,
       { $set: updateData },
-      { new: true, runValidators: true },
+      {
+        new: true,
+        runValidators: true,
+      },
     )
-      .select("-password -otp")
+      .select(
+        "-password -otp -otpExpiresAt -resetPasswordToken -resetPasswordExpires",
+      )
       .populate("coordinatorProfile.serviceableLocations.locationId");
+
+    if (!updatedUser) {
+      throw new Error("User not found");
+    }
 
     return updatedUser;
   }
@@ -879,76 +934,626 @@ class AuthService {
       ifscCode?: string;
     },
   ) {
-    const updatePayload: any = {};
+    const user = await User.findById(userId);
 
-    if (docs.aadharCard || docs.panCard) {
-      updatePayload["documentVerification.status"] = "PENDING";
-      if (docs.aadharCard)
-        updatePayload["documentVerification.aadharCard"] = docs.aadharCard;
-      if (docs.panCard)
-        updatePayload["documentVerification.panCard"] = docs.panCard;
+    if (!user) {
+      throw new Error("User not found");
     }
 
-    if (docs.bankPassbook) {
-      updatePayload["isBankDocumentVerified"] = true;
-      updatePayload["bankDocumentVerification.status"] = "APPROVED";
-      updatePayload["bankDocumentVerification.bankPassbook"] =
-        docs.bankPassbook;
-      updatePayload["bankDocumentVerification.accountNumber"] =
-        docs.accountNumber;
-      updatePayload["bankDocumentVerification.accountName"] = docs.accountName;
-      updatePayload["bankDocumentVerification.bankName"] = docs.bankName;
-      updatePayload["bankDocumentVerification.ifscCode"] = docs.ifscCode;
+    const updatePayload: Record<string, unknown> = {};
+
+    const isIdentityDocumentSubmitted =
+      docs.aadharCard !== undefined ||
+      docs.panCard !== undefined;
+
+    const isBankDocumentSubmitted =
+      docs.bankPassbook !== undefined;
+
+    /*
+     * IDENTITY DOCUMENTS
+     *
+     * Every new Aadhaar or PAN submission must be verified again.
+     */
+    if (isIdentityDocumentSubmitted) {
+      updatePayload["documentVerification.status"] =
+        VerificationStatus.PENDING;
+
+      updatePayload["documentVerification.rejectionReason"] =
+        null;
+
+      updatePayload.isDocumentVerified = false;
+
+      if (docs.aadharCard !== undefined) {
+        updatePayload["documentVerification.aadharCard"] =
+          docs.aadharCard;
+      }
+
+      if (docs.panCard !== undefined) {
+        updatePayload["documentVerification.panCard"] =
+          docs.panCard;
+      }
+
+      /*
+       * Coordinator approval was based on the previous identity
+       * documents, so identity re-submission requires coordinator
+       * approval again.
+       */
+      if (
+        user.role === Role.COORDINATOR &&
+        user.coordinatorProfile
+      ) {
+        updatePayload[
+          "coordinatorProfile.approvalStatus"
+        ] = ApprovalStatus.PENDING;
+
+        updatePayload[
+          "coordinatorProfile.approvalRejectionReason"
+        ] = null;
+
+        updatePayload[
+          "coordinatorProfile.autoAssignmentEnabled"
+        ] = false;
+      }
+    }
+
+    /*
+     * BANK DOCUMENTS
+     *
+     * New bank details must be verified again, but the coordinator's
+     * working approval is not removed.
+     */
+    if (isBankDocumentSubmitted) {
+      updatePayload["bankDocumentVerification.status"] =
+        VerificationStatus.PENDING;
+
+      updatePayload[
+        "bankDocumentVerification.rejectionReason"
+      ] = null;
+
+      updatePayload.isBankDocumentVerified = false;
+
+      updatePayload[
+        "bankDocumentVerification.bankPassbook"
+      ] = docs.bankPassbook;
+
+      updatePayload[
+        "bankDocumentVerification.accountNumber"
+      ] = docs.accountNumber;
+
+      updatePayload[
+        "bankDocumentVerification.accountName"
+      ] = docs.accountName;
+
+      updatePayload[
+        "bankDocumentVerification.bankName"
+      ] = docs.bankName;
+
+      updatePayload[
+        "bankDocumentVerification.ifscCode"
+      ] = docs.ifscCode;
     }
 
     if (Object.keys(updatePayload).length === 0) {
-      throw new Error("No valid documents provided for update");
+      throw new Error(
+        "No valid verification documents provided",
+      );
     }
 
-    const user = await User.findByIdAndUpdate(
+    const updatedUser = await User.findByIdAndUpdate(
       userId,
       {
         $set: updatePayload,
       },
-      { new: true, runValidators: true },
-    ).select("-password -otp");
+      {
+        new: true,
+        runValidators: true,
+      },
+    ).select(
+      "-password -otp -otpExpiresAt " +
+      "-resetPasswordToken -resetPasswordExpires",
+    );
 
-    if (!user) throw new Error("User not found");
-    return user;
+    if (!updatedUser) {
+      throw new Error("User not found");
+    }
+
+    return updatedUser;
   }
 
   static async updateVerificationStatus(
     userId: string,
     type: "document" | "bank",
-    status: "APPROVED" | "REJECTED",
+    status: VerificationStatus.APPROVED | VerificationStatus.REJECTED,
     rejectionReason?: string,
   ) {
-    let update: any = {};
+    const user = await User.findById(userId);
+
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    if (
+      status === VerificationStatus.REJECTED &&
+      !rejectionReason?.trim()
+    ) {
+      throw new Error(
+        "Rejection reason is required when rejecting verification",
+      );
+    }
 
     if (type === "document") {
-      update = {
-        "documentVerification.status": status,
-        "documentVerification.rejectionReason":
-          status === "REJECTED" ? rejectionReason : null,
-        isDocumentVerified: status === "APPROVED",
-      };
-    } else if (type === "bank") {
-      update = {
-        "bankDocumentVerification.status": status,
-        "bankDocumentVerification.rejectionReason":
-          status === "REJECTED" ? rejectionReason : null,
-        isBankDocumentVerified: status === "APPROVED",
+      const hasIdentityDocument =
+        Boolean(user.documentVerification?.aadharCard) ||
+        Boolean(user.documentVerification?.panCard);
+
+      if (
+        status === VerificationStatus.APPROVED &&
+        !hasIdentityDocument
+      ) {
+        throw new Error(
+          "Identity verification cannot be approved because no Aadhaar or PAN document has been submitted",
+        );
+      }
+
+      user.documentVerification.status = status;
+
+      user.documentVerification.rejectionReason =
+        status === VerificationStatus.REJECTED
+          ? rejectionReason!.trim()
+          : null;
+
+      user.isDocumentVerified =
+        status === VerificationStatus.APPROVED;
+
+      /*
+       * Verifying identity documents does not automatically approve
+       * the coordinator. Coordinator approval remains a separate
+       * admin action.
+       */
+      if (
+        status === VerificationStatus.REJECTED &&
+        user.role === Role.COORDINATOR &&
+        user.coordinatorProfile
+      ) {
+        user.coordinatorProfile.approvalStatus =
+          ApprovalStatus.PENDING;
+
+        user.coordinatorProfile.autoAssignmentEnabled =
+          false;
+      }
+    }
+
+    if (type === "bank") {
+      const hasCompleteBankDetails =
+        Boolean(
+          user.bankDocumentVerification?.bankPassbook,
+        ) &&
+        Boolean(
+          user.bankDocumentVerification?.accountNumber,
+        ) &&
+        Boolean(
+          user.bankDocumentVerification?.accountName,
+        ) &&
+        Boolean(
+          user.bankDocumentVerification?.bankName,
+        ) &&
+        Boolean(
+          user.bankDocumentVerification?.ifscCode,
+        );
+
+      if (
+        status === VerificationStatus.APPROVED &&
+        !hasCompleteBankDetails
+      ) {
+        throw new Error(
+          "Bank verification cannot be approved because complete bank details have not been submitted",
+        );
+      }
+
+      user.bankDocumentVerification.status = status;
+
+      user.bankDocumentVerification.rejectionReason =
+        status === VerificationStatus.REJECTED
+          ? rejectionReason!.trim()
+          : null;
+
+      user.isBankDocumentVerified =
+        status === VerificationStatus.APPROVED;
+
+      /*
+       * Do not change coordinator approval here.
+       * Bank verification controls payouts, not the coordinator's
+       * permission to work.
+       */
+    }
+
+    await user.save();
+
+    return User.findById(userId)
+      .select(
+        "-password -otp -otpExpiresAt " +
+        "-resetPasswordToken -resetPasswordExpires",
+      )
+      .lean();
+  }
+
+  static async getCurrentUser(userId: string) {
+    const user = await User.findById(userId)
+      .select(
+        "-password -otp -otpExpiresAt -resetPasswordToken -resetPasswordExpires",
+      )
+      .populate("coordinatorProfile.serviceableLocations.locationId")
+      .lean();
+
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    return user;
+  }
+
+  static async updateCoordinatorApproval(
+    coordinatorId: string,
+    status: ApprovalStatus,
+    rejectionReason?: string,
+  ) {
+    const coordinator = await User.findOne({
+      _id: coordinatorId,
+      role: Role.COORDINATOR,
+    });
+
+    if (!coordinator) {
+      throw new Error("Coordinator not found");
+    }
+
+    if (!coordinator.coordinatorProfile) {
+      throw new Error(
+        "Coordinator profile has not been created",
+      );
+    }
+
+    if (
+      status === ApprovalStatus.REJECTED &&
+      !rejectionReason?.trim()
+    ) {
+      throw new Error(
+        "Rejection reason is required when rejecting a coordinator",
+      );
+    }
+
+    /*
+     * Identity verification is mandatory.
+     * Bank verification is not required to approve the coordinator.
+     */
+    if (
+      status === ApprovalStatus.APPROVED &&
+      !coordinator.isDocumentVerified
+    ) {
+      throw new Error(
+        "Coordinator identity documents must be verified before approval",
+      );
+    }
+
+    coordinator.coordinatorProfile.approvalStatus =
+      status;
+
+    coordinator.coordinatorProfile.approvalRejectionReason =
+      status === ApprovalStatus.REJECTED
+        ? rejectionReason!.trim()
+        : null;
+
+    /*
+     * Pending or rejected coordinators cannot receive automatic
+     * assignments.
+     */
+    if (status !== ApprovalStatus.APPROVED) {
+      coordinator.coordinatorProfile.autoAssignmentEnabled =
+        false;
+    }
+
+    await coordinator.save();
+
+    return User.findById(coordinatorId)
+      .select(
+        "-password -otp -otpExpiresAt " +
+        "-resetPasswordToken -resetPasswordExpires",
+      )
+      .populate(
+        "coordinatorProfile.serviceableLocations.locationId",
+      )
+      .lean();
+  }
+
+  static async updateCoordinatorAvailability(
+    coordinatorId: string,
+    availabilityStatus: AvailabilityStatus,
+  ) {
+    const coordinator = await User.findOne({
+      _id: coordinatorId,
+      role: Role.COORDINATOR,
+    });
+
+    if (!coordinator) {
+      throw new Error("Coordinator not found");
+    }
+
+    if (!coordinator.coordinatorProfile) {
+      throw new Error("Coordinator profile has not been created");
+    }
+
+    if (
+      coordinator.coordinatorProfile.approvalStatus !== ApprovalStatus.APPROVED
+    ) {
+      throw new Error(
+        "Coordinator must be approved before changing availability",
+      );
+    }
+
+    coordinator.coordinatorProfile.availabilityStatus = availabilityStatus;
+    coordinator.coordinatorProfile.lastAvailabilityChangedAt = new Date();
+
+    await coordinator.save();
+
+    return {
+      availabilityStatus:
+        coordinator.coordinatorProfile.availabilityStatus,
+      lastAvailabilityChangedAt:
+        coordinator.coordinatorProfile.lastAvailabilityChangedAt,
+    };
+  }
+
+  static async updateCoordinatorSettings(
+    coordinatorId: string,
+    settings: {
+      maxDailyBookings?: number;
+      autoAssignmentEnabled?: boolean;
+    },
+  ) {
+    const coordinator = await User.findOne({
+      _id: coordinatorId,
+      role: Role.COORDINATOR,
+    });
+
+    if (!coordinator) {
+      throw new Error("Coordinator not found");
+    }
+
+    if (!coordinator.coordinatorProfile) {
+      throw new Error("Coordinator profile has not been created");
+    }
+
+    if (settings.maxDailyBookings !== undefined) {
+      coordinator.coordinatorProfile.maxDailyBookings =
+        settings.maxDailyBookings;
+    }
+
+    if (settings.autoAssignmentEnabled !== undefined) {
+      if (
+        settings.autoAssignmentEnabled &&
+        coordinator.coordinatorProfile.approvalStatus !==
+        ApprovalStatus.APPROVED
+      ) {
+        throw new Error(
+          "Auto-assignment cannot be enabled until the coordinator is approved",
+        );
+      }
+
+      coordinator.coordinatorProfile.autoAssignmentEnabled =
+        settings.autoAssignmentEnabled;
+    }
+
+    await coordinator.save();
+
+    return {
+      maxDailyBookings:
+        coordinator.coordinatorProfile.maxDailyBookings,
+      autoAssignmentEnabled:
+        coordinator.coordinatorProfile.autoAssignmentEnabled,
+    };
+  }
+
+  static async updateCoordinatorServiceableLocations(
+    coordinatorId: string,
+    serviceableLocations: {
+      locationId: string | Types.ObjectId;
+      caste?: Caste[];
+      gotra?: Gotra[];
+    }[],
+  ) {
+    const coordinator = await User.findOne({
+      _id: coordinatorId,
+      role: Role.COORDINATOR,
+    });
+
+    if (!coordinator) {
+      throw new Error("Coordinator not found");
+    }
+
+    if (!coordinator.coordinatorProfile) {
+      throw new Error("Coordinator profile has not been created");
+    }
+
+    coordinator.coordinatorProfile.serviceableLocations =
+      serviceableLocations.map((location) => ({
+        locationId: new mongoose.Types.ObjectId(location.locationId),
+        caste: location.caste ?? [],
+        gotra: location.gotra ?? [],
+      }));
+
+    await coordinator.save();
+
+    const updatedCoordinator = await User.findById(coordinatorId)
+      .select(
+        "-password -otp -otpExpiresAt -resetPasswordToken -resetPasswordExpires",
+      )
+      .populate("coordinatorProfile.serviceableLocations.locationId")
+      .lean();
+
+    return updatedCoordinator;
+  }
+
+  static async getCoordinatorById(coordinatorId: string) {
+    const coordinator = await User.findOne({
+      _id: coordinatorId,
+      role: Role.COORDINATOR,
+    })
+      .select(
+        "-password -otp -otpExpiresAt -resetPasswordToken -resetPasswordExpires",
+      )
+      .populate("coordinatorProfile.serviceableLocations.locationId")
+      .lean();
+
+    if (!coordinator) {
+      throw new Error("Coordinator not found");
+    }
+
+    return coordinator;
+  }
+
+  static async getCoordinators(filters: {
+    page?: number;
+    limit?: number;
+    approvalStatus?: ApprovalStatus;
+    availabilityStatus?: AvailabilityStatus;
+    locationId?: string;
+    caste?: Caste;
+    gotra?: Gotra;
+    autoAssignmentEnabled?: boolean;
+    minimumRating?: number;
+    search?: string;
+    sortBy?: string;
+    sortOrder?: "asc" | "desc";
+  }) {
+    const {
+      page = 1,
+      limit = 20,
+      approvalStatus,
+      availabilityStatus,
+      locationId,
+      caste,
+      gotra,
+      autoAssignmentEnabled,
+      minimumRating,
+      search,
+      sortBy = "createdAt",
+      sortOrder = "desc",
+    } = filters;
+
+    const skip = (page - 1) * limit;
+
+    const query: Record<string, unknown> = {
+      role: Role.COORDINATOR,
+    };
+
+    if (approvalStatus) {
+      query["coordinatorProfile.approvalStatus"] = approvalStatus;
+    }
+
+    if (availabilityStatus) {
+      query["coordinatorProfile.availabilityStatus"] =
+        availabilityStatus;
+    }
+
+    if (locationId) {
+      query["coordinatorProfile.serviceableLocations.locationId"] =
+        new mongoose.Types.ObjectId(locationId);
+    }
+
+    if (caste) {
+      query["coordinatorProfile.serviceableLocations.caste"] = caste;
+    }
+
+    if (gotra) {
+      query["coordinatorProfile.serviceableLocations.gotra"] = gotra;
+    }
+
+    if (typeof autoAssignmentEnabled === "boolean") {
+      query["coordinatorProfile.autoAssignmentEnabled"] =
+        autoAssignmentEnabled;
+    }
+
+    if (minimumRating !== undefined) {
+      query["coordinatorProfile.averageRating"] = {
+        $gte: minimumRating,
       };
     }
 
-    const user = await User.findByIdAndUpdate(
-      userId,
-      { $set: update },
-      { new: true, runValidators: true },
-    ).select("-password -otp");
+    if (search?.trim()) {
+      const escapedSearch = escapeRegex(search.trim());
 
-    if (!user) throw new Error("User not found");
-    return user;
+      query.$or = [
+        {
+          fullName: {
+            $regex: escapedSearch,
+            $options: "i",
+          },
+        },
+        {
+          email: {
+            $regex: escapedSearch,
+            $options: "i",
+          },
+        },
+        {
+          phoneNumber: {
+            $regex: escapedSearch,
+            $options: "i",
+          },
+        },
+        {
+          userReference: {
+            $regex: escapedSearch,
+            $options: "i",
+          },
+        },
+      ];
+    }
+
+    const sortFieldMap: Record<string, string> = {
+      createdAt: "createdAt",
+      fullName: "fullName",
+      averageRating: "coordinatorProfile.averageRating",
+      totalCompletedBookings:
+        "coordinatorProfile.totalCompletedBookings",
+      acceptanceRate: "coordinatorProfile.acceptanceRate",
+    };
+
+    const selectedSortField =
+      sortFieldMap[sortBy] ?? "createdAt";
+
+    const sort: Record<string, 1 | -1> = {
+      [selectedSortField]: sortOrder === "asc" ? 1 : -1,
+    };
+
+    if (selectedSortField !== "createdAt") {
+      sort.createdAt = -1;
+    }
+
+    const [coordinators, total] = await Promise.all([
+      User.find(query)
+        .select(
+          "-password -otp -otpExpiresAt -resetPasswordToken -resetPasswordExpires",
+        )
+        .populate("coordinatorProfile.serviceableLocations.locationId")
+        .sort(sort)
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+
+      User.countDocuments(query),
+    ]);
+
+    return {
+      coordinators,
+      pagination: {
+        total,
+        page,
+        limit,
+        pages: Math.ceil(total / limit),
+        hasNextPage: page * limit < total,
+        hasPreviousPage: page > 1,
+      },
+    };
   }
 }
 

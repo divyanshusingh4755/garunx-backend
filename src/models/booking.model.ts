@@ -5,28 +5,98 @@ import type { ICart } from "./cart.model.js";
 export type BookingStatus =
   | "PENDING_PAYMENT"
   | "CONFIRMED"
-  | "PENDING_COORDINATOR_SELECTION"
-  | "PENDING_COORDINATOR_RESPONSE"
+  | "ASSIGNMENT_PENDING"
   | "ASSIGNED"
-  | "REASSIGNMENT_REQUESTED"
   | "IN_PROGRESS"
   | "COMPLETED"
   | "CANCELLED"
-  | "REFUNDED";
+  | "EXPIRED";
 
 export type BookingFor = "MYSELF" | "OTHER";
 
 export type PaymentStatus =
   | "PENDING"
+  | "PROCESSING"
   | "PAID"
   | "FAILED"
-  | "REFUNDED"
-  | "PARTIAL_REFUND";
+  | "PARTIAL_REFUND"
+  | "REFUNDED";
+
+export type AssignmentStatus =
+  | "NOT_STARTED"
+  | "PENDING_SELECTION"
+  | "PENDING_RESPONSE"
+  | "ACCEPTED"
+  | "REJECTED"
+  | "REASSIGNMENT_REQUESTED";
+
+export type BookingCategory =
+  | "UPCOMING"
+  | "ONGOING"
+  | "COMPLETED"
+  | "CANCELLED"
+  | "PAYMENT_PENDING"
+  | "EXPIRED";
+
+export type BookingExecutionStage =
+  | "NOT_STARTED"
+  | "COORDINATOR_ARRIVED"
+  | "CUSTOMER_VERIFICATION_PENDING"
+  | "SERVICE_EXECUTION"
+  | "CUSTOMER_REVIEW_PENDING"
+  | "FINALIZATION"
+  | "FINISHED";
+
+export type BookingMilestone =
+  | "COORDINATOR_ARRIVED"
+  | "OTP_VERIFIED"
+  | "SERVICE_STARTED"
+  | "CUSTOMER_DETAILS_VERIFIED"
+  | "DOCUMENTS_COLLECTED"
+  | "FAMILY_TREE_STARTED"
+  | "FAMILY_TREE_COMPLETED"
+  | "ALL_SERVICES_COMPLETED"
+  | "CUSTOMER_CONFIRMATION_RECEIVED"
+  | "FINAL_REPORT_GENERATED";
+
+export type AssignmentRequestStatus =
+  | "PENDING"
+  | "ACCEPTED"
+  | "REJECTED"
+  | "EXPIRED"
+  | "CANCELLED";
+
+export type ReassignmentRequestedByRole =
+  | "CUSTOMER"
+  | "ADMIN"
+  | "COORDINATOR"
+  | "SYSTEM";
+
+export interface IAssignmentRequest {
+  coordinatorId: Types.ObjectId;
+  status: AssignmentRequestStatus;
+
+  assignmentType: "MANUAL" | "AUTO";
+
+  requestedBy?: Types.ObjectId;
+  requestedAt: Date;
+  responseDeadlineAt: Date;
+
+  respondedAt?: Date;
+  rejectionReason?: string;
+}
 
 export type BookedBy = "CUSTOMER" | "ADMIN" | "SUBADMIN";
 export type EntryType = "SERVICE" | "PACKAGE";
 export type ComponentType = "DEFAULT" | "ADDON";
 export type ServiceRole = "PRIMARY" | "INCLUDED" | "ADDON";
+
+export interface IBookingMilestone {
+  code: BookingMilestone;
+  completedAt: Date;
+  completedBy?: Types.ObjectId;
+  notes?: string;
+}
 
 export interface IBookingSelectedItem {
   itemId: Types.ObjectId;
@@ -42,6 +112,117 @@ export interface IBookingRefund {
   status?: "PENDING" | "SUCCESS" | "FAILED";
   refundedBy?: Types.ObjectId;
 }
+
+export type ServiceExecutionStatus =
+  | "PENDING"
+  | "IN_PROGRESS"
+  | "COMPLETED"
+  | "SKIPPED"
+  | "CANCELLED";
+
+export interface IServiceExecution {
+  executionId: string;
+  serviceId: Types.ObjectId;
+  status: ServiceExecutionStatus;
+  startedAt?: Date;
+  completedAt?: Date;
+  completedBy?: Types.ObjectId;
+  notes?: string;
+}
+
+const assignmentRequestSchema = new Schema<IAssignmentRequest>(
+  {
+    coordinatorId: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+    },
+
+    status: {
+      type: String,
+      enum: [
+        "PENDING",
+        "ACCEPTED",
+        "REJECTED",
+        "EXPIRED",
+        "CANCELLED",
+      ] satisfies AssignmentRequestStatus[],
+      default: "PENDING",
+      required: true,
+    },
+
+    assignmentType: {
+      type: String,
+      enum: ["MANUAL", "AUTO"],
+      required: true,
+    },
+
+    requestedBy: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+    },
+
+    requestedAt: {
+      type: Date,
+      default: Date.now,
+      required: true,
+    },
+
+    responseDeadlineAt: {
+      type: Date,
+      required: true,
+    },
+
+    respondedAt: Date,
+
+    rejectionReason: {
+      type: String,
+      maxlength: 500,
+    },
+  },
+  { _id: true },
+);
+
+const serviceExecutionSchema = new Schema<IServiceExecution>(
+  {
+    executionId: {
+      type: String,
+      required: true,
+    },
+
+    serviceId: {
+      type: Schema.Types.ObjectId,
+      ref: "Service",
+      required: true,
+    },
+
+    status: {
+      type: String,
+      enum: [
+        "PENDING",
+        "IN_PROGRESS",
+        "COMPLETED",
+        "SKIPPED",
+        "CANCELLED",
+      ] satisfies ServiceExecutionStatus[],
+      default: "PENDING",
+    },
+
+    startedAt: Date,
+    completedAt: Date,
+
+    completedBy: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+    },
+
+    notes: {
+      type: String,
+      maxlength: 500,
+    },
+  },
+  { _id: false },
+);
 
 const bookingSelectedItemSchema = new Schema<IBookingSelectedItem>(
   {
@@ -67,6 +248,7 @@ export interface IBookingComponent {
   selected: boolean;
   selectedItems: IBookingSelectedItem[];
   pricing: {
+    basePrice: number;
     total: number;
   };
 }
@@ -319,6 +501,40 @@ const bookingEntrySchema = new Schema<IBookingEntry>(
   { _id: false },
 );
 
+const bookingMilestoneSchema = new Schema<IBookingMilestone>(
+  {
+    code: {
+      type: String,
+      enum: [
+        "COORDINATOR_ARRIVED",
+        "OTP_VERIFIED",
+        "SERVICE_STARTED",
+        "CUSTOMER_DETAILS_VERIFIED",
+        "DOCUMENTS_COLLECTED",
+        "FAMILY_TREE_STARTED",
+        "FAMILY_TREE_COMPLETED",
+        "ALL_SERVICES_COMPLETED",
+        "CUSTOMER_CONFIRMATION_RECEIVED",
+        "FINAL_REPORT_GENERATED",
+      ],
+      required: true,
+    },
+
+    completedAt: Date,
+
+    completedBy: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+    },
+
+    notes: {
+      type: String,
+      maxlength: 500,
+    },
+  },
+  { _id: false },
+);
+
 export interface IBooking extends Document {
   userId?: Types.ObjectId;
   cartId: Types.ObjectId;
@@ -350,6 +566,31 @@ export interface IBooking extends Document {
     earnings?: number;
   };
 
+  execution?: {
+    stage: BookingExecutionStage;
+    startedAt?: Date;
+    finishedAt?: Date;
+
+    otpVerification?: {
+      status: "PENDING" | "VERIFIED" | "FAILED" | "EXPIRED";
+
+      otpHash?: string;
+      expiresAt?: Date;
+      generatedAt?: Date;
+
+      verifiedAt?: Date;
+      verifiedBy?: Types.ObjectId;
+
+      attempts?: number;
+      resendCount?: number;
+      lastSentAt?: Date;
+    };
+
+    serviceExecutions: IServiceExecution[];
+    milestones: IBookingMilestone[];
+    progressPercentage?: number;
+  };
+
   payment: {
     status: PaymentStatus;
     paymentMethod?: string;
@@ -374,39 +615,27 @@ export interface IBooking extends Document {
     cancelledBy?: Types.ObjectId;
     cancelledByRole?: "CUSTOMER" | "ADMIN" | "SUBADMIN" | "SYSTEM";
     cancelledAt?: Date;
-    refundPercentage: number;
-    refundAmount: number;
+    refundPercentage?: number;
+    refundAmount?: number;
   };
 
   assignment?: {
+    status: AssignmentStatus;
     assignedCoordinatorId?: Types.ObjectId;
     assignedBy?: Types.ObjectId;
     assignedAt?: Date;
     assignmentType?: "MANUAL" | "AUTO";
-    coordinatorAcceptedAt?: Date
+    coordinatorAcceptedAt?: Date;
     responseDeadlineAt?: Date;
+    assignmentExpiresAt?: Date;
+    requests: IAssignmentRequest[];
+    reassignment?: {
+      requestedBy: Types.ObjectId;
+      requestedByRole: ReassignmentRequestedByRole;
+      reason?: string;
+      requestedAt: Date;
+    };
   };
-
-  rescheduleHistory: {
-    oldDate: Date,
-    newDate: Date,
-    reason: string,
-    rescheduledBy: Types.ObjectId,
-    createdAt: Date,
-  }[];
-
-  reassignmentHistory: {
-    oldCoordinatorId: Types.ObjectId;
-    newCoordinatorId: Types.ObjectId;
-    reason: string;
-    reassignedBy: Types.ObjectId;
-    createdAt: Date
-  }[];
-
-  preferredCoordinators: {
-    coordinatorId: Types.ObjectId,
-    priorityOrder: number
-  }[],
 
   scheduledAt?: Date;
   completedAt?: Date;
@@ -426,7 +655,6 @@ const bookingSchema = new Schema<IBooking>(
       type: Schema.Types.ObjectId,
       ref: "Cart",
       required: true,
-      index: true,
     },
 
     bookingReference: {
@@ -523,7 +751,14 @@ const bookingSchema = new Schema<IBooking>(
     payment: {
       status: {
         type: String,
-        enum: ["PENDING", "PAID", "FAILED", "REFUNDED", "PARTIAL_REFUND"],
+        enum: [
+          "PENDING",
+          "PROCESSING",
+          "PAID",
+          "FAILED",
+          "PARTIAL_REFUND",
+          "REFUNDED",
+        ] satisfies PaymentStatus[],
         default: "PENDING",
       },
       providerOrderId: String,
@@ -559,7 +794,16 @@ const bookingSchema = new Schema<IBooking>(
 
     status: {
       type: String,
-      enum: ["PENDING_PAYMENT", "CONFIRMED", "PENDING_COORDINATOR_SELECTION", "PENDING_COORDINATOR_RESPONSE", "ASSIGNED", "REASSIGNMENT_REQUESTED", "IN_PROGRESS", "COMPLETED", "CANCELLED", "REFUNDED"],
+      enum: [
+        "PENDING_PAYMENT",
+        "CONFIRMED",
+        "ASSIGNMENT_PENDING",
+        "ASSIGNED",
+        "IN_PROGRESS",
+        "COMPLETED",
+        "CANCELLED",
+        "EXPIRED",
+      ] satisfies BookingStatus[],
       default: "PENDING_PAYMENT",
       index: true,
     },
@@ -577,75 +821,144 @@ const bookingSchema = new Schema<IBooking>(
     },
 
     assignment: {
-      assignedAt: Date,
-      assignmentType: {
+      status: {
         type: String,
-        enum: ["MANUAL", "AUTO"],
+        enum: [
+          "NOT_STARTED",
+          "PENDING_SELECTION",
+          "PENDING_RESPONSE",
+          "ACCEPTED",
+          "REJECTED",
+          "REASSIGNMENT_REQUESTED",
+        ] satisfies AssignmentStatus[],
+        default: "NOT_STARTED",
       },
+
       assignedCoordinatorId: {
         type: Schema.Types.ObjectId,
         ref: "User",
       },
+
       assignedBy: {
         type: Schema.Types.ObjectId,
         ref: "User",
       },
+
+      assignedAt: Date,
+
+      assignmentType: {
+        type: String,
+        enum: ["MANUAL", "AUTO"],
+      },
+
       coordinatorAcceptedAt: Date,
+
+      // deadline for one coordinator
       responseDeadlineAt: Date,
+
+      // final deadline for the complete coordinator-selection process
+      assignmentExpiresAt: Date,
+
+      requests: {
+        type: [assignmentRequestSchema],
+        default: [],
+      },
+
+      reassignment: {
+        requestedBy: {
+          type: Schema.Types.ObjectId,
+          ref: "User",
+        },
+        requestedByRole: {
+          type: String,
+          enum: [
+            "CUSTOMER",
+            "COORDINATOR",
+            "ADMIN",
+            "SYSTEM",
+          ] as ReassignmentRequestedByRole[],
+          default: "CUSTOMER",
+        },
+        reason: String,
+        requestedAt: Date,
+      },
     },
 
-    rescheduleHistory: [
-      {
-        oldDate: Date,
-        newDate: Date,
-        reason: String,
-        rescheduledBy: {
-          type: Schema.Types.ObjectId,
-          ref: "User",
-        },
-        createdAt: Date,
-      }
-    ],
-
-    reassignmentHistory: [
-      {
-        oldCoordinatorId: {
-          type: Schema.Types.ObjectId,
-          ref: "User",
-        },
-
-        newCoordinatorId: {
-          type: Schema.Types.ObjectId,
-          ref: "User",
-        },
-
-        reason: String,
-
-        reassignedBy: {
-          type: Schema.Types.ObjectId,
-          ref: "User",
-        },
-
-        createdAt: {
-          type: Date,
-          default: Date.now,
-        },
+    execution: {
+      stage: {
+        type: String,
+        enum: [
+          "NOT_STARTED",
+          "COORDINATOR_ARRIVED",
+          "CUSTOMER_VERIFICATION_PENDING",
+          "SERVICE_EXECUTION",
+          "CUSTOMER_REVIEW_PENDING",
+          "FINALIZATION",
+          "FINISHED",
+        ],
+        default: "NOT_STARTED",
       },
-    ],
 
-    preferredCoordinators: [
-      {
-        coordinatorId: {
+      startedAt: Date,
+      finishedAt: Date,
+
+      otpVerification: {
+        status: {
+          type: String,
+          enum: [
+            "PENDING",
+            "VERIFIED",
+            "FAILED",
+            "EXPIRED",
+          ],
+          default: "PENDING",
+        },
+
+        otpHash: {
+          type: String,
+          select: false,
+        },
+
+        expiresAt: Date,
+        generatedAt: Date,
+
+        verifiedAt: Date,
+
+        verifiedBy: {
           type: Schema.Types.ObjectId,
           ref: "User",
         },
 
-        priorityOrder: {
+        attempts: {
           type: Number,
-          required: true,
+          default: 0,
         },
+
+        resendCount: {
+          type: Number,
+          default: 0,
+        },
+
+        lastSentAt: Date,
       },
-    ],
+
+      milestones: {
+        type: [bookingMilestoneSchema],
+        default: [],
+      },
+
+      serviceExecutions: {
+        type: [serviceExecutionSchema],
+        default: [],
+      },
+
+      progressPercentage: {
+        type: Number,
+        default: 0,
+        min: 0,
+        max: 100,
+      },
+    },
 
     scheduledAt: Date,
     completedAt: Date,
@@ -704,7 +1017,6 @@ bookingSchema.index({ userId: 1, createdAt: -1 });
 bookingSchema.index({ createdAt: -1 });
 bookingSchema.index({ scheduledAt: 1, status: 1 });
 bookingSchema.index({ "payment.status": 1 });
-bookingSchema.index({ bookingReference: 1 });
 bookingSchema.index({ userId: 1, scheduledAt: 1 });
 bookingSchema.index({
   status: 1,
@@ -724,10 +1036,6 @@ bookingSchema.index(
 
 bookingSchema.index({
   "payment.refunds.refundId": 1,
-});
-
-bookingSchema.index({
-  bookingReference: 1,
 });
 
 // Index for searching by main customer details email
@@ -753,6 +1061,22 @@ bookingSchema.index(
     name: "BookingTextSearchIndex",
   },
 );
+
+bookingSchema.index({
+  "assignment.status": 1,
+  "assignment.responseDeadlineAt": 1,
+});
+
+bookingSchema.index({
+  "assignment.assignedCoordinatorId": 1,
+  status: 1,
+  scheduledAt: 1,
+});
+
+bookingSchema.index({
+  "assignment.status": 1,
+  "assignment.assignmentExpiresAt": 1,
+});
 
 export const Booking: Model<IBooking> = model<IBooking>(
   "Booking",

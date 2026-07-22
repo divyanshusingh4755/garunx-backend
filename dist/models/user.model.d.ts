@@ -9,6 +9,7 @@ export interface ICoordinatorProfile {
     totalAssignedBookings: number;
     acceptanceRate: number;
     approvalStatus: ApprovalStatus;
+    approvalRejectionReason?: string | null;
     availabilityStatus: AvailabilityStatus;
     maxDailyBookings: number;
     autoAssignmentEnabled: boolean;
@@ -43,7 +44,7 @@ export interface IUser extends Document {
         aadharCard?: string;
         panCard?: string;
         status: VerificationStatus;
-        rejectionReason?: string;
+        rejectionReason?: string | null;
     };
     bankDocumentVerification: {
         bankPassbook?: string;
@@ -52,7 +53,7 @@ export interface IUser extends Document {
         bankName?: string;
         ifscCode?: string;
         status: VerificationStatus;
-        rejectionReason?: string;
+        rejectionReason?: string | null;
     };
     caste?: Caste;
     gotra?: Gotra;

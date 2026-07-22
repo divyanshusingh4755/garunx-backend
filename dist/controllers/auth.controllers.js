@@ -1,6 +1,7 @@
 import AuthService from '../services/auth.service.js';
 import { Role } from '../types/rbac.js';
 import { getClientIp } from '../utils/clientIp.js';
+import { ApprovalStatus, AvailabilityStatus } from '../types/enums.js';
 export const register = async (req, res) => {
     try {
         const { role, password, userEmail, phoneNumber } = req.body;
@@ -375,7 +376,9 @@ export const deactivateUser = async (req, res) => {
         await AuthService.deactivateUser(id, status);
         res.status(200).json({
             success: true,
-            message: `Account ${status}ed successfully and all active sessions revoked.`
+            message: status
+                ? "Account activated successfully"
+                : "Account deactivated successfully and all sessions revoked",
         });
     }
     catch (error) {
@@ -423,30 +426,41 @@ export const completeProfile = async (req, res) => {
 export const updateProfile = async (req, res) => {
     try {
         const userId = req.user?.userId;
-        const userRole = req.user?.role;
-        const { fullName, dob, gender, profileImage, savedLocations, serviceableLocations } = req.body;
-        const dataToUpdate = {
-            fullName, dob, gender, profileImage, savedLocations
-        };
-        if (serviceableLocations && userRole === Role.COORDINATOR) {
-            dataToUpdate["coordinatorProfile.serviceableLocations"] =
-                serviceableLocations;
+        const { fullName, dob, gender, profileImage, savedLocations, } = req.body;
+        const dataToUpdate = {};
+        if (fullName !== undefined) {
+            dataToUpdate.fullName = fullName;
         }
-        const user = await AuthService.updateProfile(userId, dataToUpdate);
-        if (!user) {
-            return res.status(404).json({
+        if (dob !== undefined) {
+            dataToUpdate.dob = dob;
+        }
+        if (gender !== undefined) {
+            dataToUpdate.gender = gender;
+        }
+        if (profileImage !== undefined) {
+            dataToUpdate.profileImage = profileImage;
+        }
+        if (savedLocations !== undefined) {
+            dataToUpdate.savedLocations = savedLocations;
+        }
+        if (Object.keys(dataToUpdate).length === 0) {
+            return res.status(400).json({
                 success: false,
-                message: "User not found or update failed"
+                message: "No valid profile fields provided",
             });
         }
+        const user = await AuthService.updateProfile(userId, dataToUpdate);
         res.status(200).json({
             success: true,
             message: "Profile updated successfully",
-            user
+            data: user,
         });
     }
     catch (error) {
-        res.status(400).json({ success: false, message: error.message });
+        res.status(400).json({
+            success: false,
+            message: error.message,
+        });
     }
 };
 export const uploadSingle = async (req, res) => {
@@ -472,76 +486,301 @@ export const uploadMutliple = async (req, res) => {
         });
     }
 };
-export const verifyDocuments = async (req, res) => {
+export const submitVerificationDocuments = async (req, res) => {
     try {
         const userId = req.user?.userId;
-        const { aadharCard, panCard, bankPassbook, accountNumber, accountName, bankName, ifscCode } = req.body;
         if (!userId) {
-            return res.status(401).json({ success: false, message: "Unauthorized access" });
-        }
-        if (!aadharCard && !panCard && !bankPassbook) {
-            return res.status(400).json({ success: false, message: "At least one document (Aadhar, PAN, or Passbook) is required" });
-        }
-        if (bankPassbook && (!accountNumber || !ifscCode)) {
-            return res.status(400).json({
+            return res.status(401).json({
                 success: false,
-                message: "Account number and IFSC code are required with bank passbook"
+                message: "Unauthorized access",
             });
         }
-        const docs = {
+        const { aadharCard, panCard, bankPassbook, accountNumber, accountName, bankName, ifscCode, } = req.body;
+        const updatedUser = await AuthService.uploadVerificationDocuments(userId, {
             aadharCard,
             panCard,
             bankPassbook,
             accountNumber,
             accountName,
             bankName,
-            ifscCode
-        };
-        const updatedUser = await AuthService.uploadVerificationDocuments(userId, docs);
-        const isIdentityUpdate = aadharCard || panCard;
-        const message = isIdentityUpdate
-            ? "Documents submitted. Identity verification is now PENDING."
-            : "Bank details updated successfully.";
-        res.status(200).json({
+            ifscCode,
+        });
+        const submitted = [];
+        if (aadharCard || panCard) {
+            submitted.push("Identity documents submitted for verification");
+        }
+        if (bankPassbook) {
+            submitted.push("Bank details submitted for verification");
+        }
+        return res.status(200).json({
             success: true,
-            message: message,
+            message: submitted.join(". "),
             data: {
-                identity: updatedUser.documentVerification,
-                bank: updatedUser.bankDocumentVerification
-            }
+                identity: {
+                    status: updatedUser.documentVerification.status,
+                    isVerified: updatedUser.isDocumentVerified,
+                },
+                bank: {
+                    status: updatedUser.bankDocumentVerification.status,
+                    isVerified: updatedUser.isBankDocumentVerified,
+                },
+                coordinatorApproval: updatedUser.coordinatorProfile
+                    ?.approvalStatus,
+            },
         });
     }
     catch (error) {
-        res.status(400).json({ success: false, message: error.message });
+        return res.status(400).json({
+            success: false,
+            message: error.message ||
+                "Failed to submit verification documents",
+        });
     }
 };
 export const approveOrRejectDocs = async (req, res) => {
     try {
-        const { userId, type, status, rejectionReason } = req.body;
-        if (!['document', 'bank'].includes(type)) {
-            return res.status(400).json({ success: false, message: "Invalid type. Must be 'document' or 'bank'" });
-        }
-        if (!['APPROVED', 'REJECTED'].includes(status)) {
-            return res.status(400).json({ success: false, message: "Invalid status" });
-        }
-        if (status === "REJECTED" && !rejectionReason) {
-            return res.status(400).json({ success: false, message: "Reason is required for rejection" });
-        }
+        const { userId, type, status, rejectionReason, } = req.body;
         const updatedUser = await AuthService.updateVerificationStatus(userId, type, status, rejectionReason);
-        res.status(200).json({
+        const verificationName = type === "document"
+            ? "Identity documents"
+            : "Bank details";
+        return res.status(200).json({
             success: true,
-            message: `User documents ${status.toLowerCase()} successfully`,
+            message: `${verificationName} ${status.toLowerCase()} successfully`,
             data: {
-                userId: updatedUser._id,
-                documentStatus: updatedUser.documentVerification.status,
-                bankStatus: updatedUser.bankDocumentVerification.status,
-                isDocumentVerified: updatedUser.isDocumentVerified,
-                isBankDocumentVerified: updatedUser.isBankDocumentVerified
-            }
+                userId: updatedUser?._id,
+                documentStatus: updatedUser?.documentVerification.status,
+                bankStatus: updatedUser?.bankDocumentVerification.status,
+                isDocumentVerified: updatedUser?.isDocumentVerified,
+                isBankDocumentVerified: updatedUser?.isBankDocumentVerified,
+                coordinatorApprovalStatus: updatedUser?.coordinatorProfile
+                    ?.approvalStatus,
+            },
         });
     }
     catch (error) {
-        res.status(400).json({ success: false, message: error.message });
+        const statusCode = error.message
+            ?.toLowerCase()
+            .includes("not found")
+            ? 404
+            : 400;
+        return res.status(statusCode).json({
+            success: false,
+            message: error.message ||
+                "Failed to update verification status",
+        });
+    }
+};
+export const getCurrentUser = async (req, res) => {
+    try {
+        const userId = req.user?.userId;
+        if (!userId) {
+            return res.status(401).json({
+                success: false,
+                message: "Unauthorized",
+            });
+        }
+        const user = await AuthService.getCurrentUser(userId);
+        res.status(200).json({
+            success: true,
+            data: user,
+        });
+    }
+    catch (error) {
+        const statusCode = error.message.includes("not found")
+            ? 404
+            : 500;
+        res.status(statusCode).json({
+            success: false,
+            message: error.message || "Failed to fetch current user",
+        });
+    }
+};
+export const updateCoordinatorApproval = async (req, res) => {
+    try {
+        const { coordinatorId } = req.params;
+        const { status, rejectionReason } = req.body;
+        const coordinator = await AuthService.updateCoordinatorApproval(coordinatorId, status, rejectionReason);
+        res.status(200).json({
+            success: true,
+            message: status === ApprovalStatus.APPROVED
+                ? "Coordinator approved successfully"
+                : "Coordinator approval updated successfully",
+            data: coordinator,
+        });
+    }
+    catch (error) {
+        const statusCode = error.message.includes("not found")
+            ? 404
+            : error.message.includes("verified")
+                ? 409
+                : 400;
+        res.status(statusCode).json({
+            success: false,
+            message: error.message || "Failed to update coordinator approval",
+        });
+    }
+};
+export const updateCoordinatorAvailability = async (req, res) => {
+    try {
+        const coordinatorId = req.user?.userId;
+        const { availabilityStatus } = req.body;
+        if (!coordinatorId) {
+            return res.status(401).json({
+                success: false,
+                message: "Unauthorized",
+            });
+        }
+        const data = await AuthService.updateCoordinatorAvailability(coordinatorId, availabilityStatus);
+        res.status(200).json({
+            success: true,
+            message: "Availability updated successfully",
+            data,
+        });
+    }
+    catch (error) {
+        const statusCode = error.message.includes("not found")
+            ? 404
+            : error.message.includes("approved")
+                ? 403
+                : 400;
+        res.status(statusCode).json({
+            success: false,
+            message: error.message || "Failed to update availability",
+        });
+    }
+};
+export const updateCoordinatorSettings = async (req, res) => {
+    try {
+        const coordinatorId = req.user?.userId;
+        const { maxDailyBookings, autoAssignmentEnabled } = req.body;
+        if (!coordinatorId) {
+            return res.status(401).json({
+                success: false,
+                message: "Unauthorized",
+            });
+        }
+        const data = await AuthService.updateCoordinatorSettings(coordinatorId, {
+            maxDailyBookings,
+            autoAssignmentEnabled,
+        });
+        res.status(200).json({
+            success: true,
+            message: "Coordinator settings updated successfully",
+            data,
+        });
+    }
+    catch (error) {
+        const statusCode = error.message.includes("not found")
+            ? 404
+            : error.message.includes("approved")
+                ? 403
+                : 400;
+        res.status(statusCode).json({
+            success: false,
+            message: error.message || "Failed to update coordinator settings",
+        });
+    }
+};
+export const updateServiceableLocations = async (req, res) => {
+    try {
+        const coordinatorId = req.user?.userId;
+        const { serviceableLocations } = req.body;
+        if (!coordinatorId) {
+            return res.status(401).json({
+                success: false,
+                message: "Unauthorized",
+            });
+        }
+        const coordinator = await AuthService.updateCoordinatorServiceableLocations(coordinatorId, serviceableLocations);
+        res.status(200).json({
+            success: true,
+            message: "Serviceable locations updated successfully",
+            data: coordinator,
+        });
+    }
+    catch (error) {
+        const statusCode = error.message.includes("not found")
+            ? 404
+            : 400;
+        res.status(statusCode).json({
+            success: false,
+            message: error.message ||
+                "Failed to update serviceable locations",
+        });
+    }
+};
+export const getCoordinatorById = async (req, res) => {
+    try {
+        const { coordinatorId } = req.params;
+        const coordinator = await AuthService.getCoordinatorById(coordinatorId);
+        res.status(200).json({
+            success: true,
+            data: coordinator,
+        });
+    }
+    catch (error) {
+        const statusCode = error.message.includes("not found")
+            ? 404
+            : 400;
+        res.status(statusCode).json({
+            success: false,
+            message: error.message || "Failed to fetch coordinator",
+        });
+    }
+};
+export const getCoordinators = async (req, res) => {
+    try {
+        const { page, limit, approvalStatus, availabilityStatus, locationId, caste, gotra, autoAssignmentEnabled, minimumRating, search, sortBy, sortOrder, } = req.query;
+        const filters = {
+            page: Number(page) || 1,
+            limit: Number(limit) || 20,
+        };
+        if (approvalStatus !== undefined) {
+            filters.approvalStatus =
+                approvalStatus;
+        }
+        if (availabilityStatus !== undefined) {
+            filters.availabilityStatus =
+                availabilityStatus;
+        }
+        if (locationId !== undefined) {
+            filters.locationId = locationId;
+        }
+        if (caste !== undefined) {
+            filters.caste = caste;
+        }
+        if (gotra !== undefined) {
+            filters.gotra = gotra;
+        }
+        if (autoAssignmentEnabled !== undefined) {
+            filters.autoAssignmentEnabled =
+                autoAssignmentEnabled === "true";
+        }
+        if (minimumRating !== undefined) {
+            filters.minimumRating = Number(minimumRating);
+        }
+        if (search !== undefined) {
+            filters.search = search;
+        }
+        if (sortBy !== undefined) {
+            filters.sortBy = sortBy;
+        }
+        if (sortOrder !== undefined) {
+            filters.sortOrder = sortOrder;
+        }
+        const result = await AuthService.getCoordinators(filters);
+        res.status(200).json({
+            success: true,
+            data: result.coordinators,
+            pagination: result.pagination,
+        });
+    }
+    catch (error) {
+        res.status(500).json({
+            success: false,
+            message: error.message || "Failed to fetch coordinators",
+        });
     }
 };
 //# sourceMappingURL=auth.controllers.js.map

@@ -228,6 +228,7 @@ export class BookingBuilder {
                 })),
                 pricing: {
                     total: totalPrice,
+                    basePrice: itemPrice
                 },
             };
             if (serviceComponent?._id) {

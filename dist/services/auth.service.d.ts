@@ -1,8 +1,8 @@
 import { type IUser } from "../models/user.model.js";
-import type { Role } from "../types/rbac.js";
+import { Role } from "../types/rbac.js";
 import type { Types } from "mongoose";
 import mongoose from "mongoose";
-import type { Caste, Gender, Gotra } from "../types/enums.js";
+import { ApprovalStatus, AvailabilityStatus, VerificationStatus, type Caste, type Gender, type Gotra } from "../types/enums.js";
 declare class AuthService {
     private static generateUserSession;
     static registerUser(role: Role, password?: string, userEmail?: string, phoneNumber?: string): Promise<mongoose.Document<unknown, {}, IUser, {}, mongoose.DefaultSchemaOptions> & IUser & Required<{
@@ -82,7 +82,13 @@ declare class AuthService {
     }> & {
         __v: number;
     }>;
-    static deactivateUser(userId: String, status: String): Promise<void>;
+    static deactivateUser(userId: string, status: boolean): Promise<mongoose.Document<unknown, {}, IUser, {}, mongoose.DefaultSchemaOptions> & IUser & Required<{
+        _id: Types.ObjectId;
+    }> & {
+        __v: number;
+    } & {
+        id: string;
+    }>;
     static completeProfile(userId: string, fullName: string, dob?: Date, gender?: Gender, referralCode?: string, password?: string, profileImage?: string, userAgent?: string, ip?: string, email?: string, phoneNumber?: string, caste?: Caste, gotra?: Gotra): Promise<{
         user: IUser;
         accessToken: string;
@@ -94,18 +100,13 @@ declare class AuthService {
         gender?: string;
         profileImage?: string;
         savedLocations?: string[];
-        serviceableLocations?: {
-            locationId: string | Types.ObjectId;
-            caste?: Caste[];
-            gotra?: Gotra[];
-        }[];
-    }): Promise<(mongoose.Document<unknown, {}, IUser, {}, mongoose.DefaultSchemaOptions> & IUser & Required<{
+    }): Promise<mongoose.Document<unknown, {}, IUser, {}, mongoose.DefaultSchemaOptions> & IUser & Required<{
         _id: Types.ObjectId;
     }> & {
         __v: number;
     } & {
         id: string;
-    }) | null>;
+    }>;
     static uploadVerificationDocuments(userId: string, docs: {
         aadharCard?: string;
         panCard?: string;
@@ -121,12 +122,73 @@ declare class AuthService {
     } & {
         id: string;
     }>;
-    static updateVerificationStatus(userId: string, type: "document" | "bank", status: "APPROVED" | "REJECTED", rejectionReason?: string): Promise<mongoose.Document<unknown, {}, IUser, {}, mongoose.DefaultSchemaOptions> & IUser & Required<{
+    static updateVerificationStatus(userId: string, type: "document" | "bank", status: VerificationStatus.APPROVED | VerificationStatus.REJECTED, rejectionReason?: string): Promise<(IUser & Required<{
         _id: Types.ObjectId;
     }> & {
         __v: number;
-    } & {
-        id: string;
+    }) | null>;
+    static getCurrentUser(userId: string): Promise<IUser & Required<{
+        _id: Types.ObjectId;
+    }> & {
+        __v: number;
+    }>;
+    static updateCoordinatorApproval(coordinatorId: string, status: ApprovalStatus, rejectionReason?: string): Promise<(IUser & Required<{
+        _id: Types.ObjectId;
+    }> & {
+        __v: number;
+    }) | null>;
+    static updateCoordinatorAvailability(coordinatorId: string, availabilityStatus: AvailabilityStatus): Promise<{
+        availabilityStatus: AvailabilityStatus;
+        lastAvailabilityChangedAt: Date;
+    }>;
+    static updateCoordinatorSettings(coordinatorId: string, settings: {
+        maxDailyBookings?: number;
+        autoAssignmentEnabled?: boolean;
+    }): Promise<{
+        maxDailyBookings: number;
+        autoAssignmentEnabled: boolean;
+    }>;
+    static updateCoordinatorServiceableLocations(coordinatorId: string, serviceableLocations: {
+        locationId: string | Types.ObjectId;
+        caste?: Caste[];
+        gotra?: Gotra[];
+    }[]): Promise<(IUser & Required<{
+        _id: Types.ObjectId;
+    }> & {
+        __v: number;
+    }) | null>;
+    static getCoordinatorById(coordinatorId: string): Promise<IUser & Required<{
+        _id: Types.ObjectId;
+    }> & {
+        __v: number;
+    }>;
+    static getCoordinators(filters: {
+        page?: number;
+        limit?: number;
+        approvalStatus?: ApprovalStatus;
+        availabilityStatus?: AvailabilityStatus;
+        locationId?: string;
+        caste?: Caste;
+        gotra?: Gotra;
+        autoAssignmentEnabled?: boolean;
+        minimumRating?: number;
+        search?: string;
+        sortBy?: string;
+        sortOrder?: "asc" | "desc";
+    }): Promise<{
+        coordinators: (IUser & Required<{
+            _id: Types.ObjectId;
+        }> & {
+            __v: number;
+        })[];
+        pagination: {
+            total: number;
+            page: number;
+            limit: number;
+            pages: number;
+            hasNextPage: boolean;
+            hasPreviousPage: boolean;
+        };
     }>;
 }
 export default AuthService;
