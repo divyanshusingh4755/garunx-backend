@@ -656,14 +656,14 @@ router.patch(
 // UPLOADS
 
 router.post(
-    "/uploads/single",
+    "/upload-single",
     authenticate,
     upload.single("image"),
     uploadSingle,
 );
 
 router.post(
-    "/uploads/multiple",
+    "/upload-multiple",
     authenticate,
     upload.array("images", 5),
     uploadMutliple,
