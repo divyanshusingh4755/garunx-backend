@@ -603,7 +603,6 @@ router.get(
 router.get(
     "/get-user-by-id/:id",
     authenticate,
-    authorizeRoles(Role.ADMIN),
     getUserById,
 );
 
