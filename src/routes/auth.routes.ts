@@ -657,14 +657,12 @@ router.patch(
 
 router.post(
     "/upload-single",
-    authenticate,
     upload.single("image"),
     uploadSingle,
 );
 
 router.post(
     "/upload-multiple",
-    authenticate,
     upload.array("images", 5),
     uploadMutliple,
 );

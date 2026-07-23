@@ -404,7 +404,7 @@ router.get("/coordinators", authenticate, authorizeRoles(Role.ADMIN), coordinato
 router.get("/coordinators/:coordinatorId", authenticate, authorizeRoles(Role.ADMIN), coordinatorIdValidation, getCoordinatorById);
 router.patch("/coordinators/:coordinatorId/approval", authenticate, authorizeRoles(Role.ADMIN), coordinatorApprovalValidation, updateCoordinatorApproval);
 // UPLOADS
-router.post("/upload-single", authenticate, upload.single("image"), uploadSingle);
-router.post("/upload-multiple", authenticate, upload.array("images", 5), uploadMutliple);
+router.post("/upload-single", upload.single("image"), uploadSingle);
+router.post("/upload-multiple", upload.array("images", 5), uploadMutliple);
 export default router;
 //# sourceMappingURL=auth.routes.js.map
