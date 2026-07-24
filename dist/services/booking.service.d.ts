@@ -13,6 +13,7 @@ export interface CoordinatorFilters {
 }
 export declare class BookingService {
     private static generateOtp;
+    private static buildServiceExecutions;
     private static validateBookingOtp;
     private static getBookingLocationIds;
     private static getRequestedCoordinatorIds;
@@ -395,6 +396,7 @@ export declare class BookingService {
         bookingStatus: "IN_PROGRESS";
         executionStage: "CUSTOMER_VERIFICATION_PENDING";
         startedAt: Date;
+        serviceExecutions: import("../models/booking.model.js").IServiceExecution[];
         milestones: import("../models/booking.model.js").IBookingMilestone[];
     }>;
     static verifyBookingOtp(params: {

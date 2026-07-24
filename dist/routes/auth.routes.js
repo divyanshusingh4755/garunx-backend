@@ -393,7 +393,7 @@ router.put("/coordinator/serviceable-locations", authenticate, authorizeRoles(Ro
 // ADMIN USERS
 router.get("/get-all-user", authenticate, authorizeRoles(Role.ADMIN), getAllUsers);
 router.get("/get-user-by-email-or-phone/:identifier", authenticate, authorizeRoles(Role.ADMIN), getUserByEmailOrPhone);
-router.get("/get-user-by-id/:id", authenticate, getUserById);
+router.get("/get-user-by-id/:id", authenticate, authorizeRoles(Role.ADMIN), getUserById);
 router.patch("/deactivate-user/:id", authenticate, authorizeRoles(Role.ADMIN), body("status")
     .isBoolean()
     .withMessage("Status must be boolean")

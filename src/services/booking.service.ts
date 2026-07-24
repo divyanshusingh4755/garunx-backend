@@ -45,6 +45,58 @@ export class BookingService {
     return crypto.randomInt(100000, 1000000).toString();
   }
 
+  private static buildServiceExecutions(booking: any) {
+    const serviceExecutions: {
+      executionId: string;
+      serviceId: Types.ObjectId;
+      status: "PENDING";
+    }[] = [];
+
+    for (const entry of booking.entries ?? []) {
+
+      // DIRECT SERVICE
+      if (
+        entry.entryType === "SERVICE" &&
+        entry.serviceConfiguration?.serviceId
+      ) {
+        serviceExecutions.push({
+          executionId: crypto.randomUUID(),
+          serviceId: new Types.ObjectId(
+            entry.serviceConfiguration.serviceId.toString(),
+          ),
+          status: "PENDING",
+        });
+      }
+
+      // PACKAGE
+      if (
+        entry.entryType === "PACKAGE" &&
+        entry.packageConfiguration
+      ) {
+        const packageServices = [
+          ...(entry.packageConfiguration.selectedServices ?? []),
+          ...(entry.packageConfiguration.addonServices ?? []),
+        ];
+
+        for (const service of packageServices) {
+          if (!service.serviceId) {
+            continue;
+          }
+
+          serviceExecutions.push({
+            executionId: crypto.randomUUID(),
+            serviceId: new Types.ObjectId(
+              service.serviceId.toString(),
+            ),
+            status: "PENDING",
+          });
+        }
+      }
+    }
+
+    return serviceExecutions;
+  }
+
   private static async validateBookingOtp(
     booking: any,
     otp: string,
@@ -2340,14 +2392,41 @@ export class BookingService {
 
     const now = new Date();
 
-    booking.status = "IN_PROGRESS";
-
+    /*
+     * Initialize booking execution.
+     */
     booking.execution ??= {
       stage: "NOT_STARTED",
       serviceExecutions: [],
       milestones: [],
       progressPercentage: 0,
     };
+
+    /*
+     * Create service executions ONCE.
+     *
+     * Never regenerate them after execution has started,
+     * otherwise executionIds already used by frontend
+     * would become invalid.
+     */
+    if (
+      !booking.execution.serviceExecutions ||
+      booking.execution.serviceExecutions.length === 0
+    ) {
+      const serviceExecutions =
+        this.buildServiceExecutions(booking);
+
+      if (serviceExecutions.length === 0) {
+        throw new Error(
+          "Booking does not contain any executable services",
+        );
+      }
+
+      booking.execution.serviceExecutions =
+        serviceExecutions;
+    }
+
+    booking.status = "IN_PROGRESS";
 
     booking.execution.stage =
       "CUSTOMER_VERIFICATION_PENDING";
@@ -2367,7 +2446,10 @@ export class BookingService {
       bookingStatus: booking.status,
       executionStage: booking.execution.stage,
       startedAt: booking.execution.startedAt,
-      milestones: booking.execution.milestones,
+      serviceExecutions:
+        booking.execution.serviceExecutions,
+      milestones:
+        booking.execution.milestones,
     };
   }
 
@@ -2643,7 +2725,7 @@ export class BookingService {
       );
 
       booking.execution.stage =
-        "CUSTOMER_REVIEW_PENDING";
+        "FINALIZATION";
     }
 
     await booking.save();
@@ -2742,7 +2824,7 @@ export class BookingService {
       );
 
       booking.execution.stage =
-        "CUSTOMER_REVIEW_PENDING";
+        "FINALIZATION";
     }
 
     await booking.save();
@@ -2781,7 +2863,6 @@ export class BookingService {
       "FAMILY_TREE_STARTED",
       "FAMILY_TREE_COMPLETED",
       "ALL_SERVICES_COMPLETED",
-      "CUSTOMER_CONFIRMATION_RECEIVED",
       "FINAL_REPORT_GENERATED",
     ];
 
@@ -2835,11 +2916,6 @@ export class BookingService {
     );
 
     switch (code) {
-      case "CUSTOMER_CONFIRMATION_RECEIVED":
-        booking.execution.stage =
-          "FINALIZATION";
-        break;
-
       case "FINAL_REPORT_GENERATED":
         booking.execution.stage =
           "FINALIZATION";
@@ -2847,7 +2923,7 @@ export class BookingService {
 
       case "ALL_SERVICES_COMPLETED":
         booking.execution.stage =
-          "CUSTOMER_REVIEW_PENDING";
+          "FINALIZATION";
         break;
     }
 
@@ -2910,19 +2986,6 @@ export class BookingService {
     if (!allServicesResolved) {
       throw new Error(
         "All services must be completed, skipped, or cancelled",
-      );
-    }
-
-    const hasCustomerConfirmation =
-      booking.execution.milestones.some(
-        (milestone) =>
-          milestone.code ===
-          "CUSTOMER_CONFIRMATION_RECEIVED",
-      );
-
-    if (!hasCustomerConfirmation) {
-      throw new Error(
-        "Customer confirmation is required before completing the booking",
       );
     }
 

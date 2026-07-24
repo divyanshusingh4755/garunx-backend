@@ -43,7 +43,6 @@ export type BookingExecutionStage =
   | "COORDINATOR_ARRIVED"
   | "CUSTOMER_VERIFICATION_PENDING"
   | "SERVICE_EXECUTION"
-  | "CUSTOMER_REVIEW_PENDING"
   | "FINALIZATION"
   | "FINISHED";
 
@@ -56,7 +55,6 @@ export type BookingMilestone =
   | "FAMILY_TREE_STARTED"
   | "FAMILY_TREE_COMPLETED"
   | "ALL_SERVICES_COMPLETED"
-  | "CUSTOMER_CONFIRMATION_RECEIVED"
   | "FINAL_REPORT_GENERATED";
 
 export type AssignmentRequestStatus =
@@ -514,7 +512,6 @@ const bookingMilestoneSchema = new Schema<IBookingMilestone>(
         "FAMILY_TREE_STARTED",
         "FAMILY_TREE_COMPLETED",
         "ALL_SERVICES_COMPLETED",
-        "CUSTOMER_CONFIRMATION_RECEIVED",
         "FINAL_REPORT_GENERATED",
       ],
       required: true,
@@ -892,7 +889,6 @@ const bookingSchema = new Schema<IBooking>(
           "COORDINATOR_ARRIVED",
           "CUSTOMER_VERIFICATION_PENDING",
           "SERVICE_EXECUTION",
-          "CUSTOMER_REVIEW_PENDING",
           "FINALIZATION",
           "FINISHED",
         ],

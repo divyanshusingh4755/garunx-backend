@@ -249,6 +249,18 @@ class FamilyTreeService {
                 dateOfDeath,
             );
 
+            if (relation === FamilyRelation.SELF) {
+                const existingSelf = await FamilyMember.findOne({
+                    ownerId,
+                    relation: FamilyRelation.SELF,
+                }).session(session);
+
+                if (existingSelf) {
+                    throw new Error(
+                        "SELF member already exists in this family tree",
+                    );
+                }
+            }
 
             const uniqueSpouseIds =
                 FamilyTreeService.getUniqueIds(spouseIds);

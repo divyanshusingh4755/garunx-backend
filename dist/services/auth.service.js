@@ -596,15 +596,35 @@ class AuthService {
                     gender,
                     dob,
                     profileImage,
-                    isComplete: true, // This locks the registration
-                    ...(phoneNumber && { phoneNumber: phoneNumber }),
-                    ...(email && { email: email }),
+                    isComplete: true,
+                    ...(phoneNumber && { phoneNumber }),
+                    ...(email && { email }),
                     ...(hashedPassword && { password: hashedPassword }),
                     ...(referredById && { referredBy: referredById }),
-                    ...(caste && { caste: caste }),
-                    ...(gotra && { gotra: gotra }),
+                    ...(caste && { caste }),
+                    ...(gotra && { gotra }),
+                    ...(user.role === Role.COORDINATOR && {
+                        coordinatorProfile: {
+                            averageRating: 0,
+                            totalRatings: 0,
+                            ratingSum: 0,
+                            totalCompletedBookings: 0,
+                            totalAssignedBookings: 0,
+                            acceptanceRate: 0,
+                            approvalStatus: ApprovalStatus.PENDING,
+                            approvalRejectionReason: null,
+                            availabilityStatus: AvailabilityStatus.AVAILABLE,
+                            maxDailyBookings: 5,
+                            autoAssignmentEnabled: true,
+                            serviceableLocations: [],
+                        },
+                    }),
                 },
-            }, { new: true, runValidators: true, session }).lean();
+            }, {
+                new: true,
+                runValidators: true,
+                session,
+            }).lean();
             if (!updatedUser)
                 throw new Error("Update failed.");
             // Session & Token Generation
@@ -833,9 +853,19 @@ class AuthService {
          * Identity verification is mandatory.
          * Bank verification is not required to approve the coordinator.
          */
-        if (status === ApprovalStatus.APPROVED &&
-            !coordinator.isDocumentVerified) {
-            throw new Error("Coordinator identity documents must be verified before approval");
+        if (status === ApprovalStatus.APPROVED) {
+            if (!coordinator.isOtpVerified) {
+                throw new Error("Coordinator account must be OTP verified before approval");
+            }
+            if (!coordinator.isComplete) {
+                throw new Error("Coordinator profile must be completed before approval");
+            }
+            if (!coordinator.isActive) {
+                throw new Error("Inactive coordinator cannot be approved");
+            }
+            if (!coordinator.isDocumentVerified) {
+                throw new Error("Coordinator identity documents must be verified before approval");
+            }
         }
         coordinator.coordinatorProfile.approvalStatus =
             status;

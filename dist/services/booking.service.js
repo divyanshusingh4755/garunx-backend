@@ -27,6 +27,39 @@ export class BookingService {
     static generateOtp() {
         return crypto.randomInt(100000, 1000000).toString();
     }
+    static buildServiceExecutions(booking) {
+        const serviceExecutions = [];
+        for (const entry of booking.entries ?? []) {
+            // DIRECT SERVICE
+            if (entry.entryType === "SERVICE" &&
+                entry.serviceConfiguration?.serviceId) {
+                serviceExecutions.push({
+                    executionId: crypto.randomUUID(),
+                    serviceId: new Types.ObjectId(entry.serviceConfiguration.serviceId.toString()),
+                    status: "PENDING",
+                });
+            }
+            // PACKAGE
+            if (entry.entryType === "PACKAGE" &&
+                entry.packageConfiguration) {
+                const packageServices = [
+                    ...(entry.packageConfiguration.selectedServices ?? []),
+                    ...(entry.packageConfiguration.addonServices ?? []),
+                ];
+                for (const service of packageServices) {
+                    if (!service.serviceId) {
+                        continue;
+                    }
+                    serviceExecutions.push({
+                        executionId: crypto.randomUUID(),
+                        serviceId: new Types.ObjectId(service.serviceId.toString()),
+                        status: "PENDING",
+                    });
+                }
+            }
+        }
+        return serviceExecutions;
+    }
     static async validateBookingOtp(booking, otp) {
         const otpVerification = booking.execution?.otpVerification;
         if (!otpVerification?.otpHash) {
@@ -1547,13 +1580,32 @@ export class BookingService {
             throw new Error("Coordinator is not assigned to this booking");
         }
         const now = new Date();
-        booking.status = "IN_PROGRESS";
+        /*
+         * Initialize booking execution.
+         */
         booking.execution ??= {
             stage: "NOT_STARTED",
             serviceExecutions: [],
             milestones: [],
             progressPercentage: 0,
         };
+        /*
+         * Create service executions ONCE.
+         *
+         * Never regenerate them after execution has started,
+         * otherwise executionIds already used by frontend
+         * would become invalid.
+         */
+        if (!booking.execution.serviceExecutions ||
+            booking.execution.serviceExecutions.length === 0) {
+            const serviceExecutions = this.buildServiceExecutions(booking);
+            if (serviceExecutions.length === 0) {
+                throw new Error("Booking does not contain any executable services");
+            }
+            booking.execution.serviceExecutions =
+                serviceExecutions;
+        }
+        booking.status = "IN_PROGRESS";
         booking.execution.stage =
             "CUSTOMER_VERIFICATION_PENDING";
         booking.execution.startedAt ??= now;
@@ -1564,6 +1616,7 @@ export class BookingService {
             bookingStatus: booking.status,
             executionStage: booking.execution.stage,
             startedAt: booking.execution.startedAt,
+            serviceExecutions: booking.execution.serviceExecutions,
             milestones: booking.execution.milestones,
         };
     }
@@ -1702,7 +1755,7 @@ export class BookingService {
         if (allServicesResolved) {
             this.addMilestoneIfMissing(booking, "ALL_SERVICES_COMPLETED", completedBy);
             booking.execution.stage =
-                "CUSTOMER_REVIEW_PENDING";
+                "FINALIZATION";
         }
         await booking.save();
         return {
@@ -1749,7 +1802,7 @@ export class BookingService {
         if (allServicesResolved) {
             this.addMilestoneIfMissing(booking, "ALL_SERVICES_COMPLETED", skippedBy);
             booking.execution.stage =
-                "CUSTOMER_REVIEW_PENDING";
+                "FINALIZATION";
         }
         await booking.save();
         return {
@@ -1772,7 +1825,6 @@ export class BookingService {
             "FAMILY_TREE_STARTED",
             "FAMILY_TREE_COMPLETED",
             "ALL_SERVICES_COMPLETED",
-            "CUSTOMER_CONFIRMATION_RECEIVED",
             "FINAL_REPORT_GENERATED",
         ];
         if (!allowedMilestones.includes(code)) {
@@ -1800,17 +1852,13 @@ export class BookingService {
         }
         this.addMilestoneIfMissing(booking, code, completedBy, notes?.trim());
         switch (code) {
-            case "CUSTOMER_CONFIRMATION_RECEIVED":
-                booking.execution.stage =
-                    "FINALIZATION";
-                break;
             case "FINAL_REPORT_GENERATED":
                 booking.execution.stage =
                     "FINALIZATION";
                 break;
             case "ALL_SERVICES_COMPLETED":
                 booking.execution.stage =
-                    "CUSTOMER_REVIEW_PENDING";
+                    "FINALIZATION";
                 break;
         }
         await booking.save();
@@ -1843,11 +1891,6 @@ export class BookingService {
                 service.status === "CANCELLED");
         if (!allServicesResolved) {
             throw new Error("All services must be completed, skipped, or cancelled");
-        }
-        const hasCustomerConfirmation = booking.execution.milestones.some((milestone) => milestone.code ===
-            "CUSTOMER_CONFIRMATION_RECEIVED");
-        if (!hasCustomerConfirmation) {
-            throw new Error("Customer confirmation is required before completing the booking");
         }
         const now = new Date();
         this.addMilestoneIfMissing(booking, "ALL_SERVICES_COMPLETED", completedBy);

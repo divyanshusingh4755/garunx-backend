@@ -62,6 +62,15 @@ class FamilyTreeService {
             const { fullName, relation, gender, dob, lifeStatus = MemberLifeStatus.ALIVE, dateOfDeath, fatherId, motherId, spouseIds = [], nativeVillage, state, district, caste, gotra, designatedPandit, visitors = [], profileImage, notes, } = payload;
             FamilyTreeService.validateParentRelationships(null, fatherId, motherId);
             FamilyTreeService.validateLifeStatus(lifeStatus, dateOfDeath);
+            if (relation === FamilyRelation.SELF) {
+                const existingSelf = await FamilyMember.findOne({
+                    ownerId,
+                    relation: FamilyRelation.SELF,
+                }).session(session);
+                if (existingSelf) {
+                    throw new Error("SELF member already exists in this family tree");
+                }
+            }
             const uniqueSpouseIds = FamilyTreeService.getUniqueIds(spouseIds);
             await FamilyTreeService.verifyFamilyMemberIds(ownerId, [
                 fatherId,
