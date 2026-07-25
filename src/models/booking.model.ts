@@ -2,6 +2,11 @@ import { model, Schema, Types, Document, Model } from "mongoose";
 import { Counter } from "./counter.model.js";
 import type { ICart } from "./cart.model.js";
 
+export type RescheduledByRole =
+  | "CUSTOMER"
+  | "ADMIN"
+  | "SUBADMIN";
+
 export type BookingStatus =
   | "PENDING_PAYMENT"
   | "CONFIRMED"
@@ -88,6 +93,22 @@ export type BookedBy = "CUSTOMER" | "ADMIN" | "SUBADMIN";
 export type EntryType = "SERVICE" | "PACKAGE";
 export type ComponentType = "DEFAULT" | "ADDON";
 export type ServiceRole = "PRIMARY" | "INCLUDED" | "ADDON";
+
+export interface IBookingReschedule {
+  previousScheduledAt?: Date;
+  newScheduledAt: Date;
+  reason: string;
+  rescheduledBy: Types.ObjectId;
+  rescheduledByRole: RescheduledByRole;
+  rescheduledAt: Date;
+}
+
+export interface IBookingCompletion {
+  notes?: string;
+  proofUrls: string[];
+  completedBy: Types.ObjectId;
+  completedAt: Date;
+}
 
 export interface IBookingMilestone {
   code: BookingMilestone;
@@ -532,6 +553,50 @@ const bookingMilestoneSchema = new Schema<IBookingMilestone>(
   { _id: false },
 );
 
+const bookingRescheduleSchema =
+  new Schema<IBookingReschedule>(
+    {
+      previousScheduledAt: Date,
+
+      newScheduledAt: {
+        type: Date,
+        required: true,
+      },
+
+      reason: {
+        type: String,
+        required: true,
+        trim: true,
+        maxlength: 500,
+      },
+
+      rescheduledBy: {
+        type: Schema.Types.ObjectId,
+        ref: "User",
+        required: true,
+      },
+
+      rescheduledByRole: {
+        type: String,
+        enum: [
+          "CUSTOMER",
+          "ADMIN",
+          "SUBADMIN",
+        ],
+        required: true,
+      },
+
+      rescheduledAt: {
+        type: Date,
+        default: Date.now,
+        required: true,
+      },
+    },
+    {
+      _id: false,
+    },
+  );
+
 export interface IBooking extends Document {
   userId?: Types.ObjectId;
   cartId: Types.ObjectId;
@@ -586,6 +651,7 @@ export interface IBooking extends Document {
     serviceExecutions: IServiceExecution[];
     milestones: IBookingMilestone[];
     progressPercentage?: number;
+    completion?: IBookingCompletion;
   };
 
   payment: {
@@ -635,6 +701,9 @@ export interface IBooking extends Document {
   };
 
   scheduledAt?: Date;
+
+  rescheduleHistory?: IBookingReschedule[];
+
   completedAt?: Date;
   notes?: string;
   cartSnapshot?: Partial<ICart>;
@@ -954,6 +1023,31 @@ const bookingSchema = new Schema<IBooking>(
         min: 0,
         max: 100,
       },
+
+      completion: {
+        notes: {
+          type: String,
+          trim: true,
+          maxlength: 2000,
+        },
+
+        proofUrls: {
+          type: [String],
+          default: [],
+        },
+
+        completedBy: {
+          type: Schema.Types.ObjectId,
+          ref: "User",
+        },
+
+        completedAt: Date,
+      },
+    },
+
+    rescheduleHistory: {
+      type: [bookingRescheduleSchema],
+      default: [],
     },
 
     scheduledAt: Date,

@@ -253,6 +253,40 @@ const bookingMilestoneSchema = new Schema({
         maxlength: 500,
     },
 }, { _id: false });
+const bookingRescheduleSchema = new Schema({
+    previousScheduledAt: Date,
+    newScheduledAt: {
+        type: Date,
+        required: true,
+    },
+    reason: {
+        type: String,
+        required: true,
+        trim: true,
+        maxlength: 500,
+    },
+    rescheduledBy: {
+        type: Schema.Types.ObjectId,
+        ref: "User",
+        required: true,
+    },
+    rescheduledByRole: {
+        type: String,
+        enum: [
+            "CUSTOMER",
+            "ADMIN",
+            "SUBADMIN",
+        ],
+        required: true,
+    },
+    rescheduledAt: {
+        type: Date,
+        default: Date.now,
+        required: true,
+    },
+}, {
+    _id: false,
+});
 const bookingSchema = new Schema({
     userId: { type: Schema.Types.ObjectId, ref: "User", index: true },
     cartId: {
@@ -521,6 +555,26 @@ const bookingSchema = new Schema({
             min: 0,
             max: 100,
         },
+        completion: {
+            notes: {
+                type: String,
+                trim: true,
+                maxlength: 2000,
+            },
+            proofUrls: {
+                type: [String],
+                default: [],
+            },
+            completedBy: {
+                type: Schema.Types.ObjectId,
+                ref: "User",
+            },
+            completedAt: Date,
+        },
+    },
+    rescheduleHistory: {
+        type: [bookingRescheduleSchema],
+        default: [],
     },
     scheduledAt: Date,
     completedAt: Date,

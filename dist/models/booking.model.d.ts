@@ -1,5 +1,6 @@
 import { Types, Document, Model } from "mongoose";
 import type { ICart } from "./cart.model.js";
+export type RescheduledByRole = "CUSTOMER" | "ADMIN" | "SUBADMIN";
 export type BookingStatus = "PENDING_PAYMENT" | "CONFIRMED" | "ASSIGNMENT_PENDING" | "ASSIGNED" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED" | "EXPIRED";
 export type BookingFor = "MYSELF" | "OTHER";
 export type PaymentStatus = "PENDING" | "PROCESSING" | "PAID" | "FAILED" | "PARTIAL_REFUND" | "REFUNDED";
@@ -23,6 +24,20 @@ export type BookedBy = "CUSTOMER" | "ADMIN" | "SUBADMIN";
 export type EntryType = "SERVICE" | "PACKAGE";
 export type ComponentType = "DEFAULT" | "ADDON";
 export type ServiceRole = "PRIMARY" | "INCLUDED" | "ADDON";
+export interface IBookingReschedule {
+    previousScheduledAt?: Date;
+    newScheduledAt: Date;
+    reason: string;
+    rescheduledBy: Types.ObjectId;
+    rescheduledByRole: RescheduledByRole;
+    rescheduledAt: Date;
+}
+export interface IBookingCompletion {
+    notes?: string;
+    proofUrls: string[];
+    completedBy: Types.ObjectId;
+    completedAt: Date;
+}
 export interface IBookingMilestone {
     code: BookingMilestone;
     completedAt: Date;
@@ -159,6 +174,7 @@ export interface IBooking extends Document {
         serviceExecutions: IServiceExecution[];
         milestones: IBookingMilestone[];
         progressPercentage?: number;
+        completion?: IBookingCompletion;
     };
     payment: {
         status: PaymentStatus;
@@ -204,6 +220,7 @@ export interface IBooking extends Document {
         };
     };
     scheduledAt?: Date;
+    rescheduleHistory?: IBookingReschedule[];
     completedAt?: Date;
     notes?: string;
     cartSnapshot?: Partial<ICart>;

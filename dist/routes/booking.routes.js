@@ -4,13 +4,15 @@ import {
 // Payment
 paymentStatus, retryPayment, expirePayments, 
 // Customer bookings
-getMyBookings, getMyBookingById, cancelBooking, updateBookingSchedule, updateBookingNotes, 
+getMyBookings, getMyBookingById, cancelBooking, rescheduleBooking, updateBookingNotes, 
 // General/Admin booking management
 getAllBookings, getBookingById, getBookingStats, searchBookings, updateBookingStatus, refundBooking, 
 // Coordinator discovery and assignment
 getAvailableCoordinators, selectCoordinator, respondToAssignment, requestReassignment, getCoordinatorAssignmentRequests, getCoordinatorBookings, processAssignmentTimeouts, 
 // Booking execution
 getBookingExecution, markCoordinatorArrived, verifyBookingOtp, startBookingService, completeBookingService, skipBookingService, addBookingMilestone, completeBookingExecution, generateBookingOtp, } from "../controllers/booking.controllers.js";
+import { authorizeRoles } from "../middleware/authorizeRoles.js";
+import { Role } from "../types/rbac.js";
 const router = Router();
 // CUSTOMER BOOKING ROUTES
 router.get("/my-bookings", authenticate, getMyBookings);
@@ -18,7 +20,7 @@ router.get("/my-bookings/:bookingId", authenticate, getMyBookingById);
 router.get("/:cartId/payment-status", authenticate, paymentStatus);
 router.post("/:bookingId/retry-payment", authenticate, retryPayment);
 router.post("/:bookingId/cancel", authenticate, cancelBooking);
-router.patch("/:bookingId/schedule", authenticate, updateBookingSchedule);
+router.patch("/:bookingId/reschedule", authenticate, rescheduleBooking);
 router.patch("/:bookingId/notes", authenticate, updateBookingNotes);
 //  COORDINATOR ROUTES
 //  Keep these before the generic /:bookingId route.
@@ -40,8 +42,8 @@ router.post("/:bookingId/execution/milestones", authenticate, addBookingMileston
 router.post("/:bookingId/execution/complete", authenticate, completeBookingExecution);
 router.post("/:bookingId/execution/generate-otp", authenticate, generateBookingOtp);
 // SYSTEM / SCHEDULED JOB ROUTES
-router.post("/system/expire-payments", expirePayments);
-router.post("/system/process-assignment-timeouts", processAssignmentTimeouts);
+router.post("/system/expire-payments", authenticate, authorizeRoles(Role.ADMIN), expirePayments);
+router.post("/system/process-assignment-timeouts", authenticate, authorizeRoles(Role.ADMIN), processAssignmentTimeouts);
 // GENERAL / ADMIN BOOKING ROUTES
 router.get("/", authenticate, getAllBookings);
 router.get("/stats", authenticate, getBookingStats);
@@ -51,6 +53,6 @@ router.get("/search", authenticate, searchBookings);
 router.patch("/:bookingId/status", authenticate, updateBookingStatus);
 router.post("/:bookingId/refund", authenticate, refundBooking);
 // Can be used to fetch booking status/details for bookingFor: OTHER.
-router.get("/:bookingId", getBookingById);
+router.get("/:bookingId", authenticate, getBookingById);
 export default router;
 //# sourceMappingURL=booking.routes.js.map

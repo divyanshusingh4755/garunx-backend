@@ -89,45 +89,80 @@ export class CouponService {
     }
     static async findCoupons(searchTerm, limit = 20, page = 1, isActive, assignedUserId, applicableOn, sortBy = "createdAt", sortOrder = "desc") {
         const skip = limit * (page - 1);
-        const query = {};
+        const conditions = [];
         if (typeof isActive === "boolean") {
-            query.isActive = isActive;
-        }
-        if (assignedUserId) {
-            query.assignedUserId = assignedUserId;
+            conditions.push({
+                isActive,
+            });
         }
         if (applicableOn) {
             const values = Array.isArray(applicableOn)
-                ? applicableOn
-                : applicableOn.split(",").map(item => item.trim().toUpperCase());
-            query.applicableOn = {
-                $in: values,
-            };
+                ? applicableOn.map(item => item.trim().toUpperCase())
+                : applicableOn
+                    .split(",")
+                    .map(item => item.trim().toUpperCase());
+            if (assignedUserId) {
+                conditions.push({
+                    $or: values.map(value => {
+                        if (value === "REFERRAL") {
+                            return {
+                                applicableOn: "REFERRAL",
+                                assignedUserId,
+                            };
+                        }
+                        return {
+                            applicableOn: value,
+                        };
+                    }),
+                });
+            }
+            else {
+                conditions.push({
+                    applicableOn: {
+                        $in: values,
+                    },
+                });
+            }
         }
-        const isTextSearch = !!searchTerm?.trim() && searchTerm.trim().length > 4;
+        else if (assignedUserId) {
+            conditions.push({
+                assignedUserId,
+            });
+        }
+        const isTextSearch = !!searchTerm?.trim() &&
+            searchTerm.trim().length > 4;
         if (searchTerm?.trim()) {
             const term = searchTerm.trim();
             if (isTextSearch) {
-                query.$text = {
-                    $search: term,
-                };
+                conditions.push({
+                    $text: {
+                        $search: term,
+                    },
+                });
             }
             else {
-                query.$or = [
-                    {
-                        name: {
-                            $regex: `^${escapeRegex(term)}`,
-                            $options: "i",
+                conditions.push({
+                    $or: [
+                        {
+                            name: {
+                                $regex: `^${escapeRegex(term)}`,
+                                $options: "i",
+                            },
                         },
-                    },
-                    {
-                        couponCode: {
-                            $regex: `^${escapeRegex(term.toUpperCase())}`,
+                        {
+                            couponCode: {
+                                $regex: `^${escapeRegex(term.toUpperCase())}`,
+                            },
                         },
-                    },
-                ];
+                    ],
+                });
             }
         }
+        const query = conditions.length > 0
+            ? {
+                $and: conditions,
+            }
+            : {};
         let sortCriteria = {};
         let projection = {};
         if (isTextSearch && sortBy === "relevance") {
@@ -143,7 +178,8 @@ export class CouponService {
             };
         }
         else {
-            sortCriteria[sortBy] = sortOrder === "desc" ? -1 : 1;
+            sortCriteria[sortBy] =
+                sortOrder === "desc" ? -1 : 1;
             if (sortBy !== "createdAt") {
                 sortCriteria.createdAt = -1;
             }

@@ -2,7 +2,7 @@ import type { Request } from "express";
 import bcrypt from "bcryptjs";
 import crypto from "node:crypto";
 import { CashfreeService } from "./cashfree.service.js";
-import { Booking, type BookingCategory, type BookingMilestone, type BookingStatus, type ReassignmentRequestedByRole } from "../models/booking.model.js";
+import { Booking, type BookingCategory, type BookingMilestone, type BookingStatus, type IBookingReschedule, type ReassignmentRequestedByRole } from "../models/booking.model.js";
 import mongoose, { Types } from "mongoose";
 import { Cart } from "../models/cart.model.js";
 import { Coupon } from "../models/coupon.model.js";
@@ -24,7 +24,7 @@ const STATUS_TRANSITIONS: Record<BookingStatus, BookingStatus[]> = {
   CONFIRMED: ["ASSIGNMENT_PENDING", "CANCELLED"],
   ASSIGNMENT_PENDING: ["CONFIRMED", "ASSIGNED", "CANCELLED"],
   ASSIGNED: ["ASSIGNMENT_PENDING", "IN_PROGRESS", "CANCELLED"],
-  IN_PROGRESS: ["COMPLETED", "CANCELLED"],
+  IN_PROGRESS: ["COMPLETED"],
   COMPLETED: [],
   CANCELLED: [],
   EXPIRED: ["PENDING_PAYMENT", "CANCELLED"],
@@ -204,7 +204,6 @@ export class BookingService {
       role: "COORDINATOR",
       isActive: true,
       isDocumentVerified: true,
-      isBankDocumentVerified: true,
       "coordinatorProfile.approvalStatus": "APPROVED",
       "coordinatorProfile.availabilityStatus": "AVAILABLE",
       "coordinatorProfile.autoAssignmentEnabled": true,
@@ -1011,18 +1010,31 @@ export class BookingService {
     };
   }
 
-  static async updateBookingSchedule(
-    bookingId: string,
-    scheduledAt: string,
-    userId: string,
-    role: string,
-  ) {
+  static async rescheduleBooking(params: {
+    bookingId: string;
+    scheduledAt: string;
+    reason: string;
+    userId: string;
+    role: string;
+  }) {
+    const {
+      bookingId,
+      scheduledAt,
+      reason,
+      userId,
+      role,
+    } = params;
+
     if (!bookingId) {
       throw new Error("Booking ID is required");
     }
 
     if (!scheduledAt) {
-      throw new Error("Scheduled date is required");
+      throw new Error("New scheduled date is required");
+    }
+
+    if (!reason?.trim()) {
+      throw new Error("Reschedule reason is required");
     }
 
     const booking = await Booking.findOne({
@@ -1034,40 +1046,192 @@ export class BookingService {
       throw new Error("Booking not found");
     }
 
-    const isOwner = booking.userId?.toString() === userId;
+    const isOwner =
+      booking.userId?.toString() === userId;
 
-    const isAdmin = role === "ADMIN";
+    const isAdmin =
+      role === "ADMIN" ||
+      role === "SUBADMIN";
 
     if (!isOwner && !isAdmin) {
-      throw new Error("Not authorized");
-    }
-
-    if (
-      booking.status === "IN_PROGRESS" ||
-      booking.status === "COMPLETED" ||
-      booking.status === "CANCELLED"
-    ) {
       throw new Error(
-        `Cannot reschedule ${booking.status.toLowerCase()} booking`,
+        "You are not authorized to reschedule this booking",
       );
     }
 
-    const scheduleDate = new Date(scheduledAt);
-
-    if (isNaN(scheduleDate.getTime())) {
-      throw new Error("Invalid schedule date");
+    if (
+      ![
+        "CONFIRMED",
+        "ASSIGNMENT_PENDING",
+        "ASSIGNED",
+      ].includes(booking.status)
+    ) {
+      throw new Error(
+        `Cannot reschedule booking with status ${booking.status}`,
+      );
     }
 
-    if (scheduleDate <= new Date()) {
-      throw new Error("Scheduled date must be in the future");
+    if (booking.payment.status !== "PAID") {
+      throw new Error(
+        "Only paid bookings can be rescheduled",
+      );
     }
 
-    booking.scheduledAt = scheduleDate;
+    if (
+      booking.execution?.startedAt ||
+      booking.status === "IN_PROGRESS"
+    ) {
+      throw new Error(
+        "Booking cannot be rescheduled after execution has started",
+      );
+    }
+
+    const newSchedule = new Date(scheduledAt);
+
+    if (Number.isNaN(newSchedule.getTime())) {
+      throw new Error("Invalid scheduled date");
+    }
+
+    const now = new Date();
+
+    if (newSchedule <= now) {
+      throw new Error(
+        "Scheduled date must be in the future",
+      );
+    }
+
+    if (
+      booking.scheduledAt &&
+      booking.scheduledAt.getTime() ===
+      newSchedule.getTime()
+    ) {
+      throw new Error(
+        "New scheduled date must be different from current schedule",
+      );
+    }
+
+    /*
+     * If coordinator is already assigned,
+     * make sure that coordinator is not overbooked
+     * on the new date.
+     */
+    const coordinatorId =
+      booking.assignment?.assignedCoordinatorId;
+
+    if (
+      booking.status === "ASSIGNED" &&
+      coordinatorId
+    ) {
+      const coordinator =
+        await User.findById(coordinatorId);
+
+      if (!coordinator) {
+        throw new Error(
+          "Assigned coordinator not found",
+        );
+      }
+
+      const startOfDay =
+        new Date(newSchedule);
+
+      startOfDay.setHours(
+        0,
+        0,
+        0,
+        0,
+      );
+
+      const endOfDay =
+        new Date(newSchedule);
+
+      endOfDay.setHours(
+        23,
+        59,
+        59,
+        999,
+      );
+
+      const assignedBookings =
+        await Booking.countDocuments({
+          _id: {
+            $ne: booking._id,
+          },
+
+          isDeleted: false,
+
+          "assignment.assignedCoordinatorId":
+            coordinatorId,
+
+          scheduledAt: {
+            $gte: startOfDay,
+            $lte: endOfDay,
+          },
+
+          status: {
+            $in: [
+              "ASSIGNED",
+              "IN_PROGRESS",
+              // "COMPLETED"
+            ],
+          },
+        });
+
+      const maxDailyBookings =
+        coordinator
+          .coordinatorProfile
+          ?.maxDailyBookings ?? 5;
+
+      if (
+        assignedBookings >=
+        maxDailyBookings
+      ) {
+        throw new Error(
+          "Assigned coordinator is not available on the selected date. Please request reassignment or choose another date.",
+        );
+      }
+    }
+
+    const previousScheduledAt =
+      booking.scheduledAt;
+
+    booking.scheduledAt =
+      newSchedule;
+
+    booking.rescheduleHistory ??= [];
+
+    const rescheduleEntry: IBookingReschedule = {
+      newScheduledAt: newSchedule,
+      reason: reason.trim(),
+      rescheduledBy: new Types.ObjectId(userId),
+      rescheduledByRole:
+        role as "CUSTOMER" | "ADMIN" | "SUBADMIN",
+      rescheduledAt: now,
+    };
+
+    if (previousScheduledAt) {
+      rescheduleEntry.previousScheduledAt =
+        previousScheduledAt;
+    }
+
+    booking.rescheduleHistory.push(
+      rescheduleEntry,
+    );
+
     await booking.save();
 
     return {
       bookingId: booking._id,
-      scheduledAt: booking.scheduledAt,
+      bookingReference:
+        booking.bookingReference,
+      previousScheduledAt,
+      scheduledAt:
+        booking.scheduledAt,
+      bookingStatus:
+        booking.status,
+      coordinatorId:
+        booking.assignment
+          ?.assignedCoordinatorId,
+      rescheduledAt: now,
     };
   }
 
@@ -1467,6 +1631,32 @@ export class BookingService {
     role: string,
     reason: string,
   ) {
+    const booking =
+      await Booking.findOne({
+        _id: bookingId,
+        isDeleted: false,
+      });
+
+    if (!booking) {
+      throw new Error(
+        "Booking not found",
+      );
+    }
+
+    const isOwner =
+      booking.userId?.toString() ===
+      userId;
+
+    const isAdmin =
+      role === "ADMIN" ||
+      role === "SUBADMIN";
+
+    if (!isOwner && !isAdmin) {
+      throw new Error(
+        "You are not authorized to cancel this booking",
+      );
+    }
+
     return this.updateBookingStatus(
       bookingId,
       "CANCELLED",
@@ -1567,6 +1757,16 @@ export class BookingService {
       );
     }
 
+    const isOwner =
+      booking.userId?.toString() ===
+      userId;
+
+    if (!isOwner) {
+      throw new Error(
+        "You are not authorized to select a coordinator for this booking",
+      );
+    }
+
     const locationIds =
       this.getBookingLocationIds(booking);
 
@@ -1583,7 +1783,6 @@ export class BookingService {
       role: "COORDINATOR",
       isActive: true,
       isDocumentVerified: true,
-      isBankDocumentVerified: true,
       "coordinatorProfile.approvalStatus":
         "APPROVED",
       "coordinatorProfile.availabilityStatus":
@@ -1823,6 +2022,15 @@ export class BookingService {
       );
     }
 
+    if (
+      booking.userId?.toString() !==
+      selectedBy
+    ) {
+      throw new Error(
+        "Only the booking owner can select a coordinator",
+      );
+    }
+
     const requestedCoordinatorIds =
       this.getRequestedCoordinatorIds(booking);
 
@@ -1841,7 +2049,6 @@ export class BookingService {
       role: "COORDINATOR",
       isActive: true,
       isDocumentVerified: true,
-      isBankDocumentVerified: true,
       "coordinatorProfile.approvalStatus": "APPROVED",
       "coordinatorProfile.availabilityStatus": "AVAILABLE",
     });
@@ -1850,6 +2057,66 @@ export class BookingService {
       throw new Error(
         "Selected coordinator is not available",
       );
+    }
+
+    if (booking.scheduledAt) {
+      const scheduledDate =
+        new Date(booking.scheduledAt);
+
+      const startOfDay =
+        new Date(scheduledDate);
+
+      startOfDay.setHours(
+        0,
+        0,
+        0,
+        0,
+      );
+
+      const endOfDay =
+        new Date(scheduledDate);
+
+      endOfDay.setHours(
+        23,
+        59,
+        59,
+        999,
+      );
+
+      const bookedCount =
+        await Booking.countDocuments({
+          isDeleted: false,
+
+          "assignment.assignedCoordinatorId":
+            coordinator._id,
+
+          scheduledAt: {
+            $gte: startOfDay,
+            $lte: endOfDay,
+          },
+
+          status: {
+            $in: [
+              "ASSIGNED",
+              "IN_PROGRESS",
+              // "COMPLETED",
+            ],
+          },
+        });
+
+      const maxDailyBookings =
+        coordinator
+          .coordinatorProfile
+          ?.maxDailyBookings ?? 5;
+
+      if (
+        bookedCount >=
+        maxDailyBookings
+      ) {
+        throw new Error(
+          "Coordinator has reached the maximum booking limit for this date",
+        );
+      }
     }
 
     const updatedBooking =
@@ -2596,6 +2863,16 @@ export class BookingService {
     }
 
     if (
+      booking.assignment
+        ?.assignedCoordinatorId
+        ?.toString() !== startedBy
+    ) {
+      throw new Error(
+        "Only the assigned coordinator can start this service",
+      );
+    }
+
+    if (
       booking.execution?.otpVerification?.status !==
       "VERIFIED"
     ) {
@@ -2673,6 +2950,16 @@ export class BookingService {
     ) {
       throw new Error(
         "Booking execution is not active",
+      );
+    }
+
+    if (
+      booking.assignment
+        ?.assignedCoordinatorId
+        ?.toString() !== completedBy
+    ) {
+      throw new Error(
+        "Only the assigned coordinator can complete this service",
       );
     }
 
@@ -2771,6 +3058,16 @@ export class BookingService {
     ) {
       throw new Error(
         "Booking execution is not active",
+      );
+    }
+
+    if (
+      booking.assignment
+        ?.assignedCoordinatorId
+        ?.toString() !== skippedBy
+    ) {
+      throw new Error(
+        "Only the assigned coordinator can skip this service",
       );
     }
 
@@ -2880,6 +3177,16 @@ export class BookingService {
     }
 
     if (
+      booking.assignment
+        ?.assignedCoordinatorId
+        ?.toString() !== completedBy
+    ) {
+      throw new Error(
+        "Only the assigned coordinator can update execution milestones",
+      );
+    }
+
+    if (
       !["IN_PROGRESS", "ASSIGNED"].includes(
         booking.status,
       )
@@ -2939,27 +3246,59 @@ export class BookingService {
     };
   }
 
-  static async completeBookingExecution(params: {
-    bookingId: string;
-    completedBy: string;
-    notes?: string;
-  }) {
+  static async completeBookingExecution(
+    params: {
+      bookingId: string;
+      completedBy: string;
+      notes?: string;
+      proofUrls: string[];
+    },
+  ) {
     const {
       bookingId,
       completedBy,
       notes,
+      proofUrls,
     } = params;
 
-    const booking = await Booking.findOne({
-      _id: bookingId,
-      isDeleted: false,
-    });
+    const booking =
+      await Booking.findOne({
+        _id: bookingId,
+        isDeleted: false,
+      });
 
     if (!booking) {
-      throw new Error("Booking not found");
+      throw new Error(
+        "Booking not found",
+      );
     }
 
-    if (booking.status !== "IN_PROGRESS") {
+    /*
+     * CRITICAL AUTH CHECK
+     */
+    if (
+      booking.assignment
+        ?.assignedCoordinatorId
+        ?.toString() !== completedBy
+    ) {
+      throw new Error(
+        "Only the assigned coordinator can complete this booking",
+      );
+    }
+
+    if (
+      booking.assignment?.status !==
+      "ACCEPTED"
+    ) {
+      throw new Error(
+        "Booking does not have an accepted coordinator",
+      );
+    }
+
+    if (
+      booking.status !==
+      "IN_PROGRESS"
+    ) {
       throw new Error(
         "Only an in-progress booking can be completed",
       );
@@ -2971,21 +3310,57 @@ export class BookingService {
       );
     }
 
+    /*
+     * OTP should have been successfully
+     * verified.
+     */
+    if (
+      booking.execution
+        .otpVerification
+        ?.status !== "VERIFIED"
+    ) {
+      throw new Error(
+        "Customer OTP must be verified before completing booking",
+      );
+    }
+
     const serviceExecutions =
-      booking.execution.serviceExecutions;
+      booking.execution
+        .serviceExecutions;
 
     const allServicesResolved =
       serviceExecutions.length > 0 &&
       serviceExecutions.every(
         (service) =>
-          service.status === "COMPLETED" ||
-          service.status === "SKIPPED" ||
-          service.status === "CANCELLED",
+          service.status ===
+          "COMPLETED" ||
+          service.status ===
+          "SKIPPED" ||
+          service.status ===
+          "CANCELLED",
       );
 
     if (!allServicesResolved) {
       throw new Error(
         "All services must be completed, skipped, or cancelled",
+      );
+    }
+
+    const cleanProofUrls =
+      proofUrls
+        .filter(
+          (url) =>
+            typeof url === "string",
+        )
+        .map(
+          (url) =>
+            url.trim(),
+        )
+        .filter(Boolean);
+
+    if (!cleanProofUrls.length) {
+      throw new Error(
+        "At least one completion proof is required",
       );
     }
 
@@ -3004,40 +3379,73 @@ export class BookingService {
       notes?.trim(),
     );
 
-    booking.status = "COMPLETED";
+    booking.execution.completion = {
+      notes:
+        notes?.trim() || "",
+
+      proofUrls: cleanProofUrls,
+
+      completedBy:
+        new Types.ObjectId(
+          completedBy,
+        ),
+
+      completedAt: now,
+    };
+
+    booking.status =
+      "COMPLETED";
+
     booking.completedAt = now;
 
-    booking.execution.stage = "FINISHED";
-    booking.execution.finishedAt = now;
-    booking.execution.progressPercentage = 100;
+    booking.execution.stage =
+      "FINISHED";
+
+    booking.execution.finishedAt =
+      now;
+
+    booking.execution
+      .progressPercentage = 100;
 
     await booking.save();
 
-    const assignedCoordinatorId =
-      booking.assignment?.assignedCoordinatorId;
-
-    if (assignedCoordinatorId) {
-      await User.updateOne(
-        {
-          _id: assignedCoordinatorId,
+    await User.updateOne(
+      {
+        _id:
+          booking.assignment
+            .assignedCoordinatorId,
+      },
+      {
+        $inc: {
+          "coordinatorProfile.totalCompletedBookings":
+            1,
         },
-        {
-          $inc: {
-            "coordinatorProfile.totalCompletedBookings": 1,
-          },
-        },
-      );
-    }
+      },
+    );
 
     return {
-      bookingId: booking._id,
-      bookingReference: booking.bookingReference,
-      bookingStatus: booking.status,
-      executionStage: booking.execution.stage,
+      bookingId:
+        booking._id,
+
+      bookingReference:
+        booking.bookingReference,
+
+      bookingStatus:
+        booking.status,
+
+      executionStage:
+        booking.execution.stage,
+
       progressPercentage:
-        booking.execution.progressPercentage,
-      completedAt: booking.completedAt,
-    };;
+        booking.execution
+          .progressPercentage,
+
+      completion:
+        booking.execution.completion,
+
+      completedAt:
+        booking.completedAt,
+    };
   }
 
   static async generateBookingOtp(params: {

@@ -12,7 +12,7 @@ import {
   getMyBookings,
   getMyBookingById,
   cancelBooking,
-  updateBookingSchedule,
+  rescheduleBooking,
   updateBookingNotes,
 
   // General/Admin booking management
@@ -43,6 +43,8 @@ import {
   completeBookingExecution,
   generateBookingOtp,
 } from "../controllers/booking.controllers.js";
+import { authorizeRoles } from "../middleware/authorizeRoles.js";
+import { Role } from "../types/rbac.js";
 
 const router = Router();
 
@@ -79,9 +81,9 @@ router.post(
 );
 
 router.patch(
-  "/:bookingId/schedule",
+  "/:bookingId/reschedule",
   authenticate,
-  updateBookingSchedule,
+  rescheduleBooking,
 );
 
 router.patch(
@@ -192,11 +194,15 @@ router.post(
 
 router.post(
   "/system/expire-payments",
+  authenticate,
+  authorizeRoles(Role.ADMIN),
   expirePayments,
 );
 
 router.post(
   "/system/process-assignment-timeouts",
+  authenticate,
+  authorizeRoles(Role.ADMIN),
   processAssignmentTimeouts,
 );
 
@@ -237,6 +243,7 @@ router.post(
 // Can be used to fetch booking status/details for bookingFor: OTHER.
 router.get(
   "/:bookingId",
+  authenticate,
   getBookingById,
 );
 

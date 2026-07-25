@@ -151,6 +151,7 @@ export declare class BookingService {
             serviceExecutions: import("../models/booking.model.js").IServiceExecution[];
             milestones: import("../models/booking.model.js").IBookingMilestone[];
             progressPercentage?: number;
+            completion?: import("../models/booking.model.js").IBookingCompletion;
         } | undefined;
         createdAt: Date;
         updatedAt: Date;
@@ -187,9 +188,20 @@ export declare class BookingService {
         bookingId: Types.ObjectId;
         notes: string;
     }>;
-    static updateBookingSchedule(bookingId: string, scheduledAt: string, userId: string, role: string): Promise<{
+    static rescheduleBooking(params: {
+        bookingId: string;
+        scheduledAt: string;
+        reason: string;
+        userId: string;
+        role: string;
+    }): Promise<{
         bookingId: Types.ObjectId;
+        bookingReference: string;
+        previousScheduledAt: Date | undefined;
         scheduledAt: Date;
+        bookingStatus: "EXPIRED" | "CANCELLED" | "PENDING_PAYMENT" | "CONFIRMED" | "ASSIGNMENT_PENDING" | "ASSIGNED" | "COMPLETED";
+        coordinatorId: Types.ObjectId | undefined;
+        rescheduledAt: Date;
     }>;
     static updateBookingStatus(bookingId: string, status: BookingStatus, userId: string, role: string, reason?: string): Promise<{
         bookingId: Types.ObjectId;
@@ -385,6 +397,7 @@ export declare class BookingService {
             serviceExecutions: import("../models/booking.model.js").IServiceExecution[];
             milestones: import("../models/booking.model.js").IBookingMilestone[];
             progressPercentage?: number;
+            completion?: import("../models/booking.model.js").IBookingCompletion;
         };
         completedAt: Date | undefined;
     }>;
@@ -462,12 +475,14 @@ export declare class BookingService {
         bookingId: string;
         completedBy: string;
         notes?: string;
+        proofUrls: string[];
     }): Promise<{
         bookingId: Types.ObjectId;
         bookingReference: string;
         bookingStatus: "COMPLETED";
         executionStage: "FINISHED";
         progressPercentage: number;
+        completion: import("../models/booking.model.js").IBookingCompletion;
         completedAt: Date;
     }>;
     static generateBookingOtp(params: {

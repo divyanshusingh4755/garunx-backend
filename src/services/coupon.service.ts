@@ -154,52 +154,87 @@ export class CouponService {
   ) {
     const skip = limit * (page - 1);
 
-    const query: any = {};
+    const conditions: any[] = [];
 
     if (typeof isActive === "boolean") {
-      query.isActive = isActive;
-    }
-
-    if (assignedUserId) {
-      query.assignedUserId = assignedUserId;
+      conditions.push({
+        isActive,
+      });
     }
 
     if (applicableOn) {
       const values = Array.isArray(applicableOn)
-        ? applicableOn
-        : applicableOn.split(",").map(item => item.trim().toUpperCase());
+        ? applicableOn.map(item => item.trim().toUpperCase())
+        : applicableOn
+          .split(",")
+          .map(item => item.trim().toUpperCase());
 
-      query.applicableOn = {
-        $in: values,
-      };
+      if (assignedUserId) {
+        conditions.push({
+          $or: values.map(value => {
+            if (value === "REFERRAL") {
+              return {
+                applicableOn: "REFERRAL",
+                assignedUserId,
+              };
+            }
+
+            return {
+              applicableOn: value,
+            };
+          }),
+        });
+      } else {
+        conditions.push({
+          applicableOn: {
+            $in: values,
+          },
+        });
+      }
+    } else if (assignedUserId) {
+      conditions.push({
+        assignedUserId,
+      });
     }
 
     const isTextSearch =
-      !!searchTerm?.trim() && searchTerm.trim().length > 4;
+      !!searchTerm?.trim() &&
+      searchTerm.trim().length > 4;
 
     if (searchTerm?.trim()) {
       const term = searchTerm.trim();
 
       if (isTextSearch) {
-        query.$text = {
-          $search: term,
-        };
+        conditions.push({
+          $text: {
+            $search: term,
+          },
+        });
       } else {
-        query.$or = [
-          {
-            name: {
-              $regex: `^${escapeRegex(term)}`,
-              $options: "i",
+        conditions.push({
+          $or: [
+            {
+              name: {
+                $regex: `^${escapeRegex(term)}`,
+                $options: "i",
+              },
             },
-          },
-          {
-            couponCode: {
-              $regex: `^${escapeRegex(term.toUpperCase())}`,
+            {
+              couponCode: {
+                $regex: `^${escapeRegex(term.toUpperCase())}`,
+              },
             },
-          },
-        ];
+          ],
+        });
       }
     }
+
+    const query =
+      conditions.length > 0
+        ? {
+          $and: conditions,
+        }
+        : {};
 
     let sortCriteria: any = {};
     let projection: any = {};
@@ -217,7 +252,8 @@ export class CouponService {
         },
       };
     } else {
-      sortCriteria[sortBy] = sortOrder === "desc" ? -1 : 1;
+      sortCriteria[sortBy] =
+        sortOrder === "desc" ? -1 : 1;
 
       if (sortBy !== "createdAt") {
         sortCriteria.createdAt = -1;
@@ -244,7 +280,9 @@ export class CouponService {
         totalPages: Math.ceil(total / limit),
       };
     } catch (error: any) {
-      throw new Error(`Coupon fetch failed: ${error.message}`);
+      throw new Error(
+        `Coupon fetch failed: ${error.message}`,
+      );
     }
   }
 

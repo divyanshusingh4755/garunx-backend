@@ -233,31 +233,82 @@ export const updateBookingNotes = async (req: Request, res: Response) => {
   }
 };
 
-export const updateBookingSchedule = async (req: Request, res: Response) => {
+export const rescheduleBooking = async (
+  req: Request,
+  res: Response,
+) => {
   try {
     const { bookingId } = req.params;
-    const { scheduledAt } = req.body;
 
-    const userId = req.user?.userId;
-    if (!userId) {
-      return res.status(401).json({ success: false, message: "Unauthorized" });
+    const {
+      scheduledAt,
+      reason,
+    } = req.body;
+
+    const userId =
+      req.user?.userId;
+
+    const role =
+      req.user?.role;
+
+    if (!userId || !role) {
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized",
+      });
     }
 
-    const result = await BookingService.updateBookingSchedule(
-      bookingId as string,
-      scheduledAt,
-      userId,
-      req.user!.role,
-    );
+    if (
+      !bookingId ||
+      Array.isArray(bookingId)
+    ) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Valid booking ID is required",
+      });
+    }
+
+    if (!scheduledAt) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "New scheduled date is required",
+      });
+    }
+
+    if (
+      typeof reason !== "string" ||
+      !reason.trim()
+    ) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Reschedule reason is required",
+      });
+    }
+
+    const result =
+      await BookingService.rescheduleBooking({
+        bookingId,
+        scheduledAt,
+        reason: reason.trim(),
+        userId,
+        role,
+      });
 
     return res.status(200).json({
       success: true,
+      message:
+        "Booking rescheduled successfully",
       data: result,
     });
   } catch (error: any) {
     return res.status(400).json({
       success: false,
-      message: error.message,
+      message:
+        error.message ||
+        "Failed to reschedule booking",
     });
   }
 };
@@ -1273,54 +1324,84 @@ export const addBookingMilestone = async (
 /**
  * Complete the complete booking execution workflow.
  */
-export const completeBookingExecution = async (
-  req: Request,
-  res: Response,
-) => {
-  try {
-    const bookingId = req.params.bookingId;
-    const { notes } = req.body;
-    const completedBy = req.user?.userId;
+export const completeBookingExecution =
+  async (
+    req: Request,
+    res: Response,
+  ) => {
+    try {
+      const bookingId =
+        req.params.bookingId;
 
-    if (!completedBy) {
-      return res.status(401).json({
-        success: false,
-        message: "Unauthorized",
+      const {
+        notes,
+        proofUrls,
+      } = req.body;
+
+      const completedBy =
+        req.user?.userId;
+
+      if (!completedBy) {
+        return res
+          .status(401)
+          .json({
+            success: false,
+            message: "Unauthorized",
+          });
+      }
+
+      if (
+        !bookingId ||
+        Array.isArray(bookingId)
+      ) {
+        return res
+          .status(400)
+          .json({
+            success: false,
+            message:
+              "Valid booking ID is required",
+          });
+      }
+
+      if (
+        !Array.isArray(proofUrls) ||
+        proofUrls.length === 0
+      ) {
+        return res
+          .status(400)
+          .json({
+            success: false,
+            message:
+              "At least one completion proof is required",
+          });
+      }
+
+      const result =
+        await BookingService
+          .completeBookingExecution({
+            bookingId,
+            completedBy,
+            notes,
+            proofUrls,
+          });
+
+      return res.status(200).json({
+        success: true,
+        message:
+          "Booking completed successfully",
+        data: result,
       });
+    } catch (error: any) {
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message:
+            error.message ||
+            "Failed to complete booking",
+        });
     }
-
-    if (!bookingId) {
-      return res.status(400).json({
-        success: false,
-        message: "Booking ID is required",
-      });
-    }
-
-    if (!bookingId || Array.isArray(bookingId)) {
-      return res.status(400).json({
-        success: false,
-        message: "Valid booking ID is required",
-      });
-    }
-
-    const result = await BookingService.completeBookingExecution({
-      bookingId,
-      completedBy,
-      notes,
-    });
-
-    return res.status(200).json({
-      success: true,
-      message: "Booking completed successfully",
-      data: result,
-    });
-  } catch (error: any) {
-    return res.status(400).json({
-      success: false,
-      message: error.message || "Failed to complete booking",
-    });
-  }
-};
+  };
 
 export const generateBookingOtp = async (
   req: Request,
