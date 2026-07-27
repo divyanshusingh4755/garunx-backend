@@ -1,6 +1,11 @@
 import { Types, Document } from "mongoose";
 import { Role } from "../types/rbac.js";
 import { ApprovalStatus, AvailabilityStatus, Caste, Gender, Gotra, VerificationStatus } from "../types/enums.js";
+export interface IRatingSummary {
+    averageRating: number;
+    totalRatings: number;
+    ratingSum: number;
+}
 export interface ICoordinatorProfile {
     averageRating: number;
     totalRatings: number;
@@ -60,6 +65,7 @@ export interface IUser extends Document {
     isDocumentVerified: boolean;
     isBankDocumentVerified: boolean;
     userReference: string;
+    ratingSummary?: IRatingSummary;
     coordinatorProfile?: ICoordinatorProfile;
 }
 export declare const User: import("mongoose").Model<IUser, {}, {}, {}, Document<unknown, {}, IUser, {}, import("mongoose").DefaultSchemaOptions> & IUser & Required<{

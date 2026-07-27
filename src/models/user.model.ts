@@ -3,6 +3,12 @@ import { Role } from "../types/rbac.js";
 import { Counter } from "./counter.model.js";
 import { ApprovalStatus, AvailabilityStatus, Caste, Gender, Gotra, VerificationStatus } from "../types/enums.js";
 
+export interface IRatingSummary {
+  averageRating: number;
+  totalRatings: number;
+  ratingSum: number;
+}
+
 export interface ICoordinatorProfile {
   averageRating: number;
   totalRatings: number;
@@ -76,9 +82,35 @@ export interface IUser extends Document {
   isDocumentVerified: boolean;
   isBankDocumentVerified: boolean;
   userReference: string;
-
+  ratingSummary?: IRatingSummary;
   coordinatorProfile?: ICoordinatorProfile;
 }
+
+const ratingSummarySchema = new Schema<IRatingSummary>(
+  {
+    averageRating: {
+      type: Number,
+      default: 0,
+      min: 0,
+      max: 5,
+    },
+
+    totalRatings: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+
+    ratingSum: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+  },
+  {
+    _id: false,
+  },
+);
 
 const documentVerificationSchema = new Schema(
   {
@@ -272,6 +304,11 @@ const userSchema = new Schema<IUser>(
       type: String,
       unique: true,
       index: true,
+    },
+
+    ratingSummary: {
+      type: ratingSummarySchema,
+      default: undefined,
     },
 
     coordinatorProfile: {

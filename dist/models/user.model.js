@@ -2,6 +2,26 @@ import { Schema, Types, model, Document } from "mongoose";
 import { Role } from "../types/rbac.js";
 import { Counter } from "./counter.model.js";
 import { ApprovalStatus, AvailabilityStatus, Caste, Gender, Gotra, VerificationStatus } from "../types/enums.js";
+const ratingSummarySchema = new Schema({
+    averageRating: {
+        type: Number,
+        default: 0,
+        min: 0,
+        max: 5,
+    },
+    totalRatings: {
+        type: Number,
+        default: 0,
+        min: 0,
+    },
+    ratingSum: {
+        type: Number,
+        default: 0,
+        min: 0,
+    },
+}, {
+    _id: false,
+});
 const documentVerificationSchema = new Schema({
     aadharCard: String,
     panCard: String,
@@ -165,6 +185,10 @@ const userSchema = new Schema({
         type: String,
         unique: true,
         index: true,
+    },
+    ratingSummary: {
+        type: ratingSummarySchema,
+        default: undefined,
     },
     coordinatorProfile: {
         type: coordinatorProfileSchema,

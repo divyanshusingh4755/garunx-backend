@@ -26,6 +26,7 @@ import faqRoutes from "./routes/faq.routes.js";
 import couponRoutes from "./routes/coupon.routes.js";
 import referalRewardRoutes from "./routes/referralreward.routes.js";
 import policyRoutes from "./routes/policy.routes.js";
+import reviewRoutes from "./routes/review.routes.js";
 import { paymentWebhooks } from "./controllers/booking.controllers.js";
 const app = express();
 // Connect DB
@@ -87,6 +88,7 @@ app.use("/api/faq", faqRoutes);
 app.use("/api/coupon", couponRoutes);
 app.use("/api/referal-reward", referalRewardRoutes);
 app.use("/api/policy", policyRoutes);
+app.use("/api/review", reviewRoutes);
 app.get("/health", (req, res) => {
     res.status(200).json({ status: "ok", uptime: process.uptime() });
 });
