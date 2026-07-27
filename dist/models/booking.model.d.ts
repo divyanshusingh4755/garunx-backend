@@ -17,6 +17,7 @@ export interface IAssignmentRequest {
     requestedBy?: Types.ObjectId;
     requestedAt: Date;
     responseDeadlineAt: Date;
+    scheduledAt: Date;
     respondedAt?: Date;
     rejectionReason?: string;
 }

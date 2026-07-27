@@ -85,6 +85,8 @@ export interface IAssignmentRequest {
   requestedAt: Date;
   responseDeadlineAt: Date;
 
+  scheduledAt: Date;
+
   respondedAt?: Date;
   rejectionReason?: string;
 }
@@ -188,6 +190,11 @@ const assignmentRequestSchema = new Schema<IAssignmentRequest>(
     },
 
     responseDeadlineAt: {
+      type: Date,
+      required: true,
+    },
+
+    scheduledAt: {
       type: Date,
       required: true,
     },

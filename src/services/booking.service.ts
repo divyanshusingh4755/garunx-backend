@@ -38,6 +38,7 @@ export interface CoordinatorFilters {
   autoAssignmentEnabled?: boolean;
   sortBy?: "rating" | "completedBookings" | "acceptanceRate";
   sortOrder?: "asc" | "desc";
+  scheduledAt?: string;
 }
 
 export class BookingService {
@@ -183,14 +184,63 @@ export class BookingService {
     );
   }
 
-  private static getRequestedCoordinatorIds(booking: any): Types.ObjectId[] {
-    const requests = booking.assignment?.requests ?? [];
+  private static getRequestedCoordinatorIds(
+    booking: any,
+    scheduledAt?: Date,
+  ): Types.ObjectId[] {
+    const requests =
+      booking.assignment?.requests ?? [];
+
+    if (!scheduledAt) {
+      return [];
+    }
+
+    const targetDate =
+      new Date(scheduledAt);
+
+    const startOfDay =
+      new Date(targetDate);
+
+    startOfDay.setHours(
+      0,
+      0,
+      0,
+      0,
+    );
+
+    const endOfDay =
+      new Date(targetDate);
+
+    endOfDay.setHours(
+      23,
+      59,
+      59,
+      999,
+    );
 
     return requests
-      .map((request: any) => request.coordinatorId)
+      .filter(
+        (request: any) =>
+          request.scheduledAt &&
+          request.scheduledAt >=
+          startOfDay &&
+          request.scheduledAt <=
+          endOfDay,
+      )
+      .map(
+        (request: any) =>
+          request.coordinatorId,
+      )
       .filter(Boolean)
-      .map((coordinatorId: Types.ObjectId | string) =>
-        new Types.ObjectId(coordinatorId.toString()),
+      .map(
+        (
+          coordinatorId:
+            | Types.ObjectId
+            | string,
+        ) =>
+          new Types.ObjectId(
+            coordinatorId.toString(),
+          ),
       );
   }
 
@@ -332,10 +382,14 @@ export class BookingService {
       status: "PENDING",
       assignmentType,
       requestedBy: selectedBy
-        ? new Types.ObjectId(selectedBy.toString())
+        ? new Types.ObjectId(
+          selectedBy.toString(),
+        )
         : undefined,
       requestedAt: now,
       responseDeadlineAt,
+      scheduledAt:
+        booking.scheduledAt,
     });
 
     booking.status = "ASSIGNMENT_PENDING";
@@ -693,6 +747,7 @@ export class BookingService {
     page?: number;
     sortBy?: string;
     sortOrder?: "asc" | "desc";
+    includeCoordinatorProfile?: boolean;
   }) {
     const {
       searchTerm,
@@ -706,6 +761,7 @@ export class BookingService {
       page = 1,
       sortBy = "createdAt",
       sortOrder = "desc",
+      includeCoordinatorProfile = false,
     } = params;
 
     const skip = (page - 1) * limit;
@@ -772,24 +828,251 @@ export class BookingService {
       sortCriteria.createdAt = -1;
     }
 
-    try {
-      const [data, total] = await Promise.all([
-        Booking.find(query)
-          .populate("userId", "fullName email phoneNumber")
-          .populate("cartId", "totalAmount status")
-          .sort(sortCriteria)
-          .skip(skip)
-          .limit(limit)
-          .lean(),
+    let bookingQuery = Booking.find(query)
+      .populate(
+        "userId",
+        "fullName email phoneNumber",
+      )
+      .populate(
+        "cartId",
+        "totalAmount status",
+      )
+      .populate({
+        path: "assignment.assignedCoordinatorId",
+        select: {
+          fullName: 1,
+          profileImage: 1,
+          gender: 1,
+          caste: 1,
+          gotra: 1,
+          userReference: 1,
 
-        Booking.countDocuments(query),
-      ]);
+          "coordinatorProfile.averageRating": 1,
+          "coordinatorProfile.totalRatings": 1,
+          "coordinatorProfile.totalCompletedBookings": 1,
+          "coordinatorProfile.availabilityStatus": 1,
+        },
+      })
+      .populate({
+        path: "assignment.requests.coordinatorId",
+        select: {
+          fullName: 1,
+          profileImage: 1,
+          gender: 1,
+          caste: 1,
+          gotra: 1,
+          userReference: 1,
+
+          "coordinatorProfile.averageRating": 1,
+          "coordinatorProfile.totalRatings": 1,
+          "coordinatorProfile.totalCompletedBookings": 1,
+          "coordinatorProfile.availabilityStatus": 1,
+        },
+      });
+
+    try {
+      const [data, total] =
+        await Promise.all([
+          bookingQuery
+            .sort(sortCriteria)
+            .skip(skip)
+            .limit(limit)
+            .lean(),
+
+          Booking.countDocuments(query),
+        ]);
+
+      const formattedData = data.map(
+        (booking: any) => {
+          const assignedCoordinator =
+            booking.assignment
+              ?.assignedCoordinatorId;
+
+          const coordinator =
+            assignedCoordinator &&
+              typeof assignedCoordinator ===
+              "object"
+              ? {
+                coordinatorId:
+                  assignedCoordinator._id,
+
+                fullName:
+                  assignedCoordinator.fullName,
+
+                profileImage:
+                  assignedCoordinator.profileImage,
+
+                gender:
+                  assignedCoordinator.gender,
+
+                userReference:
+                  assignedCoordinator.userReference,
+
+                caste:
+                  assignedCoordinator.caste,
+
+                gotra:
+                  assignedCoordinator.gotra,
+
+                rating: {
+                  averageRating:
+                    assignedCoordinator
+                      .coordinatorProfile
+                      ?.averageRating ?? 0,
+
+                  totalRatings:
+                    assignedCoordinator
+                      .coordinatorProfile
+                      ?.totalRatings ?? 0,
+                },
+
+                experience: {
+                  totalCompletedBookings:
+                    assignedCoordinator
+                      .coordinatorProfile
+                      ?.totalCompletedBookings ?? 0,
+                },
+
+                availabilityStatus:
+                  assignedCoordinator
+                    .coordinatorProfile
+                    ?.availabilityStatus,
+              }
+              : null;
+
+          /*
+           * All coordinators who have received
+           * assignment requests for this booking.
+           */
+          const coordinatorRequests =
+            booking.assignment?.requests?.map(
+              (request: any) => {
+                const requestedCoordinator =
+                  request.coordinatorId;
+
+                return {
+                  requestId:
+                    request._id,
+
+                  status:
+                    request.status,
+
+                  assignmentType:
+                    request.assignmentType,
+
+                  requestedAt:
+                    request.requestedAt,
+
+                  responseDeadlineAt:
+                    request.responseDeadlineAt,
+
+                  respondedAt:
+                    request.respondedAt,
+
+                  rejectionReason:
+                    request.rejectionReason,
+
+                  coordinator:
+                    requestedCoordinator &&
+                      typeof requestedCoordinator ===
+                      "object"
+                      ? {
+                        coordinatorId:
+                          requestedCoordinator._id,
+
+                        fullName:
+                          requestedCoordinator.fullName,
+
+                        profileImage:
+                          requestedCoordinator.profileImage,
+
+                        gender:
+                          requestedCoordinator.gender,
+
+                        userReference:
+                          requestedCoordinator.userReference,
+
+                        caste:
+                          requestedCoordinator.caste,
+
+                        gotra:
+                          requestedCoordinator.gotra,
+
+                        rating: {
+                          averageRating:
+                            requestedCoordinator
+                              .coordinatorProfile
+                              ?.averageRating ??
+                            0,
+
+                          totalRatings:
+                            requestedCoordinator
+                              .coordinatorProfile
+                              ?.totalRatings ??
+                            0,
+                        },
+
+                        experience: {
+                          totalCompletedBookings:
+                            requestedCoordinator
+                              .coordinatorProfile
+                              ?.totalCompletedBookings ??
+                            0,
+                        },
+
+                        availabilityStatus:
+                          requestedCoordinator
+                            .coordinatorProfile
+                            ?.availabilityStatus,
+                      }
+                      : null,
+                };
+              },
+            ) ?? [];
+
+          const {
+            assignment,
+            ...bookingData
+          } = booking;
+
+          return {
+            ...bookingData,
+
+            assignment: assignment
+              ? {
+                ...assignment,
+
+                /*
+                 * Keep only ID here.
+                 */
+                assignedCoordinatorId:
+                  assignedCoordinator?._id ??
+                  assignedCoordinator ??
+                  null,
+
+                /*
+                 * Don't return populated
+                 * raw request objects.
+                 */
+                requests:
+                  coordinatorRequests,
+              }
+              : null,
+
+            /*
+             * Currently selected/accepted coordinator.
+             */
+            coordinator,
+          };
+        },
+      );
 
       return {
-        data,
+        data: formattedData,
         total,
         page,
-        totalPages: Math.ceil(total / limit),
+        totalPages:
+          Math.ceil(total / limit),
       };
     } catch (error: any) {
       throw new Error(`Booking fetch failed: ${error.message}`);
@@ -1089,7 +1372,9 @@ export class BookingService {
     const newSchedule = new Date(scheduledAt);
 
     if (Number.isNaN(newSchedule.getTime())) {
-      throw new Error("Invalid scheduled date");
+      throw new Error(
+        "Invalid scheduled date",
+      );
     }
 
     const now = new Date();
@@ -1110,20 +1395,31 @@ export class BookingService {
       );
     }
 
-    /*
-     * If coordinator is already assigned,
-     * make sure that coordinator is not overbooked
-     * on the new date.
-     */
     const coordinatorId =
       booking.assignment?.assignedCoordinatorId;
 
+    /*
+     * If booking already has an accepted coordinator,
+     * first check whether that coordinator can serve
+     * the booking on the newly requested date.
+     */
     if (
       booking.status === "ASSIGNED" &&
       coordinatorId
     ) {
       const coordinator =
-        await User.findById(coordinatorId);
+        await User.findById(coordinatorId)
+          .select({
+            fullName: 1,
+            profileImage: 1,
+            userReference: 1,
+
+            "coordinatorProfile.averageRating": 1,
+            "coordinatorProfile.totalRatings": 1,
+            "coordinatorProfile.totalCompletedBookings": 1,
+            "coordinatorProfile.maxDailyBookings": 1,
+          })
+          .lean();
 
       if (!coordinator) {
         throw new Error(
@@ -1171,7 +1467,6 @@ export class BookingService {
             $in: [
               "ASSIGNED",
               "IN_PROGRESS",
-              // "COMPLETED"
             ],
           },
         });
@@ -1181,16 +1476,89 @@ export class BookingService {
           .coordinatorProfile
           ?.maxDailyBookings ?? 5;
 
-      if (
-        assignedBookings >=
-        maxDailyBookings
-      ) {
-        throw new Error(
-          "Assigned coordinator is not available on the selected date. Please request reassignment or choose another date.",
-        );
+      const coordinatorAvailable =
+        assignedBookings < maxDailyBookings;
+
+      /*
+       * Existing coordinator is unavailable.
+       *
+       * IMPORTANT:
+       * Do NOT change booking.scheduledAt yet.
+       * Do NOT remove current coordinator yet.
+       *
+       * Frontend should now show other coordinators
+       * available for requestedScheduledAt.
+       */
+      if (!coordinatorAvailable) {
+        return {
+          rescheduled: false,
+
+          requiresCoordinatorChange: true,
+
+          bookingId:
+            booking._id,
+
+          bookingReference:
+            booking.bookingReference,
+
+          bookingStatus:
+            booking.status,
+
+          currentScheduledAt:
+            booking.scheduledAt,
+
+          requestedScheduledAt:
+            newSchedule,
+
+          reason:
+            reason.trim(),
+
+          currentCoordinator: {
+            coordinatorId:
+              coordinator._id,
+
+            fullName:
+              coordinator.fullName,
+
+            profileImage:
+              coordinator.profileImage,
+
+            userReference:
+              coordinator.userReference,
+
+            rating: {
+              averageRating:
+                coordinator
+                  .coordinatorProfile
+                  ?.averageRating ?? 0,
+
+              totalRatings:
+                coordinator
+                  .coordinatorProfile
+                  ?.totalRatings ?? 0,
+            },
+
+            experience: {
+              totalCompletedBookings:
+                coordinator
+                  .coordinatorProfile
+                  ?.totalCompletedBookings ?? 0,
+            },
+          },
+
+          message:
+            "Current coordinator is not available on the selected date. Please select another coordinator.",
+        };
       }
     }
 
+    /*
+     * Existing coordinator is available
+     * OR booking does not currently have
+     * an assigned coordinator.
+     *
+     * Reschedule can be committed immediately.
+     */
     const previousScheduledAt =
       booking.scheduledAt;
 
@@ -1200,12 +1568,23 @@ export class BookingService {
     booking.rescheduleHistory ??= [];
 
     const rescheduleEntry: IBookingReschedule = {
-      newScheduledAt: newSchedule,
-      reason: reason.trim(),
-      rescheduledBy: new Types.ObjectId(userId),
+      newScheduledAt:
+        newSchedule,
+
+      reason:
+        reason.trim(),
+
+      rescheduledBy:
+        new Types.ObjectId(userId),
+
       rescheduledByRole:
-        role as "CUSTOMER" | "ADMIN" | "SUBADMIN",
-      rescheduledAt: now,
+        role as
+        | "CUSTOMER"
+        | "ADMIN"
+        | "SUBADMIN",
+
+      rescheduledAt:
+        now,
     };
 
     if (previousScheduledAt) {
@@ -1220,18 +1599,35 @@ export class BookingService {
     await booking.save();
 
     return {
-      bookingId: booking._id,
+      rescheduled: true,
+
+      requiresCoordinatorChange: false,
+
+      bookingId:
+        booking._id,
+
       bookingReference:
         booking.bookingReference,
+
       previousScheduledAt,
+
       scheduledAt:
         booking.scheduledAt,
+
       bookingStatus:
         booking.status,
+
       coordinatorId:
         booking.assignment
-          ?.assignedCoordinatorId,
-      rescheduledAt: now,
+          ?.assignedCoordinatorId ?? null,
+
+      rescheduledAt:
+        now,
+
+      message:
+        coordinatorId
+          ? "Booking rescheduled successfully. Existing coordinator is available on the selected date."
+          : "Booking rescheduled successfully.",
     };
   }
 
@@ -1691,6 +2087,22 @@ export class BookingService {
           "coordinatorProfile.availabilityStatus": 1,
         },
       })
+      .populate({
+        path: "assignment.requests.coordinatorId",
+        select: {
+          fullName: 1,
+          profileImage: 1,
+          gender: 1,
+          caste: 1,
+          gotra: 1,
+          userReference: 1,
+
+          "coordinatorProfile.averageRating": 1,
+          "coordinatorProfile.totalRatings": 1,
+          "coordinatorProfile.totalCompletedBookings": 1,
+          "coordinatorProfile.availabilityStatus": 1,
+        },
+      })
       .lean();
 
     if (!booking) {
@@ -1698,56 +2110,146 @@ export class BookingService {
     }
 
     const assignedCoordinator =
-      booking.assignment?.assignedCoordinatorId as any;
+      booking.assignment
+        ?.assignedCoordinatorId as any;
 
-    const coordinator = assignedCoordinator
-      ? {
-        coordinatorId:
-          assignedCoordinator._id,
+    const coordinator =
+      assignedCoordinator &&
+        typeof assignedCoordinator === "object"
+        ? {
+          coordinatorId:
+            assignedCoordinator._id,
 
-        fullName:
-          assignedCoordinator.fullName,
+          fullName:
+            assignedCoordinator.fullName,
 
-        profileImage:
-          assignedCoordinator.profileImage,
+          profileImage:
+            assignedCoordinator.profileImage,
 
-        gender:
-          assignedCoordinator.gender,
+          gender:
+            assignedCoordinator.gender,
 
-        userReference:
-          assignedCoordinator.userReference,
+          userReference:
+            assignedCoordinator.userReference,
 
-        caste:
-          assignedCoordinator.caste,
+          caste:
+            assignedCoordinator.caste,
 
-        gotra:
-          assignedCoordinator.gotra,
+          gotra:
+            assignedCoordinator.gotra,
 
-        rating: {
-          averageRating:
+          rating: {
+            averageRating:
+              assignedCoordinator
+                .coordinatorProfile
+                ?.averageRating ?? 0,
+
+            totalRatings:
+              assignedCoordinator
+                .coordinatorProfile
+                ?.totalRatings ?? 0,
+          },
+
+          experience: {
+            totalCompletedBookings:
+              assignedCoordinator
+                .coordinatorProfile
+                ?.totalCompletedBookings ?? 0,
+          },
+
+          availabilityStatus:
             assignedCoordinator
               .coordinatorProfile
-              ?.averageRating ?? 0,
+              ?.availabilityStatus,
+        }
+        : null;
 
-          totalRatings:
-            assignedCoordinator
-              .coordinatorProfile
-              ?.totalRatings ?? 0,
+    /*
+     * Format every coordinator who has
+     * received an assignment request.
+     */
+    const coordinatorRequests =
+      booking.assignment?.requests?.map(
+        (request: any) => {
+          const requestedCoordinator =
+            request.coordinatorId;
+
+          return {
+            requestId:
+              request._id,
+
+            status:
+              request.status,
+
+            assignmentType:
+              request.assignmentType,
+
+            requestedAt:
+              request.requestedAt,
+
+            responseDeadlineAt:
+              request.responseDeadlineAt,
+
+            respondedAt:
+              request.respondedAt,
+
+            rejectionReason:
+              request.rejectionReason,
+
+            coordinator:
+              requestedCoordinator &&
+                typeof requestedCoordinator ===
+                "object"
+                ? {
+                  coordinatorId:
+                    requestedCoordinator._id,
+
+                  fullName:
+                    requestedCoordinator.fullName,
+
+                  profileImage:
+                    requestedCoordinator.profileImage,
+
+                  gender:
+                    requestedCoordinator.gender,
+
+                  userReference:
+                    requestedCoordinator.userReference,
+
+                  caste:
+                    requestedCoordinator.caste,
+
+                  gotra:
+                    requestedCoordinator.gotra,
+
+                  rating: {
+                    averageRating:
+                      requestedCoordinator
+                        .coordinatorProfile
+                        ?.averageRating ?? 0,
+
+                    totalRatings:
+                      requestedCoordinator
+                        .coordinatorProfile
+                        ?.totalRatings ?? 0,
+                  },
+
+                  experience: {
+                    totalCompletedBookings:
+                      requestedCoordinator
+                        .coordinatorProfile
+                        ?.totalCompletedBookings ?? 0,
+                  },
+
+                  availabilityStatus:
+                    requestedCoordinator
+                      .coordinatorProfile
+                      ?.availabilityStatus,
+                }
+                : null,
+          };
         },
-
-        experience: {
-          totalCompletedBookings:
-            assignedCoordinator
-              .coordinatorProfile
-              ?.totalCompletedBookings ?? 0,
-        },
-
-        availabilityStatus:
-          assignedCoordinator
-            .coordinatorProfile
-            ?.availabilityStatus,
-      }
-      : null;
+      ) ?? [];
 
     const {
       assignment,
@@ -1762,10 +2264,18 @@ export class BookingService {
           ...assignment,
 
           assignedCoordinatorId:
-            assignedCoordinator?._id ?? null,
+            assignedCoordinator?._id ??
+            assignedCoordinator ??
+            null,
+
+          requests:
+            coordinatorRequests,
         }
         : null,
 
+      /*
+       * Current selected / accepted coordinator.
+       */
       coordinator,
     };
   }
@@ -1785,6 +2295,7 @@ export class BookingService {
       ...(params.limit && { limit: params.limit }),
       ...(params.sortBy && { sortBy: params.sortBy }),
       ...(params.sortOrder && { sortOrder: params.sortOrder }),
+      includeCoordinatorProfile: true,
     });
   }
 
@@ -1863,29 +2374,58 @@ export class BookingService {
       );
     }
 
+    /*
+     * Use proposed reschedule date if provided.
+     * Otherwise use current booking scheduled date.
+     */
+    let targetScheduledAt =
+      booking.scheduledAt;
+
+    if (filters.scheduledAt) {
+      const requestedDate =
+        new Date(filters.scheduledAt);
+
+      if (
+        Number.isNaN(
+          requestedDate.getTime(),
+        )
+      ) {
+        throw new Error(
+          "Invalid scheduled date",
+        );
+      }
+
+      if (
+        requestedDate <=
+        new Date()
+      ) {
+        throw new Error(
+          "Scheduled date must be in the future",
+        );
+      }
+
+      targetScheduledAt =
+        requestedDate;
+    }
+
     const requestedCoordinatorIds =
-      this.getRequestedCoordinatorIds(booking);
+      this.getRequestedCoordinatorIds(
+        booking,
+        targetScheduledAt,
+      );
 
     const query: Record<string, any> = {
       role: "COORDINATOR",
       isActive: true,
       isDocumentVerified: true,
+
       "coordinatorProfile.approvalStatus":
         "APPROVED",
+
       "coordinatorProfile.availabilityStatus":
         "AVAILABLE",
     };
 
-    /*
-     * Mandatory matching:
-     * coordinator must serve at least one booking location.
-     *
-     * Optional matching:
-     * caste/gotra are applied from booking.customerDetails.
-     *
-     * $elemMatch ensures location, caste and gotra belong
-     * to the same serviceableLocations item.
-     */
     const serviceableLocationMatch: Record<
       string,
       any
@@ -1926,12 +2466,24 @@ export class BookingService {
     query[
       "coordinatorProfile.serviceableLocations"
     ] = {
-      $elemMatch: serviceableLocationMatch,
+      $elemMatch:
+        serviceableLocationMatch,
     };
 
-    if (requestedCoordinatorIds.length > 0) {
+    /*
+ * Exclude coordinators who have already
+ * received this booking request for the
+ * current target scheduled date.
+ *
+ * Coordinators rejected/expired for another
+ * date remain eligible after rescheduling.
+ */
+    if (
+      requestedCoordinatorIds.length > 0
+    ) {
       query._id = {
-        $nin: requestedCoordinatorIds,
+        $nin:
+          requestedCoordinatorIds,
       };
     }
 
@@ -1941,7 +2493,8 @@ export class BookingService {
       query[
         "coordinatorProfile.averageRating"
       ] = {
-        $gte: filters.minRating,
+        $gte:
+          filters.minRating,
       };
     }
 
@@ -1972,135 +2525,289 @@ export class BookingService {
         ? 1
         : -1;
 
-    const sort: Record<string, 1 | -1> = {};
+    const sort: Record<
+      string,
+      1 | -1
+    > = {};
 
     switch (filters.sortBy) {
       case "completedBookings":
         sort[
           "coordinatorProfile.totalCompletedBookings"
-        ] = sortDirection;
+        ] =
+          sortDirection;
         break;
 
       case "acceptanceRate":
         sort[
           "coordinatorProfile.acceptanceRate"
-        ] = sortDirection;
+        ] =
+          sortDirection;
         break;
 
       case "rating":
       default:
         sort[
           "coordinatorProfile.averageRating"
-        ] = sortDirection;
+        ] =
+          sortDirection;
 
         sort[
           "coordinatorProfile.totalCompletedBookings"
         ] = -1;
+
         break;
     }
 
-    const coordinators = await User.find(query)
-      .select({
-        fullName: 1,
-        profileImage: 1,
-        gender: 1,
-        caste: 1,
-        gotra: 1,
-        userReference: 1,
+    /*
+     * Fetch possible coordinators first.
+     *
+     * maxDailyBookings is required internally
+     * to check availability for targetScheduledAt.
+     */
+    const coordinators =
+      await User.find(query)
+        .select({
+          fullName: 1,
+          profileImage: 1,
+          gender: 1,
+          caste: 1,
+          gotra: 1,
+          userReference: 1,
 
-        "coordinatorProfile.averageRating": 1,
-        "coordinatorProfile.totalRatings": 1,
-        "coordinatorProfile.totalCompletedBookings": 1,
-        "coordinatorProfile.acceptanceRate": 1,
-        "coordinatorProfile.availabilityStatus": 1,
-      })
-      .sort(sort)
-      .lean();
+          "coordinatorProfile.averageRating": 1,
+          "coordinatorProfile.totalRatings": 1,
+          "coordinatorProfile.totalCompletedBookings": 1,
+          "coordinatorProfile.acceptanceRate": 1,
+          "coordinatorProfile.availabilityStatus": 1,
+          "coordinatorProfile.maxDailyBookings": 1,
+        })
+        .sort(sort)
+        .lean();
 
-    const coordinatorList = coordinators.map(
-      (coordinator) => ({
-        coordinatorId: coordinator._id,
+    /*
+     * If booking has a target date,
+     * remove coordinators who have already
+     * reached their daily booking limit.
+     */
+    let availableCoordinators =
+      coordinators;
 
-        fullName: coordinator.fullName,
-        profileImage: coordinator.profileImage,
-        gender: coordinator.gender,
+    if (targetScheduledAt) {
+      const startOfDay =
+        new Date(targetScheduledAt);
 
-        userReference: coordinator.userReference,
+      startOfDay.setHours(
+        0,
+        0,
+        0,
+        0,
+      );
 
-        caste: coordinator.caste,
-        gotra: coordinator.gotra,
+      const endOfDay =
+        new Date(targetScheduledAt);
 
-        rating: {
-          averageRating:
-            coordinator.coordinatorProfile
-              ?.averageRating ?? 0,
+      endOfDay.setHours(
+        23,
+        59,
+        59,
+        999,
+      );
 
-          totalRatings:
-            coordinator.coordinatorProfile
-              ?.totalRatings ?? 0,
-        },
+      const coordinatorAvailability =
+        await Promise.all(
+          coordinators.map(
+            async (
+              coordinator,
+            ) => {
+              const assignedBookings =
+                await Booking.countDocuments(
+                  {
+                    _id: {
+                      $ne:
+                        booking._id,
+                    },
 
-        experience: {
-          totalCompletedBookings:
-            coordinator.coordinatorProfile
-              ?.totalCompletedBookings ?? 0,
+                    isDeleted:
+                      false,
 
-          acceptanceRate:
-            coordinator.coordinatorProfile
-              ?.acceptanceRate ?? 0,
-        },
+                    "assignment.assignedCoordinatorId":
+                      coordinator._id,
 
-        availabilityStatus:
-          coordinator.coordinatorProfile
-            ?.availabilityStatus,
-      }),
-    );
+                    scheduledAt: {
+                      $gte:
+                        startOfDay,
+
+                      $lte:
+                        endOfDay,
+                    },
+
+                    status: {
+                      $in: [
+                        "ASSIGNED",
+                        "IN_PROGRESS",
+                      ],
+                    },
+                  },
+                );
+
+              const maxDailyBookings =
+                coordinator
+                  .coordinatorProfile
+                  ?.maxDailyBookings ??
+                5;
+
+              return {
+                coordinator,
+                available:
+                  assignedBookings <
+                  maxDailyBookings,
+              };
+            },
+          ),
+        );
+
+      availableCoordinators =
+        coordinatorAvailability
+          .filter(
+            (item) =>
+              item.available,
+          )
+          .map(
+            (item) =>
+              item.coordinator,
+          );
+    }
+
+    const coordinatorList =
+      availableCoordinators.map(
+        (coordinator) => ({
+          coordinatorId:
+            coordinator._id,
+
+          fullName:
+            coordinator.fullName,
+
+          profileImage:
+            coordinator.profileImage,
+
+          gender:
+            coordinator.gender,
+
+          userReference:
+            coordinator.userReference,
+
+          caste:
+            coordinator.caste,
+
+          gotra:
+            coordinator.gotra,
+
+          rating: {
+            averageRating:
+              coordinator
+                .coordinatorProfile
+                ?.averageRating ??
+              0,
+
+            totalRatings:
+              coordinator
+                .coordinatorProfile
+                ?.totalRatings ??
+              0,
+          },
+
+          experience: {
+            totalCompletedBookings:
+              coordinator
+                .coordinatorProfile
+                ?.totalCompletedBookings ??
+              0,
+          },
+
+          availabilityStatus:
+            coordinator
+              .coordinatorProfile
+              ?.availabilityStatus,
+        }),
+      );
 
     return {
-      bookingId: booking._id,
+      bookingId:
+        booking._id,
 
-      bookingLocationIds: locationIds,
+      bookingLocationIds:
+        locationIds,
+
+      /*
+       * Important for frontend:
+       * tells UI which date this coordinator
+       * list was calculated for.
+       */
+      scheduledAt:
+        targetScheduledAt ??
+        null,
+
+      isRescheduleSelection:
+        !!filters.scheduledAt,
 
       bookingPreferences: {
         caste:
-          booking.customerDetails?.caste,
+          booking.customerDetails
+            ?.caste,
+
         gotra:
-          booking.customerDetails?.gotra,
+          booking.customerDetails
+            ?.gotra,
       },
 
       appliedFilters: {
         matchCaste:
-          filters.matchCaste ?? false,
+          filters.matchCaste ??
+          false,
 
         matchGotra:
-          filters.matchGotra ?? false,
+          filters.matchGotra ??
+          false,
 
         minRating:
-          filters.minRating,
+          filters.minRating ??
+          null,
 
         minCompletedBookings:
-          filters.minCompletedBookings,
+          filters.minCompletedBookings ??
+          null,
 
         autoAssignmentEnabled:
-          filters.autoAssignmentEnabled,
+          filters.autoAssignmentEnabled ??
+          null,
 
         sortBy:
-          filters.sortBy ?? "rating",
+          filters.sortBy ??
+          "rating",
 
         sortOrder:
-          filters.sortOrder ?? "desc",
+          filters.sortOrder ??
+          "desc",
+
+        scheduledAt:
+          filters.scheduledAt ??
+          null,
       },
 
       assignmentStatus:
-        booking.assignment?.status,
+        booking.assignment
+          ?.status,
 
       assignmentExpiresAt:
         booking.assignment
           ?.assignmentExpiresAt,
 
-      total: coordinatorList.length,
+      total:
+        coordinatorList.length,
 
-      coordinators: coordinatorList,
+      coordinators:
+        coordinatorList,
     };
   }
 
@@ -2109,12 +2816,21 @@ export class BookingService {
     coordinatorId: string;
     selectedBy: string;
     assignmentType: "MANUAL" | "AUTO";
+
+    // Used only when selecting coordinator
+    // during a reschedule flow.
+    scheduledAt?: string;
+
+    // Required when scheduledAt is provided.
+    rescheduleReason?: string;
   }) {
     const {
       bookingId,
       coordinatorId,
       selectedBy,
       assignmentType,
+      scheduledAt,
+      rescheduleReason,
     } = params;
 
     const booking = await Booking.findOne({
@@ -2145,8 +2861,10 @@ export class BookingService {
     }
 
     if (
+      !scheduledAt &&
       booking.assignment?.assignmentExpiresAt &&
-      booking.assignment.assignmentExpiresAt <= new Date()
+      booking.assignment.assignmentExpiresAt <=
+      new Date()
     ) {
       throw new Error(
         "Coordinator assignment window has expired",
@@ -2154,20 +2872,87 @@ export class BookingService {
     }
 
     if (
-      booking.userId?.toString() !==
-      selectedBy
+      booking.userId?.toString() !== selectedBy
     ) {
       throw new Error(
         "Only the booking owner can select a coordinator",
       );
     }
 
-    const requestedCoordinatorIds =
-      this.getRequestedCoordinatorIds(booking);
+    /*
+     * ------------------------------------------------
+     * Determine target schedule.
+     * ------------------------------------------------
+     *
+     * Normal selection:
+     *   targetScheduledAt = booking.scheduledAt
+     *
+     * Reschedule selection:
+     *   targetScheduledAt = params.scheduledAt
+     */
+    let targetScheduledAt =
+      booking.scheduledAt;
 
-    const alreadyRequested = requestedCoordinatorIds.some(
-      (id) => id.toString() === coordinatorId,
-    );
+    const isRescheduleSelection =
+      !!scheduledAt;
+
+    if (scheduledAt) {
+      const requestedSchedule =
+        new Date(scheduledAt);
+
+      if (
+        Number.isNaN(
+          requestedSchedule.getTime(),
+        )
+      ) {
+        throw new Error(
+          "Invalid scheduled date",
+        );
+      }
+
+      if (
+        requestedSchedule <= new Date()
+      ) {
+        throw new Error(
+          "Scheduled date must be in the future",
+        );
+      }
+
+      if (!rescheduleReason?.trim()) {
+        throw new Error(
+          "Reschedule reason is required",
+        );
+      }
+
+      targetScheduledAt =
+        requestedSchedule;
+    }
+
+    if (!targetScheduledAt) {
+      throw new Error(
+        "Booking schedule is required before selecting a coordinator",
+      );
+    }
+
+    /*
+     * ------------------------------------------------
+     * Don't allow selecting coordinator who has already
+     * received this booking request.
+     * ------------------------------------------------
+     */
+
+    const requestedCoordinatorIds =
+      this.getRequestedCoordinatorIds(
+        booking,
+        targetScheduledAt,
+      );
+
+    const alreadyRequested =
+      requestedCoordinatorIds.some(
+        (id) =>
+          id.toString() ===
+          coordinatorId,
+      );
 
     if (alreadyRequested) {
       throw new Error(
@@ -2175,80 +2960,217 @@ export class BookingService {
       );
     }
 
-    const coordinator = await User.findOne({
-      _id: coordinatorId,
-      role: "COORDINATOR",
-      isActive: true,
-      isDocumentVerified: true,
-      "coordinatorProfile.approvalStatus": "APPROVED",
-      "coordinatorProfile.availabilityStatus": "AVAILABLE",
-    });
+    /*
+     * ------------------------------------------------
+     * Validate coordinator.
+     * ------------------------------------------------
+     */
+
+    const locationIds =
+      this.getBookingLocationIds(
+        booking,
+      );
+
+    const coordinator =
+      await User.findOne({
+        _id:
+          coordinatorId,
+
+        role:
+          "COORDINATOR",
+
+        isActive:
+          true,
+
+        isDocumentVerified:
+          true,
+
+        "coordinatorProfile.approvalStatus":
+          "APPROVED",
+
+        "coordinatorProfile.availabilityStatus":
+          "AVAILABLE",
+
+        /*
+         * Important:
+         * Selected coordinator must also
+         * support the booking location.
+         */
+        "coordinatorProfile.serviceableLocations.locationId":
+        {
+          $in:
+            locationIds,
+        },
+      });
 
     if (!coordinator) {
       throw new Error(
-        "Selected coordinator is not available",
+        "Selected coordinator is not available for this booking",
       );
     }
 
-    if (booking.scheduledAt) {
-      const scheduledDate =
-        new Date(booking.scheduledAt);
+    /*
+     * ------------------------------------------------
+     * Validate coordinator capacity on TARGET DATE.
+     * ------------------------------------------------
+     *
+     * This is the important fix.
+     *
+     * Previously this was always checking
+     * booking.scheduledAt.
+     *
+     * Now during reschedule it checks the
+     * proposed new date.
+     */
 
-      const startOfDay =
-        new Date(scheduledDate);
-
-      startOfDay.setHours(
-        0,
-        0,
-        0,
-        0,
+    const startOfDay =
+      new Date(
+        targetScheduledAt,
       );
 
-      const endOfDay =
-        new Date(scheduledDate);
+    startOfDay.setHours(
+      0,
+      0,
+      0,
+      0,
+    );
 
-      endOfDay.setHours(
-        23,
-        59,
-        59,
-        999,
+    const endOfDay =
+      new Date(
+        targetScheduledAt,
       );
 
-      const bookedCount =
-        await Booking.countDocuments({
-          isDeleted: false,
+    endOfDay.setHours(
+      23,
+      59,
+      59,
+      999,
+    );
 
-          "assignment.assignedCoordinatorId":
-            coordinator._id,
+    const bookedCount =
+      await Booking.countDocuments({
+        /*
+         * Don't count this booking itself.
+         *
+         * Important especially when replacing
+         * coordinator during reschedule.
+         */
+        _id: {
+          $ne:
+            booking._id,
+        },
 
-          scheduledAt: {
-            $gte: startOfDay,
-            $lte: endOfDay,
-          },
+        isDeleted:
+          false,
 
-          status: {
-            $in: [
-              "ASSIGNED",
-              "IN_PROGRESS",
-              // "COMPLETED",
-            ],
-          },
-        });
+        "assignment.assignedCoordinatorId":
+          coordinator._id,
 
-      const maxDailyBookings =
-        coordinator
-          .coordinatorProfile
-          ?.maxDailyBookings ?? 5;
+        scheduledAt: {
+          $gte:
+            startOfDay,
+
+          $lte:
+            endOfDay,
+        },
+
+        status: {
+          $in: [
+            "ASSIGNED",
+            "IN_PROGRESS",
+          ],
+        },
+      });
+
+    const maxDailyBookings =
+      coordinator
+        .coordinatorProfile
+        ?.maxDailyBookings ??
+      5;
+
+    if (
+      bookedCount >=
+      maxDailyBookings
+    ) {
+      throw new Error(
+        "Coordinator has reached the maximum booking limit for the selected date",
+      );
+    }
+
+    /*
+     * ------------------------------------------------
+     * Handle reschedule before creating new request.
+     * ------------------------------------------------
+     */
+
+    let previousScheduledAt:
+      Date | undefined;
+
+    if (
+      isRescheduleSelection &&
+      targetScheduledAt
+    ) {
+      previousScheduledAt =
+        booking.scheduledAt;
+
+      booking.scheduledAt =
+        targetScheduledAt;
+
+      booking.rescheduleHistory ??=
+        [];
+
+      const rescheduleEntry:
+        IBookingReschedule = {
+        newScheduledAt:
+          targetScheduledAt,
+
+        reason:
+          rescheduleReason!.trim(),
+
+        rescheduledBy:
+          new Types.ObjectId(
+            selectedBy,
+          ),
+
+        rescheduledByRole:
+          "CUSTOMER",
+
+        rescheduledAt:
+          new Date(),
+      };
 
       if (
-        bookedCount >=
-        maxDailyBookings
+        previousScheduledAt
       ) {
-        throw new Error(
-          "Coordinator has reached the maximum booking limit for this date",
-        );
+        rescheduleEntry.previousScheduledAt =
+          previousScheduledAt;
       }
+
+      booking.rescheduleHistory.push(
+        rescheduleEntry,
+      );
     }
+
+    if (
+      isRescheduleSelection &&
+      booking.assignment
+    ) {
+      delete booking.assignment.assignmentExpiresAt;
+    }
+
+    /*
+     * ------------------------------------------------
+     * Send assignment request.
+     * ------------------------------------------------
+     *
+     * assignCoordinatorRequest() already:
+     *
+     * - cancels existing pending request
+     * - sets assignedCoordinatorId
+     * - sets PENDING_RESPONSE
+     * - creates assignment request
+     * - changes booking status to ASSIGNMENT_PENDING
+     */
 
     const updatedBooking =
       await this.assignCoordinatorRequest({
@@ -2259,19 +3181,47 @@ export class BookingService {
       });
 
     return {
-      bookingId: updatedBooking._id,
-      bookingStatus: updatedBooking.status,
+      bookingId:
+        updatedBooking._id,
+
+      bookingReference:
+        updatedBooking.bookingReference,
+
+      bookingStatus:
+        updatedBooking.status,
+
       assignmentStatus:
-        updatedBooking.assignment?.status,
+        updatedBooking.assignment
+          ?.status,
+
       coordinatorId:
         updatedBooking.assignment
           ?.assignedCoordinatorId,
+
+      /*
+       * Helpful for frontend.
+       */
+      isRescheduleSelection,
+
+      previousScheduledAt:
+        previousScheduledAt ??
+        null,
+
+      scheduledAt:
+        updatedBooking.scheduledAt,
+
       responseDeadlineAt:
         updatedBooking.assignment
           ?.responseDeadlineAt,
+
       assignmentExpiresAt:
         updatedBooking.assignment
           ?.assignmentExpiresAt,
+
+      message:
+        isRescheduleSelection
+          ? "New coordinator selected and reschedule request submitted successfully"
+          : "Coordinator selected successfully",
     };
   }
 
@@ -2681,7 +3631,10 @@ export class BookingService {
       }
 
       const excludedCoordinatorIds =
-        this.getRequestedCoordinatorIds(booking);
+        this.getRequestedCoordinatorIds(
+          booking,
+          booking.scheduledAt,
+        );
 
       const nextCoordinator =
         await this.findNextAvailableCoordinator(

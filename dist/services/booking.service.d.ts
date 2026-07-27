@@ -10,6 +10,7 @@ export interface CoordinatorFilters {
     autoAssignmentEnabled?: boolean;
     sortBy?: "rating" | "completedBookings" | "acceptanceRate";
     sortOrder?: "asc" | "desc";
+    scheduledAt?: string;
 }
 export declare class BookingService {
     private static generateOtp;
@@ -59,12 +60,9 @@ export declare class BookingService {
         page?: number;
         sortBy?: string;
         sortOrder?: "asc" | "desc";
+        includeCoordinatorProfile?: boolean;
     }): Promise<{
-        data: (import("../models/booking.model.js").IBooking & Required<{
-            _id: Types.ObjectId;
-        }> & {
-            __v: number;
-        })[];
+        data: any[];
         total: number;
         page: number;
         totalPages: number;
@@ -195,13 +193,47 @@ export declare class BookingService {
         userId: string;
         role: string;
     }): Promise<{
+        rescheduled: boolean;
+        requiresCoordinatorChange: boolean;
+        bookingId: Types.ObjectId;
+        bookingReference: string;
+        bookingStatus: "ASSIGNED";
+        currentScheduledAt: Date | undefined;
+        requestedScheduledAt: Date;
+        reason: string;
+        currentCoordinator: {
+            coordinatorId: Types.ObjectId;
+            fullName: string | undefined;
+            profileImage: string | undefined;
+            userReference: string;
+            rating: {
+                averageRating: number;
+                totalRatings: number;
+            };
+            experience: {
+                totalCompletedBookings: number;
+            };
+        };
+        message: string;
+        previousScheduledAt?: never;
+        scheduledAt?: never;
+        coordinatorId?: never;
+        rescheduledAt?: never;
+    } | {
+        rescheduled: boolean;
+        requiresCoordinatorChange: boolean;
         bookingId: Types.ObjectId;
         bookingReference: string;
         previousScheduledAt: Date | undefined;
         scheduledAt: Date;
         bookingStatus: "EXPIRED" | "CANCELLED" | "PENDING_PAYMENT" | "CONFIRMED" | "ASSIGNMENT_PENDING" | "ASSIGNED" | "COMPLETED";
-        coordinatorId: Types.ObjectId | undefined;
+        coordinatorId: Types.ObjectId | null;
         rescheduledAt: Date;
+        message: string;
+        currentScheduledAt?: never;
+        requestedScheduledAt?: never;
+        reason?: never;
+        currentCoordinator?: never;
     }>;
     static updateBookingStatus(bookingId: string, status: BookingStatus, userId: string, role: string, reason?: string): Promise<{
         bookingId: Types.ObjectId;
@@ -236,6 +268,32 @@ export declare class BookingService {
     static getMyBookingById(bookingId: string, userId: string): Promise<{
         assignment: {
             assignedCoordinatorId: any;
+            requests: {
+                requestId: any;
+                status: any;
+                assignmentType: any;
+                requestedAt: any;
+                responseDeadlineAt: any;
+                respondedAt: any;
+                rejectionReason: any;
+                coordinator: {
+                    coordinatorId: any;
+                    fullName: any;
+                    profileImage: any;
+                    gender: any;
+                    userReference: any;
+                    caste: any;
+                    gotra: any;
+                    rating: {
+                        averageRating: any;
+                        totalRatings: any;
+                    };
+                    experience: {
+                        totalCompletedBookings: any;
+                    };
+                    availabilityStatus: any;
+                } | null;
+            }[];
             status: import("../models/booking.model.js").AssignmentStatus;
             assignedBy?: Types.ObjectId;
             assignedAt?: Date;
@@ -243,7 +301,6 @@ export declare class BookingService {
             coordinatorAcceptedAt?: Date;
             responseDeadlineAt?: Date;
             assignmentExpiresAt?: Date;
-            requests: import("../models/booking.model.js").IAssignmentRequest[];
             reassignment?: {
                 requestedBy: Types.ObjectId;
                 requestedByRole: ReassignmentRequestedByRole;
@@ -368,11 +425,7 @@ export declare class BookingService {
         sortBy?: string;
         sortOrder?: "asc" | "desc";
     }): Promise<{
-        data: (import("../models/booking.model.js").IBooking & Required<{
-            _id: Types.ObjectId;
-        }> & {
-            __v: number;
-        })[];
+        data: any[];
         total: number;
         page: number;
         totalPages: number;
@@ -381,6 +434,8 @@ export declare class BookingService {
     static getAvailableCoordinators(bookingId: string, userId: string, filters?: CoordinatorFilters): Promise<{
         bookingId: Types.ObjectId;
         bookingLocationIds: Types.ObjectId[];
+        scheduledAt: Date | null;
+        isRescheduleSelection: boolean;
         bookingPreferences: {
             caste: string | undefined;
             gotra: string | undefined;
@@ -388,11 +443,12 @@ export declare class BookingService {
         appliedFilters: {
             matchCaste: boolean;
             matchGotra: boolean;
-            minRating: number | undefined;
-            minCompletedBookings: number | undefined;
-            autoAssignmentEnabled: boolean | undefined;
+            minRating: number | null;
+            minCompletedBookings: number | null;
+            autoAssignmentEnabled: boolean | null;
             sortBy: "acceptanceRate" | "rating" | "completedBookings";
             sortOrder: "asc" | "desc";
+            scheduledAt: string | null;
         };
         assignmentStatus: import("../models/booking.model.js").AssignmentStatus | undefined;
         assignmentExpiresAt: Date | undefined;
@@ -411,7 +467,6 @@ export declare class BookingService {
             };
             experience: {
                 totalCompletedBookings: number;
-                acceptanceRate: number;
             };
             availabilityStatus: import("../types/enums.js").AvailabilityStatus | undefined;
         }[];
@@ -421,13 +476,20 @@ export declare class BookingService {
         coordinatorId: string;
         selectedBy: string;
         assignmentType: "MANUAL" | "AUTO";
+        scheduledAt?: string;
+        rescheduleReason?: string;
     }): Promise<{
         bookingId: any;
+        bookingReference: any;
         bookingStatus: any;
         assignmentStatus: any;
         coordinatorId: any;
+        isRescheduleSelection: boolean;
+        previousScheduledAt: Date | null;
+        scheduledAt: any;
         responseDeadlineAt: any;
         assignmentExpiresAt: any;
+        message: string;
     }>;
     static respondToAssignment(params: {
         bookingId: string;

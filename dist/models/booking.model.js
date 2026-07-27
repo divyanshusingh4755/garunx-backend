@@ -36,6 +36,10 @@ const assignmentRequestSchema = new Schema({
         type: Date,
         required: true,
     },
+    scheduledAt: {
+        type: Date,
+        required: true,
+    },
     respondedAt: Date,
     rejectionReason: {
         type: String,
