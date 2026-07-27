@@ -1674,13 +1674,100 @@ export class BookingService {
       _id: bookingId,
       userId,
       isDeleted: false,
-    });
+    })
+      .populate({
+        path: "assignment.assignedCoordinatorId",
+        select: {
+          fullName: 1,
+          profileImage: 1,
+          gender: 1,
+          caste: 1,
+          gotra: 1,
+          userReference: 1,
+
+          "coordinatorProfile.averageRating": 1,
+          "coordinatorProfile.totalRatings": 1,
+          "coordinatorProfile.totalCompletedBookings": 1,
+          "coordinatorProfile.availabilityStatus": 1,
+        },
+      })
+      .lean();
 
     if (!booking) {
       throw new Error("Booking not found");
     }
 
-    return booking;
+    const assignedCoordinator =
+      booking.assignment?.assignedCoordinatorId as any;
+
+    const coordinator = assignedCoordinator
+      ? {
+        coordinatorId:
+          assignedCoordinator._id,
+
+        fullName:
+          assignedCoordinator.fullName,
+
+        profileImage:
+          assignedCoordinator.profileImage,
+
+        gender:
+          assignedCoordinator.gender,
+
+        userReference:
+          assignedCoordinator.userReference,
+
+        caste:
+          assignedCoordinator.caste,
+
+        gotra:
+          assignedCoordinator.gotra,
+
+        rating: {
+          averageRating:
+            assignedCoordinator
+              .coordinatorProfile
+              ?.averageRating ?? 0,
+
+          totalRatings:
+            assignedCoordinator
+              .coordinatorProfile
+              ?.totalRatings ?? 0,
+        },
+
+        experience: {
+          totalCompletedBookings:
+            assignedCoordinator
+              .coordinatorProfile
+              ?.totalCompletedBookings ?? 0,
+        },
+
+        availabilityStatus:
+          assignedCoordinator
+            .coordinatorProfile
+            ?.availabilityStatus,
+      }
+      : null;
+
+    const {
+      assignment,
+      ...bookingData
+    } = booking;
+
+    return {
+      ...bookingData,
+
+      assignment: assignment
+        ? {
+          ...assignment,
+
+          assignedCoordinatorId:
+            assignedCoordinator?._id ?? null,
+        }
+        : null,
+
+      coordinator,
+    };
   }
 
   static async getMyBookings(params: {
@@ -1912,25 +1999,62 @@ export class BookingService {
         break;
     }
 
-    const coordinators = await User.find(
-      query,
-    )
+    const coordinators = await User.find(query)
       .select({
         fullName: 1,
         profileImage: 1,
+        gender: 1,
         caste: 1,
         gotra: 1,
+        userReference: 1,
 
         "coordinatorProfile.averageRating": 1,
         "coordinatorProfile.totalRatings": 1,
         "coordinatorProfile.totalCompletedBookings": 1,
         "coordinatorProfile.acceptanceRate": 1,
-        "coordinatorProfile.maxDailyBookings": 1,
-        "coordinatorProfile.autoAssignmentEnabled": 1,
-        "coordinatorProfile.serviceableLocations": 1,
+        "coordinatorProfile.availabilityStatus": 1,
       })
       .sort(sort)
       .lean();
+
+    const coordinatorList = coordinators.map(
+      (coordinator) => ({
+        coordinatorId: coordinator._id,
+
+        fullName: coordinator.fullName,
+        profileImage: coordinator.profileImage,
+        gender: coordinator.gender,
+
+        userReference: coordinator.userReference,
+
+        caste: coordinator.caste,
+        gotra: coordinator.gotra,
+
+        rating: {
+          averageRating:
+            coordinator.coordinatorProfile
+              ?.averageRating ?? 0,
+
+          totalRatings:
+            coordinator.coordinatorProfile
+              ?.totalRatings ?? 0,
+        },
+
+        experience: {
+          totalCompletedBookings:
+            coordinator.coordinatorProfile
+              ?.totalCompletedBookings ?? 0,
+
+          acceptanceRate:
+            coordinator.coordinatorProfile
+              ?.acceptanceRate ?? 0,
+        },
+
+        availabilityStatus:
+          coordinator.coordinatorProfile
+            ?.availabilityStatus,
+      }),
+    );
 
     return {
       bookingId: booking._id,
@@ -1947,16 +2071,22 @@ export class BookingService {
       appliedFilters: {
         matchCaste:
           filters.matchCaste ?? false,
+
         matchGotra:
           filters.matchGotra ?? false,
+
         minRating:
           filters.minRating,
+
         minCompletedBookings:
           filters.minCompletedBookings,
+
         autoAssignmentEnabled:
           filters.autoAssignmentEnabled,
+
         sortBy:
           filters.sortBy ?? "rating",
+
         sortOrder:
           filters.sortOrder ?? "desc",
       },
@@ -1968,8 +2098,9 @@ export class BookingService {
         booking.assignment
           ?.assignmentExpiresAt,
 
-      total: coordinators.length,
-      coordinators,
+      total: coordinatorList.length,
+
+      coordinators: coordinatorList,
     };
   }
 
