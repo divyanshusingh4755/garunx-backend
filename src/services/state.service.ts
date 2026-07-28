@@ -9,24 +9,26 @@ export class StateService {
   }
 
   static async createState(
-    name: String,
-    country: String,
-    image?: String,
-    description?: String,
+    name: string,
+    country: string,
+    gstCode: string,
+    image?: string,
+    description?: string,
     location?: {
       type: "Point";
       coordinates: [number, number];
     },
   ) {
     const newState = new State({
-      name,
-      country,
+      name: name.trim(),
+      country: country.trim(),
+      gstCode: gstCode.trim(),
       image,
       description,
       location,
     });
 
-    return await newState.save();
+    return newState.save();
   }
 
   static async FindState(
@@ -47,7 +49,7 @@ export class StateService {
     }
 
     if (countryFilter) query.country = this.applyFilter(countryFilter);
-    if (stateFilter) query.state = this.applyFilter(stateFilter);
+    if (stateFilter) query.name = this.applyFilter(stateFilter);
 
     const isTextSearch =
       !!searchTerm?.trim() && searchTerm.trim().length > 4;
@@ -106,31 +108,38 @@ export class StateService {
     }
   }
 
-  static async updateState(stateId: string, updateData: Partial<IState>) {
-    try {
-      if (updateData.location?.coordinates) {
-        (updateData as any).location = {
-          type: "Point",
-          coordinates: updateData.location.coordinates,
-        };
-      }
+  static async updateState(
+    stateId: string,
+    updateData: Partial<IState>,
+  ) {
+    if (updateData.location?.coordinates) {
+      updateData.location = {
+        type: "Point",
+        coordinates:
+          updateData.location.coordinates,
+      };
+    }
 
-      const updatedState = await State.findByIdAndUpdate(
+    const updatedState =
+      await State.findByIdAndUpdate(
         stateId,
-        { $set: updateData },
-        { new: true, runValidators: true },
+        {
+          $set: updateData,
+        },
+        {
+          new: true,
+          runValidators: true,
+        },
       ).lean();
 
-      if (!updatedState) {
-        throw new Error("State not found");
-      }
-      return updatedState;
-    } catch (error: any) {
-      throw new Error(`State Update Failed: ${error.message}`);
+    if (!updatedState) {
+      throw new Error("State not found");
     }
+
+    return updatedState;
   }
 
-  static async softDeleteState(stateId: string, status: string) {
+  static async softDeleteState(stateId: string, status: boolean) {
     try {
       const deletedState = await State.findByIdAndUpdate(
         stateId,

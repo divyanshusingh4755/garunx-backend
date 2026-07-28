@@ -1,12 +1,16 @@
 import { StateService } from "../services/state.service.js";
 export const createState = async (req, res) => {
     try {
-        const { name, country, image, description, location } = req.body;
-        await StateService.createState(name, country, image, description, location);
-        res.status(200).json({ success: true, data: "State created successfully" });
+        const { name, country, gstCode, image, description, location, } = req.body;
+        const state = await StateService.createState(name, country, gstCode, image, description, location);
+        return res.status(201).json({
+            success: true,
+            message: "State created successfully",
+            data: state,
+        });
     }
     catch (error) {
-        res.status(error.message === "State not found" ? 404 : 400).json({
+        return res.status(400).json({
             success: false,
             message: error.message,
         });
@@ -66,10 +70,16 @@ export const deleteState = async (req, res) => {
     try {
         const { id } = req.params;
         const { status } = req.body;
+        if (typeof status !== "boolean") {
+            return res.status(400).json({
+                success: false,
+                message: "status must be a boolean",
+            });
+        }
         if (!id || status === undefined) {
             return res.status(400).json({
                 success: false,
-                message: "User ID and status are required.",
+                message: "State ID and status are required.",
             });
         }
         const state = await StateService.softDeleteState(id, status);

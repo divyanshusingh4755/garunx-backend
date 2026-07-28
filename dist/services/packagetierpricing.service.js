@@ -2,9 +2,13 @@ import { Types } from "mongoose";
 import { Package } from "../models/package.model.js";
 import { PackageTierPricing } from "../models/packagetierpricing.model.js";
 import { PackageTierMap } from "../models/packagetiermap.model.js";
-import { PackageCascadingEngine } from "./package-cascading-engine.service.js";
 import { ServicePricing } from "../models/servicepricing.model.js";
+import { TaxProfile } from "../models/tax-profile.model.js";
+import { PackageCascadingEngine } from "./package-cascading-engine.service.js";
 export class PackageTierPricingService {
+    static roundMoney(value) {
+        return Math.round((value + Number.EPSILON) * 100) / 100;
+    }
     static async bulkUpsertTierPricing(payload) {
         const { packageId, tierId, pricing } = payload;
         if (!Types.ObjectId.isValid(packageId)) {
@@ -17,99 +21,184 @@ export class PackageTierPricingService {
             throw new Error("Pricing array is required");
         }
         const pkg = await Package.findById(packageId);
-        if (!pkg)
+        if (!pkg) {
             throw new Error("Package not found");
-        const tierExists = pkg.tiers.some((t) => t.tierId.toString() === tierId);
+        }
+        const tierExists = pkg.tiers.some((tier) => tier.tierId.toString() === tierId);
         if (!tierExists) {
             throw new Error("Tier does not belong to package");
         }
-        const packageLocationIds = new Set(pkg.locations.map((l) => l.locationId.toString()));
+        const packageLocationIds = new Set(pkg.locations.map((location) => location.locationId.toString()));
         const allServiceIds = new Set();
-        for (const loc of pricing) {
-            if (!Types.ObjectId.isValid(loc.locationId)) {
-                throw new Error(`Invalid locationId: ${loc.locationId}`);
+        const allTaxProfileIds = new Set();
+        const requestLocationIds = new Set();
+        /*
+         * Validate basic request structure and collect IDs.
+         */
+        for (const locationPricing of pricing) {
+            const locationId = locationPricing.locationId?.toString();
+            if (!Types.ObjectId.isValid(locationId)) {
+                throw new Error(`Invalid locationId: ${locationPricing.locationId}`);
             }
-            if (!packageLocationIds.has(loc.locationId)) {
-                throw new Error(`Location ${loc.locationId} not in package`);
+            if (!packageLocationIds.has(locationId)) {
+                throw new Error(`Location ${locationId} does not belong to package`);
             }
-            if (!Array.isArray(loc.services) || loc.services.length === 0) {
-                throw new Error("Each location must have services");
+            if (requestLocationIds.has(locationId)) {
+                throw new Error(`Duplicate location found in pricing: ${locationId}`);
             }
-            for (const s of loc.services) {
-                allServiceIds.add(s.serviceId);
+            requestLocationIds.add(locationId);
+            if (!Array.isArray(locationPricing.services) ||
+                locationPricing.services.length === 0) {
+                throw new Error(`Services array is required for location ${locationId}`);
+            }
+            const locationServiceIds = new Set();
+            for (const servicePricing of locationPricing.services) {
+                const serviceId = servicePricing.serviceId?.toString();
+                const taxProfileId = servicePricing.taxProfileId?.toString();
+                if (!Types.ObjectId.isValid(serviceId)) {
+                    throw new Error(`Invalid serviceId: ${servicePricing.serviceId}`);
+                }
+                if (locationServiceIds.has(serviceId)) {
+                    throw new Error(`Duplicate service ${serviceId} for location ${locationId}`);
+                }
+                locationServiceIds.add(serviceId);
+                allServiceIds.add(serviceId);
+                if (!Types.ObjectId.isValid(taxProfileId)) {
+                    throw new Error(`Invalid taxProfileId for service ${serviceId}`);
+                }
+                allTaxProfileIds.add(taxProfileId);
+                const taxPriceMode = servicePricing.taxPriceMode ?? "EXCLUSIVE";
+                if (!["EXCLUSIVE", "INCLUSIVE"].includes(taxPriceMode)) {
+                    throw new Error(`Invalid taxPriceMode for service ${serviceId}`);
+                }
+                const hasFixedPrice = typeof servicePricing.fixedPrice === "number";
+                const hasDiscountPercent = typeof servicePricing.discountPercent === "number";
+                if (hasFixedPrice && hasDiscountPercent) {
+                    throw new Error(`Service ${serviceId} cannot have both fixedPrice and discountPercent`);
+                }
+                if (hasFixedPrice &&
+                    servicePricing.fixedPrice < 0) {
+                    throw new Error(`fixedPrice cannot be negative for service ${serviceId}`);
+                }
+                if (hasDiscountPercent &&
+                    (servicePricing.discountPercent < 0 ||
+                        servicePricing.discountPercent > 100)) {
+                    throw new Error(`discountPercent must be between 0 and 100 for service ${serviceId}`);
+                }
             }
         }
-        const serviceObjectIds = Array.from(allServiceIds).map((id) => {
-            if (!Types.ObjectId.isValid(id)) {
-                throw new Error(`Invalid serviceId: ${id}`);
-            }
-            return new Types.ObjectId(id);
-        });
-        const validMappings = await PackageTierMap.find({
+        const serviceObjectIds = Array.from(allServiceIds).map((serviceId) => new Types.ObjectId(serviceId));
+        const taxProfileObjectIds = Array.from(allTaxProfileIds).map((taxProfileId) => new Types.ObjectId(taxProfileId));
+        /*
+         * Verify services belong to the package tier.
+         */
+        const packageTierMap = await PackageTierMap.findOne({
             packageId,
             tierId,
-            "services.serviceId": { $in: serviceObjectIds },
-        });
-        const validSet = new Set();
-        for (const m of validMappings) {
-            for (const s of m.services) {
-                validSet.add(s.serviceId.toString());
+        })
+            .select("services")
+            .lean();
+        if (!packageTierMap) {
+            throw new Error("Package tier service mapping is not configured");
+        }
+        const validServiceIds = new Set((packageTierMap.services ?? []).map((service) => service.serviceId.toString()));
+        for (const serviceId of allServiceIds) {
+            if (!validServiceIds.has(serviceId)) {
+                throw new Error(`Service ${serviceId} does not belong to this package tier`);
             }
         }
-        if (validSet.size === 0) {
-            throw new Error("Invalid services detected for this package tier");
+        /*
+         * Verify all selected tax profiles.
+         */
+        const now = new Date();
+        const taxProfiles = await TaxProfile.find({
+            _id: {
+                $in: taxProfileObjectIds,
+            },
+            isActive: true
+        })
+            .select("_id")
+            .lean();
+        if (taxProfiles.length !== taxProfileObjectIds.length) {
+            throw new Error("One or more tax profiles are invalid, inactive, expired, or not effective yet");
         }
-        const basePrices = await ServicePricing.find({
-            serviceId: { $in: serviceObjectIds },
+        /*
+         * Fetch service pricing for every requested
+         * location/service combination.
+         */
+        const basePricingRows = await ServicePricing.find({
+            serviceId: {
+                $in: serviceObjectIds,
+            },
             tierId,
-        }).lean();
-        const basePriceMap = new Map(basePrices.map((p) => [
-            `${p.locationId.toString()}_${p.serviceId.toString()}`,
-            p.price,
-        ]));
-        const bulkOps = [];
+            locationId: {
+                $in: Array.from(requestLocationIds).map((locationId) => new Types.ObjectId(locationId)),
+            },
+        })
+            .select("serviceId componentId locationId price")
+            .lean();
+        /*
+         * ServicePricing contains one row per component.
+         * Therefore, the service base price must be the sum
+         * of its component pricing rows for that location.
+         */
+        const basePriceMap = new Map();
+        for (const pricingRow of basePricingRows) {
+            const key = `${pricingRow.locationId.toString()}_` +
+                `${pricingRow.serviceId.toString()}`;
+            const currentTotal = basePriceMap.get(key) ?? 0;
+            basePriceMap.set(key, this.roundMoney(currentTotal + pricingRow.price));
+        }
+        const bulkOperations = [];
         const requestKeys = new Set();
-        for (const loc of pricing) {
-            const locationId = loc.locationId;
-            const seen = new Set();
-            for (const svc of loc.services) {
-                const { serviceId, fixedPrice, discountPercent } = svc;
-                if (!validSet.has(serviceId)) {
-                    throw new Error(`Invalid service ${serviceId}`);
-                }
-                if (seen.has(serviceId)) {
-                    throw new Error(`Duplicate service ${serviceId}`);
-                }
-                seen.add(serviceId);
-                const basePrice = basePriceMap.get(`${locationId}_${serviceId}`);
+        for (const locationPricing of pricing) {
+            const locationId = locationPricing.locationId.toString();
+            for (const servicePricing of locationPricing.services) {
+                const { serviceId, fixedPrice, discountPercent, taxProfileId, } = servicePricing;
+                const taxPriceMode = servicePricing.taxPriceMode ?? "EXCLUSIVE";
+                const requestKey = `${locationId}_${serviceId}`;
+                const basePrice = basePriceMap.get(requestKey);
                 if (basePrice === undefined) {
-                    throw new Error(`Base price missing for service ${serviceId}`);
+                    throw new Error(`Base pricing is missing for service ${serviceId} at location ${locationId}`);
                 }
                 let finalPrice = basePrice;
                 if (typeof fixedPrice === "number") {
                     finalPrice = fixedPrice;
                 }
                 else if (typeof discountPercent === "number") {
-                    finalPrice = basePrice - (basePrice * discountPercent) / 100;
+                    finalPrice =
+                        basePrice -
+                            (basePrice * discountPercent) / 100;
                 }
+                finalPrice =
+                    this.roundMoney(finalPrice);
                 if (finalPrice < 0) {
-                    throw new Error(`Invalid final price for ${serviceId}`);
+                    throw new Error(`Invalid final price for service ${serviceId}`);
                 }
-                requestKeys.add(`${locationId}_${serviceId}`);
-                bulkOps.push({
+                requestKeys.add(requestKey);
+                bulkOperations.push({
                     updateOne: {
                         filter: {
-                            packageId,
-                            tierId,
-                            locationId,
-                            serviceId,
+                            packageId: new Types.ObjectId(packageId),
+                            tierId: new Types.ObjectId(tierId),
+                            locationId: new Types.ObjectId(locationId),
+                            serviceId: new Types.ObjectId(serviceId),
                         },
                         update: {
                             $set: {
                                 basePrice,
-                                fixedPrice: fixedPrice ?? null,
-                                discountPercent: discountPercent ?? null,
+                                /*
+                                 * Using null explicitly clears an old override.
+                                 */
+                                fixedPrice: typeof fixedPrice === "number"
+                                    ? fixedPrice
+                                    : null,
+                                discountPercent: typeof discountPercent === "number"
+                                    ? discountPercent
+                                    : null,
                                 finalPrice,
+                                taxProfileId: new Types.ObjectId(taxProfileId),
+                                taxPriceMode,
                             },
                         },
                         upsert: true,
@@ -117,20 +206,27 @@ export class PackageTierPricingService {
                 });
             }
         }
-        const norConditions = Array.from(requestKeys).map((key) => {
+        /*
+         * Remove pricing rows that were not present
+         * in the submitted replacement payload.
+         */
+        const retainedRows = Array.from(requestKeys).map((key) => {
             const [locationId, serviceId] = key.split("_");
             return {
                 locationId: new Types.ObjectId(locationId),
                 serviceId: new Types.ObjectId(serviceId),
             };
         });
-        await PackageTierPricing.deleteMany({
-            packageId,
-            tierId,
-            $nor: norConditions,
-        });
-        if (bulkOps.length > 0) {
-            await PackageTierPricing.bulkWrite(bulkOps);
+        const deletionQuery = {
+            packageId: new Types.ObjectId(packageId),
+            tierId: new Types.ObjectId(tierId),
+        };
+        if (retainedRows.length > 0) {
+            deletionQuery.$nor = retainedRows;
+        }
+        await PackageTierPricing.deleteMany(deletionQuery);
+        if (bulkOperations.length > 0) {
+            await PackageTierPricing.bulkWrite(bulkOperations);
         }
         await PackageCascadingEngine.run(packageId);
         return {
@@ -149,23 +245,25 @@ export class PackageTierPricingService {
             throw new Error("Invalid locationId");
         }
         const pkg = await Package.findById(packageId).lean();
-        if (!pkg)
+        if (!pkg) {
             throw new Error("Package not found");
+        }
         if (!pkg.isActive) {
             throw new Error("Package is inactive");
         }
-        const tier = pkg.tiers.find((t) => t.tierId.toString() === tierId);
+        const tier = pkg.tiers.find((item) => item.tierId.toString() === tierId);
         if (!tier) {
             throw new Error("Tier does not belong to package");
         }
-        const location = pkg.locations.find((l) => l.locationId.toString() === locationId);
+        const location = pkg.locations.find((item) => item.locationId.toString() ===
+            locationId);
         if (!location) {
             throw new Error("Location does not belong to package");
         }
         if (!location.isActive) {
             throw new Error("Location is inactive for this package");
         }
-        const mappings = await PackageTierMap.find({
+        const packageTierMap = await PackageTierMap.findOne({
             packageId,
             tierId,
         })
@@ -174,54 +272,109 @@ export class PackageTierPricingService {
             select: "name shortDescription thumbnailImage isActive",
         })
             .lean();
-        const serviceList = mappings.flatMap((m) => (m.services || []).map((s) => ({
-            serviceId: s.serviceId._id.toString(),
-            name: s.serviceId.name,
-            shortDescription: s.serviceId.shortDescription,
-            thumbnailImage: s.serviceId.thumbnailImage,
-            isRequired: s.isRequired,
-            isRelated: s.isRelated,
-        })));
-        const serviceIds = serviceList.map((s) => new Types.ObjectId(s.serviceId));
-        const basePricingDocs = await ServicePricing.find({
-            serviceId: { $in: serviceIds },
+        if (!packageTierMap) {
+            throw new Error("Package tier service mapping is not configured");
+        }
+        const serviceList = (packageTierMap.services ?? [])
+            .filter((mappedService) => {
+            return (mappedService.serviceId &&
+                mappedService.serviceId.isActive);
+        })
+            .map((mappedService) => ({
+            serviceId: mappedService.serviceId._id.toString(),
+            name: mappedService.serviceId.name,
+            shortDescription: mappedService.serviceId
+                .shortDescription,
+            thumbnailImage: mappedService.serviceId
+                .thumbnailImage,
+            isRequired: mappedService.isRequired,
+            isRelated: mappedService.isRelated,
+        }));
+        const serviceIds = serviceList.map((service) => new Types.ObjectId(service.serviceId));
+        /*
+         * ServicePricing contains one row per component.
+         * Aggregate all component prices by service.
+         */
+        const basePricingRows = await ServicePricing.find({
+            serviceId: {
+                $in: serviceIds,
+            },
             tierId,
             locationId,
-        }).lean();
-        const baseMap = new Map(basePricingDocs.map((p) => [p.serviceId.toString(), p.price]));
-        const overrideDocs = await PackageTierPricing.find({
+        })
+            .select("serviceId componentId price")
+            .lean();
+        const basePriceMap = new Map();
+        for (const pricingRow of basePricingRows) {
+            const serviceId = pricingRow.serviceId.toString();
+            const currentPrice = basePriceMap.get(serviceId) ?? 0;
+            basePriceMap.set(serviceId, this.roundMoney(currentPrice + pricingRow.price));
+        }
+        const packagePricingRows = await PackageTierPricing.find({
             packageId,
             tierId,
             locationId,
-        }).lean();
-        const overrideMap = new Map(overrideDocs.map((p) => [
-            p.serviceId.toString(),
+        })
+            .populate({
+            path: "taxProfileId",
+            select: `
+            name
+            code
+            treatment
+            totalRate
+            isActive
+          `,
+        })
+            .lean();
+        const packagePricingMap = new Map(packagePricingRows.map((pricingRow) => [
+            pricingRow.serviceId.toString(),
             {
-                basePrice: p.basePrice,
-                fixedPrice: p.fixedPrice,
-                discountPercent: p.discountPercent,
-                finalPrice: p.finalPrice,
+                basePrice: pricingRow.basePrice,
+                fixedPrice: pricingRow.fixedPrice,
+                discountPercent: pricingRow.discountPercent,
+                finalPrice: pricingRow.finalPrice,
+                taxProfile: pricingRow.taxProfileId,
+                taxPriceMode: pricingRow.taxPriceMode,
             },
         ]));
-        const resolvedServices = serviceList.map((s) => {
-            const serviceId = s.serviceId;
-            const basePrice = baseMap.get(s.serviceId) ?? null;
-            const override = overrideMap.get(serviceId);
-            const finalPrice = override?.finalPrice ?? basePrice;
+        const resolvedServices = serviceList.map((service) => {
+            const basePrice = basePriceMap.get(service.serviceId) ?? null;
+            const packagePricing = packagePricingMap.get(service.serviceId);
+            /*
+             * Package pricing is only considered configured
+             * when its own pricing row and tax profile exist.
+             */
+            const isPriceConfigured = packagePricing !== undefined &&
+                packagePricing.finalPrice !== null &&
+                packagePricing.finalPrice !== undefined;
+            const isTaxConfigured = Boolean(packagePricing?.taxProfile);
             return {
-                ...s,
+                ...service,
                 basePrice,
-                fixedPrice: override?.fixedPrice ?? null,
-                discountPercent: override?.discountPercent ?? null,
-                price: finalPrice,
-                isPriceConfigured: finalPrice !== null,
+                fixedPrice: packagePricing?.fixedPrice ??
+                    null,
+                discountPercent: packagePricing?.discountPercent ??
+                    null,
+                price: packagePricing?.finalPrice ??
+                    basePrice,
+                taxConfiguration: packagePricing
+                    ? {
+                        taxProfile: packagePricing.taxProfile,
+                        taxPriceMode: packagePricing.taxPriceMode,
+                    }
+                    : null,
+                isPriceConfigured,
+                isTaxConfigured,
+                isFullyConfigured: isPriceConfigured &&
+                    isTaxConfigured,
             };
         });
-        const requiredServices = resolvedServices.filter((s) => s.isRequired);
-        const optionalServices = resolvedServices.filter((s) => !s.isRequired);
-        const startingPrice = requiredServices.reduce((sum, s) => sum + (s.price ?? 0), 0);
-        const isAvailable = requiredServices.every((s) => s.isPriceConfigured) &&
-            optionalServices.every((s) => s.isPriceConfigured);
+        const requiredServices = resolvedServices.filter((service) => service.isRequired);
+        const optionalServices = resolvedServices.filter((service) => !service.isRequired);
+        const startingPrice = requiredServices.reduce((sum, service) => sum +
+            (service.price ?? 0), 0);
+        const isAvailable = requiredServices.length > 0 &&
+            requiredServices.every((service) => service.isFullyConfigured);
         return {
             package: {
                 id: pkg._id,
@@ -241,7 +394,7 @@ export class PackageTierPricingService {
                 totalServices: resolvedServices.length,
                 requiredServiceCount: requiredServices.length,
                 optionalServiceCount: optionalServices.length,
-                startingPrice,
+                startingPrice: this.roundMoney(startingPrice),
                 isAvailable,
             },
         };

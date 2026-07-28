@@ -1,12 +1,12 @@
 export interface IBrand extends Document {
-    version: Number;
-    isActive: Boolean;
+    version: number;
+    isActive: boolean;
     theme: {
-        primary: String;
-        secondary: String;
-        accent: String;
-        background: String;
-        text: String;
+        primary: string;
+        secondary: string;
+        accent: string;
+        background: string;
+        text: string;
     };
 }
 export declare const Branding: import("mongoose").Model<IBrand, {}, {}, {}, import("mongoose").Document<unknown, {}, IBrand, {}, import("mongoose").DefaultSchemaOptions> & IBrand & {

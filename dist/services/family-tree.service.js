@@ -1,7 +1,41 @@
 import mongoose, { Types, } from "mongoose";
 import { FamilyMember, } from "../models/family-member.model.js";
+import { FamilyTreeActivity, } from "../models/family-tree-activity.model.js";
 import { FamilyEdgeType, FamilyRelation, Gender, MemberLifeStatus, } from "../types/enums.js";
+const FAMILY_MEMBER_POPULATE_SELECT = "fullName relation gender dob lifeStatus dateOfDeath profileImage";
+const AUDITABLE_FIELDS = [
+    "fullName",
+    "relation",
+    "gender",
+    "dob",
+    "lifeStatus",
+    "dateOfDeath",
+    "fatherId",
+    "motherId",
+    "spouseIds",
+    "nativeVillage",
+    "state",
+    "district",
+    "caste",
+    "gotra",
+    "designatedPandit",
+    "visitors",
+    "profileImage",
+    "notes",
+];
 class FamilyTreeService {
+    static validateContext(context) {
+        if (!Types.ObjectId.isValid(context.ownerId)) {
+            throw new Error("Invalid family tree owner ID");
+        }
+        if (!Types.ObjectId.isValid(context.actorId)) {
+            throw new Error("Invalid authenticated user ID");
+        }
+        if (context.bookingId &&
+            !Types.ObjectId.isValid(context.bookingId)) {
+            throw new Error("Invalid booking ID");
+        }
+    }
     static getUniqueIds(ids) {
         return [
             ...new Set(ids
@@ -12,7 +46,79 @@ class FamilyTreeService {
     static escapeRegex(value) {
         return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     }
-    static async verifyFamilyMemberIds(ownerId, memberIds) {
+    static normalizeAuditValue(value) {
+        if (value instanceof Types.ObjectId) {
+            return value.toString();
+        }
+        if (value instanceof Date) {
+            return value.toISOString();
+        }
+        if (Array.isArray(value)) {
+            return value.map((item) => FamilyTreeService.normalizeAuditValue(item));
+        }
+        if (value &&
+            typeof value === "object") {
+            const normalized = {};
+            for (const [key, nestedValue,] of Object.entries(value)) {
+                normalized[key] =
+                    FamilyTreeService.normalizeAuditValue(nestedValue);
+            }
+            return normalized;
+        }
+        return value ?? null;
+    }
+    static valuesAreEqual(firstValue, secondValue) {
+        return (JSON.stringify(FamilyTreeService.normalizeAuditValue(firstValue)) ===
+            JSON.stringify(FamilyTreeService.normalizeAuditValue(secondValue)));
+    }
+    static buildChanges(existingMember, updateData) {
+        const existingObject = existingMember.toObject();
+        const changes = [];
+        for (const field of AUDITABLE_FIELDS) {
+            if (!(field in updateData)) {
+                continue;
+            }
+            const oldValue = existingObject[field];
+            const newValue = updateData[field];
+            if (FamilyTreeService.valuesAreEqual(oldValue, newValue)) {
+                continue;
+            }
+            changes.push({
+                field,
+                oldValue: FamilyTreeService.normalizeAuditValue(oldValue),
+                newValue: FamilyTreeService.normalizeAuditValue(newValue),
+            });
+        }
+        return changes;
+    }
+    static async createActivity(context, familyMemberId, action, changes, session, options) {
+        await FamilyTreeActivity.create([
+            {
+                ownerId: new Types.ObjectId(context.ownerId),
+                familyMemberId,
+                action,
+                performedBy: new Types.ObjectId(context.actorId),
+                performedByRole: context.actorRole,
+                source: context.source,
+                ...(context.bookingId && {
+                    bookingId: new Types.ObjectId(context.bookingId),
+                }),
+                ...(context.bookingReference && {
+                    bookingReference: context.bookingReference,
+                }),
+                changes,
+                ...(options?.reason && {
+                    reason: options.reason,
+                }),
+                ...(options?.metadata && {
+                    metadata: options.metadata,
+                }),
+            },
+        ], {
+            session,
+        });
+    }
+    static async verifyFamilyMemberIds(ownerId, memberIds, session) {
         const uniqueIds = FamilyTreeService.getUniqueIds(memberIds);
         if (uniqueIds.length === 0) {
             return;
@@ -21,66 +127,73 @@ class FamilyTreeService {
         if (hasInvalidId) {
             throw new Error("One or more family member IDs are invalid");
         }
-        const membersCount = await FamilyMember.countDocuments({
+        const query = FamilyMember.countDocuments({
             _id: {
-                $in: uniqueIds,
+                $in: uniqueIds.map((id) => new Types.ObjectId(id)),
             },
-            ownerId,
+            ownerId: new Types.ObjectId(ownerId),
+            isDeleted: false,
         });
-        if (membersCount !== uniqueIds.length) {
-            throw new Error("One or more selected family members do not belong to your family tree");
+        if (session) {
+            query.session(session);
+        }
+        const membersCount = await query;
+        if (membersCount !==
+            uniqueIds.length) {
+            throw new Error("One or more selected family members do not belong to this family tree");
         }
     }
     static validateParentRelationships(memberId, fatherId, motherId) {
-        if (fatherId && motherId && fatherId === motherId) {
+        if (fatherId &&
+            motherId &&
+            fatherId === motherId) {
             throw new Error("Father and mother cannot be the same member");
         }
-        if (memberId && fatherId === memberId) {
+        if (memberId &&
+            fatherId === memberId) {
             throw new Error("A family member cannot be their own father");
         }
-        if (memberId && motherId === memberId) {
+        if (memberId &&
+            motherId === memberId) {
             throw new Error("A family member cannot be their own mother");
         }
     }
     static validateLifeStatus(lifeStatus, dateOfDeath) {
-        if (lifeStatus === MemberLifeStatus.ALIVE &&
+        if (lifeStatus ===
+            MemberLifeStatus.ALIVE &&
             dateOfDeath) {
             throw new Error("Date of death cannot be provided for an alive member");
         }
     }
-    static validateObjectId(id, fieldName) {
-        if (!Types.ObjectId.isValid(id)) {
-            throw new Error(`Invalid ${fieldName}`);
-        }
+    static async populateMember(ownerId, familyMemberId) {
+        return FamilyMember.findOne({
+            _id: familyMemberId,
+            ownerId: new Types.ObjectId(ownerId),
+            isDeleted: false,
+        })
+            .populate("fatherId", FAMILY_MEMBER_POPULATE_SELECT)
+            .populate("motherId", FAMILY_MEMBER_POPULATE_SELECT)
+            .populate("spouseIds", FAMILY_MEMBER_POPULATE_SELECT)
+            .populate("createdBy", "fullName role userReference")
+            .populate("updatedBy", "fullName role userReference")
+            .lean();
     }
-    static async addFamilyMember(ownerId, actorId, payload) {
-        FamilyTreeService.validateObjectId(ownerId, "family-tree owner ID");
-        FamilyTreeService.validateObjectId(actorId, "authenticated user ID");
+    static async addFamilyMember(context, payload) {
+        FamilyTreeService.validateContext(context);
         const session = await mongoose.startSession();
         session.startTransaction();
         try {
             const { fullName, relation, gender, dob, lifeStatus = MemberLifeStatus.ALIVE, dateOfDeath, fatherId, motherId, spouseIds = [], nativeVillage, state, district, caste, gotra, designatedPandit, visitors = [], profileImage, notes, } = payload;
             FamilyTreeService.validateParentRelationships(null, fatherId, motherId);
             FamilyTreeService.validateLifeStatus(lifeStatus, dateOfDeath);
-            if (relation === FamilyRelation.SELF) {
-                const existingSelf = await FamilyMember.findOne({
-                    ownerId,
-                    relation: FamilyRelation.SELF,
-                }).session(session);
-                if (existingSelf) {
-                    throw new Error("SELF member already exists in this family tree");
-                }
-            }
             const uniqueSpouseIds = FamilyTreeService.getUniqueIds(spouseIds);
-            await FamilyTreeService.verifyFamilyMemberIds(ownerId, [
+            await FamilyTreeService.verifyFamilyMemberIds(context.ownerId, [
                 fatherId,
                 motherId,
                 ...uniqueSpouseIds,
-            ]);
+            ], session);
             const memberData = {
-                ownerId: new Types.ObjectId(ownerId),
-                createdBy: new Types.ObjectId(actorId),
-                updatedBy: new Types.ObjectId(actorId),
+                ownerId: new Types.ObjectId(context.ownerId),
                 fullName,
                 relation,
                 lifeStatus,
@@ -92,30 +205,59 @@ class FamilyTreeService {
                     : null,
                 spouseIds: uniqueSpouseIds.map((id) => new Types.ObjectId(id)),
                 visitors,
-                ...(gender !== undefined && { gender }),
-                ...(dob !== undefined && { dob }),
-                ...(lifeStatus === MemberLifeStatus.DECEASED &&
-                    dateOfDeath !== undefined && {
+                createdBy: new Types.ObjectId(context.actorId),
+                updatedBy: new Types.ObjectId(context.actorId),
+                source: context.source,
+                ...(context.bookingId && {
+                    sourceBookingId: new Types.ObjectId(context.bookingId),
+                }),
+                ...(context.bookingReference && {
+                    sourceBookingReference: context.bookingReference,
+                }),
+                isDeleted: false,
+                ...(gender !== undefined && {
+                    gender,
+                }),
+                ...(dob !== undefined && {
+                    dob,
+                }),
+                ...(lifeStatus ===
+                    MemberLifeStatus.DECEASED &&
+                    dateOfDeath !==
+                        undefined && {
                     dateOfDeath,
                 }),
-                ...(nativeVillage !== undefined && {
+                ...(nativeVillage !==
+                    undefined && {
                     nativeVillage,
                 }),
-                ...(state !== undefined && { state }),
+                ...(state !== undefined && {
+                    state,
+                }),
                 ...(district !== undefined && {
                     district,
                 }),
-                ...(caste !== undefined && { caste }),
-                ...(gotra !== undefined && { gotra }),
-                ...(designatedPandit !== undefined && {
+                ...(caste !== undefined && {
+                    caste,
+                }),
+                ...(gotra !== undefined && {
+                    gotra,
+                }),
+                ...(designatedPandit !==
+                    undefined && {
                     designatedPandit,
                 }),
-                ...(profileImage !== undefined && {
+                ...(profileImage !==
+                    undefined && {
                     profileImage,
                 }),
-                ...(notes !== undefined && { notes }),
+                ...(notes !== undefined && {
+                    notes,
+                }),
             };
-            const createdMembers = await FamilyMember.create([memberData], { session });
+            const createdMembers = await FamilyMember.create([memberData], {
+                session,
+            });
             const familyMember = createdMembers[0];
             if (!familyMember) {
                 throw new Error("Failed to create family member");
@@ -123,39 +265,54 @@ class FamilyTreeService {
             if (uniqueSpouseIds.length > 0) {
                 await FamilyMember.updateMany({
                     _id: {
-                        $in: uniqueSpouseIds,
+                        $in: uniqueSpouseIds.map((id) => new Types.ObjectId(id)),
                     },
-                    ownerId,
+                    ownerId: new Types.ObjectId(context.ownerId),
+                    isDeleted: false,
                 }, {
                     $addToSet: {
                         spouseIds: familyMember._id,
+                    },
+                    $set: {
+                        updatedBy: new Types.ObjectId(context.actorId),
                     },
                 }, {
                     session,
                 });
             }
+            await FamilyTreeService.createActivity(context, familyMember._id, "MEMBER_ADDED", [
+                {
+                    field: "member",
+                    newValue: {
+                        fullName,
+                        relation,
+                        lifeStatus,
+                        fatherId: fatherId ??
+                            null,
+                        motherId: motherId ??
+                            null,
+                        spouseIds: uniqueSpouseIds,
+                    },
+                },
+            ], session);
             await session.commitTransaction();
-            const createdMember = await FamilyMember.findOne({
-                _id: familyMember._id,
-                ownerId,
-            })
-                .populate("fatherId", "fullName relation gender lifeStatus profileImage")
-                .populate("motherId", "fullName relation gender lifeStatus profileImage")
-                .populate("spouseIds", "fullName relation gender lifeStatus profileImage")
-                .lean();
-            return createdMember;
+            return FamilyTreeService.populateMember(context.ownerId, familyMember._id);
         }
         catch (error) {
             await session.abortTransaction();
             throw error;
         }
         finally {
-            session.endSession();
+            await session.endSession();
         }
     }
     static async getFamilyTree(ownerId) {
+        if (!Types.ObjectId.isValid(ownerId)) {
+            throw new Error("Invalid family tree owner ID");
+        }
         const members = await FamilyMember.find({
-            ownerId,
+            ownerId: new Types.ObjectId(ownerId),
+            isDeleted: false,
         })
             .select([
             "fullName",
@@ -176,42 +333,29 @@ class FamilyTreeService {
             "visitors",
             "profileImage",
             "notes",
+            "createdBy",
+            "updatedBy",
+            "source",
+            "sourceBookingId",
+            "sourceBookingReference",
             "createdAt",
             "updatedAt",
         ].join(" "))
+            .populate("createdBy", "fullName role userReference")
+            .populate("updatedBy", "fullName role userReference")
             .sort({
             createdAt: 1,
         })
             .lean();
-        /*
-         * Contains all valid family-member IDs belonging
-         * to the current owner.
-         */
         const memberIdSet = new Set(members.map((member) => member._id.toString()));
-        /*
-         * Lets us quickly retrieve a complete member
-         * using their ID.
-         */
         const memberMap = new Map(members.map((member) => [
             member._id.toString(),
             member,
         ]));
         const edges = [];
-        /*
-         * Prevents the same marriage edge from appearing twice.
-         *
-         * For example:
-         * Rahul contains Priya in spouseIds.
-         * Priya contains Rahul in spouseIds.
-         *
-         * We should still return only one marriage edge.
-         */
         const marriageEdgeSet = new Set();
         for (const member of members) {
             const memberId = member._id.toString();
-            /*
-             * Father-to-child relationship
-             */
             if (member.fatherId &&
                 memberIdSet.has(member.fatherId.toString())) {
                 const fatherId = member.fatherId.toString();
@@ -228,9 +372,6 @@ class FamilyTreeService {
                     targetRelation: member.relation,
                 });
             }
-            /*
-             * Mother-to-child relationship
-             */
             if (member.motherId &&
                 memberIdSet.has(member.motherId.toString())) {
                 const motherId = member.motherId.toString();
@@ -247,25 +388,20 @@ class FamilyTreeService {
                     targetRelation: member.relation,
                 });
             }
-            /*
-             * Marriage relationship
-             */
             for (const spouseObjectId of member.spouseIds || []) {
                 const spouseId = spouseObjectId.toString();
-                /*
-                 * Ignore spouse IDs that are not present
-                 * in the current owner's family tree.
-                 */
                 if (!memberIdSet.has(spouseId)) {
                     continue;
                 }
-                /*
-                 * Sort both IDs so the same marriage gets
-                 * the same key from either member.
-                 */
-                const [source, target] = memberId < spouseId
-                    ? [memberId, spouseId]
-                    : [spouseId, memberId];
+                const [source, target,] = memberId < spouseId
+                    ? [
+                        memberId,
+                        spouseId,
+                    ]
+                    : [
+                        spouseId,
+                        memberId,
+                    ];
                 const marriageKey = `${source}-${target}`;
                 if (marriageEdgeSet.has(marriageKey)) {
                     continue;
@@ -296,11 +432,12 @@ class FamilyTreeService {
                 dob: member.dob,
                 lifeStatus: member.lifeStatus,
                 dateOfDeath: member.dateOfDeath,
-                fatherId: member.fatherId?.toString() ||
+                fatherId: member.fatherId?.toString() ??
                     null,
-                motherId: member.motherId?.toString() ||
+                motherId: member.motherId?.toString() ??
                     null,
-                spouseIds: (member.spouseIds || []).map((spouseId) => spouseId.toString()),
+                spouseIds: (member.spouseIds ||
+                    []).map((spouseId) => spouseId.toString()),
                 nativeVillage: member.nativeVillage,
                 state: member.state,
                 district: member.district,
@@ -310,13 +447,17 @@ class FamilyTreeService {
                 visitors: member.visitors,
                 profileImage: member.profileImage,
                 notes: member.notes,
+                audit: {
+                    createdAt: member.createdAt,
+                    createdBy: member.createdBy,
+                    updatedAt: member.updatedAt,
+                    updatedBy: member.updatedBy,
+                    source: member.source,
+                    bookingId: member.sourceBookingId,
+                    bookingReference: member.sourceBookingReference,
+                },
             },
         }));
-        /*
-         * A root member is someone whose father and mother
-         * are not connected to another valid member in
-         * this family tree.
-         */
         const rootMembers = members
             .filter((member) => {
             const hasValidFather = Boolean(member.fatherId &&
@@ -339,12 +480,17 @@ class FamilyTreeService {
         };
     }
     static async getFamilyMembers(ownerId, query) {
+        if (!Types.ObjectId.isValid(ownerId)) {
+            throw new Error("Invalid family tree owner ID");
+        }
         const { search, relation, gender, lifeStatus, page = 1, limit = 20, } = query;
         const pageNumber = Math.max(1, page);
         const limitNumber = Math.min(100, Math.max(1, limit));
-        const skip = (pageNumber - 1) * limitNumber;
+        const skip = (pageNumber - 1) *
+            limitNumber;
         const filter = {
-            ownerId,
+            ownerId: new Types.ObjectId(ownerId),
+            isDeleted: false,
         };
         if (search?.trim()) {
             filter.fullName = {
@@ -353,15 +499,18 @@ class FamilyTreeService {
             };
         }
         if (relation) {
-            filter.relation = relation;
+            filter.relation =
+                relation;
         }
         if (gender) {
-            filter.gender = gender;
+            filter.gender =
+                gender;
         }
         if (lifeStatus) {
-            filter.lifeStatus = lifeStatus;
+            filter.lifeStatus =
+                lifeStatus;
         }
-        const [familyMembers, totalMembers] = await Promise.all([
+        const [familyMembers, totalMembers,] = await Promise.all([
             FamilyMember.find(filter)
                 .select([
                 "fullName",
@@ -377,11 +526,19 @@ class FamilyTreeService {
                 "state",
                 "district",
                 "profileImage",
+                "createdBy",
+                "updatedBy",
+                "source",
+                "sourceBookingId",
+                "sourceBookingReference",
                 "createdAt",
+                "updatedAt",
             ].join(" "))
                 .populate("fatherId", "fullName relation gender lifeStatus")
                 .populate("motherId", "fullName relation gender lifeStatus")
                 .populate("spouseIds", "fullName relation gender lifeStatus")
+                .populate("createdBy", "fullName role userReference")
+                .populate("updatedBy", "fullName role userReference")
                 .sort({
                 createdAt: -1,
             })
@@ -390,7 +547,8 @@ class FamilyTreeService {
                 .lean(),
             FamilyMember.countDocuments(filter),
         ]);
-        const totalPages = Math.ceil(totalMembers / limitNumber);
+        const totalPages = Math.ceil(totalMembers /
+            limitNumber);
         return {
             familyMembers,
             pagination: {
@@ -398,25 +556,36 @@ class FamilyTreeService {
                 totalPages,
                 totalMembers,
                 limit: limitNumber,
-                hasNextPage: pageNumber < totalPages,
+                hasNextPage: pageNumber <
+                    totalPages,
                 hasPreviousPage: pageNumber > 1,
             },
         };
     }
     static async getFamilyMemberById(ownerId, familyMemberId) {
+        if (!Types.ObjectId.isValid(ownerId)) {
+            throw new Error("Invalid family tree owner ID");
+        }
+        if (!Types.ObjectId.isValid(familyMemberId)) {
+            throw new Error("Invalid family member ID");
+        }
         const familyMember = await FamilyMember.findOne({
-            _id: familyMemberId,
-            ownerId,
+            _id: new Types.ObjectId(familyMemberId),
+            ownerId: new Types.ObjectId(ownerId),
+            isDeleted: false,
         })
-            .populate("fatherId", "fullName relation gender dob lifeStatus dateOfDeath profileImage")
-            .populate("motherId", "fullName relation gender dob lifeStatus dateOfDeath profileImage")
-            .populate("spouseIds", "fullName relation gender dob lifeStatus dateOfDeath profileImage")
+            .populate("fatherId", FAMILY_MEMBER_POPULATE_SELECT)
+            .populate("motherId", FAMILY_MEMBER_POPULATE_SELECT)
+            .populate("spouseIds", FAMILY_MEMBER_POPULATE_SELECT)
+            .populate("createdBy", "fullName role userReference")
+            .populate("updatedBy", "fullName role userReference")
             .lean();
         if (!familyMember) {
             throw new Error("Family member not found");
         }
         const children = await FamilyMember.find({
-            ownerId,
+            ownerId: new Types.ObjectId(ownerId),
+            isDeleted: false,
             $or: [
                 {
                     fatherId: familyMember._id,
@@ -435,51 +604,69 @@ class FamilyTreeService {
         return {
             ...familyMember,
             children,
+            audit: {
+                createdAt: familyMember.createdAt,
+                createdBy: familyMember.createdBy,
+                updatedAt: familyMember.updatedAt,
+                updatedBy: familyMember.updatedBy,
+                source: familyMember.source,
+                bookingId: familyMember.sourceBookingId,
+                bookingReference: familyMember.sourceBookingReference,
+            },
         };
     }
-    static async updateFamilyMember(ownerId, actorId, familyMemberId, payload) {
-        FamilyTreeService.validateObjectId(ownerId, "family-tree owner ID");
-        FamilyTreeService.validateObjectId(actorId, "authenticated user ID");
+    static async updateFamilyMember(context, familyMemberId, payload) {
+        FamilyTreeService.validateContext(context);
+        if (!Types.ObjectId.isValid(familyMemberId)) {
+            throw new Error("Invalid family member ID");
+        }
         const session = await mongoose.startSession();
         session.startTransaction();
         try {
             const existingMember = await FamilyMember.findOne({
-                _id: familyMemberId,
-                ownerId,
+                _id: new Types.ObjectId(familyMemberId),
+                ownerId: new Types.ObjectId(context.ownerId),
+                isDeleted: false,
             }).session(session);
             if (!existingMember) {
                 throw new Error("Family member not found");
             }
-            const finalFatherId = payload.fatherId !== undefined
+            const finalFatherId = payload.fatherId !==
+                undefined
                 ? payload.fatherId
-                : existingMember.fatherId?.toString() ||
+                : existingMember.fatherId?.toString() ??
                     null;
-            const finalMotherId = payload.motherId !== undefined
+            const finalMotherId = payload.motherId !==
+                undefined
                 ? payload.motherId
-                : existingMember.motherId?.toString() ||
+                : existingMember.motherId?.toString() ??
                     null;
             FamilyTreeService.validateParentRelationships(familyMemberId, finalFatherId, finalMotherId);
             let uniqueSpouseIds;
-            if (payload.spouseIds !== undefined) {
+            if (payload.spouseIds !==
+                undefined) {
                 uniqueSpouseIds =
                     FamilyTreeService.getUniqueIds(payload.spouseIds);
                 if (uniqueSpouseIds.includes(familyMemberId)) {
                     throw new Error("A family member cannot be their own spouse");
                 }
             }
-            await FamilyTreeService.verifyFamilyMemberIds(ownerId, [
+            await FamilyTreeService.verifyFamilyMemberIds(context.ownerId, [
                 finalFatherId,
                 finalMotherId,
-                ...(uniqueSpouseIds || []),
-            ]);
-            const finalLifeStatus = payload.lifeStatus ||
+                ...(uniqueSpouseIds ??
+                    []),
+            ], session);
+            const finalLifeStatus = payload.lifeStatus ??
                 existingMember.lifeStatus;
             let finalDateOfDeath;
             if (payload.lifeStatus ===
                 MemberLifeStatus.ALIVE) {
-                finalDateOfDeath = null;
+                finalDateOfDeath =
+                    null;
             }
-            else if (payload.dateOfDeath !== undefined) {
+            else if (payload.dateOfDeath !==
+                undefined) {
                 finalDateOfDeath =
                     payload.dateOfDeath;
             }
@@ -488,9 +675,7 @@ class FamilyTreeService {
                     existingMember.dateOfDeath;
             }
             FamilyTreeService.validateLifeStatus(finalLifeStatus, finalDateOfDeath);
-            const updateData = {
-                updatedBy: new Types.ObjectId(actorId),
-            };
+            const updateData = {};
             const normalFields = [
                 "fullName",
                 "relation",
@@ -504,157 +689,231 @@ class FamilyTreeService {
                 "notes",
             ];
             for (const field of normalFields) {
-                if (payload[field] !== undefined) {
+                if (payload[field] !==
+                    undefined) {
                     updateData[field] =
                         payload[field];
                 }
             }
-            if (payload.dob !== undefined) {
+            if (payload.dob !==
+                undefined) {
                 updateData.dob =
-                    payload.dob || null;
+                    payload.dob ??
+                        null;
             }
-            if (payload.lifeStatus !== undefined) {
+            if (payload.lifeStatus !==
+                undefined) {
                 updateData.lifeStatus =
                     payload.lifeStatus;
             }
             if (payload.lifeStatus ===
                 MemberLifeStatus.ALIVE) {
-                updateData.dateOfDeath = null;
-            }
-            else if (payload.dateOfDeath !== undefined) {
                 updateData.dateOfDeath =
-                    payload.dateOfDeath || null;
+                    null;
             }
-            if (payload.fatherId !== undefined) {
+            else if (payload.dateOfDeath !==
+                undefined) {
+                updateData.dateOfDeath =
+                    payload.dateOfDeath ??
+                        null;
+            }
+            if (payload.fatherId !==
+                undefined) {
                 updateData.fatherId =
-                    payload.fatherId || null;
+                    payload.fatherId
+                        ? new Types.ObjectId(payload.fatherId)
+                        : null;
             }
-            if (payload.motherId !== undefined) {
+            if (payload.motherId !==
+                undefined) {
                 updateData.motherId =
-                    payload.motherId || null;
+                    payload.motherId
+                        ? new Types.ObjectId(payload.motherId)
+                        : null;
             }
-            if (payload.caste !== undefined) {
+            if (payload.caste !==
+                undefined) {
                 updateData.caste =
-                    payload.caste || null;
+                    payload.caste ??
+                        null;
             }
-            if (payload.gotra !== undefined) {
+            if (payload.gotra !==
+                undefined) {
                 updateData.gotra =
-                    payload.gotra || null;
+                    payload.gotra ??
+                        null;
             }
-            if (uniqueSpouseIds !== undefined) {
+            const previousSpouseIds = existingMember.spouseIds.map((spouseId) => spouseId.toString());
+            if (uniqueSpouseIds !==
+                undefined) {
                 updateData.spouseIds =
-                    uniqueSpouseIds;
-                const previousSpouseIds = existingMember.spouseIds.map((spouseId) => spouseId.toString());
+                    uniqueSpouseIds.map((id) => new Types.ObjectId(id));
                 const removedSpouseIds = previousSpouseIds.filter((spouseId) => !uniqueSpouseIds.includes(spouseId));
                 const addedSpouseIds = uniqueSpouseIds.filter((spouseId) => !previousSpouseIds.includes(spouseId));
-                if (removedSpouseIds.length > 0) {
+                if (removedSpouseIds.length >
+                    0) {
                     await FamilyMember.updateMany({
                         _id: {
-                            $in: removedSpouseIds,
+                            $in: removedSpouseIds.map((id) => new Types.ObjectId(id)),
                         },
-                        ownerId,
+                        ownerId: new Types.ObjectId(context.ownerId),
+                        isDeleted: false,
                     }, {
                         $pull: {
                             spouseIds: existingMember._id,
                         },
+                        $set: {
+                            updatedBy: new Types.ObjectId(context.actorId),
+                        },
                     }, {
                         session,
                     });
                 }
-                if (addedSpouseIds.length > 0) {
+                if (addedSpouseIds.length >
+                    0) {
                     await FamilyMember.updateMany({
                         _id: {
-                            $in: addedSpouseIds,
+                            $in: addedSpouseIds.map((id) => new Types.ObjectId(id)),
                         },
-                        ownerId,
+                        ownerId: new Types.ObjectId(context.ownerId),
+                        isDeleted: false,
                     }, {
                         $addToSet: {
                             spouseIds: existingMember._id,
+                        },
+                        $set: {
+                            updatedBy: new Types.ObjectId(context.actorId),
                         },
                     }, {
                         session,
                     });
                 }
             }
+            const changes = FamilyTreeService.buildChanges(existingMember, updateData);
+            if (changes.length === 0) {
+                await session.abortTransaction();
+                return FamilyTreeService.populateMember(context.ownerId, familyMemberId);
+            }
+            updateData.updatedBy =
+                new Types.ObjectId(context.actorId);
             await FamilyMember.updateOne({
-                _id: familyMemberId,
-                ownerId,
+                _id: existingMember._id,
+                ownerId: new Types.ObjectId(context.ownerId),
+                isDeleted: false,
             }, {
                 $set: updateData,
             }, {
                 session,
                 runValidators: true,
             });
+            await FamilyTreeService.createActivity(context, existingMember._id, "MEMBER_UPDATED", changes, session);
             await session.commitTransaction();
-            const updatedMember = await FamilyMember.findOne({
-                _id: familyMemberId,
-                ownerId,
-            })
-                .populate("fatherId", "fullName relation gender lifeStatus profileImage")
-                .populate("motherId", "fullName relation gender lifeStatus profileImage")
-                .populate("spouseIds", "fullName relation gender lifeStatus profileImage")
-                .lean();
-            return updatedMember;
+            return FamilyTreeService.populateMember(context.ownerId, familyMemberId);
         }
         catch (error) {
             await session.abortTransaction();
             throw error;
         }
         finally {
-            session.endSession();
+            await session.endSession();
         }
     }
-    static async deleteFamilyMember(ownerId, familyMemberId) {
+    static async deleteFamilyMember(context, familyMemberId, reason) {
+        FamilyTreeService.validateContext(context);
+        if (!Types.ObjectId.isValid(familyMemberId)) {
+            throw new Error("Invalid family member ID");
+        }
+        if (!reason ||
+            reason.trim().length < 3) {
+            throw new Error("Deletion reason is required");
+        }
         const session = await mongoose.startSession();
         session.startTransaction();
         try {
             const familyMember = await FamilyMember.findOne({
-                _id: familyMemberId,
-                ownerId,
+                _id: new Types.ObjectId(familyMemberId),
+                ownerId: new Types.ObjectId(context.ownerId),
+                isDeleted: false,
             }).session(session);
             if (!familyMember) {
                 throw new Error("Family member not found");
             }
+            /*
+             * Keep the family member record for audit,
+             * but remove its active relationship links
+             * from the other non-deleted members.
+             */
             await FamilyMember.updateMany({
-                ownerId,
+                ownerId: new Types.ObjectId(context.ownerId),
+                isDeleted: false,
                 spouseIds: familyMember._id,
             }, {
                 $pull: {
                     spouseIds: familyMember._id,
                 },
+                $set: {
+                    updatedBy: new Types.ObjectId(context.actorId),
+                },
             }, {
                 session,
             });
             await FamilyMember.updateMany({
-                ownerId,
+                ownerId: new Types.ObjectId(context.ownerId),
+                isDeleted: false,
                 fatherId: familyMember._id,
             }, {
                 $set: {
                     fatherId: null,
+                    updatedBy: new Types.ObjectId(context.actorId),
                 },
             }, {
                 session,
             });
             await FamilyMember.updateMany({
-                ownerId,
+                ownerId: new Types.ObjectId(context.ownerId),
+                isDeleted: false,
                 motherId: familyMember._id,
             }, {
                 $set: {
                     motherId: null,
+                    updatedBy: new Types.ObjectId(context.actorId),
                 },
             }, {
                 session,
             });
-            await FamilyMember.deleteOne({
-                _id: familyMember._id,
-                ownerId,
-            }, {
+            familyMember.isDeleted =
+                true;
+            familyMember.deletedAt =
+                new Date();
+            familyMember.deletedBy =
+                new Types.ObjectId(context.actorId);
+            familyMember.deletionReason =
+                reason.trim();
+            familyMember.updatedBy =
+                new Types.ObjectId(context.actorId);
+            await familyMember.save({
                 session,
+            });
+            await FamilyTreeService.createActivity(context, familyMember._id, "MEMBER_DELETED", [
+                {
+                    field: "isDeleted",
+                    oldValue: false,
+                    newValue: true,
+                },
+            ], session, {
+                reason: reason.trim(),
+                metadata: {
+                    fullName: familyMember.fullName,
+                    relation: familyMember.relation,
+                },
             });
             await session.commitTransaction();
             return {
                 id: familyMember._id,
                 fullName: familyMember.fullName,
+                deletedAt: familyMember.deletedAt,
+                deletedBy: familyMember.deletedBy,
+                reason: familyMember.deletionReason,
             };
         }
         catch (error) {
@@ -662,7 +921,252 @@ class FamilyTreeService {
             throw error;
         }
         finally {
-            session.endSession();
+            await session.endSession();
+        }
+    }
+    static async getFamilyTreeActivities(ownerId, query) {
+        if (!Types.ObjectId.isValid(ownerId)) {
+            throw new Error("Invalid family tree owner ID");
+        }
+        const { action, familyMemberId, performedBy, bookingId, page = 1, limit = 20, } = query;
+        const pageNumber = Math.max(1, page);
+        const limitNumber = Math.min(100, Math.max(1, limit));
+        const skip = (pageNumber - 1) *
+            limitNumber;
+        const filter = {
+            ownerId: new Types.ObjectId(ownerId),
+        };
+        if (action) {
+            filter.action = action;
+        }
+        if (familyMemberId) {
+            if (!Types.ObjectId.isValid(familyMemberId)) {
+                throw new Error("Invalid family member ID");
+            }
+            filter.familyMemberId =
+                new Types.ObjectId(familyMemberId);
+        }
+        if (performedBy) {
+            if (!Types.ObjectId.isValid(performedBy)) {
+                throw new Error("Invalid performed-by user ID");
+            }
+            filter.performedBy =
+                new Types.ObjectId(performedBy);
+        }
+        if (bookingId) {
+            if (!Types.ObjectId.isValid(bookingId)) {
+                throw new Error("Invalid booking ID");
+            }
+            filter.bookingId =
+                new Types.ObjectId(bookingId);
+        }
+        const [activities, totalActivities,] = await Promise.all([
+            FamilyTreeActivity.find(filter)
+                .populate("familyMemberId", "fullName relation gender lifeStatus profileImage isDeleted")
+                .populate("performedBy", "fullName role userReference profileImage")
+                .populate("bookingId", "bookingReference status")
+                .sort({
+                createdAt: -1,
+            })
+                .skip(skip)
+                .limit(limitNumber)
+                .lean(),
+            FamilyTreeActivity.countDocuments(filter),
+        ]);
+        const totalPages = Math.ceil(totalActivities /
+            limitNumber);
+        return {
+            activities,
+            pagination: {
+                currentPage: pageNumber,
+                totalPages,
+                totalActivities,
+                limit: limitNumber,
+                hasNextPage: pageNumber <
+                    totalPages,
+                hasPreviousPage: pageNumber > 1,
+            },
+        };
+    }
+    static async getFamilyMemberActivities(ownerId, familyMemberId, query) {
+        if (!Types.ObjectId.isValid(ownerId)) {
+            throw new Error("Invalid family tree owner ID");
+        }
+        if (!Types.ObjectId.isValid(familyMemberId)) {
+            throw new Error("Invalid family member ID");
+        }
+        const { page = 1, limit = 20, } = query;
+        const pageNumber = Math.max(1, page);
+        const limitNumber = Math.min(100, Math.max(1, limit));
+        const skip = (pageNumber - 1) *
+            limitNumber;
+        /*
+         * Important:
+         * Do not filter FamilyMember by isDeleted here.
+         * A deleted member must still have an accessible
+         * audit timeline.
+         */
+        const familyMember = await FamilyMember.findOne({
+            _id: new Types.ObjectId(familyMemberId),
+            ownerId: new Types.ObjectId(ownerId),
+        })
+            .select("fullName relation gender lifeStatus profileImage isDeleted deletedAt deletionReason")
+            .lean();
+        if (!familyMember) {
+            throw new Error("Family member not found");
+        }
+        const filter = {
+            ownerId: new Types.ObjectId(ownerId),
+            familyMemberId: new Types.ObjectId(familyMemberId),
+        };
+        const [activities, totalActivities,] = await Promise.all([
+            FamilyTreeActivity.find(filter)
+                .populate("performedBy", "fullName role userReference profileImage")
+                .populate("bookingId", "bookingReference status")
+                .sort({
+                createdAt: -1,
+            })
+                .skip(skip)
+                .limit(limitNumber)
+                .lean(),
+            FamilyTreeActivity.countDocuments(filter),
+        ]);
+        const totalPages = Math.ceil(totalActivities /
+            limitNumber);
+        return {
+            familyMember,
+            activities,
+            pagination: {
+                currentPage: pageNumber,
+                totalPages,
+                totalActivities,
+                limit: limitNumber,
+                hasNextPage: pageNumber <
+                    totalPages,
+                hasPreviousPage: pageNumber > 1,
+            },
+        };
+    }
+    static async restoreFamilyMember(context, familyMemberId, reason) {
+        const { ownerId, actorId, actorRole, source, bookingId, bookingReference, } = context;
+        if (!Types.ObjectId.isValid(ownerId)) {
+            throw new Error("Invalid family tree owner ID");
+        }
+        if (!Types.ObjectId.isValid(actorId)) {
+            throw new Error("Invalid actor ID");
+        }
+        if (!Types.ObjectId.isValid(familyMemberId)) {
+            throw new Error("Invalid family member ID");
+        }
+        if (bookingId &&
+            !Types.ObjectId.isValid(bookingId)) {
+            throw new Error("Invalid booking ID");
+        }
+        const session = await mongoose.startSession();
+        try {
+            let restoredMember = null;
+            await session.withTransaction(async () => {
+                const member = await FamilyMember.findOne({
+                    _id: new Types.ObjectId(familyMemberId),
+                    ownerId: new Types.ObjectId(ownerId),
+                }).session(session);
+                if (!member) {
+                    throw new Error("Family member not found");
+                }
+                if (!member.isDeleted) {
+                    throw new Error("Family member is not deleted");
+                }
+                const previousDeletionState = {
+                    isDeleted: member.isDeleted,
+                    deletedAt: member.deletedAt ??
+                        null,
+                    deletedBy: member.deletedBy ??
+                        null,
+                    deletionReason: member.deletionReason ??
+                        null,
+                };
+                member.isDeleted = false;
+                member.deletedAt = null;
+                member.deletedBy = null;
+                member.deletionReason = null;
+                member.updatedBy =
+                    new Types.ObjectId(actorId);
+                await member.save({
+                    session,
+                });
+                /*
+                 * Restore spouse links only when the related
+                 * spouse is active and belongs to the same tree.
+                 *
+                 * This prevents reconnecting the restored member
+                 * to deleted or foreign records.
+                 */
+                const activeSpouses = await FamilyMember.find({
+                    _id: {
+                        $in: member.spouseIds ??
+                            [],
+                    },
+                    ownerId: new Types.ObjectId(ownerId),
+                    isDeleted: false,
+                })
+                    .select("_id spouseIds")
+                    .session(session);
+                for (const spouse of activeSpouses) {
+                    const alreadyLinked = spouse.spouseIds.some((spouseId) => spouseId.toString() ===
+                        member._id.toString());
+                    if (!alreadyLinked) {
+                        spouse.spouseIds.push(member._id);
+                        spouse.updatedBy =
+                            new Types.ObjectId(actorId);
+                        await spouse.save({
+                            session,
+                        });
+                    }
+                }
+                await FamilyTreeService.createActivity(context, member._id, "MEMBER_RESTORED", [
+                    {
+                        field: "isDeleted",
+                        oldValue: previousDeletionState.isDeleted,
+                        newValue: false,
+                    },
+                    {
+                        field: "deletedAt",
+                        oldValue: previousDeletionState.deletedAt,
+                        newValue: null,
+                    },
+                    {
+                        field: "deletedBy",
+                        oldValue: previousDeletionState.deletedBy,
+                        newValue: null,
+                    },
+                    {
+                        field: "deletionReason",
+                        oldValue: previousDeletionState.deletionReason,
+                        newValue: null,
+                    },
+                ], session, {
+                    metadata: {
+                        ...(reason && {
+                            restoreReason: reason,
+                        }),
+                    },
+                });
+                restoredMember =
+                    await FamilyMember.findById(member._id)
+                        .populate("createdBy", "fullName role profileImage")
+                        .populate("updatedBy", "fullName role profileImage")
+                        .populate("fatherId", "fullName relation gender lifeStatus profileImage")
+                        .populate("motherId", "fullName relation gender lifeStatus profileImage")
+                        .populate("spouseIds", "fullName relation gender lifeStatus profileImage")
+                        .session(session);
+            });
+            if (!restoredMember) {
+                throw new Error("Failed to restore family member");
+            }
+            return restoredMember;
+        }
+        finally {
+            await session.endSession();
         }
     }
 }

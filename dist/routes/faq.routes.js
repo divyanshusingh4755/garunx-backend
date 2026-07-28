@@ -16,7 +16,7 @@ const faqValidation = [
         .withMessage("isActive must be a boolean"),
     body("faqType")
         .optional()
-        .isIn(["User", "Coordinator"])
+        .isIn(["User", "Coordinator", "User_Query", "Coordinator_Query"])
         .withMessage("Invalid FAQ type"),
     body("displayOrder")
         .optional()

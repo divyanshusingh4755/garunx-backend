@@ -202,11 +202,14 @@ export const updateCartNotes = async (req, res) => {
 export const recalculateCart = async (req, res) => {
     try {
         const owner = getCartOwner(req);
-        const cart = await CartService.recalculateCart(owner, req.params.cartId);
+        const result = await CartService.recalculateCart(owner, req.params.cartId, {
+            persist: true,
+        });
         res.status(200).json({
             success: true,
             message: "Cart recalculated successfully",
-            cart,
+            cart: result.cart,
+            changes: result.changes,
         });
     }
     catch (error) {

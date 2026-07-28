@@ -1,6 +1,24 @@
 import { Types } from "mongoose";
+type TaxPriceMode = "EXCLUSIVE" | "INCLUSIVE";
+interface PackageServicePricingPayload {
+    serviceId: string;
+    fixedPrice?: number;
+    discountPercent?: number;
+    taxProfileId: string;
+    taxPriceMode?: TaxPriceMode;
+}
+interface PackageLocationPricingPayload {
+    locationId: string;
+    services: PackageServicePricingPayload[];
+}
+interface BulkUpsertPackagePricingPayload {
+    packageId: string;
+    tierId: string;
+    pricing: PackageLocationPricingPayload[];
+}
 export declare class PackageTierPricingService {
-    static bulkUpsertTierPricing(payload: any): Promise<{
+    private static roundMoney;
+    static bulkUpsertTierPricing(payload: BulkUpsertPackagePricingPayload): Promise<{
         success: boolean;
         message: string;
     }>;
@@ -18,14 +36,33 @@ export declare class PackageTierPricingService {
             id: Types.ObjectId;
             name: string;
         };
-        services: any[];
+        services: {
+            basePrice: number | null;
+            fixedPrice: any;
+            discountPercent: any;
+            price: any;
+            taxConfiguration: {
+                taxProfile: any;
+                taxPriceMode: any;
+            } | null;
+            isPriceConfigured: boolean;
+            isTaxConfigured: boolean;
+            isFullyConfigured: boolean;
+            serviceId: any;
+            name: any;
+            shortDescription: any;
+            thumbnailImage: any;
+            isRequired: any;
+            isRelated: any;
+        }[];
         summary: {
             totalServices: number;
             requiredServiceCount: number;
             optionalServiceCount: number;
-            startingPrice: any;
+            startingPrice: number;
             isAvailable: boolean;
         };
     }>;
 }
+export {};
 //# sourceMappingURL=packagetierpricing.service.d.ts.map

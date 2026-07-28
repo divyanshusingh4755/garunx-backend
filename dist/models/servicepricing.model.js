@@ -1,6 +1,5 @@
-import { model, Schema, Document, Types } from "mongoose";
+import { model, Schema, Types, } from "mongoose";
 const servicePricingSchema = new Schema({
-    name: { type: String, required: true },
     serviceId: {
         type: Schema.Types.ObjectId,
         ref: "Service",
@@ -25,9 +24,40 @@ const servicePricingSchema = new Schema({
         required: true,
         index: true,
     },
-    price: { type: Number, required: true, min: 0 },
-}, { timestamps: true });
-servicePricingSchema.index({ serviceId: 1, componentId: 1, tierId: 1, locationId: 1 }, { unique: true });
+    price: {
+        type: Number,
+        required: true,
+        min: 0,
+    },
+    taxProfileId: {
+        type: Schema.Types.ObjectId,
+        ref: "TaxProfile",
+        default: null,
+        index: true,
+    },
+    taxPriceMode: {
+        type: String,
+        enum: ["EXCLUSIVE", "INCLUSIVE"],
+        default: "EXCLUSIVE",
+        required: true,
+    },
+}, {
+    timestamps: true,
+});
+servicePricingSchema.pre("validate", function () {
+    if (!this.taxProfileId) {
+        this.taxProfileId = null;
+        this.taxPriceMode = "EXCLUSIVE";
+    }
+});
+servicePricingSchema.index({
+    serviceId: 1,
+    componentId: 1,
+    tierId: 1,
+    locationId: 1,
+}, {
+    unique: true,
+});
 servicePricingSchema.index({
     serviceId: 1,
     tierId: 1,

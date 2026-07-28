@@ -1,6 +1,7 @@
 import mongoose, { Types } from "mongoose";
 import { type IAddonService, type ICart, type ISelectedComponent, type ISelectedService } from "../models/cart.model.js";
 import { type CartOwner } from "../utils/getCartOwner.js";
+import type { ILineTax } from "../types/tax.types.js";
 interface CartValidationResult {
     isValid: boolean;
     errors: string[];
@@ -8,6 +9,12 @@ interface CartValidationResult {
     cart: ICart;
 }
 declare class CartService {
+    private static applyLineTax;
+    private static round;
+    private static clearLineDiscounts;
+    private static calculateCouponDiscount;
+    private static allocateDiscountToCartLines;
+    private static applyPricingResults;
     static ensureCartEditable(cart: ICart): void;
     static createServiceCart(owner: CartOwner, payload: any): Promise<mongoose.Document<unknown, {}, ICart, {}, mongoose.DefaultSchemaOptions> & ICart & Required<{
         _id: Types.ObjectId;
@@ -63,7 +70,10 @@ declare class CartService {
             }[];
             componentId: Types.ObjectId;
             name: string;
+            priceBeforeDiscount: number;
+            discountAmount: number;
             totalPrice: number;
+            tax?: ILineTax;
         }[];
         addonComponents: {
             component: (import("../models/component.model.js").IComponent & Required<{
@@ -82,7 +92,10 @@ declare class CartService {
             }[];
             componentId: Types.ObjectId;
             name: string;
+            priceBeforeDiscount: number;
+            discountAmount: number;
             totalPrice: number;
+            tax?: ILineTax;
         }[];
         _id: Types.ObjectId;
         userId?: Types.ObjectId | null;
@@ -118,6 +131,7 @@ declare class CartService {
         subtotal: number;
         discountAmount: number;
         totalAmount: number;
+        taxSummary: import("../models/cart.model.js").ICartTaxSummary;
         status: import("../models/cart.model.js").CartStatus;
         createdAt: Date;
         updatedAt: Date;
@@ -230,6 +244,7 @@ declare class CartService {
         subtotal: number;
         discountAmount: number;
         totalAmount: number;
+        taxSummary: import("../models/cart.model.js").ICartTaxSummary;
         status: import("../models/cart.model.js").CartStatus;
         createdAt: Date;
         updatedAt: Date;

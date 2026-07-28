@@ -2,6 +2,15 @@ import { model, Schema, Types, Document, Model } from "mongoose";
 import { Counter } from "./counter.model.js";
 import type { ICart } from "./cart.model.js";
 
+import type {
+  ILineTax,
+  ITaxSummary,
+} from "../types/tax.types.js";
+
+import {
+  lineTaxSchema,
+} from "./tax.schema.js";
+
 export type RescheduledByRole =
   | "CUSTOMER"
   | "ADMIN"
@@ -151,6 +160,11 @@ export interface IServiceExecution {
   notes?: string;
 }
 
+export interface IBookingTaxSummary extends ITaxSummary {
+  supplierStateCode?: string;
+  placeOfSupplyStateCode?: string;
+}
+
 const assignmentRequestSchema = new Schema<IAssignmentRequest>(
   {
     coordinatorId: {
@@ -266,16 +280,22 @@ export interface IBookingComponent {
   componentType: ComponentType;
   componentId: Types.ObjectId;
   serviceComponentId?: Types.ObjectId;
+
   name: string;
   description?: string;
+
   isRequired: boolean;
   isRemovable: boolean;
   isBundled: boolean;
   selected: boolean;
+
   selectedItems: IBookingSelectedItem[];
+
   pricing: {
-    basePrice: number;
-    total: number;
+    priceBeforeDiscount: number;
+    discountAmount: number;
+    finalAmount: number;
+    tax?: ILineTax;
   };
 }
 
@@ -321,6 +341,56 @@ const bookingRefundSchema = new Schema<IBookingRefund>(
   { _id: false },
 );
 
+const bookingTaxSummarySchema =
+  new Schema<IBookingTaxSummary>(
+    {
+      taxableAmount: {
+        type: Number,
+        default: 0,
+        min: 0,
+      },
+
+      cgstAmount: {
+        type: Number,
+        default: 0,
+        min: 0,
+      },
+
+      sgstAmount: {
+        type: Number,
+        default: 0,
+        min: 0,
+      },
+
+      igstAmount: {
+        type: Number,
+        default: 0,
+        min: 0,
+      },
+
+      totalTax: {
+        type: Number,
+        default: 0,
+        min: 0,
+      },
+
+      supplierStateCode: {
+        type: String,
+        trim: true,
+        match: /^\d{2}$/,
+      },
+
+      placeOfSupplyStateCode: {
+        type: String,
+        trim: true,
+        match: /^\d{2}$/,
+      },
+    },
+    {
+      _id: false,
+    },
+  );
+
 const bookingComponentSchema = new Schema<IBookingComponent>(
   {
     componentType: {
@@ -355,8 +425,28 @@ const bookingComponentSchema = new Schema<IBookingComponent>(
     },
 
     pricing: {
-      basePrice: { type: Number, default: 0, min: 0 },
-      total: { type: Number, default: 0, min: 0 },
+      priceBeforeDiscount: {
+        type: Number,
+        required: true,
+        min: 0,
+      },
+
+      discountAmount: {
+        type: Number,
+        default: 0,
+        min: 0,
+      },
+
+      finalAmount: {
+        type: Number,
+        required: true,
+        min: 0,
+      },
+
+      tax: {
+        type: lineTaxSchema,
+        default: undefined,
+      },
     },
   },
   { _id: false },
@@ -389,8 +479,12 @@ export interface IBookingServiceConfiguration {
 
   components: IBookingComponent[];
   pricing: {
-    taxes: number;
-    grandTotal: number;
+    priceBeforeDiscount: number;
+    discountAmount: number;
+    finalAmount: number;
+
+    tax?: ILineTax;
+    taxSummary: IBookingTaxSummary;
   };
 }
 
@@ -448,8 +542,40 @@ const bookingServiceConfigurationSchema =
       },
 
       pricing: {
-        taxes: { type: Number, default: 0 },
-        grandTotal: { type: Number, default: 0 },
+        priceBeforeDiscount: {
+          type: Number,
+          default: 0,
+          min: 0,
+        },
+
+        discountAmount: {
+          type: Number,
+          default: 0,
+          min: 0,
+        },
+
+        finalAmount: {
+          type: Number,
+          default: 0,
+          min: 0,
+        },
+
+        tax: {
+          type: lineTaxSchema,
+          default: undefined,
+        },
+
+        taxSummary: {
+          type: bookingTaxSummarySchema,
+          default: () => ({
+            taxableAmount: 0,
+            cgstAmount: 0,
+            sgstAmount: 0,
+            igstAmount: 0,
+            cessAmount: 0,
+            totalTax: 0,
+          }),
+        },
       },
     },
     { _id: false },
@@ -467,8 +593,13 @@ export interface IBookingPackageConfiguration {
 
   selectedServices: IBookingServiceConfiguration[];
   addonServices: IBookingServiceConfiguration[];
+
   pricing: {
-    taxes: number;
+    baseAmount: number;
+    addonAmount: number;
+    subtotal: number;
+    discountAmount: number;
+    taxSummary: IBookingTaxSummary;
     grandTotal: number;
   };
 }
@@ -500,8 +631,46 @@ const bookingPackageConfigurationSchema =
       },
 
       pricing: {
-        taxes: { type: Number, default: 0 },
-        grandTotal: { type: Number, default: 0 },
+        baseAmount: {
+          type: Number,
+          default: 0,
+          min: 0,
+        },
+
+        addonAmount: {
+          type: Number,
+          default: 0,
+          min: 0,
+        },
+
+        subtotal: {
+          type: Number,
+          default: 0,
+          min: 0,
+        },
+
+        discountAmount: {
+          type: Number,
+          default: 0,
+          min: 0,
+        },
+
+        taxSummary: {
+          type: bookingTaxSummarySchema,
+          default: () => ({
+            taxableAmount: 0,
+            cgstAmount: 0,
+            sgstAmount: 0,
+            igstAmount: 0,
+            totalTax: 0,
+          }),
+        },
+
+        grandTotal: {
+          type: Number,
+          default: 0,
+          min: 0,
+        },
       },
     },
     { _id: false },
@@ -630,7 +799,8 @@ export interface IBooking extends Document {
 
     discountAmount: number;
 
-    taxes: number;
+    taxSummary: IBookingTaxSummary;
+
     grandTotal: number;
     earnings?: number;
   };
@@ -803,10 +973,15 @@ const bookingSchema = new Schema<IBooking>(
         min: 0,
       },
 
-      taxes: {
-        type: Number,
-        default: 0,
-        min: 0,
+      taxSummary: {
+        type: bookingTaxSummarySchema,
+        default: () => ({
+          taxableAmount: 0,
+          cgstAmount: 0,
+          sgstAmount: 0,
+          igstAmount: 0,
+          totalTax: 0,
+        }),
       },
 
       grandTotal: {

@@ -1,5 +1,6 @@
 import { Types, Document, Model } from "mongoose";
 import type { ICart } from "./cart.model.js";
+import type { ILineTax, ITaxSummary } from "../types/tax.types.js";
 export type RescheduledByRole = "CUSTOMER" | "ADMIN" | "SUBADMIN";
 export type BookingStatus = "PENDING_PAYMENT" | "CONFIRMED" | "ASSIGNMENT_PENDING" | "ASSIGNED" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED" | "EXPIRED";
 export type BookingFor = "MYSELF" | "OTHER";
@@ -68,6 +69,10 @@ export interface IServiceExecution {
     completedBy?: Types.ObjectId;
     notes?: string;
 }
+export interface IBookingTaxSummary extends ITaxSummary {
+    supplierStateCode?: string;
+    placeOfSupplyStateCode?: string;
+}
 export interface IBookingComponent {
     componentType: ComponentType;
     componentId: Types.ObjectId;
@@ -80,8 +85,10 @@ export interface IBookingComponent {
     selected: boolean;
     selectedItems: IBookingSelectedItem[];
     pricing: {
-        basePrice: number;
-        total: number;
+        priceBeforeDiscount: number;
+        discountAmount: number;
+        finalAmount: number;
+        tax?: ILineTax;
     };
 }
 export interface IBookingServiceConfiguration {
@@ -107,8 +114,11 @@ export interface IBookingServiceConfiguration {
     };
     components: IBookingComponent[];
     pricing: {
-        taxes: number;
-        grandTotal: number;
+        priceBeforeDiscount: number;
+        discountAmount: number;
+        finalAmount: number;
+        tax?: ILineTax;
+        taxSummary: IBookingTaxSummary;
     };
 }
 export interface IBookingPackageConfiguration {
@@ -122,7 +132,11 @@ export interface IBookingPackageConfiguration {
     selectedServices: IBookingServiceConfiguration[];
     addonServices: IBookingServiceConfiguration[];
     pricing: {
-        taxes: number;
+        baseAmount: number;
+        addonAmount: number;
+        subtotal: number;
+        discountAmount: number;
+        taxSummary: IBookingTaxSummary;
         grandTotal: number;
     };
 }
@@ -153,7 +167,7 @@ export interface IBooking extends Document {
         couponId?: Types.ObjectId;
         couponCode?: string;
         discountAmount: number;
-        taxes: number;
+        taxSummary: IBookingTaxSummary;
         grandTotal: number;
         earnings?: number;
     };

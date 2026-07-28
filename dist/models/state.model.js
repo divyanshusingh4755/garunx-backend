@@ -10,6 +10,12 @@ const stateSchema = new Schema({
     image: { type: String },
     description: { type: String },
     isActive: { type: Boolean, default: true },
+    gstCode: {
+        type: String,
+        required: true,
+        trim: true,
+        match: [/^\d{2}$/, "GST code must be exactly 2 digits"],
+    },
     location: {
         type: { type: String, enum: ["Point"] },
         coordinates: { type: [Number] }, // [Longitude, Latitude]
@@ -24,5 +30,8 @@ stateSchema.index({ country: 1, name: 1 });
 stateSchema.index({
     name: "text",
 }, { name: "StateTextSearchIndex" });
+stateSchema.index({
+    gstCode: 1,
+});
 export const State = model("State", stateSchema);
 //# sourceMappingURL=state.model.js.map

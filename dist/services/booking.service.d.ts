@@ -87,7 +87,7 @@ export declare class BookingService {
             couponId?: Types.ObjectId;
             couponCode?: string;
             discountAmount: number;
-            taxes: number;
+            taxSummary: import("../models/booking.model.js").IBookingTaxSummary;
             grandTotal: number;
             earnings?: number;
         };
@@ -346,7 +346,7 @@ export declare class BookingService {
             couponId?: Types.ObjectId;
             couponCode?: string;
             discountAmount: number;
-            taxes: number;
+            taxSummary: import("../models/booking.model.js").IBookingTaxSummary;
             grandTotal: number;
             earnings?: number;
         };

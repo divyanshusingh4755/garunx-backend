@@ -1,4 +1,5 @@
 import { Document, Types } from "mongoose";
+export type TaxPriceMode = "EXCLUSIVE" | "INCLUSIVE";
 export interface IPackageTierPricing extends Document {
     packageId: Types.ObjectId;
     tierId: Types.ObjectId;
@@ -8,6 +9,8 @@ export interface IPackageTierPricing extends Document {
     fixedPrice?: number;
     discountPercent?: number;
     finalPrice: number;
+    taxProfileId?: Types.ObjectId;
+    taxPriceMode: TaxPriceMode;
 }
 export declare const PackageTierPricing: import("mongoose").Model<IPackageTierPricing, {}, {}, {}, Document<unknown, {}, IPackageTierPricing, {}, import("mongoose").DefaultSchemaOptions> & IPackageTierPricing & Required<{
     _id: Types.ObjectId;

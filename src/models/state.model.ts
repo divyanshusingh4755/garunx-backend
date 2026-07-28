@@ -1,11 +1,12 @@
 import { Schema, model, type Document } from "mongoose";
 
 export interface IState extends Document {
-  country: String;
-  name: String;
-  image?: String;
-  description?: String;
-  isActive: Boolean;
+  country: string;
+  name: string;
+  image?: string;
+  description?: string;
+  isActive: boolean;
+  gstCode: string;
   location?: {
     type: "Point";
     coordinates: [number, number];
@@ -24,6 +25,12 @@ const stateSchema = new Schema<IState>(
     image: { type: String },
     description: { type: String },
     isActive: { type: Boolean, default: true },
+    gstCode: {
+      type: String,
+      required: true,
+      trim: true,
+      match: [/^\d{2}$/, "GST code must be exactly 2 digits"],
+    },
     location: {
       type: { type: String, enum: ["Point"] },
       coordinates: { type: [Number] }, // [Longitude, Latitude]
@@ -44,5 +51,9 @@ stateSchema.index(
   },
   { name: "StateTextSearchIndex" },
 );
+
+stateSchema.index({
+  gstCode: 1,
+});
 
 export const State = model<IState>("State", stateSchema);

@@ -1,4 +1,6 @@
 import mongoose, { Document, Model, Schema, Types } from "mongoose";
+import type { ILineTax, ITaxSummary } from "../types/tax.types.js";
+import { lineTaxSchema } from "./tax.schema.js";
 
 export type CartStatus =
   | "ACTIVE"
@@ -11,6 +13,11 @@ export type CartStatus =
 
 export type BookingFor = "MYSELF" | "OTHER";
 
+export interface ICartTaxSummary extends ITaxSummary {
+  supplierStateCode?: string;
+  placeOfSupplyStateCode?: string;
+}
+
 export interface ISelectedComponentItem {
   itemId: Types.ObjectId;
   name: string;
@@ -20,19 +27,28 @@ export interface ISelectedComponent {
   componentId: Types.ObjectId;
   name: string;
   items: ISelectedComponentItem[];
+  priceBeforeDiscount: number;
+  discountAmount: number;
   totalPrice: number;
+  tax?: ILineTax;
 }
 
 export interface ISelectedService {
   serviceId: Types.ObjectId;
   name: string;
+  priceBeforeDiscount: number;
+  discountAmount: number;
   price: number;
+  tax?: ILineTax;
 }
 
 export interface IAddonService {
   serviceId: Types.ObjectId;
   name: string;
+  priceBeforeDiscount: number;
+  discountAmount: number;
   price: number;
+  tax?: ILineTax;
 }
 
 export interface ICart extends Document {
@@ -72,6 +88,7 @@ export interface ICart extends Document {
   subtotal: number;
   discountAmount: number;
   totalAmount: number;
+  taxSummary: ICartTaxSummary;
   status: CartStatus;
   createdAt: Date;
   updatedAt: Date;
@@ -79,6 +96,56 @@ export interface ICart extends Document {
   checkoutExpiresAt?: Date;
   convertedToBookingAt?: Date;
 }
+
+const cartTaxSummarySchema =
+  new Schema<ICartTaxSummary>(
+    {
+      taxableAmount: {
+        type: Number,
+        default: 0,
+        min: 0,
+      },
+
+      cgstAmount: {
+        type: Number,
+        default: 0,
+        min: 0,
+      },
+
+      sgstAmount: {
+        type: Number,
+        default: 0,
+        min: 0,
+      },
+
+      igstAmount: {
+        type: Number,
+        default: 0,
+        min: 0,
+      },
+
+      totalTax: {
+        type: Number,
+        default: 0,
+        min: 0,
+      },
+
+      supplierStateCode: {
+        type: String,
+        trim: true,
+        match: /^\d{2}$/,
+      },
+
+      placeOfSupplyStateCode: {
+        type: String,
+        trim: true,
+        match: /^\d{2}$/,
+      },
+    },
+    {
+      _id: false,
+    },
+  );
 
 const selectedComponentItemSchema = new Schema<ISelectedComponentItem>(
   {
@@ -114,10 +181,27 @@ const selectedComponentSchema = new Schema<ISelectedComponent>(
       default: [],
     },
 
+    priceBeforeDiscount: {
+      type: Number,
+      required: true,
+      min: 0,
+    },
+
+    discountAmount: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+
     totalPrice: {
       type: Number,
       required: true,
       min: 0,
+    },
+
+    tax: {
+      type: lineTaxSchema,
+      default: undefined,
     },
   },
   { _id: false },
@@ -136,10 +220,27 @@ const selectedServiceSchema = new Schema<ISelectedService>(
       required: true,
     },
 
+    priceBeforeDiscount: {
+      type: Number,
+      required: true,
+      min: 0,
+    },
+
+    discountAmount: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+
     price: {
       type: Number,
       required: true,
       min: 0,
+    },
+
+    tax: {
+      type: lineTaxSchema,
+      default: undefined,
     },
   },
   { _id: false },
@@ -158,10 +259,27 @@ const addonServiceSchema = new Schema<IAddonService>(
       required: true,
     },
 
+    priceBeforeDiscount: {
+      type: Number,
+      required: true,
+      min: 0,
+    },
+
+    discountAmount: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+
     price: {
       type: Number,
       required: true,
       min: 0,
+    },
+
+    tax: {
+      type: lineTaxSchema,
+      default: undefined,
     },
   },
   { _id: false },
@@ -322,6 +440,17 @@ const cartSchema = new Schema<ICart>(
       type: Number,
       default: 0,
       min: 0,
+    },
+
+    taxSummary: {
+      type: cartTaxSummarySchema,
+      default: () => ({
+        taxableAmount: 0,
+        cgstAmount: 0,
+        sgstAmount: 0,
+        igstAmount: 0,
+        totalTax: 0,
+      }),
     },
 
     totalAmount: {

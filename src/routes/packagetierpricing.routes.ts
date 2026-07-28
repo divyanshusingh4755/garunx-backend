@@ -24,24 +24,115 @@ const validate = (req: any, res: any, next: any) => {
 router.post(
   "/bulk",
   authenticate,
-  body("packageId").isMongoId().withMessage("Invalid packageId"),
-  body("tierId").isMongoId().withMessage("Invalid tierId"),
-  body("pricing").optional().isArray().withMessage("pricing array is required"),
-  body("pricing.*.locationId").isMongoId().withMessage("Invalid locationId"),
+
+  body("packageId")
+    .notEmpty()
+    .withMessage("packageId is required")
+    .isMongoId()
+    .withMessage("Invalid packageId"),
+
+  body("tierId")
+    .notEmpty()
+    .withMessage("tierId is required")
+    .isMongoId()
+    .withMessage("Invalid tierId"),
+
+  body("pricing")
+    .isArray({ min: 1 })
+    .withMessage(
+      "pricing must contain at least one location",
+    ),
+
+  body("pricing.*.locationId")
+    .notEmpty()
+    .withMessage("locationId is required")
+    .isMongoId()
+    .withMessage("Invalid locationId"),
+
   body("pricing.*.services")
     .isArray({ min: 1 })
-    .withMessage("services array is required"),
+    .withMessage(
+      "Each location must contain at least one service",
+    ),
+
   body("pricing.*.services.*.serviceId")
+    .notEmpty()
+    .withMessage("serviceId is required")
     .isMongoId()
     .withMessage("Invalid serviceId"),
-  body("pricing.*.services.*.fixedPrice")
-    .optional()
-    .isNumeric()
-    .withMessage("fixedPrice must be numeric"),
-  body("pricing.*.services.*.discountPercent")
-    .optional()
-    .isFloat({ min: 0, max: 100 })
-    .withMessage("discountPercent must be between 0 and 100"),
+
+  body(
+    "pricing.*.services.*.fixedPrice",
+  )
+    .optional({ nullable: true })
+    .isFloat({ min: 0 })
+    .withMessage(
+      "fixedPrice must be a non-negative number",
+    )
+    .toFloat(),
+
+  body(
+    "pricing.*.services.*.discountPercent",
+  )
+    .optional({ nullable: true })
+    .isFloat({
+      min: 0,
+      max: 100,
+    })
+    .withMessage(
+      "discountPercent must be between 0 and 100",
+    )
+    .toFloat(),
+
+  body(
+    "pricing.*.services.*.taxProfileId",
+  )
+    .notEmpty()
+    .withMessage("taxProfileId is required")
+    .isMongoId()
+    .withMessage("Invalid taxProfileId"),
+
+  body(
+    "pricing.*.services.*.taxPriceMode",
+  )
+    .notEmpty()
+    .withMessage("taxPriceMode is required")
+    .isIn(["EXCLUSIVE", "INCLUSIVE"])
+    .withMessage(
+      "taxPriceMode must be EXCLUSIVE or INCLUSIVE",
+    ),
+
+  body("pricing.*.services.*")
+    .custom((servicePricing) => {
+      const hasFixedPrice =
+        servicePricing.fixedPrice !== undefined &&
+        servicePricing.fixedPrice !== null;
+
+      const hasDiscountPercent =
+        servicePricing.discountPercent !== undefined &&
+        servicePricing.discountPercent !== null;
+
+      if (
+        hasFixedPrice &&
+        hasDiscountPercent
+      ) {
+        throw new Error(
+          "fixedPrice and discountPercent cannot be provided together",
+        );
+      }
+
+      if (
+        !hasFixedPrice &&
+        !hasDiscountPercent
+      ) {
+        throw new Error(
+          "Either fixedPrice or discountPercent is required",
+        );
+      }
+
+      return true;
+    }),
+
   validate,
   bulkUpsertPackageTierPricing,
 );

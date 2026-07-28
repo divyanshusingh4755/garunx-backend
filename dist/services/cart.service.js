@@ -16,6 +16,196 @@ import { buildCartOwnerQuery } from "../utils/getCartOwner.js";
 import { CouponService } from "./coupon.service.js";
 import { Coupon } from "../models/coupon.model.js";
 class CartService {
+    static applyLineTax(target, tax) {
+        if (tax) {
+            target.tax = tax;
+        }
+        else {
+            delete target.tax;
+        }
+    }
+    static round(value) {
+        return Math.round((value + Number.EPSILON) * 100) / 100;
+    }
+    static clearLineDiscounts(cart) {
+        for (const component of cart.selectedComponents ?? []) {
+            component.discountAmount = 0;
+        }
+        for (const component of cart.addonComponents ?? []) {
+            component.discountAmount = 0;
+        }
+        for (const service of cart.selectedServices ?? []) {
+            service.discountAmount = 0;
+        }
+        for (const service of cart.addonServices ?? []) {
+            service.discountAmount = 0;
+        }
+    }
+    static calculateCouponDiscount(subtotal, coupon) {
+        let discountAmount = 0;
+        if (coupon.discountType === "PERCENTAGE") {
+            discountAmount =
+                (subtotal * coupon.discount) / 100;
+            if (coupon.maxDiscountAmount &&
+                discountAmount > coupon.maxDiscountAmount) {
+                discountAmount =
+                    coupon.maxDiscountAmount;
+            }
+        }
+        else {
+            discountAmount = coupon.discount;
+        }
+        return this.round(Math.min(Math.max(discountAmount, 0), subtotal));
+    }
+    static allocateDiscountToCartLines(cart, totals, totalDiscount) {
+        this.clearLineDiscounts(cart);
+        if (totalDiscount <= 0 || totals.subtotal <= 0) {
+            return;
+        }
+        const lines = [];
+        for (const component of cart.selectedComponents ?? []) {
+            const componentId = component.componentId.toString();
+            const pricingLine = totals.componentLines.get(componentId);
+            if (!pricingLine) {
+                continue;
+            }
+            lines.push({
+                amount: pricingLine.amount,
+                applyDiscount: (discount) => {
+                    component.discountAmount = discount;
+                },
+            });
+        }
+        for (const component of cart.addonComponents ?? []) {
+            const componentId = component.componentId.toString();
+            const pricingLine = totals.componentLines.get(componentId);
+            if (!pricingLine) {
+                continue;
+            }
+            lines.push({
+                amount: pricingLine.amount,
+                applyDiscount: (discount) => {
+                    component.discountAmount = discount;
+                },
+            });
+        }
+        for (const service of cart.selectedServices ?? []) {
+            const serviceId = service.serviceId.toString();
+            const pricingLine = totals.serviceLines.get(serviceId);
+            if (!pricingLine) {
+                continue;
+            }
+            lines.push({
+                amount: pricingLine.amount,
+                applyDiscount: (discount) => {
+                    service.discountAmount = discount;
+                },
+            });
+        }
+        for (const service of cart.addonServices ?? []) {
+            const serviceId = service.serviceId.toString();
+            const pricingLine = totals.serviceLines.get(serviceId);
+            if (!pricingLine) {
+                continue;
+            }
+            lines.push({
+                amount: pricingLine.amount,
+                applyDiscount: (discount) => {
+                    service.discountAmount = discount;
+                },
+            });
+        }
+        if (lines.length === 0) {
+            return;
+        }
+        let allocatedDiscount = 0;
+        lines.forEach((line, index) => {
+            let lineDiscount;
+            /*
+             * Give the final line the remaining amount.
+             * This avoids rounding differences.
+             */
+            if (index === lines.length - 1) {
+                lineDiscount = this.round(totalDiscount - allocatedDiscount);
+            }
+            else {
+                lineDiscount = this.round((line.amount / totals.subtotal) *
+                    totalDiscount);
+                lineDiscount = Math.min(lineDiscount, line.amount);
+            }
+            allocatedDiscount = this.round(allocatedDiscount + lineDiscount);
+            line.applyDiscount(lineDiscount);
+        });
+    }
+    static applyPricingResults(cart, totals) {
+        cart.basePrice = totals.basePrice;
+        cart.addonPrice = totals.addonPrice;
+        cart.subtotal = totals.subtotal;
+        cart.discountAmount = totals.discountAmount;
+        cart.totalAmount = totals.totalAmount;
+        cart.taxSummary = {
+            taxableAmount: totals.taxSummary.taxableAmount,
+            cgstAmount: totals.taxSummary.cgstAmount,
+            sgstAmount: totals.taxSummary.sgstAmount,
+            igstAmount: totals.taxSummary.igstAmount,
+            totalTax: totals.taxSummary.totalTax,
+            ...(totals.taxSummary.supplierStateCode
+                ? {
+                    supplierStateCode: totals.taxSummary.supplierStateCode,
+                }
+                : {}),
+            ...(totals.taxSummary.placeOfSupplyStateCode
+                ? {
+                    placeOfSupplyStateCode: totals.taxSummary.placeOfSupplyStateCode,
+                }
+                : {}),
+        };
+        for (const component of cart.selectedComponents ?? []) {
+            const line = totals.componentLines.get(component.componentId.toString());
+            if (!line) {
+                continue;
+            }
+            component.priceBeforeDiscount = line.amount;
+            component.discountAmount = line.discountAmount;
+            component.totalPrice = line.finalAmount;
+            this.applyLineTax(component, line.tax);
+        }
+        for (const component of cart.addonComponents ?? []) {
+            const line = totals.componentLines.get(component.componentId.toString());
+            if (!line) {
+                continue;
+            }
+            component.priceBeforeDiscount = line.amount;
+            component.discountAmount = line.discountAmount;
+            component.totalPrice = line.finalAmount;
+            this.applyLineTax(component, line.tax);
+        }
+        for (const service of cart.selectedServices ?? []) {
+            const line = totals.serviceLines.get(service.serviceId.toString());
+            if (!line) {
+                continue;
+            }
+            service.priceBeforeDiscount = line.amount;
+            service.discountAmount = line.discountAmount;
+            service.price = line.finalAmount;
+            this.applyLineTax(service, line.tax);
+        }
+        for (const service of cart.addonServices ?? []) {
+            const line = totals.serviceLines.get(service.serviceId.toString());
+            if (!line) {
+                continue;
+            }
+            service.priceBeforeDiscount = line.amount;
+            service.discountAmount = line.discountAmount;
+            service.price = line.finalAmount;
+            this.applyLineTax(service, line.tax);
+        }
+        cart.markModified("selectedComponents");
+        cart.markModified("addonComponents");
+        cart.markModified("selectedServices");
+        cart.markModified("addonServices");
+        cart.markModified("taxSummary");
+    }
     static ensureCartEditable(cart) {
         if (!["ACTIVE", "SCHEDULED"].includes(cart.status)) {
             throw new Error(`Cart cannot be modified in ${cart.status} state`);
@@ -63,14 +253,17 @@ class CartService {
             subtotal: 0,
             discountAmount: 0,
             totalAmount: 0,
+            taxSummary: {
+                taxableAmount: 0,
+                cgstAmount: 0,
+                sgstAmount: 0,
+                igstAmount: 0,
+                totalTax: 0,
+            },
             status: "ACTIVE",
         });
         const totals = await CartPricingEngine.calculateCartTotals(cart);
-        cart.basePrice = totals.basePrice;
-        cart.addonPrice = totals.addonPrice;
-        cart.subtotal = totals.subtotal;
-        cart.discountAmount = 0;
-        cart.totalAmount = totals.totalAmount;
+        this.applyPricingResults(cart, totals);
         await cart.save();
         return cart;
     }
@@ -113,14 +306,17 @@ class CartService {
             subtotal: 0,
             discountAmount: 0,
             totalAmount: 0,
+            taxSummary: {
+                taxableAmount: 0,
+                cgstAmount: 0,
+                sgstAmount: 0,
+                igstAmount: 0,
+                totalTax: 0,
+            },
             status: "ACTIVE",
         });
         const totals = await CartPricingEngine.calculateCartTotals(cart);
-        cart.basePrice = totals.basePrice;
-        cart.addonPrice = totals.addonPrice;
-        cart.subtotal = totals.subtotal;
-        cart.discountAmount = 0;
-        cart.totalAmount = totals.totalAmount;
+        this.applyPricingResults(cart, totals);
         await cart.save();
         return cart;
     }
@@ -367,6 +563,8 @@ class CartService {
                 componentId: componentConfig.componentId,
                 name: componentConfig.name,
                 items: formattedItems,
+                priceBeforeDiscount: pricing.price,
+                discountAmount: 0,
                 totalPrice: pricing.price,
             });
         }
@@ -433,6 +631,8 @@ class CartService {
                 componentId: component.componentId,
                 name: component.name,
                 items: formattedItems,
+                priceBeforeDiscount: pricing.price,
+                discountAmount: 0,
                 totalPrice: pricing.price,
             });
         }
@@ -497,6 +697,8 @@ class CartService {
             selectedServices.push({
                 serviceId: matchedService.serviceId,
                 name: matchedService.name,
+                priceBeforeDiscount: price,
+                discountAmount: 0,
                 price,
             });
         }
@@ -561,6 +763,8 @@ class CartService {
             addonServices.push({
                 serviceId: matchedService.serviceId,
                 name: matchedService.name,
+                priceBeforeDiscount: price,
+                discountAmount: 0,
                 price,
             });
         }
@@ -670,14 +874,20 @@ class CartService {
         if (!mongoose.Types.ObjectId.isValid(cartId)) {
             throw new Error("Invalid cartId");
         }
-        const cart = await Cart.findOne({
+        const session = options?.session;
+        const cartQuery = Cart.findOne({
             _id: cartId,
             ...buildCartOwnerQuery(owner),
-        }).session(options?.session || null);
+        });
+        if (session) {
+            cartQuery.session(session);
+        }
+        const cart = await cartQuery;
         if (!cart) {
             throw new Error("Cart not found");
         }
-        if (cart.status === "CHECKOUT_PENDING" && options?.persist) {
+        if (cart.status === "CHECKOUT_PENDING" &&
+            options?.persist) {
             throw new Error("Cannot recalculate a cart during checkout");
         }
         const oldValues = {
@@ -686,16 +896,22 @@ class CartService {
             subtotal: cart.subtotal,
             discountAmount: cart.discountAmount,
             totalAmount: cart.totalAmount,
+            totalTax: cart.taxSummary?.totalTax ?? 0,
         };
-        const totals = await CartPricingEngine.calculateCartTotals(cart);
-        const subtotal = totals.subtotal;
-        let discountAmount = 0;
-        let finalTotal = subtotal;
         const changes = [];
+        /*
+         * First pass:
+         * calculate original prices without any old coupon allocation.
+         */
+        this.clearLineDiscounts(cart);
+        const grossTotals = await CartPricingEngine.calculateCartTotals(cart);
+        let couponDiscountAmount = 0;
         if (cart.couponId) {
-            const coupon = await Coupon.findById(cart.couponId)
-                .session(options?.session || null)
-                .lean();
+            const couponQuery = Coupon.findById(cart.couponId);
+            if (session) {
+                couponQuery.session(session);
+            }
+            const coupon = await couponQuery.lean();
             if (!coupon) {
                 changes.push("Applied coupon was removed because it no longer exists");
                 cart.couponId = undefined;
@@ -703,59 +919,65 @@ class CartService {
             }
             else {
                 const now = new Date();
-                const expired = (coupon.validFrom && coupon.validFrom > now) ||
-                    (coupon.validTill && coupon.validTill < now);
-                if (subtotal < coupon.minOrderAmount) {
+                const expired = (coupon.validFrom &&
+                    coupon.validFrom > now) ||
+                    (coupon.validTill &&
+                        coupon.validTill < now);
+                if (grossTotals.subtotal <
+                    coupon.minOrderAmount) {
                     changes.push(`Coupon ${coupon.couponCode} was removed because minimum order amount of ₹${coupon.minOrderAmount} is not met`);
                     cart.couponId = undefined;
                     cart.couponCode = undefined;
                 }
                 else if (!coupon.isActive ||
                     expired ||
-                    (coupon.usageLimit > 0 && coupon.usedCount >= coupon.usageLimit)) {
+                    (coupon.usageLimit > 0 &&
+                        coupon.usedCount >= coupon.usageLimit)) {
                     changes.push(`Coupon ${coupon.couponCode} was removed because it is no longer valid`);
                     cart.couponId = undefined;
                     cart.couponCode = undefined;
                 }
                 else {
-                    if (coupon.discountType === "PERCENTAGE") {
-                        discountAmount = (subtotal * coupon.discount) / 100;
-                        if (coupon.maxDiscountAmount &&
-                            discountAmount > coupon.maxDiscountAmount) {
-                            discountAmount = coupon.maxDiscountAmount;
-                        }
-                    }
-                    else {
-                        discountAmount = coupon.discount;
-                    }
-                    finalTotal = Math.max(subtotal - discountAmount, 0);
+                    couponDiscountAmount =
+                        this.calculateCouponDiscount(grossTotals.subtotal, coupon);
                 }
             }
         }
-        cart.basePrice = totals.basePrice;
-        cart.addonPrice = totals.addonPrice;
-        cart.subtotal = subtotal;
-        cart.discountAmount = discountAmount;
-        cart.totalAmount = finalTotal;
+        /*
+         * Allocate coupon discount to individual lines.
+         */
+        this.allocateDiscountToCartLines(cart, grossTotals, couponDiscountAmount);
+        /*
+         * Second pass:
+         * calculate GST using allocated line discounts.
+         */
+        const finalTotals = await CartPricingEngine.calculateCartTotals(cart);
+        this.applyPricingResults(cart, finalTotals);
         if (oldValues.basePrice !== cart.basePrice) {
             changes.push(`Base price changed from ${oldValues.basePrice} to ${cart.basePrice}`);
         }
         if (oldValues.addonPrice !== cart.addonPrice) {
             changes.push(`Addon price changed from ${oldValues.addonPrice} to ${cart.addonPrice}`);
         }
-        if (oldValues.totalAmount !== cart.totalAmount) {
-            changes.push(`Total amount changed from ${oldValues.totalAmount} to ${cart.totalAmount}`);
-        }
         if (oldValues.subtotal !== cart.subtotal) {
             changes.push(`Subtotal changed from ${oldValues.subtotal} to ${cart.subtotal}`);
         }
-        if (oldValues.discountAmount !== cart.discountAmount) {
+        if (oldValues.discountAmount !==
+            cart.discountAmount) {
             changes.push(`Discount changed from ${oldValues.discountAmount} to ${cart.discountAmount}`);
         }
+        if (oldValues.totalTax !==
+            cart.taxSummary.totalTax) {
+            changes.push(`Tax changed from ${oldValues.totalTax} to ${cart.taxSummary.totalTax}`);
+        }
+        if (oldValues.totalAmount !==
+            cart.totalAmount) {
+            changes.push(`Total amount changed from ${oldValues.totalAmount} to ${cart.totalAmount}`);
+        }
         if (options?.persist) {
-            await cart.save({
-                session: options.session ?? undefined,
-            });
+            await cart.save(session
+                ? { session }
+                : undefined);
         }
         return {
             cart,

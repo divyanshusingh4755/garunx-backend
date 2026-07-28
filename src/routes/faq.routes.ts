@@ -35,7 +35,7 @@ const faqValidation = [
 
   body("faqType")
     .optional()
-    .isIn(["User", "Coordinator"])
+    .isIn(["User", "Coordinator", "User_Query", "Coordinator_Query"])
     .withMessage("Invalid FAQ type"),
 
   body("displayOrder")

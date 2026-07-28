@@ -10,17 +10,31 @@ interface ResolveTreeOwnerParams {
     requestedOwnerId?: string;
 }
 
+export interface ResolvedFamilyTreeAccess {
+    ownerId: string;
+    bookingId?: string;
+    bookingReference?: string;
+}
+
 export const resolveFamilyTreeOwnerId = async ({
     actorId,
     actorRole,
     requestedOwnerId,
-}: ResolveTreeOwnerParams): Promise<string> => {
+}: ResolveTreeOwnerParams): Promise<ResolvedFamilyTreeAccess> => {
+    if (!Types.ObjectId.isValid(actorId)) {
+        throw new Error(
+            "Invalid authenticated user ID",
+        );
+    }
+
     /*
-     * No ownerId means authenticated user
+     * No ownerId means the authenticated user
      * is accessing their own family tree.
      */
     if (!requestedOwnerId) {
-        return actorId;
+        return {
+            ownerId: actorId,
+        };
     }
 
     if (!Types.ObjectId.isValid(requestedOwnerId)) {
@@ -29,10 +43,15 @@ export const resolveFamilyTreeOwnerId = async ({
         );
     }
 
-    if (!Types.ObjectId.isValid(actorId)) {
-        throw new Error(
-            "Invalid authenticated user ID",
-        );
+    /*
+     * When the requested owner is the same as
+     * the authenticated user, treat it as
+     * self-access regardless of role.
+     */
+    if (requestedOwnerId === actorId) {
+        return {
+            ownerId: actorId,
+        };
     }
 
     /*
@@ -49,7 +68,7 @@ export const resolveFamilyTreeOwnerId = async ({
     }
 
     /*
-     * Verify that requested owner exists.
+     * Verify that the requested owner exists.
      */
     const targetUser = await User.findById(
         requestedOwnerId,
@@ -64,33 +83,52 @@ export const resolveFamilyTreeOwnerId = async ({
     }
 
     /*
-     * Admin can access any user's tree.
+     * Admin can access any user's family tree.
+     * No booking context is required because
+     * this is an administrative action.
      */
     if (actorRole === Role.ADMIN) {
-        return targetUser._id.toString();
+        return {
+            ownerId:
+                targetUser._id.toString(),
+        };
     }
 
     /*
      * Coordinator can access only a customer
      * whose active booking is assigned to them.
+     *
+     * The booking information is returned so
+     * the family-tree service can store which
+     * booking caused the change.
      */
     if (actorRole === Role.COORDINATOR) {
-        const activeBooking = await Booking.findOne({
-            userId: new Types.ObjectId(
-                requestedOwnerId,
-            ),
+        const activeBooking =
+            await Booking.findOne({
+                userId:
+                    new Types.ObjectId(
+                        requestedOwnerId,
+                    ),
 
-            isDeleted: false,
+                isDeleted: false,
 
-            status: "IN_PROGRESS",
+                status: "IN_PROGRESS",
 
-            "assignment.status": "ACCEPTED",
+                "assignment.status":
+                    "ACCEPTED",
 
-            "assignment.assignedCoordinatorId":
-                new Types.ObjectId(actorId),
-        })
-            .select("_id")
-            .lean();
+                "assignment.assignedCoordinatorId":
+                    new Types.ObjectId(
+                        actorId,
+                    ),
+            })
+                .select(
+                    "_id bookingReference",
+                )
+                .sort({
+                    createdAt: -1,
+                })
+                .lean();
 
         if (!activeBooking) {
             throw new Error(
@@ -98,7 +136,18 @@ export const resolveFamilyTreeOwnerId = async ({
             );
         }
 
-        return targetUser._id.toString();
+        return {
+            ownerId:
+                targetUser._id.toString(),
+
+            bookingId:
+                activeBooking._id.toString(),
+
+            ...(activeBooking.bookingReference && {
+                bookingReference:
+                    activeBooking.bookingReference,
+            }),
+        };
     }
 
     throw new Error(

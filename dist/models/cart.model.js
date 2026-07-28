@@ -1,4 +1,44 @@
 import mongoose, { Document, Model, Schema, Types } from "mongoose";
+import { lineTaxSchema } from "./tax.schema.js";
+const cartTaxSummarySchema = new Schema({
+    taxableAmount: {
+        type: Number,
+        default: 0,
+        min: 0,
+    },
+    cgstAmount: {
+        type: Number,
+        default: 0,
+        min: 0,
+    },
+    sgstAmount: {
+        type: Number,
+        default: 0,
+        min: 0,
+    },
+    igstAmount: {
+        type: Number,
+        default: 0,
+        min: 0,
+    },
+    totalTax: {
+        type: Number,
+        default: 0,
+        min: 0,
+    },
+    supplierStateCode: {
+        type: String,
+        trim: true,
+        match: /^\d{2}$/,
+    },
+    placeOfSupplyStateCode: {
+        type: String,
+        trim: true,
+        match: /^\d{2}$/,
+    },
+}, {
+    _id: false,
+});
 const selectedComponentItemSchema = new Schema({
     itemId: {
         type: Schema.Types.ObjectId,
@@ -24,10 +64,24 @@ const selectedComponentSchema = new Schema({
         type: [selectedComponentItemSchema],
         default: [],
     },
+    priceBeforeDiscount: {
+        type: Number,
+        required: true,
+        min: 0,
+    },
+    discountAmount: {
+        type: Number,
+        default: 0,
+        min: 0,
+    },
     totalPrice: {
         type: Number,
         required: true,
         min: 0,
+    },
+    tax: {
+        type: lineTaxSchema,
+        default: undefined,
     },
 }, { _id: false });
 const selectedServiceSchema = new Schema({
@@ -40,10 +94,24 @@ const selectedServiceSchema = new Schema({
         type: String,
         required: true,
     },
+    priceBeforeDiscount: {
+        type: Number,
+        required: true,
+        min: 0,
+    },
+    discountAmount: {
+        type: Number,
+        default: 0,
+        min: 0,
+    },
     price: {
         type: Number,
         required: true,
         min: 0,
+    },
+    tax: {
+        type: lineTaxSchema,
+        default: undefined,
     },
 }, { _id: false });
 const addonServiceSchema = new Schema({
@@ -56,10 +124,24 @@ const addonServiceSchema = new Schema({
         type: String,
         required: true,
     },
+    priceBeforeDiscount: {
+        type: Number,
+        required: true,
+        min: 0,
+    },
+    discountAmount: {
+        type: Number,
+        default: 0,
+        min: 0,
+    },
     price: {
         type: Number,
         required: true,
         min: 0,
+    },
+    tax: {
+        type: lineTaxSchema,
+        default: undefined,
     },
 }, { _id: false });
 const cartSchema = new Schema({
@@ -190,6 +272,16 @@ const cartSchema = new Schema({
         type: Number,
         default: 0,
         min: 0,
+    },
+    taxSummary: {
+        type: cartTaxSummarySchema,
+        default: () => ({
+            taxableAmount: 0,
+            cgstAmount: 0,
+            sgstAmount: 0,
+            igstAmount: 0,
+            totalTax: 0,
+        }),
     },
     totalAmount: {
         type: Number,

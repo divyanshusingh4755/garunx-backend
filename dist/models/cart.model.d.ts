@@ -1,6 +1,11 @@
 import { Document, Model, Types } from "mongoose";
+import type { ILineTax, ITaxSummary } from "../types/tax.types.js";
 export type CartStatus = "ACTIVE" | "SCHEDULED" | "CHECKOUT_PENDING" | "CHECKED_OUT" | "EXPIRED" | "CANCELLED" | "DELETED";
 export type BookingFor = "MYSELF" | "OTHER";
+export interface ICartTaxSummary extends ITaxSummary {
+    supplierStateCode?: string;
+    placeOfSupplyStateCode?: string;
+}
 export interface ISelectedComponentItem {
     itemId: Types.ObjectId;
     name: string;
@@ -9,17 +14,26 @@ export interface ISelectedComponent {
     componentId: Types.ObjectId;
     name: string;
     items: ISelectedComponentItem[];
+    priceBeforeDiscount: number;
+    discountAmount: number;
     totalPrice: number;
+    tax?: ILineTax;
 }
 export interface ISelectedService {
     serviceId: Types.ObjectId;
     name: string;
+    priceBeforeDiscount: number;
+    discountAmount: number;
     price: number;
+    tax?: ILineTax;
 }
 export interface IAddonService {
     serviceId: Types.ObjectId;
     name: string;
+    priceBeforeDiscount: number;
+    discountAmount: number;
     price: number;
+    tax?: ILineTax;
 }
 export interface ICart extends Document {
     _id: Types.ObjectId;
@@ -58,6 +72,7 @@ export interface ICart extends Document {
     subtotal: number;
     discountAmount: number;
     totalAmount: number;
+    taxSummary: ICartTaxSummary;
     status: CartStatus;
     createdAt: Date;
     updatedAt: Date;

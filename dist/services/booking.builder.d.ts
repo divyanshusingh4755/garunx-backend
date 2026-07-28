@@ -1,4 +1,4 @@
-import type { IBookingEntry } from "../models/booking.model.js";
+import type { IBookingEntry, IBookingTaxSummary } from "../models/booking.model.js";
 import type { ICart } from "../models/cart.model.js";
 import type { Types } from "mongoose";
 interface BookingBuildResult {
@@ -10,14 +10,17 @@ interface BookingBuildResult {
         couponId?: Types.ObjectId;
         couponCode?: string;
         discountAmount: number;
-        taxes: number;
+        taxSummary: IBookingTaxSummary;
         grandTotal: number;
     };
 }
 export declare class BookingBuilder {
+    private static buildTaxSummary;
+    private static buildMainPricing;
     static buildFromCart(cart: ICart): Promise<BookingBuildResult>;
     static buildServiceBooking(cart: ICart): Promise<BookingBuildResult>;
     static buildPackageBooking(cart: ICart): Promise<BookingBuildResult>;
+    private static buildTaxSummaryFromLine;
     private static buildComponentSnapshots;
 }
 export {};

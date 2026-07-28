@@ -81,3 +81,9 @@ export enum MemberLifeStatus {
   ALIVE = "ALIVE",
   DECEASED = "DECEASED",
 }
+
+export type FamilyMemberSource =
+  | "CUSTOMER_SELF"
+  | "COORDINATOR_BOOKING"
+  | "ADMIN_MANUAL"
+  | "SYSTEM_IMPORT";

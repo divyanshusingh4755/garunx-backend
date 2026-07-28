@@ -1,10 +1,11 @@
 import { type Document } from "mongoose";
 export interface IState extends Document {
-    country: String;
-    name: String;
-    image?: String;
-    description?: String;
-    isActive: Boolean;
+    country: string;
+    name: string;
+    image?: string;
+    description?: string;
+    isActive: boolean;
+    gstCode: string;
     location?: {
         type: "Point";
         coordinates: [number, number];

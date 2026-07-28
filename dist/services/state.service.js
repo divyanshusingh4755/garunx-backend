@@ -7,15 +7,16 @@ export class StateService {
         const values = filterValue.split(",").map((val) => val.trim());
         return { $in: values };
     }
-    static async createState(name, country, image, description, location) {
+    static async createState(name, country, gstCode, image, description, location) {
         const newState = new State({
-            name,
-            country,
+            name: name.trim(),
+            country: country.trim(),
+            gstCode: gstCode.trim(),
             image,
             description,
             location,
         });
-        return await newState.save();
+        return newState.save();
     }
     static async FindState(searchTerm, countryFilter, stateFilter, limit = 40, page = 1, isActive, sortBy = "createdAt", sortOrder = "desc") {
         const skip = limit * (page - 1);
@@ -26,7 +27,7 @@ export class StateService {
         if (countryFilter)
             query.country = this.applyFilter(countryFilter);
         if (stateFilter)
-            query.state = this.applyFilter(stateFilter);
+            query.name = this.applyFilter(stateFilter);
         const isTextSearch = !!searchTerm?.trim() && searchTerm.trim().length > 4;
         if (searchTerm?.trim()) {
             const term = searchTerm.trim();
@@ -78,22 +79,22 @@ export class StateService {
         }
     }
     static async updateState(stateId, updateData) {
-        try {
-            if (updateData.location?.coordinates) {
-                updateData.location = {
-                    type: "Point",
-                    coordinates: updateData.location.coordinates,
-                };
-            }
-            const updatedState = await State.findByIdAndUpdate(stateId, { $set: updateData }, { new: true, runValidators: true }).lean();
-            if (!updatedState) {
-                throw new Error("State not found");
-            }
-            return updatedState;
+        if (updateData.location?.coordinates) {
+            updateData.location = {
+                type: "Point",
+                coordinates: updateData.location.coordinates,
+            };
         }
-        catch (error) {
-            throw new Error(`State Update Failed: ${error.message}`);
+        const updatedState = await State.findByIdAndUpdate(stateId, {
+            $set: updateData,
+        }, {
+            new: true,
+            runValidators: true,
+        }).lean();
+        if (!updatedState) {
+            throw new Error("State not found");
         }
+        return updatedState;
     }
     static async softDeleteState(stateId, status) {
         try {

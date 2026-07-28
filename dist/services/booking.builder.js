@@ -2,43 +2,92 @@ import { Package } from "../models/package.model.js";
 import { Service } from "../models/service.model.js";
 import { Component } from "../models/component.model.js";
 import { ServiceComponent } from "../models/servicecomponent.model.js";
-import { ComponentItem } from "../models/componentitem.model.js";
 export class BookingBuilder {
+    static buildTaxSummary(taxSummary) {
+        return {
+            taxableAmount: taxSummary?.taxableAmount ?? 0,
+            cgstAmount: taxSummary?.cgstAmount ?? 0,
+            sgstAmount: taxSummary?.sgstAmount ?? 0,
+            igstAmount: taxSummary?.igstAmount ?? 0,
+            totalTax: taxSummary?.totalTax ?? 0,
+            ...(taxSummary?.supplierStateCode
+                ? {
+                    supplierStateCode: taxSummary.supplierStateCode,
+                }
+                : {}),
+            ...(taxSummary?.placeOfSupplyStateCode
+                ? {
+                    placeOfSupplyStateCode: taxSummary.placeOfSupplyStateCode,
+                }
+                : {}),
+        };
+    }
+    static buildMainPricing(cart) {
+        return {
+            baseAmount: cart.basePrice,
+            addonAmount: cart.addonPrice,
+            subtotal: cart.subtotal,
+            ...(cart.couponId && cart.couponCode
+                ? {
+                    couponId: cart.couponId,
+                    couponCode: cart.couponCode,
+                }
+                : {}),
+            discountAmount: cart.discountAmount,
+            taxSummary: this.buildTaxSummary(cart.taxSummary),
+            grandTotal: cart.totalAmount,
+        };
+    }
     static async buildFromCart(cart) {
         if (cart.serviceId) {
-            return await this.buildServiceBooking(cart);
+            return this.buildServiceBooking(cart);
         }
         if (cart.packageId) {
-            return await this.buildPackageBooking(cart);
+            return this.buildPackageBooking(cart);
         }
         throw new Error("Invalid cart type");
     }
     static async buildServiceBooking(cart) {
+        if (!cart.serviceId) {
+            throw new Error("Service ID is required for service booking");
+        }
         const service = await Service.findById(cart.serviceId).lean();
         if (!service) {
             throw new Error("Service not found");
         }
         const plainCart = cart.toObject();
         const selectedComponents = [
-            ...(plainCart.selectedComponents ?? []).map((c) => ({
-                ...c,
+            ...(plainCart.selectedComponents ?? []).map((component) => ({
+                ...component,
                 componentType: "DEFAULT",
             })),
-            ...(plainCart.addonComponents ?? []).map((c) => ({
-                ...c,
+            ...(plainCart.addonComponents ?? []).map((component) => ({
+                ...component,
                 componentType: "ADDON",
             })),
         ];
-        const components = await this.buildComponentSnapshots(cart, selectedComponents, service._id, cart.tierId);
+        const components = await this.buildComponentSnapshots(selectedComponents, service._id, cart.tierId);
         const entry = {
             entryType: "SERVICE",
             serviceConfiguration: {
                 serviceId: service._id,
                 serviceSnapshot: {
                     name: service.name,
-                    shortDescription: service.shortDescription,
-                    thumbnailImage: service.thumbnailImage ?? "",
-                    serviceReference: service.serviceReference,
+                    ...(service.shortDescription
+                        ? {
+                            shortDescription: service.shortDescription,
+                        }
+                        : {}),
+                    ...(service.thumbnailImage
+                        ? {
+                            thumbnailImage: service.thumbnailImage,
+                        }
+                        : {}),
+                    ...(service.serviceReference
+                        ? {
+                            serviceReference: service.serviceReference,
+                        }
+                        : {}),
                 },
                 serviceRole: "PRIMARY",
                 tier: {
@@ -51,54 +100,65 @@ export class BookingBuilder {
                 },
                 components,
                 pricing: {
-                    taxes: 0,
-                    grandTotal: cart.totalAmount,
+                    priceBeforeDiscount: cart.subtotal,
+                    discountAmount: cart.discountAmount,
+                    finalAmount: cart.totalAmount,
+                    taxSummary: this.buildTaxSummary(cart.taxSummary),
                 },
             },
         };
         return {
             entries: [entry],
-            pricing: {
-                baseAmount: cart.basePrice,
-                addonAmount: cart.addonPrice,
-                subtotal: cart.subtotal,
-                ...(cart.couponId && cart.couponCode
-                    ? {
-                        couponId: cart.couponId,
-                        couponCode: cart.couponCode,
-                    }
-                    : {}),
-                discountAmount: cart.discountAmount,
-                taxes: 0,
-                grandTotal: cart.totalAmount,
-            },
+            pricing: this.buildMainPricing(cart),
         };
     }
     static async buildPackageBooking(cart) {
+        if (!cart.packageId) {
+            throw new Error("Package ID is required for package booking");
+        }
         const pkg = await Package.findById(cart.packageId).lean();
         if (!pkg) {
             throw new Error("Package not found");
         }
         const allServiceIds = [
-            ...(cart.selectedServices ?? []).map((s) => s.serviceId),
-            ...(cart.addonServices ?? []).map((s) => s.serviceId),
+            ...(cart.selectedServices ?? []).map((service) => service.serviceId),
+            ...(cart.addonServices ?? []).map((service) => service.serviceId),
         ];
         const services = await Service.find({
-            _id: { $in: allServiceIds },
+            _id: {
+                $in: allServiceIds,
+            },
         }).lean();
-        const serviceMap = new Map(services.map((s) => [String(s._id), s]));
-        const selectedServices = (cart.selectedServices ?? [])
-            .map((selectedService) => {
-            const service = serviceMap.get(String(selectedService.serviceId));
-            if (!service)
-                return null;
-            return {
+        const serviceMap = new Map(services.map((service) => [
+            service._id.toString(),
+            service,
+        ]));
+        const selectedServices = [];
+        for (const selectedService of cart.selectedServices ?? []) {
+            const service = serviceMap.get(selectedService.serviceId.toString());
+            if (!service) {
+                throw new Error(`Service not found: ${selectedService.serviceId.toString()}`);
+            }
+            const taxSummary = this.buildTaxSummaryFromLine(selectedService.tax);
+            const configuration = {
                 serviceId: service._id,
                 serviceSnapshot: {
                     name: service.name,
-                    shortDescription: service.shortDescription,
-                    thumbnailImage: service.thumbnailImage ?? "",
-                    serviceReference: service.serviceReference,
+                    ...(service.shortDescription
+                        ? {
+                            shortDescription: service.shortDescription,
+                        }
+                        : {}),
+                    ...(service.thumbnailImage
+                        ? {
+                            thumbnailImage: service.thumbnailImage,
+                        }
+                        : {}),
+                    ...(service.serviceReference
+                        ? {
+                            serviceReference: service.serviceReference,
+                        }
+                        : {}),
                 },
                 serviceRole: "INCLUDED",
                 tier: {
@@ -111,24 +171,45 @@ export class BookingBuilder {
                 },
                 components: [],
                 pricing: {
-                    taxes: 0,
-                    grandTotal: selectedService.price,
+                    priceBeforeDiscount: selectedService.priceBeforeDiscount,
+                    discountAmount: selectedService.discountAmount,
+                    finalAmount: selectedService.price,
+                    ...(selectedService.tax
+                        ? {
+                            tax: selectedService.tax,
+                        }
+                        : {}),
+                    taxSummary,
                 },
             };
-        })
-            .filter(Boolean);
-        const addonServices = (cart.addonServices ?? [])
-            .map((addon) => {
-            const service = serviceMap.get(String(addon.serviceId));
-            if (!service)
-                return null;
-            return {
+            selectedServices.push(configuration);
+        }
+        const addonServices = [];
+        for (const addonService of cart.addonServices ?? []) {
+            const service = serviceMap.get(addonService.serviceId.toString());
+            if (!service) {
+                throw new Error(`Addon service not found: ${addonService.serviceId.toString()}`);
+            }
+            const taxSummary = this.buildTaxSummaryFromLine(addonService.tax);
+            const configuration = {
                 serviceId: service._id,
                 serviceSnapshot: {
                     name: service.name,
-                    shortDescription: service.shortDescription,
-                    thumbnailImage: service.thumbnailImage ?? "",
-                    serviceReference: service.serviceReference,
+                    ...(service.shortDescription
+                        ? {
+                            shortDescription: service.shortDescription,
+                        }
+                        : {}),
+                    ...(service.thumbnailImage
+                        ? {
+                            thumbnailImage: service.thumbnailImage,
+                        }
+                        : {}),
+                    ...(service.serviceReference
+                        ? {
+                            serviceReference: service.serviceReference,
+                        }
+                        : {}),
                 },
                 serviceRole: "ADDON",
                 tier: {
@@ -141,101 +222,141 @@ export class BookingBuilder {
                 },
                 components: [],
                 pricing: {
-                    taxes: 0,
-                    grandTotal: addon.price,
+                    priceBeforeDiscount: addonService.priceBeforeDiscount,
+                    discountAmount: addonService.discountAmount,
+                    finalAmount: addonService.price,
+                    ...(addonService.tax
+                        ? {
+                            tax: addonService.tax,
+                        }
+                        : {}),
+                    taxSummary,
                 },
             };
-        })
-            .filter(Boolean);
+            addonServices.push(configuration);
+        }
         const entry = {
             entryType: "PACKAGE",
             packageConfiguration: {
                 packageId: pkg._id,
                 packageSnapshot: {
                     name: pkg.name,
-                    shortDescription: pkg.shortDescription,
-                    thumbnailImage: pkg.thumbnailImage ?? "",
-                    packageReference: pkg.packageReference,
+                    ...(pkg.shortDescription
+                        ? {
+                            shortDescription: pkg.shortDescription,
+                        }
+                        : {}),
+                    ...(pkg.thumbnailImage
+                        ? {
+                            thumbnailImage: pkg.thumbnailImage,
+                        }
+                        : {}),
+                    ...(pkg.packageReference
+                        ? {
+                            packageReference: pkg.packageReference,
+                        }
+                        : {}),
                 },
                 selectedServices,
                 addonServices,
                 pricing: {
-                    taxes: 0,
+                    baseAmount: cart.basePrice,
+                    addonAmount: cart.addonPrice,
+                    subtotal: cart.subtotal,
+                    discountAmount: cart.discountAmount,
+                    taxSummary: this.buildTaxSummary(cart.taxSummary),
                     grandTotal: cart.totalAmount,
                 },
             },
         };
         return {
             entries: [entry],
-            pricing: {
-                baseAmount: cart.basePrice,
-                addonAmount: cart.addonPrice,
-                subtotal: cart.subtotal,
-                ...(cart.couponId && cart.couponCode
-                    ? {
-                        couponId: cart.couponId,
-                        couponCode: cart.couponCode,
-                    }
-                    : {}),
-                discountAmount: cart.discountAmount,
-                taxes: 0,
-                grandTotal: cart.totalAmount,
-            },
+            pricing: this.buildMainPricing(cart),
         };
     }
-    static async buildComponentSnapshots(cart, components, serviceId, tierId) {
-        if (!components.length)
+    static buildTaxSummaryFromLine(tax) {
+        if (!tax) {
+            return {
+                taxableAmount: 0,
+                cgstAmount: 0,
+                sgstAmount: 0,
+                igstAmount: 0,
+                totalTax: 0,
+            };
+        }
+        return {
+            taxableAmount: tax.taxableAmount,
+            cgstAmount: tax.cgstAmount,
+            sgstAmount: tax.sgstAmount,
+            igstAmount: tax.igstAmount,
+            totalTax: tax.totalTax,
+        };
+    }
+    static async buildComponentSnapshots(components, serviceId, tierId) {
+        if (components.length === 0) {
             return [];
-        const componentIds = components.map((c) => c.componentId);
-        const [componentDocs, serviceComponents, items] = await Promise.all([
-            Component.find({ _id: { $in: componentIds } }).lean(),
+        }
+        const componentIds = components.map((component) => component.componentId);
+        const [componentDocs, serviceComponents,] = await Promise.all([
+            Component.find({
+                _id: {
+                    $in: componentIds,
+                },
+            }).lean(),
             ServiceComponent.find({
                 serviceId,
-                tierId: tierId,
-                componentId: { $in: componentIds },
-            }).lean(),
-            ComponentItem.find({
-                _id: {
-                    $in: components.flatMap((c) => (c.items || []).map((i) => i.itemId)),
+                tierId,
+                componentId: {
+                    $in: componentIds,
                 },
             }).lean(),
         ]);
-        const componentMap = new Map(componentDocs.map((c) => [String(c._id), c]));
-        const serviceComponentMap = new Map(serviceComponents.map((sc) => [String(sc.componentId), sc]));
-        const itemPriceMap = new Map(items.map((i) => [String(i._id), i.price]));
+        const componentMap = new Map(componentDocs.map((component) => [
+            component._id.toString(),
+            component,
+        ]));
+        const serviceComponentMap = new Map(serviceComponents.map((serviceComponent) => [
+            serviceComponent.componentId.toString(),
+            serviceComponent,
+        ]));
         return components.map((component) => {
-            const items = component.items || [];
-            const componentDoc = componentMap.get(String(component.componentId));
-            const serviceComponent = serviceComponentMap.get(String(component.componentId));
-            let itemPrice = 0;
-            for (const item of items) {
-                itemPrice += itemPriceMap.get(String(item.itemId)) || 0;
-            }
-            // const baseComponentPrice = serviceComponent?.isRequired ? 0 : 0;
-            const baseComponentPrice = 0;
-            const totalPrice = baseComponentPrice + itemPrice;
+            const componentId = component.componentId.toString();
+            const componentDoc = componentMap.get(componentId);
+            const serviceComponent = serviceComponentMap.get(componentId);
             const bookingComponent = {
                 componentType: component.componentType,
                 componentId: component.componentId,
-                name: componentDoc?.name ?? component.name,
-                isRequired: serviceComponent?.isRequired ?? false,
-                isRemovable: componentDoc?.isRemovable ?? false,
-                isBundled: componentDoc?.isBundled ?? false,
+                name: componentDoc?.name ??
+                    component.name,
+                isRequired: serviceComponent?.isRequired ??
+                    false,
+                isRemovable: componentDoc?.isRemovable ??
+                    false,
+                isBundled: componentDoc?.isBundled ??
+                    false,
                 selected: true,
-                selectedItems: (component.items || []).map((item) => ({
+                selectedItems: (component.items ?? []).map((item) => ({
                     itemId: item.itemId,
                     name: item.name,
                 })),
                 pricing: {
-                    total: totalPrice,
-                    basePrice: itemPrice
+                    priceBeforeDiscount: component.priceBeforeDiscount,
+                    discountAmount: component.discountAmount,
+                    finalAmount: component.totalPrice,
+                    ...(component.tax
+                        ? {
+                            tax: component.tax,
+                        }
+                        : {}),
                 },
             };
             if (serviceComponent?._id) {
-                bookingComponent.serviceComponentId = serviceComponent._id;
+                bookingComponent.serviceComponentId =
+                    serviceComponent._id;
             }
             if (componentDoc?.description) {
-                bookingComponent.description = componentDoc.description;
+                bookingComponent.description =
+                    componentDoc.description;
             }
             return bookingComponent;
         });

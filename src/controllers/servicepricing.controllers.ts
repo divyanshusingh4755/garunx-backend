@@ -1,37 +1,75 @@
-import { ServicePricingService } from "../services/servicepricing.service.js";
-import type { Request, Response } from "express";
+import type {
+  Request,
+  Response,
+} from "express";
 
-export const bulkUpsertTierPricing = async (req: Request, res: Response) => {
-  try {
-    const result = await ServicePricingService.bulkUpsertTierPricing(req.body);
+import {
+  ServicePricingService,
+} from "../services/servicepricing.service.js";
 
-    return res.status(200).json(result);
-  } catch (error: any) {
-    return res.status(400).json({
-      success: false,
-      message: error.message,
-    });
-  }
-};
+function getErrorMessage(
+  error: unknown,
+): string {
+  return error instanceof Error
+    ? error.message
+    : "An unexpected error occurred";
+}
 
-export const resolvePricing = async (req: Request, res: Response) => {
-  try {
-    const { serviceId, tierId, locationId } = req.query;
+export const bulkUpsertTierPricing =
+  async (
+    req: Request,
+    res: Response,
+  ) => {
+    try {
+      const result =
+        await ServicePricingService
+          .bulkUpsertTierPricing(
+            req.body,
+          );
 
-    const data = await ServicePricingService.resolvePricing(
-      serviceId as string,
-      tierId as string,
-      locationId as string,
-    );
+      return res
+        .status(200)
+        .json(result);
+    } catch (error: unknown) {
+      return res.status(400).json({
+        success: false,
+        message:
+          getErrorMessage(error),
+      });
+    }
+  };
 
-    return res.status(200).json({
-      success: true,
-      data,
-    });
-  } catch (error: any) {
-    return res.status(400).json({
-      success: false,
-      message: error.message,
-    });
-  }
-};
+export const resolvePricing =
+  async (
+    req: Request,
+    res: Response,
+  ) => {
+    try {
+      const {
+        serviceId,
+        tierId,
+        locationId,
+      } = req.query;
+
+      const data =
+        await ServicePricingService
+          .resolvePricing(
+            String(serviceId),
+            String(tierId),
+            String(locationId),
+          );
+
+      return res
+        .status(200)
+        .json({
+          success: true,
+          data,
+        });
+    } catch (error: unknown) {
+      return res.status(400).json({
+        success: false,
+        message:
+          getErrorMessage(error),
+      });
+    }
+  };

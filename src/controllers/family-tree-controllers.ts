@@ -1,17 +1,24 @@
 import type { Request, Response } from "express";
 
-import FamilyTreeService, { type GetFamilyMembersQuery } from "../services/family-tree.service.js";
+import FamilyTreeService, {
+    type FamilyTreeActorContext,
+    type GetFamilyMembersQuery,
+} from "../services/family-tree.service.js";
 
 import {
     FamilyRelation,
     Gender,
     MemberLifeStatus,
 } from "../types/enums.js";
-import { resolveFamilyTreeOwnerId } from "../services/access.service.js";
+
+import {
+    resolveFamilyTreeOwnerId,
+    type ResolvedFamilyTreeAccess,
+} from "../services/access.service.js";
 
 interface AuthenticatedUser {
     userId: string;
-    role?: string;
+    role: string;
 }
 
 const getAuthenticatedUser = (
@@ -20,15 +27,13 @@ const getAuthenticatedUser = (
     const userId = req.user?.userId;
     const role = req.user?.role;
 
-    if (!userId) {
+    if (!userId || !role) {
         return null;
     }
 
     return {
         userId,
-        ...(role !== undefined && {
-            role,
-        }),
+        role,
     };
 };
 
@@ -37,17 +42,60 @@ const getStringParam = (
     fieldName: string,
 ): string | undefined => {
     if (Array.isArray(value)) {
-        throw new Error(
-            `Invalid ${fieldName}`,
-        );
+        throw new Error(`Invalid ${fieldName}`);
     }
 
     return value;
 };
 
-const getTreeOwnerId = async (
+const getRequiredStringParam = (
+    value: string | string[] | undefined,
+    fieldName: string,
+): string => {
+    const parsedValue = getStringParam(
+        value,
+        fieldName,
+    );
+
+    if (!parsedValue?.trim()) {
+        throw new Error(`${fieldName} is required`);
+    }
+
+    return parsedValue.trim();
+};
+
+const getSourceFromRole = (
+    role: string,
+): FamilyTreeActorContext["source"] => {
+    const normalizedRole = role
+        .trim()
+        .toUpperCase();
+
+    switch (normalizedRole) {
+        case "CUSTOMER":
+        case "USER":
+            return "CUSTOMER_SELF";
+
+        case "COORDINATOR":
+            return "COORDINATOR_BOOKING";
+
+        case "ADMIN":
+        case "SUPER_ADMIN":
+            return "ADMIN_MANUAL";
+
+        default:
+            throw new Error(
+                "Role is not authorized to modify a family tree",
+            );
+    }
+};
+
+const resolveTreeAccess = async (
     req: Request,
-): Promise<string> => {
+): Promise<{
+    authenticatedUser: AuthenticatedUser;
+    access: ResolvedFamilyTreeAccess;
+}> => {
     const authenticatedUser =
         getAuthenticatedUser(req);
 
@@ -61,19 +109,53 @@ const getTreeOwnerId = async (
             "family tree owner ID",
         );
 
-    return resolveFamilyTreeOwnerId({
+    const access =
+        await resolveFamilyTreeOwnerId({
+            actorId:
+                authenticatedUser.userId,
+
+            actorRole:
+                authenticatedUser.role,
+
+            ...(requestedOwnerId && {
+                requestedOwnerId,
+            }),
+        });
+
+    return {
+        authenticatedUser,
+        access,
+    };
+};
+
+const buildActorContext = (
+    authenticatedUser: AuthenticatedUser,
+    access: ResolvedFamilyTreeAccess,
+): FamilyTreeActorContext => {
+    return {
+        ownerId: access.ownerId,
+
         actorId:
             authenticatedUser.userId,
 
-        ...(authenticatedUser.role !== undefined && {
-            actorRole:
+        actorRole:
+            authenticatedUser.role,
+
+        source:
+            getSourceFromRole(
                 authenticatedUser.role,
+            ),
+
+        ...(access.bookingId && {
+            bookingId:
+                access.bookingId,
         }),
 
-        ...(requestedOwnerId !== undefined && {
-            requestedOwnerId,
+        ...(access.bookingReference && {
+            bookingReference:
+                access.bookingReference,
         }),
-    });
+    };
 };
 
 const getErrorStatusCode = (
@@ -87,29 +169,32 @@ const getErrorStatusCode = (
     const message =
         error.message.toLowerCase();
 
-    if (error.message === "Unauthorized") {
+    if (message === "unauthorized") {
         return 401;
     }
 
     if (
         message.includes("not authorized") ||
-        message.includes("not assigned")
+        message.includes("not assigned") ||
+        message.includes(
+            "role is not authorized",
+        )
     ) {
         return 403;
     }
 
     if (
-        error.message ===
-        "Family member not found" ||
-        error.message ===
-        "Family tree owner not found"
+        message.includes("not found")
     ) {
         return 404;
     }
 
     if (
         message.includes("invalid") ||
-        message.includes("required")
+        message.includes("required") ||
+        message.includes("cannot") ||
+        message.includes("do not belong") ||
+        message.includes("duplicate")
     ) {
         return 400;
     }
@@ -131,26 +216,20 @@ export const addFamilyMember = async (
     res: Response,
 ) => {
     try {
-        const authenticatedUser =
-            getAuthenticatedUser(req);
+        const {
+            authenticatedUser,
+            access,
+        } = await resolveTreeAccess(req);
 
-        if (!authenticatedUser) {
-            return res.status(401).json({
-                success: false,
-                message: "Unauthorized",
-            });
-        }
-
-        const ownerId =
-            await getTreeOwnerId(req);
-
-        const actorId =
-            authenticatedUser.userId;
+        const context =
+            buildActorContext(
+                authenticatedUser,
+                access,
+            );
 
         const familyMember =
             await FamilyTreeService.addFamilyMember(
-                ownerId,
-                actorId,
+                context,
                 req.body,
             );
 
@@ -183,12 +262,12 @@ export const getFamilyTree = async (
     res: Response,
 ) => {
     try {
-        const ownerId =
-            await getTreeOwnerId(req);
+        const { access } =
+            await resolveTreeAccess(req);
 
         const familyTree =
             await FamilyTreeService.getFamilyTree(
-                ownerId,
+                access.ownerId,
             );
 
         return res.status(200).json({
@@ -222,8 +301,8 @@ export const getFamilyMembers = async (
     res: Response,
 ) => {
     try {
-        const ownerId =
-            await getTreeOwnerId(req);
+        const { access } =
+            await resolveTreeAccess(req);
 
         const {
             search,
@@ -235,20 +314,21 @@ export const getFamilyMembers = async (
         } = req.query;
 
         const filters: GetFamilyMembersQuery =
-        {
-            page:
-                typeof page === "string"
-                    ? Number(page) || 1
-                    : 1,
+            {
+                page:
+                    typeof page === "string"
+                        ? Number(page) || 1
+                        : 1,
 
-            limit:
-                typeof limit === "string"
-                    ? Number(limit) || 20
-                    : 20,
-        };
+                limit:
+                    typeof limit === "string"
+                        ? Number(limit) || 20
+                        : 20,
+            };
 
         if (typeof search === "string") {
-            filters.search = search;
+            filters.search =
+                search.trim();
         }
 
         if (typeof relation === "string") {
@@ -270,7 +350,7 @@ export const getFamilyMembers = async (
 
         const result =
             await FamilyTreeService.getFamilyMembers(
-                ownerId,
+                access.ownerId,
                 filters,
             );
 
@@ -303,23 +383,19 @@ export const getFamilyMemberById = async (
     res: Response,
 ) => {
     try {
-        const ownerId =
-            await getTreeOwnerId(req);
+        const { access } =
+            await resolveTreeAccess(req);
 
-        const { id } = req.params;
-
-        if (!id) {
-            return res.status(400).json({
-                success: false,
-                message:
-                    "Family member ID is required",
-            });
-        }
+        const familyMemberId =
+            getRequiredStringParam(
+                req.params.id,
+                "Family member ID",
+            );
 
         const familyMember =
             await FamilyTreeService.getFamilyMemberById(
-                ownerId,
-                id as string,
+                access.ownerId,
+                familyMemberId,
             );
 
         return res.status(200).json({
@@ -351,37 +427,27 @@ export const updateFamilyMember = async (
     res: Response,
 ) => {
     try {
-        const authenticatedUser =
-            getAuthenticatedUser(req);
+        const {
+            authenticatedUser,
+            access,
+        } = await resolveTreeAccess(req);
 
-        if (!authenticatedUser) {
-            return res.status(401).json({
-                success: false,
-                message: "Unauthorized",
-            });
-        }
+        const familyMemberId =
+            getRequiredStringParam(
+                req.params.id,
+                "Family member ID",
+            );
 
-        const ownerId =
-            await getTreeOwnerId(req);
-
-        const actorId =
-            authenticatedUser.userId;
-
-        const { id } = req.params;
-
-        if (!id) {
-            return res.status(400).json({
-                success: false,
-                message:
-                    "Family member ID is required",
-            });
-        }
+        const context =
+            buildActorContext(
+                authenticatedUser,
+                access,
+            );
 
         const familyMember =
             await FamilyTreeService.updateFamilyMember(
-                ownerId,
-                actorId,
-                id as string,
+                context,
+                familyMemberId,
                 req.body,
             );
 
@@ -414,23 +480,41 @@ export const deleteFamilyMember = async (
     res: Response,
 ) => {
     try {
-        const ownerId =
-            await getTreeOwnerId(req);
+        const {
+            authenticatedUser,
+            access,
+        } = await resolveTreeAccess(req);
 
-        const { id } = req.params;
+        const familyMemberId =
+            getRequiredStringParam(
+                req.params.id,
+                "Family member ID",
+            );
 
-        if (!id) {
+        const reason =
+            typeof req.body?.reason === "string"
+                ? req.body.reason.trim()
+                : "";
+
+        if (reason.length < 3) {
             return res.status(400).json({
                 success: false,
                 message:
-                    "Family member ID is required",
+                    "Deletion reason is required and must contain at least 3 characters",
             });
         }
 
+        const context =
+            buildActorContext(
+                authenticatedUser,
+                access,
+            );
+
         const deletedMember =
             await FamilyTreeService.deleteFamilyMember(
-                ownerId,
-                id as string,
+                context,
+                familyMemberId,
+                reason,
             );
 
         return res.status(200).json({
@@ -444,7 +528,7 @@ export const deleteFamilyMember = async (
             .status(
                 getErrorStatusCode(
                     error,
-                    500,
+                    400,
                 ),
             )
             .json({
@@ -452,6 +536,201 @@ export const deleteFamilyMember = async (
                 message: getErrorMessage(
                     error,
                     "Failed to delete family member",
+                ),
+            });
+    }
+};
+
+export const getFamilyTreeActivities = async (
+    req: Request,
+    res: Response,
+) => {
+    try {
+        const { access } =
+            await resolveTreeAccess(req);
+
+        const {
+            action,
+            familyMemberId,
+            performedBy,
+            bookingId,
+            page,
+            limit,
+        } = req.query;
+
+        const result =
+            await FamilyTreeService.getFamilyTreeActivities(
+                access.ownerId,
+                {
+                    ...(typeof action ===
+                        "string" && {
+                        action,
+                    }),
+
+                    ...(typeof familyMemberId ===
+                        "string" && {
+                        familyMemberId,
+                    }),
+
+                    ...(typeof performedBy ===
+                        "string" && {
+                        performedBy,
+                    }),
+
+                    ...(typeof bookingId ===
+                        "string" && {
+                        bookingId,
+                    }),
+
+                    page:
+                        typeof page === "string"
+                            ? Number(page) || 1
+                            : 1,
+
+                    limit:
+                        typeof limit === "string"
+                            ? Number(limit) || 20
+                            : 20,
+                },
+            );
+
+        return res.status(200).json({
+            success: true,
+            message:
+                "Family tree activities fetched successfully",
+            ...result,
+        });
+    } catch (error: unknown) {
+        return res
+            .status(
+                getErrorStatusCode(
+                    error,
+                    500,
+                ),
+            )
+            .json({
+                success: false,
+                message: getErrorMessage(
+                    error,
+                    "Failed to fetch family tree activities",
+                ),
+            });
+    }
+};
+
+export const getFamilyMemberActivities = async (
+    req: Request,
+    res: Response,
+) => {
+    try {
+        const { access } =
+            await resolveTreeAccess(req);
+
+        const familyMemberId =
+            getRequiredStringParam(
+                req.params.id,
+                "Family member ID",
+            );
+
+        const {
+            page,
+            limit,
+        } = req.query;
+
+        const result =
+            await FamilyTreeService.getFamilyMemberActivities(
+                access.ownerId,
+                familyMemberId,
+                {
+                    page:
+                        typeof page === "string"
+                            ? Number(page) || 1
+                            : 1,
+
+                    limit:
+                        typeof limit === "string"
+                            ? Number(limit) || 20
+                            : 20,
+                },
+            );
+
+        return res.status(200).json({
+            success: true,
+            message:
+                "Family member activities fetched successfully",
+            ...result,
+        });
+    } catch (error: unknown) {
+        return res
+            .status(
+                getErrorStatusCode(
+                    error,
+                    500,
+                ),
+            )
+            .json({
+                success: false,
+                message: getErrorMessage(
+                    error,
+                    "Failed to fetch family member activities",
+                ),
+            });
+    }
+};
+
+export const restoreFamilyMember = async (
+    req: Request,
+    res: Response,
+) => {
+    try {
+        const {
+            authenticatedUser,
+            access,
+        } = await resolveTreeAccess(req);
+
+        const familyMemberId =
+            getRequiredStringParam(
+                req.params.id,
+                "Family member ID",
+            );
+
+        const reason =
+            typeof req.body?.reason === "string"
+                ? req.body.reason.trim()
+                : undefined;
+
+        const context =
+            buildActorContext(
+                authenticatedUser,
+                access,
+            );
+
+        const restoredMember =
+            await FamilyTreeService.restoreFamilyMember(
+                context,
+                familyMemberId,
+                reason,
+            );
+
+        return res.status(200).json({
+            success: true,
+            message:
+                "Family member restored successfully",
+            restoredMember,
+        });
+    } catch (error: unknown) {
+        return res
+            .status(
+                getErrorStatusCode(
+                    error,
+                    400,
+                ),
+            )
+            .json({
+                success: false,
+                message: getErrorMessage(
+                    error,
+                    "Failed to restore family member",
                 ),
             });
     }

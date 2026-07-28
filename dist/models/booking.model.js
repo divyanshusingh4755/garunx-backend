@@ -1,5 +1,6 @@
 import { model, Schema, Types, Document, Model } from "mongoose";
 import { Counter } from "./counter.model.js";
+import { lineTaxSchema, } from "./tax.schema.js";
 const assignmentRequestSchema = new Schema({
     coordinatorId: {
         type: Schema.Types.ObjectId,
@@ -118,6 +119,45 @@ const bookingRefundSchema = new Schema({
         ref: "User",
     },
 }, { _id: false });
+const bookingTaxSummarySchema = new Schema({
+    taxableAmount: {
+        type: Number,
+        default: 0,
+        min: 0,
+    },
+    cgstAmount: {
+        type: Number,
+        default: 0,
+        min: 0,
+    },
+    sgstAmount: {
+        type: Number,
+        default: 0,
+        min: 0,
+    },
+    igstAmount: {
+        type: Number,
+        default: 0,
+        min: 0,
+    },
+    totalTax: {
+        type: Number,
+        default: 0,
+        min: 0,
+    },
+    supplierStateCode: {
+        type: String,
+        trim: true,
+        match: /^\d{2}$/,
+    },
+    placeOfSupplyStateCode: {
+        type: String,
+        trim: true,
+        match: /^\d{2}$/,
+    },
+}, {
+    _id: false,
+});
 const bookingComponentSchema = new Schema({
     componentType: {
         type: String,
@@ -144,8 +184,25 @@ const bookingComponentSchema = new Schema({
         default: [],
     },
     pricing: {
-        basePrice: { type: Number, default: 0, min: 0 },
-        total: { type: Number, default: 0, min: 0 },
+        priceBeforeDiscount: {
+            type: Number,
+            required: true,
+            min: 0,
+        },
+        discountAmount: {
+            type: Number,
+            default: 0,
+            min: 0,
+        },
+        finalAmount: {
+            type: Number,
+            required: true,
+            min: 0,
+        },
+        tax: {
+            type: lineTaxSchema,
+            default: undefined,
+        },
     },
 }, { _id: false });
 const bookingServiceConfigurationSchema = new Schema({
@@ -193,8 +250,36 @@ const bookingServiceConfigurationSchema = new Schema({
         default: [],
     },
     pricing: {
-        taxes: { type: Number, default: 0 },
-        grandTotal: { type: Number, default: 0 },
+        priceBeforeDiscount: {
+            type: Number,
+            default: 0,
+            min: 0,
+        },
+        discountAmount: {
+            type: Number,
+            default: 0,
+            min: 0,
+        },
+        finalAmount: {
+            type: Number,
+            default: 0,
+            min: 0,
+        },
+        tax: {
+            type: lineTaxSchema,
+            default: undefined,
+        },
+        taxSummary: {
+            type: bookingTaxSummarySchema,
+            default: () => ({
+                taxableAmount: 0,
+                cgstAmount: 0,
+                sgstAmount: 0,
+                igstAmount: 0,
+                cessAmount: 0,
+                totalTax: 0,
+            }),
+        },
     },
 }, { _id: false });
 const bookingPackageConfigurationSchema = new Schema({
@@ -218,8 +303,41 @@ const bookingPackageConfigurationSchema = new Schema({
         default: [],
     },
     pricing: {
-        taxes: { type: Number, default: 0 },
-        grandTotal: { type: Number, default: 0 },
+        baseAmount: {
+            type: Number,
+            default: 0,
+            min: 0,
+        },
+        addonAmount: {
+            type: Number,
+            default: 0,
+            min: 0,
+        },
+        subtotal: {
+            type: Number,
+            default: 0,
+            min: 0,
+        },
+        discountAmount: {
+            type: Number,
+            default: 0,
+            min: 0,
+        },
+        taxSummary: {
+            type: bookingTaxSummarySchema,
+            default: () => ({
+                taxableAmount: 0,
+                cgstAmount: 0,
+                sgstAmount: 0,
+                igstAmount: 0,
+                totalTax: 0,
+            }),
+        },
+        grandTotal: {
+            type: Number,
+            default: 0,
+            min: 0,
+        },
     },
 }, { _id: false });
 const bookingEntrySchema = new Schema({
@@ -360,10 +478,15 @@ const bookingSchema = new Schema({
             default: 0,
             min: 0,
         },
-        taxes: {
-            type: Number,
-            default: 0,
-            min: 0,
+        taxSummary: {
+            type: bookingTaxSummarySchema,
+            default: () => ({
+                taxableAmount: 0,
+                cgstAmount: 0,
+                sgstAmount: 0,
+                igstAmount: 0,
+                totalTax: 0,
+            }),
         },
         grandTotal: {
             type: Number,

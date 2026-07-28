@@ -1,9 +1,9 @@
 import { Types } from "mongoose";
 export interface ISession extends Document {
     userId: Types.ObjectId;
-    refreshToken: String;
-    deviceInfo?: String;
-    ipAddress?: String;
+    refreshToken: string;
+    deviceInfo?: string;
+    ipAddress?: string;
     familyId: string;
     expiresAt: Date;
 }

@@ -7,7 +7,7 @@ export interface IFAQ extends Document {
   answer: string;
   isActive: boolean;
   displayOrder: number;
-  faqType: "User" | "Coordinator"
+  faqType: "User" | "Coordinator" | "User_Query" | "Coordinator_Query";
 }
 
 const faqSchema = new Schema<IFAQ>(
@@ -34,7 +34,7 @@ const faqSchema = new Schema<IFAQ>(
 
     isActive: { type: Boolean, default: true },
 
-    faqType: {type: String, enum: ["User", "Coordinator"], default: "User"},
+    faqType: {type: String, enum: ["User", "Coordinator", "User_Query", "Coordinator_Query"], default: "User"},
 
     displayOrder: {
       type: Number,

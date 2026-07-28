@@ -1,15 +1,15 @@
 import { model, Schema } from "mongoose";
 
 export interface IBrand extends Document {
-    version: Number
-    isActive: Boolean
-    theme: {
-        primary: String,
-        secondary: String,
-        accent: String,
-        background: String,
-        text: String
-    }
+  version: number;
+  isActive: boolean;
+  theme: {
+    primary: string;
+    secondary: string;
+    accent: string;
+    background: string;
+    text: string;
+  };
 }
 
 const brandingSchema = new Schema<IBrand>({
