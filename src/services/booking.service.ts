@@ -3323,7 +3323,6 @@ export class BookingService {
     }
 
     currentRequest.status = "REJECTED";
-    currentRequest.respondedAt = now;
 
     const trimmedReason = reason?.trim();
 
@@ -3333,7 +3332,7 @@ export class BookingService {
       delete currentRequest.rejectionReason;
     }
 
-    booking.assignment.status = "REJECTED";
+    booking.assignment.status = "PENDING_SELECTION";
     booking.status = "ASSIGNMENT_PENDING";
 
     delete booking.assignment.assignedCoordinatorId;
@@ -3372,6 +3371,46 @@ export class BookingService {
 
     if (!booking) {
       throw new Error("Booking not found");
+    }
+
+    const isOwner =
+      booking.userId?.toString() === requestedBy;
+
+    const isAssignedCoordinator =
+      booking.assignment
+        ?.assignedCoordinatorId
+        ?.toString() === requestedBy;
+
+    const isAdmin =
+      requestedByRole === "ADMIN";
+
+    if (
+      requestedByRole === "CUSTOMER" &&
+      !isOwner
+    ) {
+      throw new Error(
+        "Only the booking owner can request reassignment",
+      );
+    }
+
+    if (
+      requestedByRole === "COORDINATOR" &&
+      !isAssignedCoordinator
+    ) {
+      throw new Error(
+        "Only the assigned coordinator can request reassignment",
+      );
+    }
+
+    if (
+      !isOwner &&
+      !isAssignedCoordinator &&
+      !isAdmin &&
+      requestedByRole !== "SYSTEM"
+    ) {
+      throw new Error(
+        "You are not authorized to request reassignment",
+      );
     }
 
     if (

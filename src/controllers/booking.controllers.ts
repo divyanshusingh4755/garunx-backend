@@ -300,7 +300,7 @@ export const rescheduleBooking = async (
     return res.status(200).json({
       success: true,
       message:
-        "Booking rescheduled successfully",
+        result.message,
       data: result,
     });
   } catch (error: any) {
@@ -540,6 +540,7 @@ export const getAvailableCoordinators = async (
       autoAssignmentEnabled,
       sortBy,
       sortOrder,
+      scheduledAt,
     } = req.query;
 
     const filters: CoordinatorFilters = {};
@@ -605,6 +606,11 @@ export const getAvailableCoordinators = async (
       filters.sortOrder = sortOrder;
     }
 
+    if (typeof scheduledAt === "string") {
+      filters.scheduledAt =
+        scheduledAt;
+    }
+
     const result =
       await BookingService.getAvailableCoordinators(
         bookingId,
@@ -635,7 +641,11 @@ export const selectCoordinator = async (
 ) => {
   try {
     const { bookingId } = req.params;
-    const { coordinatorId } = req.body;
+    const {
+      coordinatorId,
+      scheduledAt,
+      rescheduleReason,
+    } = req.body;
     const userId = req.user?.userId;
 
     if (!userId) {
@@ -666,12 +676,35 @@ export const selectCoordinator = async (
       });
     }
 
-    const result = await BookingService.selectCoordinator({
-      bookingId,
-      coordinatorId,
-      selectedBy: userId,
-      assignmentType: "MANUAL",
-    });
+    if (
+      scheduledAt &&
+      (
+        typeof rescheduleReason !== "string" ||
+        !rescheduleReason.trim()
+      )
+    ) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Reschedule reason is required when selecting coordinator for a new date",
+      });
+    }
+
+    const result =
+      await BookingService.selectCoordinator({
+        bookingId,
+        coordinatorId,
+        selectedBy: userId,
+        assignmentType: "MANUAL",
+
+        ...(scheduledAt && {
+          scheduledAt,
+        }),
+
+        ...(rescheduleReason && {
+          rescheduleReason,
+        }),
+      });
 
     return res.status(200).json({
       success: true,

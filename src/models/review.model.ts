@@ -30,6 +30,8 @@ export interface IReview extends Document {
   rating: number;
   review?: string;
 
+  imageUrl?: string | null;
+
   // Editing
   editedAt?: Date;
   editCount: number;
@@ -97,6 +99,13 @@ const reviewSchema = new Schema<IReview>(
       trim: true,
       maxlength: 1000,
     },
+
+    imageUrl: {
+    type: String,
+    trim: true,
+    maxlength: 2000,
+    default: null,
+},
 
     // Editing
     editedAt: {

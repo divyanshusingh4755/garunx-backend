@@ -100,7 +100,12 @@ export const createReview = async (
 ) => {
     try {
         const { bookingId } = req.params;
-        const { rating, review } = req.body;
+        const {
+            rating,
+            review,
+            imageUrl,
+        } = req.body;
+
 
         const reviewerId = req.user?.userId;
 
@@ -127,6 +132,7 @@ export const createReview = async (
                 reviewerId: reviewerId.toString(),
                 rating,
                 review,
+                imageUrl,
             });
 
         return res.status(201).json({
@@ -150,7 +156,11 @@ export const editReview = async (
 ) => {
     try {
         const { reviewId } = req.params;
-        const { rating, review } = req.body;
+        const {
+            rating,
+            review,
+            imageUrl,
+        } = req.body;
 
         const reviewerId = req.user?.userId;
 
@@ -174,10 +184,10 @@ export const editReview = async (
         const updatedReview =
             await ReviewService.editReviewService({
                 reviewId,
-                reviewerId:
-                    reviewerId.toString(),
+                reviewerId: reviewerId.toString(),
                 rating,
                 review,
+                imageUrl,
             });
 
         return res.status(200).json({

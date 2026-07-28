@@ -225,7 +225,7 @@ export const rescheduleBooking = async (req, res) => {
         });
         return res.status(200).json({
             success: true,
-            message: "Booking rescheduled successfully",
+            message: result.message,
             data: result,
         });
     }
@@ -402,7 +402,7 @@ export const getAvailableCoordinators = async (req, res) => {
                 message: "Valid booking ID is required",
             });
         }
-        const { matchCaste, matchGotra, minRating, minCompletedBookings, autoAssignmentEnabled, sortBy, sortOrder, } = req.query;
+        const { matchCaste, matchGotra, minRating, minCompletedBookings, autoAssignmentEnabled, sortBy, sortOrder, scheduledAt, } = req.query;
         const filters = {};
         if (matchCaste === "true" ||
             matchCaste === "false") {
@@ -442,6 +442,10 @@ export const getAvailableCoordinators = async (req, res) => {
             sortOrder === "desc") {
             filters.sortOrder = sortOrder;
         }
+        if (typeof scheduledAt === "string") {
+            filters.scheduledAt =
+                scheduledAt;
+        }
         const result = await BookingService.getAvailableCoordinators(bookingId, userId, filters);
         return res.status(200).json({
             success: true,
@@ -462,7 +466,7 @@ export const getAvailableCoordinators = async (req, res) => {
 export const selectCoordinator = async (req, res) => {
     try {
         const { bookingId } = req.params;
-        const { coordinatorId } = req.body;
+        const { coordinatorId, scheduledAt, rescheduleReason, } = req.body;
         const userId = req.user?.userId;
         if (!userId) {
             return res.status(401).json({
@@ -488,11 +492,25 @@ export const selectCoordinator = async (req, res) => {
                 message: "Valid booking ID is required",
             });
         }
+        if (scheduledAt &&
+            (typeof rescheduleReason !== "string" ||
+                !rescheduleReason.trim())) {
+            return res.status(400).json({
+                success: false,
+                message: "Reschedule reason is required when selecting coordinator for a new date",
+            });
+        }
         const result = await BookingService.selectCoordinator({
             bookingId,
             coordinatorId,
             selectedBy: userId,
             assignmentType: "MANUAL",
+            ...(scheduledAt && {
+                scheduledAt,
+            }),
+            ...(rescheduleReason && {
+                rescheduleReason,
+            }),
         });
         return res.status(200).json({
             success: true,

@@ -37,6 +37,12 @@ const reviewSchema = new Schema({
         trim: true,
         maxlength: 1000,
     },
+    imageUrl: {
+        type: String,
+        trim: true,
+        maxlength: 2000,
+        default: null,
+    },
     // Editing
     editedAt: {
         type: Date,

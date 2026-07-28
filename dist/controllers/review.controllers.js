@@ -41,7 +41,7 @@ export const getAllReviews = async (req, res) => {
 export const createReview = async (req, res) => {
     try {
         const { bookingId } = req.params;
-        const { rating, review } = req.body;
+        const { rating, review, imageUrl, } = req.body;
         const reviewerId = req.user?.userId;
         if (!reviewerId) {
             return res.status(401).json({
@@ -61,6 +61,7 @@ export const createReview = async (req, res) => {
             reviewerId: reviewerId.toString(),
             rating,
             review,
+            imageUrl,
         });
         return res.status(201).json({
             success: true,
@@ -79,7 +80,7 @@ export const createReview = async (req, res) => {
 export const editReview = async (req, res) => {
     try {
         const { reviewId } = req.params;
-        const { rating, review } = req.body;
+        const { rating, review, imageUrl, } = req.body;
         const reviewerId = req.user?.userId;
         if (!reviewerId) {
             return res.status(401).json({
@@ -99,6 +100,7 @@ export const editReview = async (req, res) => {
             reviewerId: reviewerId.toString(),
             rating,
             review,
+            imageUrl,
         });
         return res.status(200).json({
             success: true,

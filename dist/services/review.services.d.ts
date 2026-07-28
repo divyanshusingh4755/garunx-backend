@@ -1,16 +1,18 @@
 import { Types } from "mongoose";
 import { type ReviewDirection, type ReviewModerationStatus, type ReviewVisibility } from "../models/review.model.js";
-interface EditReviewInput {
-    reviewId: string;
-    reviewerId: string;
-    rating?: number;
-    review?: string;
-}
 interface CreateReviewInput {
     bookingId: string;
     reviewerId: string;
     rating: number;
     review?: string;
+    imageUrl?: string;
+}
+interface EditReviewInput {
+    reviewId: string;
+    reviewerId: string;
+    rating?: number;
+    review?: string;
+    imageUrl?: string;
 }
 export type ReviewModerationAction = "HIDE" | "UNPUBLISH" | "PUBLISH" | "FLAG" | "UNFLAG" | "DELETE";
 interface ModerateReviewInput {

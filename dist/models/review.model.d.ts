@@ -9,6 +9,7 @@ export interface IReview extends Document {
     direction: ReviewDirection;
     rating: number;
     review?: string;
+    imageUrl?: string | null;
     editedAt?: Date;
     editCount: number;
     visibility: ReviewVisibility;

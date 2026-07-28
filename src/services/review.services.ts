@@ -20,18 +20,20 @@ interface AdjustRatingAggregateInput {
     session: ClientSession;
 }
 
-interface EditReviewInput {
-    reviewId: string;
-    reviewerId: string;
-    rating?: number;
-    review?: string;
-}
-
 interface CreateReviewInput {
     bookingId: string;
     reviewerId: string;
     rating: number;
     review?: string;
+    imageUrl?: string;
+}
+
+interface EditReviewInput {
+    reviewId: string;
+    reviewerId: string;
+    rating?: number;
+    review?: string;
+    imageUrl?: string;
 }
 
 interface ReviewParticipants {
@@ -427,6 +429,7 @@ export class ReviewService {
             reviewerId,
             rating,
             review,
+            imageUrl,
         } = input;
 
         if (!Types.ObjectId.isValid(bookingId)) {
@@ -500,7 +503,14 @@ export class ReviewService {
                             revieweeId,
                             direction,
                             rating,
-                            ...(review ? { review } : {}),
+
+                            ...(review !== undefined && {
+                                review,
+                            }),
+
+                            ...(imageUrl !== undefined && {
+                                imageUrl,
+                            }),
                         },
                     ],
                     {
@@ -539,6 +549,7 @@ export class ReviewService {
             reviewerId,
             rating,
             review,
+            imageUrl
         } = input;
 
         if (!Types.ObjectId.isValid(reviewId)) {
@@ -560,7 +571,8 @@ export class ReviewService {
 
         if (
             rating === undefined &&
-            review === undefined
+            review === undefined &&
+            imageUrl === undefined
         ) {
             throw new Error(
                 "At least one field is required to update",
@@ -642,6 +654,11 @@ export class ReviewService {
                 if (review !== undefined) {
                     reviewDocument.review =
                         review;
+                }
+
+                if (imageUrl !== undefined) {
+                    reviewDocument.imageUrl =
+                        imageUrl ?? undefined;
                 }
 
                 reviewDocument.editedAt =
@@ -977,7 +994,7 @@ export class ReviewService {
             isDeleted: false,
         })
             .select(
-                "rating review direction visibility moderationStatus editedAt editCount createdAt updatedAt",
+                "rating review imageUrl direction visibility moderationStatus editedAt editCount createdAt updatedAt",
             )
             .lean();
 

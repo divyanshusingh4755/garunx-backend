@@ -181,7 +181,7 @@ export class ReviewService {
         }
     }
     static async createReviewService(input) {
-        const { bookingId, reviewerId, rating, review, } = input;
+        const { bookingId, reviewerId, rating, review, imageUrl, } = input;
         if (!Types.ObjectId.isValid(bookingId)) {
             throw new Error("Invalid booking id");
         }
@@ -222,7 +222,12 @@ export class ReviewService {
                         revieweeId,
                         direction,
                         rating,
-                        ...(review ? { review } : {}),
+                        ...(review !== undefined && {
+                            review,
+                        }),
+                        ...(imageUrl !== undefined && {
+                            imageUrl,
+                        }),
                     },
                 ], {
                     session,
@@ -247,7 +252,7 @@ export class ReviewService {
     }
     ;
     static async editReviewService(input) {
-        const { reviewId, reviewerId, rating, review, } = input;
+        const { reviewId, reviewerId, rating, review, imageUrl } = input;
         if (!Types.ObjectId.isValid(reviewId)) {
             throw new Error("Invalid review id");
         }
@@ -259,7 +264,8 @@ export class ReviewService {
             throw new Error("Rating must be between 1 and 5");
         }
         if (rating === undefined &&
-            review === undefined) {
+            review === undefined &&
+            imageUrl === undefined) {
             throw new Error("At least one field is required to update");
         }
         const reviewObjectId = new Types.ObjectId(reviewId);
@@ -304,6 +310,10 @@ export class ReviewService {
                 if (review !== undefined) {
                     reviewDocument.review =
                         review;
+                }
+                if (imageUrl !== undefined) {
+                    reviewDocument.imageUrl =
+                        imageUrl ?? undefined;
                 }
                 reviewDocument.editedAt =
                     new Date();
@@ -500,7 +510,7 @@ export class ReviewService {
             reviewerId: userObjectId,
             isDeleted: false,
         })
-            .select("rating review direction visibility moderationStatus editedAt editCount createdAt updatedAt")
+            .select("rating review imageUrl direction visibility moderationStatus editedAt editCount createdAt updatedAt")
             .lean();
         const hasReviewed = !!review;
         const canReview = booking.status === "COMPLETED" &&

@@ -507,7 +507,7 @@ export declare class BookingService {
     } | {
         bookingId: Types.ObjectId;
         bookingStatus: "ASSIGNMENT_PENDING";
-        assignmentStatus: "REJECTED";
+        assignmentStatus: "PENDING_SELECTION";
         rejectedCoordinatorId: string;
         canSelectAnotherCoordinator: boolean;
         coordinatorId?: never;

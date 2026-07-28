@@ -34,6 +34,15 @@ export const createReviewValidation = [
         .trim()
         .isLength({ max: 1000 })
         .withMessage("Review cannot exceed 1000 characters"),
+    body("imageUrl")
+        .optional({ nullable: true })
+        .isString()
+        .withMessage("Image URL must be a string")
+        .trim()
+        .isLength({ max: 2000 })
+        .withMessage("Image URL cannot exceed 2000 characters")
+        .isURL()
+        .withMessage("Image URL must be a valid URL"),
     validate,
 ];
 export const editReviewValidation = [
@@ -53,12 +62,24 @@ export const editReviewValidation = [
         .trim()
         .isLength({ max: 1000 })
         .withMessage("Review cannot exceed 1000 characters"),
+    body("imageUrl")
+        .optional({ nullable: true })
+        .isString()
+        .withMessage("Image URL must be a string")
+        .trim()
+        .isLength({ max: 2000 })
+        .withMessage("Image URL cannot exceed 2000 characters")
+        .isURL()
+        .withMessage("Image URL must be a valid URL"),
     body()
         .custom((value) => {
         const hasRating = value.rating !== undefined;
         const hasReview = value.review !== undefined;
-        if (!hasRating && !hasReview) {
-            throw new Error("At least rating or review is required");
+        const hasImageUrl = value.imageUrl !== undefined;
+        if (!hasRating &&
+            !hasReview &&
+            !hasImageUrl) {
+            throw new Error("At least rating, review or imageUrl is required");
         }
         return true;
     }),
