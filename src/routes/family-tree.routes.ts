@@ -276,6 +276,37 @@ const addFamilyMemberValidation = [
         ),
 
     body().custom((value) => {
+        const dob = value.dob
+            ? new Date(value.dob)
+            : null;
+
+        const dateOfDeath = value.dateOfDeath
+            ? new Date(value.dateOfDeath)
+            : null;
+
+        if (
+            dob &&
+            dob.getTime() > Date.now()
+        ) {
+            throw new Error(
+                "DOB cannot be in the future",
+            );
+        }
+
+        if (
+            dob &&
+            dateOfDeath &&
+            dateOfDeath < dob
+        ) {
+            throw new Error(
+                "Date of death cannot be before DOB",
+            );
+        }
+
+        return true;
+    }),
+
+    body().custom((value) => {
         if (
             value.fatherId &&
             value.motherId &&
@@ -578,6 +609,37 @@ const updateFamilyMemberValidation = [
         .withMessage(
             "Notes cannot exceed 1000 characters",
         ),
+
+    body().custom((value) => {
+        const dob = value.dob
+            ? new Date(value.dob)
+            : null;
+
+        const dateOfDeath = value.dateOfDeath
+            ? new Date(value.dateOfDeath)
+            : null;
+
+        if (
+            dob &&
+            dob.getTime() > Date.now()
+        ) {
+            throw new Error(
+                "DOB cannot be in the future",
+            );
+        }
+
+        if (
+            dob &&
+            dateOfDeath &&
+            dateOfDeath < dob
+        ) {
+            throw new Error(
+                "Date of death cannot be before DOB",
+            );
+        }
+
+        return true;
+    }),
 
     body().custom((value) => {
         if (

@@ -1,4 +1,5 @@
-import { Schema } from "mongoose";
+import { Schema, } from "mongoose";
+import { TaxJurisdiction, TaxPriceMode, TaxSource } from "../types/tax.types.js";
 export const taxProfileSnapshotSchema = new Schema({
     taxProfileId: {
         type: Schema.Types.ObjectId,
@@ -14,6 +15,7 @@ export const taxProfileSnapshotSchema = new Schema({
         type: String,
         required: true,
         trim: true,
+        uppercase: true,
     },
     treatment: {
         type: String,
@@ -29,25 +31,30 @@ export const taxProfileSnapshotSchema = new Schema({
         type: Number,
         required: true,
         min: 0,
+        max: 100,
     },
     priceMode: {
         type: String,
-        enum: [
-            "EXCLUSIVE",
-            "INCLUSIVE",
-        ],
+        enum: Object.values(TaxPriceMode),
         required: true,
     },
     source: {
         type: String,
-        enum: [
-            "SERVICE_PRICING",
-            "PACKAGE_PRICING",
-        ],
+        enum: Object.values(TaxSource),
         required: true,
     },
 }, {
     _id: false,
+});
+taxProfileSnapshotSchema.pre("validate", function () {
+    if (this.treatment === "TAXABLE" &&
+        this.totalRate <= 0) {
+        throw new Error("Taxable tax snapshot must have a rate greater than zero");
+    }
+    if (this.treatment !== "TAXABLE" &&
+        this.totalRate !== 0) {
+        throw new Error("Non-taxable tax snapshot must have a rate equal to zero");
+    }
 });
 export const lineTaxSchema = new Schema({
     profile: {
@@ -56,10 +63,7 @@ export const lineTaxSchema = new Schema({
     },
     jurisdiction: {
         type: String,
-        enum: [
-            "INTRA_STATE",
-            "INTER_STATE",
-        ],
+        enum: Object.values(TaxJurisdiction),
         required: true,
     },
     taxableAmount: {
@@ -71,6 +75,7 @@ export const lineTaxSchema = new Schema({
         type: Number,
         default: 0,
         min: 0,
+        max: 100,
     },
     cgstAmount: {
         type: Number,
@@ -81,6 +86,7 @@ export const lineTaxSchema = new Schema({
         type: Number,
         default: 0,
         min: 0,
+        max: 100,
     },
     sgstAmount: {
         type: Number,
@@ -91,6 +97,7 @@ export const lineTaxSchema = new Schema({
         type: Number,
         default: 0,
         min: 0,
+        max: 100,
     },
     igstAmount: {
         type: Number,

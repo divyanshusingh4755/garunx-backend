@@ -1,4 +1,4 @@
-import mongoose from "mongoose";
+import mongoose, { Types } from "mongoose";
 import { Category } from "../models/category.model.js";
 import { Component } from "../models/component.model.js";
 import { Package } from "../models/package.model.js";
@@ -16,9 +16,12 @@ export class CategoryService {
             throw new Error(`Category with value '${categoryData.value}' already exists`);
         }
         const category = new Category(categoryData);
-        return await category.save();
+        return category.save();
     }
     static async updateCategory(id, updateData) {
+        if (!Types.ObjectId.isValid(id)) {
+            throw new Error("Invalid category ID");
+        }
         if (updateData.value) {
             const existing = await Category.findOne({
                 value: updateData.value,
@@ -29,11 +32,15 @@ export class CategoryService {
             }
         }
         const category = await Category.findByIdAndUpdate(id, { $set: updateData }, { new: true, runValidators: true });
-        if (!category)
+        if (!category) {
             throw new Error("Category not found");
+        }
         return category;
     }
     static async getCategoryById(id) {
+        if (!Types.ObjectId.isValid(id)) {
+            throw new Error("Invalid category ID");
+        }
         const category = await Category.findById(id).lean();
         if (!category) {
             throw new Error("Category not found");
@@ -41,16 +48,22 @@ export class CategoryService {
         return category;
     }
     static async deleteCategory(id) {
+        if (!Types.ObjectId.isValid(id)) {
+            throw new Error("Invalid category ID");
+        }
         const category = await Category.findById(id);
         if (!category) {
             throw new Error("Category not found");
         }
-        const hasProducts = await Component.exists({
-            categoryName: category.value,
-        });
-        if (hasProducts)
-            throw new Error("Cannot delete category being used by products");
-        return await Category.findByIdAndDelete(id);
+        const [hasComponents, hasServices, hasPackages] = await Promise.all([
+            Component.exists({ categoryId: id }),
+            Service.exists({ categoryId: id }),
+            Package.exists({ categoryId: id }),
+        ]);
+        if (hasComponents || hasServices || hasPackages) {
+            throw new Error("Cannot delete category because it is currently in use");
+        }
+        await Category.findByIdAndDelete(id);
     }
     static async getDeactivationImpact(categoryId) {
         const [components, services, packages] = await Promise.all([
@@ -68,75 +81,106 @@ export class CategoryService {
         };
     }
     static async toggleCategoryStatus(categoryId, confirmed = false) {
+        if (!Types.ObjectId.isValid(categoryId)) {
+            throw new Error("Invalid category ID");
+        }
         const category = await Category.findById(categoryId);
         if (!category) {
             throw new Error("Category not found");
         }
         const newStatus = !category.isActive;
-        // Confirmation only when deactivating
         if (!newStatus && !confirmed) {
             const impact = await this.getDeactivationImpact(categoryId);
-            return {
-                requiresConfirmation: true,
-                impact,
-            };
+            const hasImpact = impact.componentsCount > 0 ||
+                impact.servicesCount > 0 ||
+                impact.packagesCount > 0;
+            if (hasImpact) {
+                return {
+                    requiresConfirmation: true,
+                    impact,
+                };
+            }
         }
         const session = await mongoose.startSession();
         try {
             await session.withTransaction(async () => {
-                // Always update the category
-                await Category.findByIdAndUpdate(categoryId, { isActive: newStatus }, { session });
-                // Only cascade when deactivating
+                await Category.findByIdAndUpdate(categoryId, { isActive: newStatus }, { session, runValidators: true });
                 if (!newStatus) {
-                    await Component.updateMany({ categoryId }, { isActive: false }, { session });
-                    await Service.updateMany({ categoryId }, { isActive: false }, { session });
-                    await Package.updateMany({ categoryId }, { isActive: false }, { session });
+                    await Promise.all([
+                        Component.updateMany({ categoryId }, { isActive: false }, { session }),
+                        Service.updateMany({ categoryId }, { isActive: false }, { session }),
+                        Package.updateMany({ categoryId }, { isActive: false }, { session }),
+                    ]);
                 }
             });
-            return await Category.findById(categoryId).lean();
-        }
-        catch (error) {
-            throw error;
+            const updatedCategory = await Category.findById(categoryId).lean();
+            if (!updatedCategory) {
+                throw new Error("Category not found");
+            }
+            return {
+                ...updatedCategory,
+                requiresConfirmation: false,
+            };
         }
         finally {
             await session.endSession();
         }
     }
-    static async FindCategories(searchTerm, typeFilter, limit = 40, page = 1, isActive, sortBy = "displayOrder", sortOrder = "asc") {
-        const skip = limit * (page - 1);
+    static async findCategories(searchTerm, typeFilter, limit = 40, page = 1, isActive, sortBy = "displayOrder", sortOrder = "asc") {
+        const safeLimit = Number.isInteger(limit) && limit > 0
+            ? Math.min(limit, 100)
+            : 40;
+        const safePage = Number.isInteger(page) && page > 0 ? page : 1;
+        const skip = safeLimit * (safePage - 1);
         const query = {};
-        if (typeof isActive == "boolean") {
+        if (typeof isActive === "boolean") {
             query.isActive = isActive;
         }
-        if (typeFilter)
+        if (typeFilter) {
             query.type = typeFilter;
-        const isTextSearch = !!searchTerm?.trim() && searchTerm.trim().length > 4;
-        if (searchTerm?.trim()) {
-            const term = searchTerm.trim();
+        }
+        const trimmedSearchTerm = searchTerm?.trim();
+        const isTextSearch = Boolean(trimmedSearchTerm) &&
+            trimmedSearchTerm.length > 4;
+        if (trimmedSearchTerm) {
             if (isTextSearch) {
                 query.$text = {
-                    $search: term,
+                    $search: trimmedSearchTerm,
                 };
             }
             else {
                 query.$or = [
                     {
                         label: {
-                            $regex: `^${escapeRegex(term)}`,
+                            $regex: `^${escapeRegex(trimmedSearchTerm)}`,
                             $options: "i",
                         },
                     },
                     {
                         value: {
-                            $regex: `^${escapeRegex(term)}`,
+                            $regex: `^${escapeRegex(trimmedSearchTerm)}`,
+                            $options: "i",
                         },
                     },
                 ];
             }
         }
+        const allowedSortFields = new Set([
+            "label",
+            "value",
+            "type",
+            "displayOrder",
+            "isActive",
+            "createdAt",
+            "updatedAt",
+            "relevance",
+        ]);
+        const safeSortBy = allowedSortFields.has(sortBy)
+            ? sortBy
+            : "displayOrder";
         let sortCriteria = {};
         let projection = {};
-        if (isTextSearch && sortBy === "relevance") {
+        if (isTextSearch && safeSortBy === "relevance") {
             projection = {
                 score: {
                     $meta: "textScore",
@@ -149,8 +193,9 @@ export class CategoryService {
             };
         }
         else {
-            sortCriteria[sortBy] = sortOrder === "desc" ? -1 : 1;
-            if (sortBy !== "createdAt") {
+            const field = safeSortBy === "relevance" ? "displayOrder" : safeSortBy;
+            sortCriteria[field] = sortOrder === "desc" ? -1 : 1;
+            if (field !== "createdAt") {
                 sortCriteria.createdAt = -1;
             }
         }
@@ -159,11 +204,16 @@ export class CategoryService {
                 Category.find(query, projection)
                     .sort(sortCriteria)
                     .skip(skip)
-                    .limit(limit)
+                    .limit(safeLimit)
                     .lean(),
                 Category.countDocuments(query),
             ]);
-            return { data, total, page, totalPages: Math.ceil(total / limit) };
+            return {
+                data,
+                total,
+                page: safePage,
+                totalPages: Math.ceil(total / safeLimit),
+            };
         }
         catch (error) {
             throw new Error(`Category fetch failed: ${error.message}`);

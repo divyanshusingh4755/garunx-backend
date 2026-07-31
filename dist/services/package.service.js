@@ -16,7 +16,13 @@ export class PackageService {
         name = name?.trim();
         shortDescription = shortDescription?.trim();
         fullDescription = fullDescription?.trim();
-        if (!name || !shortDescription || !categoryId) {
+        thumbnailImage = thumbnailImage?.trim();
+        bannerImage = bannerImage?.trim();
+        if (!name ||
+            !shortDescription ||
+            !fullDescription ||
+            !categoryId ||
+            !thumbnailImage) {
             throw new Error("Missing required fields");
         }
         if (!Types.ObjectId.isValid(categoryId)) {
@@ -475,6 +481,7 @@ export class PackageService {
                 isActive: pkg.isActive,
                 isComplete: pkg.isComplete,
                 packageReference: pkg.packageReference,
+                startingPrice: pkg.startingPrice,
             },
             locations: pkg.locations,
             tiers: (pkg.tiers || []).map((t) => ({
@@ -487,6 +494,12 @@ export class PackageService {
     static async getRelatedPackageService(packageId, tierId, locationId) {
         if (!Types.ObjectId.isValid(packageId)) {
             throw new Error("Invalid packageId");
+        }
+        if (!Types.ObjectId.isValid(tierId)) {
+            throw new Error("Invalid tierId");
+        }
+        if (!Types.ObjectId.isValid(locationId)) {
+            throw new Error("Invalid locationId");
         }
         const [pkg, mapping, pricing] = await Promise.all([
             Package.findById(packageId).lean(),
@@ -590,6 +603,7 @@ export class PackageService {
                 isActive: pkg.isActive,
                 isComplete: pkg.isComplete,
                 packageReference: pkg.packageReference,
+                startingPrice: pkg.startingPrice,
             },
             locations: pkg.locations,
             tiers: (pkg.tiers || []).map((t) => ({
@@ -598,21 +612,6 @@ export class PackageService {
             })),
             relatedServices: hydratedRelatedServices,
         };
-    }
-    static async updatePackageStartingPrice(packageId) {
-        const pricing = await PackageTierPricing.find({
-            packageId,
-        }).lean();
-        if (!pricing.length) {
-            await Package.findByIdAndUpdate(packageId, {
-                startingPrice: 0,
-            });
-            return;
-        }
-        const minimumPrice = Math.min(...pricing.map((p) => p.finalPrice));
-        await Package.findByIdAndUpdate(packageId, {
-            startingPrice: minimumPrice,
-        });
     }
     static async validatePackageConfiguration(packageId) {
         if (!Types.ObjectId.isValid(packageId)) {
@@ -651,18 +650,23 @@ export class PackageService {
                 issues.push(`No pricing configured for tier ${tier.name}`);
             }
         }
-        const requiredServiceIds = mappings.flatMap((m) => (m.services || [])
-            .filter((s) => s.isRequired || s.isRelated)
-            .map((s) => s.serviceId.toString()));
+        const requiredServiceIds = [
+            ...new Set(mappings.flatMap((mapping) => (mapping.services || [])
+                .filter((service) => service.isRequired || service.isRelated)
+                .map((service) => service.serviceId.toString()))),
+        ];
         if (requiredServiceIds.length) {
             const services = await Service.find({
                 _id: {
-                    $in: requiredServiceIds,
+                    $in: requiredServiceIds.map((id) => new Types.ObjectId(id)),
                 },
             })
-                .select("isActive isComplete")
+                .select("_id isActive isComplete")
                 .lean();
-            const invalidServices = services.filter((s) => !s.isActive || !s.isComplete);
+            if (services.length !== requiredServiceIds.length) {
+                issues.push("One or more required/related services do not exist");
+            }
+            const invalidServices = services.filter((service) => !service.isActive || !service.isComplete);
             if (invalidServices.length) {
                 issues.push("One or more required/related services are inactive or incomplete");
             }
@@ -708,12 +712,7 @@ export class PackageService {
                 city: loc.cityId,
             },
         ]));
-        const pkg = await Package.findById(packageId)
-            .populate({
-            path: "tiers.tierId",
-            select: "name",
-        })
-            .lean({ virtuals: true });
+        const pkg = await Package.findById(packageId).lean();
         if (!pkg) {
             throw new Error("Package not found");
         }
@@ -779,6 +778,7 @@ export class PackageService {
                 isActive: pkg.isActive,
                 isComplete: pkg.isComplete,
                 packageReference: pkg.packageReference,
+                startingPrice: pkg.startingPrice,
             },
             locations: filteredLocations,
             tiers: filteredTiers.map((t) => ({
@@ -844,6 +844,7 @@ export class PackageService {
                     packageReference: 1,
                     createdAt: 1,
                     isComplete: 1,
+                    startingPrice: 1,
                     locations: 1,
                     tiers: 1,
                 })

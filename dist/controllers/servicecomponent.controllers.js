@@ -1,13 +1,26 @@
 import { ServiceComponentService } from "../services/servicecomponent.service.js";
+const getStatusCode = (error) => {
+    if (typeof error?.statusCode === "number") {
+        return error.statusCode;
+    }
+    if (error?.name === "ValidationError") {
+        return 400;
+    }
+    if (error?.code === 11000) {
+        return 409;
+    }
+    return 500;
+};
 export const bulkUpsertServiceComponents = async (req, res) => {
     try {
         const result = await ServiceComponentService.bulkUpsertComponents(req.body);
         return res.status(200).json(result);
     }
     catch (error) {
-        return res.status(400).json({
+        return res.status(getStatusCode(error)).json({
             success: false,
-            message: error.message,
+            message: error.message ||
+                "Failed to assign service components",
         });
     }
 };
@@ -17,31 +30,26 @@ export const replaceServiceComponents = async (req, res) => {
         return res.status(200).json(result);
     }
     catch (error) {
-        return res.status(400).json({
+        return res.status(getStatusCode(error)).json({
             success: false,
-            message: error.message,
+            message: error.message ||
+                "Failed to replace service components",
         });
     }
 };
 export const getComponentsByServiceAndTier = async (req, res) => {
     try {
-        const { serviceId, tierId } = req.params;
-        const data = await ServiceComponentService.getComponentsByServiceAndTier(serviceId, tierId);
+        const data = await ServiceComponentService.getComponentsByServiceAndTier(req.params.serviceId, req.params.tierId);
         return res.status(200).json({
             success: true,
             data,
         });
     }
     catch (error) {
-        if (error.message === "Service not found") {
-            return res.status(404).json({
-                success: false,
-                message: error.message,
-            });
-        }
-        return res.status(400).json({
+        return res.status(getStatusCode(error)).json({
             success: false,
-            message: error.message,
+            message: error.message ||
+                "Failed to fetch service components",
         });
     }
 };
@@ -54,9 +62,10 @@ export const updateServiceComponent = async (req, res) => {
         });
     }
     catch (error) {
-        return res.status(400).json({
+        return res.status(getStatusCode(error)).json({
             success: false,
-            message: error.message,
+            message: error.message ||
+                "Failed to update service component",
         });
     }
 };

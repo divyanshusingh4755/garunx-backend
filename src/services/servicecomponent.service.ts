@@ -1,340 +1,506 @@
-import { Types } from "mongoose";
+import mongoose, {
+  Types,
+  type ClientSession,
+} from "mongoose";
 import { Service } from "../models/service.model.js";
 import { Component } from "../models/component.model.js";
 import { ComponentItem } from "../models/componentitem.model.js";
-import { ServiceComponent } from "../models/servicecomponent.model.js";
-import mongoose from "mongoose";
+import {
+  ServiceComponent,
+  type IServiceComponentItem,
+} from "../models/servicecomponent.model.js";
 import { ServiceCascadingEngine } from "./cascading-engine.service.js";
 
+type ComponentInput = {
+  componentId: string;
+  isRequired?: boolean;
+  items?: Array<string | { itemId: string }>;
+};
+
+type ComponentPayload = {
+  serviceId: string;
+  tierId: string;
+  components: ComponentInput[];
+};
+
+type PatchPayload = {
+  serviceId: string;
+  tierId: string;
+  componentId: string;
+  isRequired?: boolean;
+  name?: string;
+  items?: Array<string | { itemId: string }>;
+};
+
+const createHttpError = (
+  message: string,
+  statusCode: number,
+) => {
+  const error = new Error(message) as Error & {
+    statusCode: number;
+  };
+
+  error.statusCode = statusCode;
+  return error;
+};
+
 export class ServiceComponentService {
-  static async bulkUpsertComponents(payload: any) {
-    const { serviceId, tierId, components } = payload;
+  private static normalizeItemIds(
+    items: Array<string | { itemId: string }> = [],
+  ) {
+    return [
+      ...new Set(
+        items.map((item) =>
+          typeof item === "string"
+            ? item
+            : item.itemId,
+        ),
+      ),
+    ];
+  }
 
-    if (!Types.ObjectId.isValid(serviceId)) {
-      throw new Error("Invalid serviceId");
+  private static async validateServiceTier(
+    serviceId: string,
+    tierId: string,
+    session?: ClientSession,
+  ) {
+    const query = Service.findById(serviceId)
+      .select("_id tiers");
+
+    if (session) {
+      query.session(session);
     }
 
-    if (!Types.ObjectId.isValid(tierId)) {
-      throw new Error("Invalid tierId");
-    }
-
-    if (!Array.isArray(components)) {
-      throw new Error("Components field must be an array");
-    }
-
-    const service = await Service.findById(serviceId);
+    const service = await query;
 
     if (!service) {
-      throw new Error("Service not found");
+      throw createHttpError(
+        "Service not found",
+        404,
+      );
     }
 
     const tierExists = service.tiers.some(
-      (t) => t.tierId.toString() === tierId,
+      (tier) =>
+        tier.tierId.toString() === tierId,
     );
 
     if (!tierExists) {
-      throw new Error("Tier does not belong to service");
+      throw createHttpError(
+        "Tier does not belong to service",
+        400,
+      );
     }
 
-    if (components.length === 0) {
-      await ServiceComponent.deleteMany({
-        serviceId,
-        tierId,
-      });
+    return service;
+  }
 
-      await service.save();
-      await ServiceCascadingEngine.run(serviceId);
-
-      return {
-        success: true,
-        message: "Components cleared successfully",
-      };
-    }
-
+  private static async prepareComponents(
+    components: ComponentInput[],
+    session?: ClientSession,
+  ) {
     const componentIds = [
-      ...new Set(components.map((c: any) => c.componentId)),
+      ...new Set(
+        components.map(
+          (component) => component.componentId,
+        ),
+      ),
     ];
 
-    const componentObjectIds: Types.ObjectId[] = [];
-
-    for (const id of componentIds) {
-      if (!Types.ObjectId.isValid(id)) {
-        throw new Error(`Invalid componentId: ${id}`);
-      }
-      componentObjectIds.push(new Types.ObjectId(id));
+    if (
+      componentIds.length !== components.length
+    ) {
+      throw createHttpError(
+        "Duplicate componentId values are not allowed",
+        400,
+      );
     }
 
-    const dbComponents = await Component.find({
-      _id: { $in: componentObjectIds },
-      isActive: true,
-    }).select("_id name isBundled");
+    const objectIds = componentIds.map(
+      (id) => new Types.ObjectId(id),
+    );
 
-    if (dbComponents.length !== componentObjectIds.length) {
-      throw new Error("One or more components are invalid or inactive");
+    const componentQuery = Component.find({
+      _id: {
+        $in: objectIds,
+      },
+      isActive: true,
+    }).select(
+      "_id name description isBundled",
+    );
+
+    if (session) {
+      componentQuery.session(session);
+    }
+
+    const dbComponents =
+      await componentQuery.lean();
+
+    if (
+      dbComponents.length !==
+      objectIds.length
+    ) {
+      throw createHttpError(
+        "One or more components are invalid or inactive",
+        400,
+      );
     }
 
     const componentMap = new Map(
-      dbComponents.map((c) => [c._id.toString(), c]),
+      dbComponents.map((component) => [
+        component._id.toString(),
+        component,
+      ]),
     );
 
     const allItemIds = new Set<string>();
 
-    for (const comp of components) {
-      const dbComp = componentMap.get(comp.componentId)!;
+    for (const component of components) {
+      const dbComponent =
+        componentMap.get(
+          component.componentId,
+        );
 
-      if (dbComp.isBundled) {
-        if (!comp.items || comp.items.length === 0) {
-          throw new Error(`Component ${dbComp.name} requires items`);
-        }
+      if (!dbComponent) {
+        throw createHttpError(
+          "Invalid component",
+          400,
+        );
+      }
 
-        comp.items.forEach((id: string) => allItemIds.add(id));
-      } else {
-        if (comp.items && comp.items.length > 0) {
-          throw new Error(`Component ${dbComp.name} is not bundled`);
-        }
+      const itemIds =
+        this.normalizeItemIds(
+          component.items,
+        );
+
+      if (
+        dbComponent.isBundled &&
+        itemIds.length === 0
+      ) {
+        throw createHttpError(
+          `Component ${dbComponent.name} requires items`,
+          400,
+        );
+      }
+
+      if (
+        !dbComponent.isBundled &&
+        itemIds.length > 0
+      ) {
+        throw createHttpError(
+          `Component ${dbComponent.name} is not bundled`,
+          400,
+        );
+      }
+
+      for (const itemId of itemIds) {
+        allItemIds.add(itemId);
       }
     }
 
-    const itemObjectIds = Array.from(allItemIds).map((id) => {
-      if (!Types.ObjectId.isValid(id)) {
-        throw new Error(`Invalid itemId: ${id}`);
-      }
-      return new Types.ObjectId(id);
-    });
+    const itemObjectIds = [
+      ...allItemIds,
+    ].map(
+      (id) => new Types.ObjectId(id),
+    );
 
-    const dbItems = await ComponentItem.find({
-      _id: { $in: itemObjectIds },
-      isActive: true,
-    }).select("_id name");
+    const itemQuery =
+      ComponentItem.find({
+        _id: {
+          $in: itemObjectIds,
+        },
+        isActive: true,
+      }).select("_id name");
 
-    if (dbItems.length !== itemObjectIds.length) {
-      throw new Error("One or more component items are invalid");
+    if (session) {
+      itemQuery.session(session);
     }
 
-    const itemMap = new Map(dbItems.map((i) => [i._id.toString(), i]));
+    const dbItems =
+      await itemQuery.lean();
 
-    const bulkOps: any[] = [];
+    if (
+      dbItems.length !==
+      itemObjectIds.length
+    ) {
+      throw createHttpError(
+        "One or more component items are invalid or inactive",
+        400,
+      );
+    }
 
-    for (const comp of components) {
-      const dbComp = componentMap.get(comp.componentId)!;
+    const itemMap = new Map(
+      dbItems.map((item) => [
+        item._id.toString(),
+        item,
+      ]),
+    );
 
-      let formattedItems: any[] = [];
+    return components.map((component) => {
+      const dbComponent =
+        componentMap.get(
+          component.componentId,
+        )!;
 
-      if (dbComp.isBundled) {
-        const uniqueItemIds = [...new Set(comp.items)];
+      const formattedItems:
+        IServiceComponentItem[] =
+        this.normalizeItemIds(
+          component.items,
+        ).map((itemId) => {
+          const item =
+            itemMap.get(itemId);
 
-        formattedItems = uniqueItemIds.map((itemId) => {
-          const id = itemId as string;
-          const item = itemMap.get(id)!;
+          if (!item) {
+            throw createHttpError(
+              `Invalid component item: ${itemId}`,
+              400,
+            );
+          }
+
           return {
             itemId: item._id,
             name: item.name,
           };
         });
-      }
 
-      bulkOps.push({
-        updateOne: {
-          filter: {
-            serviceId,
-            tierId,
-            componentId: comp.componentId,
-          },
-          update: {
-            $set: {
-              name: dbComp.name,
-              isRequired: !!comp.isRequired,
-              items: dbComp.isBundled ? formattedItems : [],
-            },
-          },
-          upsert: true,
-        },
-      });
-    }
-
-    const newComponentIds = components.map((c: any) => c.componentId);
-
-    await ServiceComponent.deleteMany({
-      serviceId,
-      tierId,
-      componentId: { $nin: newComponentIds },
+      return {
+        name: dbComponent.name,
+        description:
+          dbComponent.description,
+        componentId:
+          dbComponent._id,
+        isRequired:
+          component.isRequired ?? false,
+        items: formattedItems,
+      };
     });
-
-    if (bulkOps.length > 0) {
-      await ServiceComponent.bulkWrite(bulkOps);
-    }
-
-    await service.save();
-
-    await ServiceCascadingEngine.run(serviceId);
-
-    return {
-      success: true,
-      message: "Components assigned successfully",
-    };
   }
 
-  static async replaceComponents(payload: any) {
-    const session = await mongoose.startSession();
-    session.startTransaction();
+  static async bulkUpsertComponents(
+    payload: ComponentPayload,
+  ) {
+    const session =
+      await mongoose.startSession();
 
     try {
-      const { serviceId, tierId, components } = payload;
+      session.startTransaction();
 
-      if (!Types.ObjectId.isValid(serviceId)) {
-        throw new Error("Invalid serviceId");
-      }
-
-      if (!Types.ObjectId.isValid(tierId)) {
-        throw new Error("Invalid tierId");
-      }
-
-      if (!Array.isArray(components)) {
-        throw new Error("Components field must be an array");
-      }
-
-      const service = await Service.findById(serviceId).session(session);
-
-      if (!service) throw new Error("Service not found");
-
-      const tierExists = service.tiers.some(
-        (t) => t.tierId.toString() === tierId,
+      await this.validateServiceTier(
+        payload.serviceId,
+        payload.tierId,
+        session,
       );
 
-      if (!tierExists) {
-        throw new Error("Tier does not belong to service");
-      }
+      if (
+        payload.components.length === 0
+      ) {
+        await ServiceComponent.deleteMany(
+          {
+            serviceId:
+              new Types.ObjectId(
+                payload.serviceId,
+              ),
+            tierId:
+              new Types.ObjectId(
+                payload.tierId,
+              ),
+          },
+          {
+            session,
+          },
+        );
 
-      if (components.length === 0) {
-        await ServiceComponent.deleteMany({
-          serviceId,
-          tierId,
-        }).session(session);
-
-        await service.save({ session });
         await session.commitTransaction();
-        session.endSession();
 
-        await ServiceCascadingEngine.run(serviceId);
+        await ServiceCascadingEngine.run(
+          payload.serviceId,
+        );
 
         return {
           success: true,
-          message: "Components cleared successfully",
+          message:
+            "Components cleared successfully",
         };
       }
 
-      const componentIds: string[] = [
-        ...new Set<string>(components.map((c: any) => c.componentId)),
-      ];
+      const preparedComponents =
+        await this.prepareComponents(
+          payload.components,
+          session,
+        );
 
-      const componentObjectIds = componentIds.map((id: string) => {
-        if (!Types.ObjectId.isValid(id)) {
-          throw new Error(`Invalid componentId: ${id}`);
-        }
-        return new Types.ObjectId(id);
-      });
+      const serviceObjectId =
+        new Types.ObjectId(
+          payload.serviceId,
+        );
 
-      const dbComponents = await Component.find({
-        _id: { $in: componentObjectIds },
-        isActive: true,
-      })
-        .select("_id name isBundled")
-        .session(session);
+      const tierObjectId =
+        new Types.ObjectId(
+          payload.tierId,
+        );
 
-      if (dbComponents.length !== componentObjectIds.length) {
-        throw new Error("Invalid or inactive components");
-      }
+      const selectedComponentIds =
+        preparedComponents.map(
+          (component) =>
+            component.componentId,
+        );
 
-      const componentMap = new Map(
-        dbComponents.map((c) => [c._id.toString(), c]),
+      const bulkOperations =
+        preparedComponents.map(
+          (component) => ({
+            updateOne: {
+              filter: {
+                serviceId:
+                  serviceObjectId,
+                tierId:
+                  tierObjectId,
+                componentId:
+                  component.componentId,
+              },
+
+              update: {
+                $set: {
+                  name:
+                    component.name,
+                  description:
+                    component.description,
+                  isRequired:
+                    component.isRequired,
+                  items:
+                    component.items,
+                },
+              },
+
+              upsert: true,
+            },
+          }),
+        );
+
+      await ServiceComponent.bulkWrite(
+        bulkOperations,
+        {
+          session,
+        },
       );
 
-      const allItemIds = new Set<string>();
+      await ServiceComponent.deleteMany(
+        {
+          serviceId: serviceObjectId,
+          tierId: tierObjectId,
+          componentId: {
+            $nin: selectedComponentIds,
+          },
+        },
+        {
+          session,
+        },
+      );
 
-      for (const comp of components) {
-        const dbComp = componentMap.get(comp.componentId)!;
-
-        if (dbComp.isBundled) {
-          if (!comp.items || comp.items.length === 0) {
-            throw new Error(`Component ${dbComp.name} requires items`);
-          }
-
-          comp.items.forEach((id: string) => allItemIds.add(id));
-        } else {
-          if (comp.items?.length) {
-            throw new Error(`Component ${dbComp.name} should not have items`);
-          }
-        }
-      }
-
-      const itemObjectIds = Array.from(allItemIds).map((id) => {
-        if (!Types.ObjectId.isValid(id)) {
-          throw new Error(`Invalid itemId: ${id}`);
-        }
-        return new Types.ObjectId(id);
-      });
-
-      const dbItems = await ComponentItem.find({
-        _id: { $in: itemObjectIds },
-        isActive: true,
-      })
-        .select("_id name")
-        .session(session);
-
-      if (dbItems.length !== itemObjectIds.length) {
-        throw new Error("Invalid component items");
-      }
-
-      const itemMap = new Map(dbItems.map((i) => [i._id.toString(), i]));
-
-      const docs = components.map((comp: any) => {
-        const dbComp = componentMap.get(comp.componentId)!;
-
-        let formattedItems: any[] = [];
-
-        if (dbComp.isBundled) {
-          const uniqueItemIds = [...new Set(comp.items)];
-
-          formattedItems = uniqueItemIds.map((id) => {
-            const itemId = id as string;
-            const item = itemMap.get(itemId)!;
-            return {
-              itemId: item._id,
-              name: item.name,
-            };
-          });
-        }
-
-        return {
-          name: dbComp.name,
-          serviceId,
-          tierId,
-          componentId: comp.componentId,
-          isRequired: !!comp.isRequired,
-          items: formattedItems,
-        };
-      });
-
-      await ServiceComponent.deleteMany({
-        serviceId,
-        tierId,
-      }).session(session);
-
-      await ServiceComponent.insertMany(docs, { session });
-      await service.save({ session });
       await session.commitTransaction();
-      session.endSession();
 
-      await ServiceCascadingEngine.run(serviceId);
+      await ServiceCascadingEngine.run(
+        payload.serviceId,
+      );
 
       return {
         success: true,
-        message: "Components replaced successfully",
+        message:
+          "Components assigned successfully",
       };
-    } catch (error: any) {
-      await session.abortTransaction();
-      session.endSession();
+    } catch (error) {
+      if (session.inTransaction()) {
+        await session.abortTransaction();
+      }
+
       throw error;
+    } finally {
+      await session.endSession();
+    }
+  }
+
+  static async replaceComponents(
+    payload: ComponentPayload,
+  ) {
+    const session =
+      await mongoose.startSession();
+
+    try {
+      session.startTransaction();
+
+      await this.validateServiceTier(
+        payload.serviceId,
+        payload.tierId,
+        session,
+      );
+
+      const preparedComponents =
+        payload.components.length > 0
+          ? await this.prepareComponents(
+              payload.components,
+              session,
+            )
+          : [];
+
+      const serviceObjectId =
+        new Types.ObjectId(
+          payload.serviceId,
+        );
+
+      const tierObjectId =
+        new Types.ObjectId(
+          payload.tierId,
+        );
+
+      await ServiceComponent.deleteMany(
+        {
+          serviceId: serviceObjectId,
+          tierId: tierObjectId,
+        },
+        {
+          session,
+        },
+      );
+
+      if (
+        preparedComponents.length > 0
+      ) {
+        await ServiceComponent.insertMany(
+          preparedComponents.map(
+            (component) => ({
+              ...component,
+              serviceId:
+                serviceObjectId,
+              tierId:
+                tierObjectId,
+            }),
+          ),
+          {
+            session,
+          },
+        );
+      }
+
+      await session.commitTransaction();
+
+      await ServiceCascadingEngine.run(
+        payload.serviceId,
+      );
+
+      return {
+        success: true,
+        message:
+          preparedComponents.length > 0
+            ? "Components replaced successfully"
+            : "Components cleared successfully",
+      };
+    } catch (error) {
+      if (session.inTransaction()) {
+        await session.abortTransaction();
+      }
+
+      throw error;
+    } finally {
+      await session.endSession();
     }
   }
 
@@ -342,120 +508,196 @@ export class ServiceComponentService {
     serviceId: string,
     tierId: string,
   ) {
-    if (!Types.ObjectId.isValid(serviceId)) {
-      throw new Error("Invalid serviceId");
-    }
-
-    if (!Types.ObjectId.isValid(tierId)) {
-      throw new Error("Invalid tierId");
-    }
-
-    const service = await Service.findById(serviceId);
-
-    if (!service) {
-      throw new Error("Service not found");
-    }
-
-    const tierExists = service.tiers.some(
-      (t) => t.tierId.toString() === tierId,
-    );
-
-    if (!tierExists) {
-      throw new Error("Tier does not belong to service");
-    }
-
-    const components = await ServiceComponent.find({
+    await this.validateServiceTier(
       serviceId,
       tierId,
-    })
-      .select("componentId name isRequired items")
-      .lean();
+    );
 
-    return components.map((c) => ({
-      componentId: c.componentId,
-      name: c.name,
-      isRequired: c.isRequired,
-      items: c.items || [],
-    }));
+    const components =
+      await ServiceComponent.find({
+        serviceId:
+          new Types.ObjectId(serviceId),
+        tierId:
+          new Types.ObjectId(tierId),
+      })
+        .select(
+          "componentId name description isRequired items",
+        )
+        .lean();
+
+    return components.map(
+      (component) => ({
+        componentId:
+          component.componentId,
+        name: component.name,
+        description:
+          component.description,
+        isRequired:
+          component.isRequired,
+        items:
+          component.items ?? [],
+      }),
+    );
   }
 
-  static async patchComponent(payload: any) {
-    const { serviceId, tierId, componentId, isRequired, name, items } = payload;
-
-    if (!Types.ObjectId.isValid(serviceId))
-      throw new Error("Invalid serviceId");
-    if (!Types.ObjectId.isValid(tierId)) throw new Error("Invalid tierId");
-    if (!Types.ObjectId.isValid(componentId))
-      throw new Error("Invalid componentId");
-
-    const service = await Service.findById(serviceId);
-    if (!service) throw new Error("Service not found");
-
-    const tierExists = service.tiers.some(
-      (t) => t.tierId.toString() === tierId,
+  static async patchComponent(
+    payload: PatchPayload,
+  ) {
+    await this.validateServiceTier(
+      payload.serviceId,
+      payload.tierId,
     );
-    if (!tierExists) throw new Error("Tier not found in service");
 
-    const component = await ServiceComponent.findOne({
-      serviceId,
-      tierId,
-      componentId,
-    });
-
-    if (!component) {
-      throw new Error("Component not found in this service tier");
-    }
-
-    const updateData: any = {};
-
-    if (typeof isRequired === "boolean") {
-      updateData.isRequired = isRequired;
-    }
-
-    if (name !== undefined) {
-      updateData.name = name.trim();
-    }
-
-    if (items !== undefined) {
-      const dbComponent = await Component.findById(componentId).lean();
-
-      if (!dbComponent) throw new Error("Invalid base component");
-
-      if (!dbComponent.isBundled && items.length > 0) {
-        throw new Error("Non-bundled component cannot have items");
-      }
-
-      const itemIds = [
-        ...new Set(
-          items.map((i: any) => (typeof i === "string" ? i : i.itemId)),
+    const filter = {
+      serviceId:
+        new Types.ObjectId(
+          payload.serviceId,
         ),
-      ];
+      tierId:
+        new Types.ObjectId(
+          payload.tierId,
+        ),
+      componentId:
+        new Types.ObjectId(
+          payload.componentId,
+        ),
+    };
 
-      const dbItems = await ComponentItem.find({
-        _id: { $in: itemIds as any[] },
-        isActive: true,
-      }).select("_id name");
+    const serviceComponent =
+      await ServiceComponent.findOne(
+        filter,
+      );
 
-      if (dbItems.length !== itemIds.length) {
-        throw new Error("Invalid component items");
-      }
-
-      updateData.items = dbItems.map((i) => ({
-        itemId: i._id,
-        name: i.name,
-      }));
+    if (!serviceComponent) {
+      throw createHttpError(
+        "Component not found in this service tier",
+        404,
+      );
     }
 
-    await ServiceComponent.updateOne(
-      { serviceId, tierId, componentId },
-      { $set: updateData },
-    );
+    const updateData:
+      Partial<{
+        isRequired: boolean;
+        name: string;
+        items: IServiceComponentItem[];
+      }> = {};
 
-    await ServiceCascadingEngine.run(serviceId);
+    if (
+      payload.isRequired !== undefined
+    ) {
+      updateData.isRequired =
+        payload.isRequired;
+    }
+
+    if (payload.name !== undefined) {
+      updateData.name =
+        payload.name.trim();
+    }
+
+    if (payload.items !== undefined) {
+      const baseComponent =
+        await Component.findById(
+          payload.componentId,
+        )
+          .select(
+            "_id name isBundled isActive",
+          )
+          .lean();
+
+      if (
+        !baseComponent ||
+        !baseComponent.isActive
+      ) {
+        throw createHttpError(
+          "Invalid or inactive base component",
+          400,
+        );
+      }
+
+      const itemIds =
+        this.normalizeItemIds(
+          payload.items,
+        );
+
+      if (
+        baseComponent.isBundled &&
+        itemIds.length === 0
+      ) {
+        throw createHttpError(
+          `Component ${baseComponent.name} requires items`,
+          400,
+        );
+      }
+
+      if (
+        !baseComponent.isBundled &&
+        itemIds.length > 0
+      ) {
+        throw createHttpError(
+          "Non-bundled component cannot have items",
+          400,
+        );
+      }
+
+      const objectIds = itemIds.map(
+        (id) => new Types.ObjectId(id),
+      );
+
+      const dbItems =
+        await ComponentItem.find({
+          _id: {
+            $in: objectIds,
+          },
+          isActive: true,
+        })
+          .select("_id name")
+          .lean();
+
+      if (
+        dbItems.length !==
+        objectIds.length
+      ) {
+        throw createHttpError(
+          "One or more component items are invalid or inactive",
+          400,
+        );
+      }
+
+      updateData.items =
+        dbItems.map((item) => ({
+          itemId: item._id,
+          name: item.name,
+        }));
+    }
+
+    const updatedComponent =
+      await ServiceComponent.findOneAndUpdate(
+        filter,
+        {
+          $set: updateData,
+        },
+        {
+          new: true,
+          runValidators: true,
+        },
+      ).lean();
+
+    if (!updatedComponent) {
+      throw createHttpError(
+        "Component not found in this service tier",
+        404,
+      );
+    }
+
+    await ServiceCascadingEngine.run(
+      payload.serviceId,
+    );
 
     return {
       success: true,
-      message: "Component updated successfully",
+      message:
+        "Component updated successfully",
+      component: updatedComponent,
     };
   }
 }

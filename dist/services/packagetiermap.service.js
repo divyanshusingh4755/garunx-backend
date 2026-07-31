@@ -1,211 +1,171 @@
-import { Types } from "mongoose";
-import mongoose from "mongoose";
+import mongoose, { Types } from "mongoose";
 import { Package } from "../models/package.model.js";
 import { Service } from "../models/service.model.js";
-import { PackageTierMap } from "../models/packagetiermap.model.js";
+import { PackageTierMap, } from "../models/packagetiermap.model.js";
 import { PackageCascadingEngine } from "./package-cascading-engine.service.js";
 export class PackageTierMapService {
-    static async bulkUpsertMappings(payload) {
-        const { packageId, tierId, services } = payload;
+    static async validateAndFormatServices(services, session) {
+        if (!Array.isArray(services)) {
+            throw new Error("Services field must be an array");
+        }
+        if (services.length === 0) {
+            return [];
+        }
+        const normalizedServiceIds = services.map((service) => service.serviceId?.toString());
+        const uniqueServiceIds = [...new Set(normalizedServiceIds)];
+        if (uniqueServiceIds.length !== normalizedServiceIds.length) {
+            throw new Error("Duplicate serviceId is not allowed");
+        }
+        const objectIds = uniqueServiceIds.map((serviceId) => {
+            if (!Types.ObjectId.isValid(serviceId)) {
+                throw new Error(`Invalid serviceId: ${serviceId}`);
+            }
+            return new Types.ObjectId(serviceId);
+        });
+        let serviceQuery = Service.find({
+            _id: { $in: objectIds },
+            isActive: true,
+        }).select("_id name");
+        if (session) {
+            serviceQuery = serviceQuery.session(session);
+        }
+        const dbServices = await serviceQuery;
+        if (dbServices.length !== objectIds.length) {
+            throw new Error("One or more services are invalid or inactive");
+        }
+        const serviceMap = new Map(dbServices.map((service) => [service._id.toString(), service]));
+        return services.map((service) => {
+            const serviceId = service.serviceId.toString();
+            const dbService = serviceMap.get(serviceId);
+            if (!dbService) {
+                throw new Error(`Service not found: ${serviceId}`);
+            }
+            const isRequired = service.isRequired === true;
+            const isRelated = service.isRelated === true;
+            if (isRequired && isRelated) {
+                throw new Error(`${dbService.name} cannot be both required and related`);
+            }
+            return {
+                serviceId: new Types.ObjectId(serviceId),
+                name: dbService.name,
+                isRequired,
+                isRelated,
+            };
+        });
+    }
+    static async validatePackageTier(packageId, tierId, session) {
         if (!Types.ObjectId.isValid(packageId)) {
             throw new Error("Invalid packageId");
         }
         if (!Types.ObjectId.isValid(tierId)) {
             throw new Error("Invalid tierId");
         }
-        if (!Array.isArray(services)) {
-            throw new Error("Services field must be an array");
+        let packageQuery = Package.findById(packageId);
+        if (session) {
+            packageQuery = packageQuery.session(session);
         }
-        const pkg = await Package.findById(packageId);
-        if (!pkg)
+        const pkg = await packageQuery;
+        if (!pkg) {
             throw new Error("Package not found");
+        }
         const tierExists = pkg.tiers
-            .filter((t) => t?.tierId)
-            .some((t) => t.tierId.toString() === tierId);
+            .filter((tier) => tier?.tierId)
+            .some((tier) => tier.tierId.toString() === tierId);
         if (!tierExists) {
             throw new Error("Tier does not belong to package");
         }
-        if (services.length === 0) {
-            await PackageTierMap.updateOne({ packageId, tierId }, {
-                $set: {
-                    packageId,
-                    tierId,
-                    services: [],
-                },
-            }, { upsert: true });
-            await PackageCascadingEngine.run(packageId);
-            return {
-                success: true,
-                message: "Package tier services cleared successfully",
-            };
-        }
-        const serviceIds = [...new Set(services.map((s) => s.serviceId))];
-        const objectIds = serviceIds.map((id) => {
-            if (!Types.ObjectId.isValid(id)) {
-                throw new Error(`Invalid serviceId: ${id}`);
-            }
-            return new Types.ObjectId(id);
-        });
-        const dbServices = await Service.find({
-            _id: { $in: objectIds },
-            isActive: true,
-        }).select("_id name");
-        if (dbServices.length !== objectIds.length) {
-            throw new Error("One or more services are invalid or inactive");
-        }
-        const serviceMap = new Map(dbServices.map((s) => [s._id.toString(), s]));
-        const formattedServices = services.map((s) => {
-            const key = s.serviceId?.toString?.();
-            if (!key) {
-                throw new Error("Invalid serviceId in payload");
-            }
-            const service = serviceMap.get(key);
-            if (!service) {
-                throw new Error(`Service not found: ${key}`);
-            }
-            if (s.isRequired && s.isRelated) {
-                throw new Error(`${service.name} cannot be both required and related`);
-            }
-            return {
-                serviceId: new Types.ObjectId(key),
-                name: service.name,
-                isRequired: !!s.isRequired,
-                isRelated: !!s.isRelated,
-            };
-        });
-        await PackageTierMap.updateOne({ packageId, tierId }, {
+    }
+    static async bulkUpsertMappings(payload) {
+        const { packageId, tierId, services } = payload;
+        await this.validatePackageTier(packageId, tierId);
+        const formattedServices = await this.validateAndFormatServices(services);
+        const mapping = await PackageTierMap.findOneAndUpdate({ packageId, tierId }, {
             $set: {
                 packageId,
                 tierId,
                 services: formattedServices,
             },
-        }, { upsert: true });
+        }, {
+            upsert: true,
+            new: true,
+            runValidators: true,
+            setDefaultsOnInsert: true,
+        });
+        // Remove duplicate legacy mappings, while keeping the current document.
         await PackageTierMap.deleteMany({
             packageId,
             tierId,
-        });
-        await PackageTierMap.create({
-            packageId,
-            tierId,
-            services: formattedServices,
+            _id: { $ne: mapping._id },
         });
         await PackageCascadingEngine.run(packageId);
         return {
             success: true,
-            message: "Package tier services updated successfully",
+            message: formattedServices.length === 0
+                ? "Package tier services cleared successfully"
+                : "Package tier services updated successfully",
+            data: mapping,
         };
     }
     static async replaceMappings(payload) {
         const session = await mongoose.startSession();
-        session.startTransaction();
         try {
+            session.startTransaction();
             const { packageId, tierId, services } = payload;
-            if (!Types.ObjectId.isValid(packageId)) {
-                throw new Error("Invalid packageId");
-            }
-            if (!Types.ObjectId.isValid(tierId)) {
-                throw new Error("Invalid tierId");
-            }
-            if (!Array.isArray(services)) {
-                throw new Error("Services field must be an array");
-            }
-            const pkg = await Package.findById(packageId).session(session);
-            if (!pkg)
-                throw new Error("Package not found");
-            const tierExists = pkg.tiers
-                .filter((t) => t?.tierId)
-                .some((t) => t.tierId.toString() === tierId);
-            if (!tierExists) {
-                throw new Error("Tier does not belong to package");
-            }
-            if (services.length === 0) {
-                await PackageTierMap.updateOne({ packageId, tierId }, {
-                    $set: {
-                        packageId,
-                        tierId,
-                        services: [],
-                    },
-                }, { upsert: true });
-                await PackageCascadingEngine.run(packageId);
-                return {
-                    success: true,
-                    message: "Package tier services cleared successfully",
-                };
-            }
-            const serviceIds = [...new Set(services.map((s) => s.serviceId))];
-            const objectIds = serviceIds.map((id) => {
-                if (!Types.ObjectId.isValid(id)) {
-                    throw new Error(`Invalid serviceId: ${id}`);
-                }
-                return new Types.ObjectId(id);
-            });
-            const dbServices = await Service.find({
-                _id: { $in: objectIds },
-                isActive: true,
-            })
-                .select("_id name")
-                .session(session);
-            if (dbServices.length !== objectIds.length) {
-                throw new Error("Invalid or inactive services");
-            }
-            const serviceMap = new Map(dbServices.map((s) => [s._id.toString(), s]));
-            const docs = services.map((s) => {
-                const dbService = serviceMap.get(s.serviceId);
-                if (s.isRequired && s.isRelated) {
-                    throw new Error(`${dbService.name} cannot be both required and related`);
-                }
-                return {
+            await this.validatePackageTier(packageId, tierId, session);
+            const formattedServices = await this.validateAndFormatServices(services, session);
+            const mapping = await PackageTierMap.findOneAndUpdate({ packageId, tierId }, {
+                $set: {
                     packageId,
                     tierId,
-                    serviceId: s.serviceId,
-                    name: dbService.name,
-                    isRequired: !!s.isRequired,
-                    isRelated: !!s.isRelated,
-                };
+                    services: formattedServices,
+                },
+            }, {
+                upsert: true,
+                new: true,
+                runValidators: true,
+                setDefaultsOnInsert: true,
+                session,
             });
             await PackageTierMap.deleteMany({
                 packageId,
                 tierId,
+                _id: { $ne: mapping._id },
             }).session(session);
-            await PackageTierMap.insertMany(docs, { session });
             await session.commitTransaction();
-            session.endSession();
             await PackageCascadingEngine.run(packageId);
             return {
                 success: true,
-                message: "Package tier services replaced successfully",
+                message: formattedServices.length === 0
+                    ? "Package tier services cleared successfully"
+                    : "Package tier services replaced successfully",
+                data: mapping,
             };
         }
         catch (error) {
-            await session.abortTransaction();
-            session.endSession();
+            if (session.inTransaction()) {
+                await session.abortTransaction();
+            }
             throw error;
+        }
+        finally {
+            await session.endSession();
         }
     }
     static async getServicesByPackageAndTier(packageId, tierId) {
-        if (!Types.ObjectId.isValid(packageId)) {
-            throw new Error("Invalid packageId");
-        }
-        if (!Types.ObjectId.isValid(tierId)) {
-            throw new Error("Invalid tierId");
-        }
-        const pkg = await Package.findById(packageId);
-        if (!pkg)
-            throw new Error("Package not found");
-        const tierExists = pkg.tiers.some((t) => t.tierId.toString() === tierId);
-        if (!tierExists) {
-            throw new Error("Tier does not belong to package");
-        }
-        const mappings = await PackageTierMap.find({
+        await this.validatePackageTier(packageId, tierId);
+        const mapping = await PackageTierMap.findOne({
             packageId,
             tierId,
         }).lean();
-        return mappings.flatMap((m) => (m.services || []).map((s) => ({
-            serviceId: s.serviceId,
-            name: s.name,
-            isRequired: s.isRequired,
-            isRelated: s.isRelated ?? false,
-        })));
+        if (!mapping) {
+            return [];
+        }
+        return (mapping.services || []).map((service) => ({
+            serviceId: service.serviceId,
+            name: service.name,
+            isRequired: service.isRequired,
+            isRelated: service.isRelated ?? false,
+        }));
     }
     static async patchService(payload) {
         const { packageId, tierId, serviceId, isRequired, isRelated } = payload;
@@ -218,6 +178,10 @@ export class PackageTierMapService {
         if (!Types.ObjectId.isValid(serviceId)) {
             throw new Error("Invalid serviceId");
         }
+        if (typeof isRequired !== "boolean" &&
+            typeof isRelated !== "boolean") {
+            throw new Error("isRequired or isRelated is required");
+        }
         const mapping = await PackageTierMap.findOne({
             packageId,
             tierId,
@@ -225,7 +189,7 @@ export class PackageTierMapService {
         if (!mapping) {
             throw new Error("Service mapping not found");
         }
-        const currentService = mapping.services.find((s) => s.serviceId.toString() === serviceId);
+        const currentService = mapping.services.find((service) => service.serviceId.toString() === serviceId);
         if (!currentService) {
             throw new Error("Service not found in mapping");
         }
@@ -234,20 +198,14 @@ export class PackageTierMapService {
         if (finalIsRequired && finalIsRelated) {
             throw new Error("A service cannot be both required and related");
         }
-        await PackageTierMap.updateOne({
-            packageId,
-            tierId,
-            "services.serviceId": serviceId,
-        }, {
-            $set: {
-                "services.$.isRequired": finalIsRequired,
-                "services.$.isRelated": finalIsRelated,
-            },
-        });
+        currentService.isRequired = finalIsRequired;
+        currentService.isRelated = finalIsRelated;
+        await mapping.save();
         await PackageCascadingEngine.run(packageId);
         return {
             success: true,
             message: "Service mapping updated successfully",
+            data: currentService,
         };
     }
 }

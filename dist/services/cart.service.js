@@ -27,6 +27,12 @@ class CartService {
     static round(value) {
         return Math.round((value + Number.EPSILON) * 100) / 100;
     }
+    static ensureUniqueIds(values, fieldName) {
+        const normalized = values.map((value) => String(value?.itemId ?? value?.componentId ?? value?.serviceId ?? value));
+        if (new Set(normalized).size !== normalized.length) {
+            throw new Error(`Duplicate ${fieldName} are not allowed`);
+        }
+    }
     static clearLineDiscounts(cart) {
         for (const component of cart.selectedComponents ?? []) {
             component.discountAmount = 0;
@@ -211,8 +217,52 @@ class CartService {
             throw new Error(`Cart cannot be modified in ${cart.status} state`);
         }
     }
+    static formatCartResponse(cart, totals) {
+        const cartType = cart.packageId
+            ? "PACKAGE"
+            : "SERVICE";
+        return {
+            _id: cart._id,
+            cartType,
+            serviceId: cart.serviceId ?? null,
+            packageId: cart.packageId ?? null,
+            name: cart.name,
+            thumbnailImage: cart.thumbnailImage,
+            categoryId: cart.categoryId,
+            tierId: cart.tierId,
+            tierName: cart.tierName,
+            locationId: cart.locationId,
+            locationName: cart.locationName,
+            /*
+             * Common field for frontend.
+             *
+             * SERVICE → selectedComponents
+             * PACKAGE → selectedServices
+             */
+            items: cartType === "SERVICE"
+                ? totals.componentItems
+                : totals.serviceItems,
+            addonComponents: cart.addonComponents ?? [],
+            addonServices: cart.addonServices ?? [],
+            basePrice: cart.basePrice,
+            addonPrice: cart.addonPrice,
+            subtotal: cart.subtotal,
+            discountAmount: cart.discountAmount,
+            totalAmount: cart.totalAmount,
+            taxSummary: cart.taxSummary,
+            coupon: cart.coupon ?? null,
+            status: cart.status,
+            createdAt: cart.createdAt,
+            updatedAt: cart.updatedAt,
+        };
+    }
     static async createServiceCart(owner, payload) {
         const { serviceId, tierId, locationId } = payload;
+        if (!Types.ObjectId.isValid(serviceId) ||
+            !Types.ObjectId.isValid(tierId) ||
+            !Types.ObjectId.isValid(locationId)) {
+            throw new Error("Invalid serviceId, tierId, or locationId");
+        }
         const service = await Service.findById(serviceId);
         if (!service || !service.isActive) {
             throw new Error("Service not found or inactive");
@@ -265,19 +315,79 @@ class CartService {
         const totals = await CartPricingEngine.calculateCartTotals(cart);
         this.applyPricingResults(cart, totals);
         await cart.save();
-        return cart;
+        return this.formatCartResponse(cart, totals);
     }
     static async createPackageCart(owner, payload) {
-        const { packageId, tierId, locationId } = payload;
+        const { packageId, tierId, locationId, } = payload;
+        if (!Types.ObjectId.isValid(packageId) ||
+            !Types.ObjectId.isValid(tierId) ||
+            !Types.ObjectId.isValid(locationId)) {
+            throw new Error("Invalid packageId, tierId, or locationId");
+        }
         const pkg = await Package.findById(packageId);
-        if (!pkg?.isActive)
-            throw new Error("Package not found");
-        const isValidTier = pkg.tiers.some((t) => t.tierId.toString() === tierId);
-        const isValidLocation = pkg.locations.some((l) => l.locationId.toString() === locationId);
-        if (!isValidTier)
+        if (!pkg?.isActive) {
+            throw new Error("Package not found or inactive");
+        }
+        const tier = pkg.tiers.find((item) => item.tierId.toString() === tierId);
+        const location = pkg.locations.find((item) => item.locationId.toString() ===
+            locationId);
+        if (!tier) {
             throw new Error("Invalid tier");
-        if (!isValidLocation)
+        }
+        if (!location) {
             throw new Error("Invalid location");
+        }
+        if (!location.isActive) {
+            throw new Error("Location is inactive for this package");
+        }
+        const packageTierMap = await PackageTierMap.findOne({
+            packageId,
+            tierId,
+        }).lean();
+        if (!packageTierMap) {
+            throw new Error("Package tier mapping not found");
+        }
+        /*
+         * Include required services automatically.
+         * Related services remain addons.
+         */
+        const requiredServices = (packageTierMap.services ?? []).filter((service) => service.isRequired &&
+            !service.isRelated);
+        if (requiredServices.length === 0) {
+            throw new Error("Package has no required services configured");
+        }
+        const requiredServiceIds = requiredServices.map((service) => service.serviceId);
+        const pricingRows = await PackageTierPricing.find({
+            packageId,
+            tierId,
+            locationId,
+            serviceId: {
+                $in: requiredServiceIds,
+            },
+        }).lean();
+        const pricingMap = new Map(pricingRows.map((pricing) => [
+            pricing.serviceId.toString(),
+            pricing,
+        ]));
+        /*
+         * Every required service must have pricing.
+         */
+        for (const service of requiredServices) {
+            const serviceId = service.serviceId.toString();
+            if (!pricingMap.has(serviceId)) {
+                throw new Error(`Pricing not found for required service: ${service.name}`);
+            }
+        }
+        const selectedServices = requiredServices.map((service) => {
+            const pricing = pricingMap.get(service.serviceId.toString());
+            return {
+                serviceId: service.serviceId,
+                name: service.name,
+                priceBeforeDiscount: pricing.finalPrice,
+                discountAmount: 0,
+                price: pricing.finalPrice,
+            };
+        });
         const ownerQuery = buildCartOwnerQuery(owner);
         const existingCart = await Cart.findOne({
             ...ownerQuery,
@@ -291,15 +401,19 @@ class CartService {
         }
         const cart = await Cart.create({
             ...ownerQuery,
-            packageId,
+            packageId: pkg._id,
             name: pkg.name,
             thumbnailImage: pkg.thumbnailImage ?? "",
             categoryId: pkg.categoryId,
-            tierId,
-            tierName: pkg.tiers.find((t) => t.tierId.toString() === tierId)?.name || "",
-            locationId,
-            locationName: pkg.locations.find((l) => l.locationId.toString() === locationId)
-                ?.name || "",
+            tierId: tier.tierId,
+            tierName: tier.name,
+            locationId: location.locationId,
+            locationName: location.name,
+            /*
+             * Required package services must be present
+             * before calculating package-cart totals.
+             */
+            selectedServices,
             addonServices: [],
             basePrice: 0,
             addonPrice: 0,
@@ -315,10 +429,11 @@ class CartService {
             },
             status: "ACTIVE",
         });
-        const totals = await CartPricingEngine.calculateCartTotals(cart);
+        const totals = await CartPricingEngine
+            .calculateCartTotals(cart);
         this.applyPricingResults(cart, totals);
         await cart.save();
-        return cart;
+        return this.formatCartResponse(cart, totals);
     }
     static async getUserCarts(owner, filters = {}) {
         const ownerQuery = buildCartOwnerQuery(owner);
@@ -336,8 +451,14 @@ class CartService {
                 $nin: ["EXPIRED", "DELETED"],
             };
         }
-        const page = Math.max(Number(filters.page) || 1, 1);
-        const limit = Math.min(Number(filters.limit) || 10, 100);
+        const parsedPage = Number(filters.page);
+        const parsedLimit = Number(filters.limit);
+        const page = Number.isInteger(parsedPage) && parsedPage > 0
+            ? parsedPage
+            : 1;
+        const limit = Number.isInteger(parsedLimit) && parsedLimit > 0
+            ? Math.min(parsedLimit, 100)
+            : 10;
         const skip = (page - 1) * limit;
         const [carts, total] = await Promise.all([
             Cart.find(query)
@@ -497,6 +618,10 @@ class CartService {
     }
     static async updateSelectedComponents(owner, cartId, payload) {
         const { selectedComponents } = payload;
+        if (!Array.isArray(selectedComponents)) {
+            throw new Error("selectedComponents must be an array");
+        }
+        this.ensureUniqueIds(selectedComponents.map((item) => item?.componentId), "componentIds");
         if (!mongoose.Types.ObjectId.isValid(cartId)) {
             throw new Error("Invalid cartId");
         }
@@ -581,6 +706,10 @@ class CartService {
     }
     static async updateAddonComponents(owner, cartId, payload) {
         const { addonComponents } = payload;
+        if (!Array.isArray(addonComponents)) {
+            throw new Error("addonComponents must be an array");
+        }
+        this.ensureUniqueIds(addonComponents.map((item) => item?.componentId), "componentIds");
         if (!mongoose.Types.ObjectId.isValid(cartId)) {
             throw new Error("Invalid cartId");
         }
@@ -602,7 +731,7 @@ class CartService {
         const componentMap = new Map(serviceComponents.map((c) => [c.componentId.toString(), c]));
         const updatedAddonComponents = [];
         for (const ac of addonComponents || []) {
-            const component = componentMap.get(ac.componentId);
+            const component = componentMap.get(ac.componentId?.toString());
             if (!component) {
                 throw new Error("Invalid addon component for this service");
             }
@@ -617,8 +746,17 @@ class CartService {
             }
             const allowedItems = component.items || [];
             const formattedItems = [];
-            for (const itemId of ac.items || []) {
-                const matchedItem = allowedItems.find((item) => item.itemId.toString() === itemId.toString());
+            const requestedItems = ac.items || [];
+            this.ensureUniqueIds(requestedItems, "itemIds");
+            for (const selectedItem of requestedItems) {
+                const selectedItemId = typeof selectedItem === "string"
+                    ? selectedItem
+                    : selectedItem?.itemId;
+                if (!selectedItemId) {
+                    throw new Error(`Invalid item format in ${component.name}`);
+                }
+                const matchedItem = allowedItems.find((item) => item.itemId.toString() ===
+                    selectedItemId.toString());
                 if (!matchedItem) {
                     throw new Error(`Invalid item selected for ${component.name}`);
                 }
@@ -666,6 +804,7 @@ class CartService {
         if (!Array.isArray(serviceIds)) {
             throw new Error("serviceIds must be an array");
         }
+        this.ensureUniqueIds(serviceIds, "serviceIds");
         const packageTierMap = await PackageTierMap.findOne({
             packageId: cart.packageId,
             tierId: cart.tierId,
@@ -674,6 +813,14 @@ class CartService {
             throw new Error("Package tier mapping not found");
         }
         const allowedServices = packageTierMap.services || [];
+        const requiredServiceIds = allowedServices
+            .filter((service) => service.isRequired && !service.isRelated)
+            .map((service) => service.serviceId.toString());
+        const selectedServiceIdSet = new Set(serviceIds.map((serviceId) => serviceId.toString()));
+        const missingRequiredServices = requiredServiceIds.filter((serviceId) => !selectedServiceIdSet.has(serviceId));
+        if (missingRequiredServices.length > 0) {
+            throw new Error("All required package services must be selected");
+        }
         const selectedServices = [];
         const pricingList = await PackageTierPricing.find({
             packageId: cart.packageId,
@@ -732,6 +879,7 @@ class CartService {
         if (!Array.isArray(serviceIds)) {
             throw new Error("serviceIds must be an array");
         }
+        this.ensureUniqueIds(serviceIds, "serviceIds");
         const packageTierMap = await PackageTierMap.findOne({
             packageId: cart.packageId,
             tierId: cart.tierId,
@@ -753,7 +901,7 @@ class CartService {
             if (!matchedService) {
                 throw new Error(`Invalid addon service selected`);
             }
-            if (!matchedService.isRelated) {
+            if (matchedService.isRequired || !matchedService.isRelated) {
                 throw new Error(`${matchedService.name} is not an addon service.`);
             }
             const price = pricingMap.get(serviceId.toString());
@@ -795,6 +943,10 @@ class CartService {
         if (!scheduledDate) {
             throw new Error("Scheduled date is required");
         }
+        if (typeof scheduledTime !== "string" ||
+            !/^([01]\d|2[0-3]):[0-5]\d$/.test(scheduledTime)) {
+            throw new Error("scheduledTime is required in HH:mm format");
+        }
         const date = new Date(scheduledDate);
         if (isNaN(date.getTime())) {
             throw new Error("Invalid scheduled date");
@@ -810,9 +962,8 @@ class CartService {
          * - blackout dates
          */
         cart.scheduledDate = date;
-        if (scheduledTime) {
-            cart.scheduledTime = scheduledTime;
-        }
+        cart.scheduledTime = scheduledTime;
+        cart.status = "SCHEDULED";
         await cart.save();
         return cart;
     }
@@ -855,6 +1006,10 @@ class CartService {
     }
     static async updateCartNotes(owner, cartId, payload) {
         const { notes } = payload;
+        if (notes !== undefined &&
+            typeof notes !== "string") {
+            throw new Error("notes must be a string");
+        }
         if (!mongoose.Types.ObjectId.isValid(cartId)) {
             throw new Error("Invalid cartId");
         }
@@ -914,8 +1069,8 @@ class CartService {
             const coupon = await couponQuery.lean();
             if (!coupon) {
                 changes.push("Applied coupon was removed because it no longer exists");
-                cart.couponId = undefined;
-                cart.couponCode = undefined;
+                delete cart.couponId;
+                delete cart.couponCode;
             }
             else {
                 const now = new Date();
@@ -926,16 +1081,16 @@ class CartService {
                 if (grossTotals.subtotal <
                     coupon.minOrderAmount) {
                     changes.push(`Coupon ${coupon.couponCode} was removed because minimum order amount of ₹${coupon.minOrderAmount} is not met`);
-                    cart.couponId = undefined;
-                    cart.couponCode = undefined;
+                    delete cart.couponId;
+                    delete cart.couponCode;
                 }
                 else if (!coupon.isActive ||
                     expired ||
                     (coupon.usageLimit > 0 &&
                         coupon.usedCount >= coupon.usageLimit)) {
                     changes.push(`Coupon ${coupon.couponCode} was removed because it is no longer valid`);
-                    cart.couponId = undefined;
-                    cart.couponCode = undefined;
+                    delete cart.couponId;
+                    delete cart.couponCode;
                 }
                 else {
                     couponDiscountAmount =
@@ -999,6 +1154,27 @@ class CartService {
         }
         const errors = [];
         if (cart.serviceId) {
+            const service = await Service.findById(cart.serviceId)
+                .session(session || null)
+                .lean();
+            if (!service) {
+                errors.push("Service no longer exists");
+            }
+            else if (!service.isActive) {
+                errors.push("Service is no longer active");
+            }
+            else {
+                const tierExists = service.tiers.some((tier) => tier.tierId.toString() ===
+                    cart.tierId.toString());
+                const locationExists = service.locations.some((location) => location.locationId.toString() ===
+                    cart.locationId.toString());
+                if (!tierExists) {
+                    errors.push("Selected service tier is no longer available");
+                }
+                if (!locationExists) {
+                    errors.push("Selected service location is no longer available");
+                }
+            }
             const serviceComponents = await ServiceComponent.find({
                 serviceId: cart.serviceId,
                 tierId: cart.tierId,
@@ -1043,6 +1219,16 @@ class CartService {
                     .lean();
                 if (!packageTierMap) {
                     errors.push("Package tier mapping no longer exists");
+                }
+                else {
+                    const selectedServiceIds = new Set((cart.selectedServices || []).map((service) => service.serviceId.toString()));
+                    for (const mappedService of packageTierMap.services || []) {
+                        if (mappedService.isRequired &&
+                            !mappedService.isRelated &&
+                            !selectedServiceIds.has(mappedService.serviceId.toString())) {
+                            errors.push(`Missing required service: ${mappedService.name}`);
+                        }
+                    }
                 }
                 const pricingExists = await PackageTierPricing.exists({
                     packageId: cart.packageId,
@@ -1126,7 +1312,7 @@ class CartService {
                     userId: new mongoose.Types.ObjectId(userId),
                     cartId: lockedCart._id,
                     bookingFor: lockedCart.bookingFor,
-                    bookedBy: "CUSTOMER",
+                    bookedBy: "USER",
                     entries: bookingData.entries,
                     customerDetails: lockedCart.customerDetails,
                     pricing: bookingData.pricing,
@@ -1236,27 +1422,36 @@ class CartService {
                     guestId,
                     status: "ACTIVE",
                 })
-                    .select("_id serviceId packageId")
+                    .select("_id serviceId packageId tierId locationId")
                     .session(session);
+                const duplicateGuestCartIds = [];
                 for (const cart of guestCarts) {
+                    const duplicateQuery = {
+                        userId,
+                        tierId: cart.tierId,
+                        locationId: cart.locationId,
+                        status: "ACTIVE",
+                    };
                     if (cart.serviceId) {
-                        await Cart.deleteMany({
-                            userId,
-                            serviceId: cart.serviceId,
-                            status: { $in: ["ACTIVE"] },
-                        }).session(session);
+                        duplicateQuery.serviceId = cart.serviceId;
                     }
-                    if (cart.packageId) {
-                        await Cart.deleteMany({
-                            userId,
-                            packageId: cart.packageId,
-                            status: { $in: ["ACTIVE"] },
-                        }).session(session);
+                    else if (cart.packageId) {
+                        duplicateQuery.packageId = cart.packageId;
                     }
+                    const duplicateExists = await Cart.exists(duplicateQuery).session(session);
+                    if (duplicateExists) {
+                        duplicateGuestCartIds.push(cart._id);
+                    }
+                }
+                if (duplicateGuestCartIds.length > 0) {
+                    await Cart.deleteMany({
+                        _id: { $in: duplicateGuestCartIds },
+                    }).session(session);
                 }
                 await Cart.updateMany({
                     guestId,
                     status: "ACTIVE",
+                    _id: { $nin: duplicateGuestCartIds },
                 }, {
                     $set: {
                         userId,
@@ -1286,15 +1481,25 @@ class CartService {
         if (cart.couponId) {
             throw new Error("A coupon is already applied. Remove it first.");
         }
+        if (typeof cart.subtotal !== "number" ||
+            !Number.isFinite(cart.subtotal)) {
+            throw new Error("Cart subtotal is not calculated");
+        }
         const bookingCount = cart.userId
             ? await Booking.countDocuments({ userId: cart.userId })
             : 0;
         const validation = await CouponService.validateCoupon({
             couponCode,
-            ...(cart.serviceId && { serviceId: cart.serviceId.toString() }),
-            ...(cart.packageId && { packageId: cart.packageId.toString() }),
+            ...(cart.serviceId && {
+                serviceId: cart.serviceId.toString(),
+            }),
+            ...(cart.packageId && {
+                packageId: cart.packageId.toString(),
+            }),
             orderAmount: cart.subtotal,
-            ...(owner.userId && { userId: owner.userId }),
+            ...(owner.userId && {
+                userId: owner.userId.toString(),
+            }),
             isFirstOrder: bookingCount === 0,
         });
         cart.couponId = validation.couponId;
@@ -1317,8 +1522,8 @@ class CartService {
             throw new Error("Cart not found");
         }
         this.ensureCartEditable(cart);
-        cart.couponId = undefined;
-        cart.couponCode = undefined;
+        delete cart.couponId;
+        delete cart.couponCode;
         await cart.save();
         const result = await this.recalculateCart(owner, cartId, {
             persist: true,
@@ -1338,6 +1543,10 @@ class CartService {
         }
         if (cart.status !== "CHECKOUT_PENDING") {
             throw new Error("Only checkout pending carts can be reopened.");
+        }
+        if (cart.checkoutExpiresAt &&
+            cart.checkoutExpiresAt > new Date()) {
+            throw new Error("Checkout is still active and cannot be reopened yet");
         }
         cart.status = "ACTIVE";
         cart.set({

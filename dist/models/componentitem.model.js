@@ -1,4 +1,4 @@
-import { model, Schema, Document } from "mongoose";
+import { model, Schema, } from "mongoose";
 const componentItemSchema = new Schema({
     name: {
         type: String,
@@ -6,11 +6,23 @@ const componentItemSchema = new Schema({
         trim: true,
         unique: true,
     },
-    price: { type: Number },
-    isActive: { type: Boolean, default: true },
-}, { timestamps: true });
+    price: {
+        type: Number,
+        min: 0,
+    },
+    isActive: {
+        type: Boolean,
+        required: true,
+        default: true,
+        index: true,
+    },
+}, {
+    timestamps: true,
+});
 componentItemSchema.index({
     name: "text",
-}, { name: "ComponentItemTextSearchIndex" });
+}, {
+    name: "ComponentItemTextSearchIndex",
+});
 export const ComponentItem = model("ComponentItem", componentItemSchema);
 //# sourceMappingURL=componentitem.model.js.map

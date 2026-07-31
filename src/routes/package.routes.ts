@@ -46,26 +46,39 @@ const validate = (req: Request, res: Response, next: NextFunction) => {
 
 const packageIdValidation = [
   param("packageId").isMongoId().withMessage("Invalid package ID"),
+  validate,
+];
 
+const relatedServiceValidation = [
+  param("packageId").isMongoId().withMessage("Invalid package ID"),
+  param("tierId").isMongoId().withMessage("Invalid tier ID"),
+  param("locationId").isMongoId().withMessage("Invalid location ID"),
   validate,
 ];
 
 const packageValidation = [
-  body("name").notEmpty().withMessage("Name is required").isString().trim(),
+  body("name")
+    .isString()
+    .withMessage("Name must be a string")
+    .trim()
+    .notEmpty()
+    .withMessage("Name is required"),
 
   body("shortDescription")
+    .isString()
+    .withMessage("Short description must be a string")
+    .trim()
     .notEmpty()
     .withMessage("Short description is required")
-    .isString()
-    .trim()
     .isLength({ max: 200 })
     .withMessage("Short description max length is 200"),
 
   body("fullDescription")
-    .notEmpty()
-    .withMessage("Full description is required")
     .isString()
-    .trim(),
+    .withMessage("Full description must be a string")
+    .trim()
+    .notEmpty()
+    .withMessage("Full description is required"),
 
   body("categoryId")
     .notEmpty()
@@ -80,34 +93,9 @@ const packageValidation = [
     .withMessage("Thumbnail image must be valid URL"),
 
   body("bannerImage")
-    .optional()
+    .optional({ checkFalsy: true })
     .isURL()
     .withMessage("Banner image must be valid URL"),
-
-  body("locations").optional().isArray().withMessage("locations must be array"),
-
-  body("locations.*.name").optional().isString().trim(),
-
-  body("locations.*.locationId")
-    .optional()
-    .isMongoId()
-    .withMessage("Invalid location ID"),
-
-  body("locations.*.isActive")
-    .optional()
-    .isBoolean()
-    .withMessage("Location isActive must be boolean"),
-
-  body("tiers").optional().isArray().withMessage("tiers must be array"),
-
-  body("tiers.*.name").optional().isString().trim(),
-
-  body("tiers.*.tierId").optional().isMongoId().withMessage("Invalid tier ID"),
-
-  body("isActive")
-    .optional()
-    .isBoolean()
-    .withMessage("isActive must be boolean"),
 
   validate,
 ];
@@ -134,25 +122,9 @@ const updatePackageValidation = [
     .withMessage("Thumbnail image must be valid URL"),
 
   body("bannerImage")
-    .optional()
+    .optional({ checkFalsy: true })
     .isURL()
     .withMessage("Banner image must be valid URL"),
-
-  body("locations").optional().isArray().withMessage("locations must be array"),
-
-  body("locations.*.locationId")
-    .optional()
-    .isMongoId()
-    .withMessage("Invalid location ID"),
-
-  body("tiers").optional().isArray().withMessage("tiers must be array"),
-
-  body("tiers.*.tierId").optional().isMongoId().withMessage("Invalid tier ID"),
-
-  body("isActive")
-    .optional()
-    .isBoolean()
-    .withMessage("isActive must be boolean"),
 
   validate,
 ];
@@ -161,7 +133,7 @@ const packageStatusValidation = [
   param("packageId").isMongoId().withMessage("Invalid package ID"),
 
   body("isActive")
-    .notEmpty()
+    .exists({ checkNull: true })
     .withMessage("isActive is required")
     .isBoolean()
     .withMessage("isActive must be boolean"),
@@ -176,27 +148,18 @@ const updateLocationsValidation = [
     .isArray({ min: 1 })
     .withMessage("locations array is required"),
 
-  body("locations.*.name").notEmpty().withMessage("Location name is required"),
-
   body("locations.*.locationId")
     .notEmpty()
     .withMessage("Location ID is required")
     .isMongoId()
     .withMessage("Invalid location ID"),
 
-  body("locations.*.isActive")
-    .optional()
-    .isBoolean()
-    .withMessage("isActive must be boolean"),
-
   validate,
 ];
 
 const removeLocationValidation = [
   param("id").isMongoId().withMessage("Invalid package ID"),
-
   param("locationId").isMongoId().withMessage("Invalid location ID"),
-
   validate,
 ];
 
@@ -204,8 +167,6 @@ const updateTiersValidation = [
   param("id").isMongoId().withMessage("Invalid package ID"),
 
   body("tiers").isArray({ min: 1 }).withMessage("tiers array is required"),
-
-  body("tiers.*.name").notEmpty().withMessage("Tier name is required"),
 
   body("tiers.*.tierId")
     .notEmpty()
@@ -218,9 +179,7 @@ const updateTiersValidation = [
 
 const removeTierValidation = [
   param("id").isMongoId().withMessage("Invalid package ID"),
-
   param("tierId").isMongoId().withMessage("Invalid tier ID"),
-
   validate,
 ];
 
@@ -235,9 +194,10 @@ router.post(
 );
 
 router.get("/:packageId/full", packageIdValidation, getFullPackage);
+
 router.get(
   "/:packageId/:tierId/:locationId/relatedService",
-  packageIdValidation,
+  relatedServiceValidation,
   getRelatedPackageService,
 );
 

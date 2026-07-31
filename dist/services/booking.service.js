@@ -13,6 +13,7 @@ const ASSIGNMENT_WINDOW_MS = 2 * 60 * 60 * 1000;
 const BOOKING_OTP_EXPIRY_MS = 10 * 60 * 1000;
 const OTP_RESEND_COOLDOWN_MS = 60 * 1000;
 const MAX_OTP_RESENDS = 5;
+const MAX_OTP_VERIFICATION_ATTEMPTS = 5;
 const STATUS_TRANSITIONS = {
     PENDING_PAYMENT: ["CONFIRMED", "CANCELLED", "EXPIRED"],
     CONFIRMED: ["ASSIGNMENT_PENDING", "CANCELLED"],
@@ -72,7 +73,7 @@ export class BookingService {
             throw new Error("Booking OTP has already been verified");
         }
         if (otpVerification.attempts >=
-            MAX_OTP_RESENDS) {
+            MAX_OTP_VERIFICATION_ATTEMPTS) {
             throw new Error("Maximum OTP verification attempts exceeded");
         }
         if (otpVerification.expiresAt <= new Date()) {
@@ -259,8 +260,9 @@ export class BookingService {
         const timestamp = req.header("x-webhook-timestamp") || "";
         const valid = CashfreeService.verifyWebhookSignature(rawBody, signature, timestamp);
         if (!valid) {
-            console.error("Invalid webhook signature");
-            return;
+            const error = new Error("Invalid webhook signature");
+            error.statusCode = 401;
+            throw error;
         }
         const payload = JSON.parse(rawBody);
         if (payload?.data?.test_object) {
@@ -288,14 +290,23 @@ export class BookingService {
         try {
             await session.withTransaction(async () => {
                 if (paymentStatus === "SUCCESS") {
-                    await Booking.updateOne({ _id: booking._id }, {
+                    const numericPaymentAmount = Number(paymentAmount);
+                    if (!Number.isFinite(numericPaymentAmount) ||
+                        Math.abs(numericPaymentAmount - booking.pricing.grandTotal) > 0.01) {
+                        throw new Error("Payment amount does not match booking total");
+                    }
+                    const paidAt = new Date();
+                    const paidUpdate = await Booking.updateOne({
+                        _id: booking._id,
+                        "payment.status": { $ne: "PAID" },
+                    }, {
                         $set: {
                             "payment.status": "PAID",
-                            "payment.amountPaid": paymentAmount,
+                            "payment.amountPaid": numericPaymentAmount,
                             "payment.providerPaymentId": paymentId,
                             "payment.gateway": "CASHFREE",
                             "payment.paymentMethod": paymentGroup,
-                            "payment.paidAt": new Date(),
+                            "payment.paidAt": paidAt,
                             status: "CONFIRMED",
                             "assignment.status": "PENDING_SELECTION",
                         },
@@ -304,9 +315,17 @@ export class BookingService {
                             "payment.failureReason": 1,
                         },
                     }, { session });
+                    if (paidUpdate.modifiedCount === 0) {
+                        return;
+                    }
                     await Cart.updateOne({ _id: booking.cartId }, {
-                        $set: { status: "CHECKED_OUT", checkedOutAt: new Date() },
-                        $unset: { checkoutExpiresAt: 1 },
+                        $set: {
+                            status: "CHECKED_OUT",
+                            checkedOutAt: paidAt,
+                        },
+                        $unset: {
+                            checkoutExpiresAt: 1,
+                        },
                     }, { session });
                     if (booking.pricing.couponId) {
                         await Coupon.updateOne({
@@ -342,7 +361,15 @@ export class BookingService {
         }
     }
     static async retryPayment(bookingId, userId) {
-        const booking = await Booking.findById(bookingId);
+        if (!Types.ObjectId.isValid(bookingId) ||
+            !Types.ObjectId.isValid(userId)) {
+            throw new Error("Invalid booking or user ID");
+        }
+        const booking = await Booking.findOne({
+            _id: bookingId,
+            userId,
+            isDeleted: false,
+        });
         if (!booking) {
             throw new Error("Booking not found");
         }
@@ -397,12 +424,19 @@ export class BookingService {
             },
         });
         return {
-            orderId: newOrderId,
+            orderId: order.order_id,
             paymentSessionId: order.payment_session_id,
         };
     }
     static async getPaymentStatus(cartId, userId) {
-        const cart = await Cart.findOne({ _id: cartId, userId });
+        if (!Types.ObjectId.isValid(cartId) ||
+            !Types.ObjectId.isValid(userId)) {
+            throw new Error("Invalid cart or user ID");
+        }
+        const cart = await Cart.findOne({
+            _id: cartId,
+            userId,
+        });
         if (!cart?.activeBookingId) {
             return {
                 hasPendingPayment: false,
@@ -410,7 +444,11 @@ export class BookingService {
                 bookingStatus: null,
             };
         }
-        const booking = await Booking.findById(cart.activeBookingId);
+        const booking = await Booking.findOne({
+            _id: cart.activeBookingId,
+            userId,
+            isDeleted: false,
+        });
         if (!booking) {
             return {
                 hasPendingPayment: false,
@@ -466,7 +504,11 @@ export class BookingService {
     }
     static async findBookings(params) {
         const { searchTerm, status, paymentStatus, userId, bookingReference, fromDate, toDate, limit = 20, page = 1, sortBy = "createdAt", sortOrder = "desc", includeCoordinatorProfile = false, } = params;
-        const skip = (page - 1) * limit;
+        const safePage = Number.isInteger(page) && page > 0 ? page : 1;
+        const safeLimit = Number.isInteger(limit) && limit > 0
+            ? Math.min(limit, 100)
+            : 20;
+        const skip = (safePage - 1) * safeLimit;
         const query = { isDeleted: false };
         if (status) {
             query.status = status;
@@ -516,9 +558,22 @@ export class BookingService {
                 },
             ];
         }
+        const allowedSortFields = new Set([
+            "createdAt",
+            "updatedAt",
+            "scheduledAt",
+            "status",
+            "bookingReference",
+            "pricing.grandTotal",
+            "payment.status",
+        ]);
+        const safeSortBy = allowedSortFields.has(sortBy)
+            ? sortBy
+            : "createdAt";
         const sortCriteria = {};
-        sortCriteria[sortBy] = sortOrder === "desc" ? -1 : 1;
-        if (sortBy !== "createdAt") {
+        sortCriteria[safeSortBy] =
+            sortOrder === "asc" ? 1 : -1;
+        if (safeSortBy !== "createdAt") {
             sortCriteria.createdAt = -1;
         }
         let bookingQuery = Booking.find(query)
@@ -559,7 +614,7 @@ export class BookingService {
                 bookingQuery
                     .sort(sortCriteria)
                     .skip(skip)
-                    .limit(limit)
+                    .limit(safeLimit)
                     .lean(),
                 Booking.countDocuments(query),
             ]);
@@ -671,8 +726,8 @@ export class BookingService {
             return {
                 data: formattedData,
                 total,
-                page,
-                totalPages: Math.ceil(total / limit),
+                page: safePage,
+                totalPages: Math.ceil(total / safeLimit),
             };
         }
         catch (error) {
@@ -828,15 +883,20 @@ export class BookingService {
             ]
         }).populate("userId", "fullName email phoneNumber");
     }
-    static async updateBookingNotes(bookingId, notes) {
+    static async updateBookingNotes(bookingId, notes, userId) {
         if (!bookingId) {
             throw new Error("Booking ID is required");
         }
         if (typeof notes !== "string") {
             throw new Error("Notes must be a string");
         }
+        if (!Types.ObjectId.isValid(bookingId) ||
+            !Types.ObjectId.isValid(userId)) {
+            throw new Error("Invalid booking or user ID");
+        }
         const booking = await Booking.findOne({
             _id: bookingId,
+            userId,
             isDeleted: false,
         });
         if (!booking) {
@@ -1187,7 +1247,19 @@ export class BookingService {
         };
     }
     static async refundBooking(bookingId, amount, reason, refundedBy) {
-        const booking = await Booking.findById(bookingId);
+        if (!Types.ObjectId.isValid(bookingId)) {
+            throw new Error("Invalid booking ID");
+        }
+        if (!Number.isFinite(amount) || amount <= 0) {
+            throw new Error("Refund amount must be greater than zero");
+        }
+        if (!reason?.trim()) {
+            throw new Error("Refund reason is required");
+        }
+        const booking = await Booking.findOne({
+            _id: bookingId,
+            isDeleted: false,
+        });
         if (!booking) {
             throw new Error("Booking not found");
         }
@@ -1913,7 +1985,7 @@ export class BookingService {
                 newScheduledAt: targetScheduledAt,
                 reason: rescheduleReason.trim(),
                 rescheduledBy: new Types.ObjectId(selectedBy),
-                rescheduledByRole: "CUSTOMER",
+                rescheduledByRole: "USER",
                 rescheduledAt: new Date(),
             };
             if (previousScheduledAt) {
@@ -2055,7 +2127,7 @@ export class BookingService {
             ?.assignedCoordinatorId
             ?.toString() === requestedBy;
         const isAdmin = requestedByRole === "ADMIN";
-        if (requestedByRole === "CUSTOMER" &&
+        if (requestedByRole === "USER" &&
             !isOwner) {
             throw new Error("Only the booking owner can request reassignment");
         }
@@ -2385,8 +2457,15 @@ export class BookingService {
                 1;
         const isValid = await this.validateBookingOtp(booking, otp.trim());
         if (!isValid) {
-            booking.execution.otpVerification.status =
-                "FAILED";
+            if ((booking.execution.otpVerification.attempts ?? 0) >=
+                MAX_OTP_VERIFICATION_ATTEMPTS) {
+                booking.execution.otpVerification.status =
+                    "FAILED";
+            }
+            else {
+                booking.execution.otpVerification.status =
+                    "PENDING";
+            }
             await booking.save();
             throw new Error("Invalid OTP");
         }

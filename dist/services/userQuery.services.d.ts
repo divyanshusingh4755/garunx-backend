@@ -4,42 +4,42 @@ interface CreateUserQueryInput {
     requesterId: string;
     subject: string;
     category: UserQueryCategory;
-    message?: string;
+    message?: string | null;
     imageUrls?: string[];
 }
 interface SendUserMessageInput {
     queryId: string;
     requesterId: string;
-    message?: string;
+    message?: string | null;
     imageUrls?: string[];
 }
 interface MarkQueryAsReadInput {
     queryId: string;
-    requesterId: string;
+    actorId: string;
 }
 interface AdminReplyInput {
     queryId: string;
     adminId: string;
-    message?: string;
+    message?: string | null;
     imageUrls?: string[];
 }
 interface UpdateStatusInput {
     queryId: string;
     adminId: string;
     status: UserQueryStatus;
-    reason?: string;
+    reason?: string | null;
 }
 interface UpdatePriorityInput {
     queryId: string;
     adminId: string;
     priority: UserQueryPriority;
-    reason?: string;
+    reason?: string | null;
 }
 interface UpdateCategoryInput {
     queryId: string;
     adminId: string;
     category: UserQueryCategory;
-    reason?: string;
+    reason?: string | null;
 }
 interface AssignQueryInput {
     queryId: string;
@@ -53,12 +53,16 @@ interface DeleteQueryInput {
 }
 export declare class UserQueryService {
     private static validateObjectId;
+    private static safePagination;
+    private static getSortCriteria;
     private static generateQueryReference;
     private static createActivity;
     private static ensureAdmin;
     private static resolveRequesterType;
+    private static resolveMessageSenderType;
     private static validateMessageContent;
-    static createUserQueryService(input: CreateUserQueryInput): Promise<undefined>;
+    private static latestMessageText;
+    static createUserQueryService(input: CreateUserQueryInput): Promise<never>;
     static getMyQueries(params: {
         requesterId: string;
         status?: UserQueryStatus;
@@ -75,6 +79,7 @@ export declare class UserQueryService {
         })[];
         total: number;
         page: number;
+        limit: number;
         totalPages: number;
     }>;
     static getUserQueryById(input: {
@@ -92,7 +97,7 @@ export declare class UserQueryService {
             __v: number;
         })[];
     }>;
-    static sendUserQueryMessage(input: SendUserMessageInput): Promise<undefined>;
+    static sendUserQueryMessage(input: SendUserMessageInput): Promise<never>;
     static markUserQueryAsRead(input: MarkQueryAsReadInput): Promise<{
         requesterUnreadCount: number;
         adminUnreadCount: number;
@@ -118,6 +123,7 @@ export declare class UserQueryService {
         })[];
         total: number;
         page: number;
+        limit: number;
         totalPages: number;
     }>;
     static getAdminUserQueryById(input: {
@@ -140,12 +146,13 @@ export declare class UserQueryService {
             __v: number;
         })[];
     }>;
-    static sendAdminQueryReply(input: AdminReplyInput): Promise<undefined>;
-    static updateUserQueryStatus(input: UpdateStatusInput): Promise<undefined>;
-    static updateUserQueryPriority(input: UpdatePriorityInput): Promise<undefined>;
-    static updateUserQueryCategory(input: UpdateCategoryInput): Promise<undefined>;
-    static assignUserQuery(input: AssignQueryInput): Promise<undefined>;
-    static deleteUserQuery(input: DeleteQueryInput): Promise<undefined>;
+    static sendAdminQueryReply(input: AdminReplyInput): Promise<never>;
+    static updateUserQueryStatus(input: UpdateStatusInput): Promise<never>;
+    static updateUserQueryPriority(input: UpdatePriorityInput): Promise<never>;
+    static updateUserQueryCategory(input: UpdateCategoryInput): Promise<never>;
+    private static updateSimpleField;
+    static assignUserQuery(input: AssignQueryInput): Promise<never>;
+    static deleteUserQuery(input: DeleteQueryInput): Promise<never>;
 }
 export {};
 //# sourceMappingURL=userQuery.services.d.ts.map

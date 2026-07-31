@@ -1,16 +1,27 @@
 import type { Types } from "mongoose";
-export type TaxPriceMode = "EXCLUSIVE" | "INCLUSIVE";
-export type TaxJurisdiction = "INTRA_STATE" | "INTER_STATE";
-export type TaxSourceType = "SERVICE_PRICING" | "PACKAGE_PRICING";
+export declare enum TaxPriceMode {
+    EXCLUSIVE = "EXCLUSIVE",
+    INCLUSIVE = "INCLUSIVE"
+}
+export declare enum TaxJurisdiction {
+    INTRA_STATE = "INTRA_STATE",
+    INTER_STATE = "INTER_STATE"
+}
 export declare enum TaxSource {
     SERVICE_PRICING = "SERVICE_PRICING",
     PACKAGE_PRICING = "PACKAGE_PRICING"
+}
+export declare enum TaxTreatment {
+    TAXABLE = "TAXABLE",
+    EXEMPT = "EXEMPT",
+    NIL_RATED = "NIL_RATED",
+    NON_GST = "NON_GST"
 }
 export interface ITaxProfileSnapshot {
     taxProfileId: Types.ObjectId;
     name: string;
     code: string;
-    treatment: "TAXABLE" | "EXEMPT" | "NIL_RATED" | "NON_GST";
+    treatment: TaxTreatment;
     totalRate: number;
     priceMode: TaxPriceMode;
     source: TaxSource;

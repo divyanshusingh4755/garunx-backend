@@ -1,9 +1,19 @@
-import { Types } from "mongoose";
+import mongoose, {
+  Types,
+} from "mongoose";
 import { Service } from "../models/service.model.js";
 import { ServicePricing } from "../models/servicepricing.model.js";
 import { ServiceComponent } from "../models/servicecomponent.model.js";
 import { ServiceCascadingEngine } from "./cascading-engine.service.js";
 import { TaxProfile } from "../models/tax-profile.model.js";
+
+type PopulatedComponent = {
+  _id: Types.ObjectId;
+  name: string;
+  description?: string;
+  imageUrl?: string;
+  isActive: boolean;
+};
 
 type TaxPriceMode =
   | "EXCLUSIVE"
@@ -27,6 +37,18 @@ interface BulkTierPricingPayload {
   pricing: LocationPricingInput[];
 }
 
+const createHttpError = (
+  message: string,
+  statusCode: number,
+) => {
+  const error = new Error(message) as Error & {
+    statusCode: number;
+  };
+
+  error.statusCode = statusCode;
+  return error;
+};
+
 export class ServicePricingService {
   static async bulkUpsertTierPricing(
     payload: BulkTierPricingPayload,
@@ -37,47 +59,37 @@ export class ServicePricingService {
       pricing,
     } = payload;
 
-    if (!Types.ObjectId.isValid(serviceId)) {
-      throw new Error("Invalid serviceId");
-    }
-
-    if (!Types.ObjectId.isValid(tierId)) {
-      throw new Error("Invalid tierId");
-    }
-
-    if (
-      !Array.isArray(pricing) ||
-      pricing.length === 0
-    ) {
-      throw new Error(
-        "Pricing array is required",
-      );
-    }
-
     const service = await Service.findById(
       serviceId,
     ).lean();
 
     if (!service) {
-      throw new Error("Service not found");
+      throw createHttpError(
+        "Service not found",
+        404,
+      );
     }
 
     const tierExists = service.tiers.some(
       (tier) =>
-        tier.tierId.toString() === tierId,
+        tier.tierId.toString() ===
+        tierId,
     );
 
     if (!tierExists) {
-      throw new Error(
+      throw createHttpError(
         "Tier does not belong to service",
+        400,
       );
     }
 
-    const serviceLocationIds = new Set(
-      service.locations.map((location) =>
-        location.locationId.toString(),
-      ),
-    );
+    const serviceLocationIds =
+      new Set(
+        service.locations.map(
+          (location) =>
+            location.locationId.toString(),
+        ),
+      );
 
     const allComponentIds =
       new Set<string>();
@@ -88,49 +100,34 @@ export class ServicePricingService {
     const locationIdsSeen =
       new Set<string>();
 
-    /*
-     * First pass:
-     * validate request structure and collect IDs.
-     */
-    for (const locationPricing of pricing) {
+    for (
+      const locationPricing
+      of pricing
+    ) {
       const locationId =
-        String(locationPricing.locationId);
-
-      if (
-        !Types.ObjectId.isValid(locationId)
-      ) {
-        throw new Error(
-          `Invalid locationId: ${locationId}`,
+        String(
+          locationPricing.locationId,
         );
-      }
 
       if (
         locationIdsSeen.has(locationId)
       ) {
-        throw new Error(
+        throw createHttpError(
           `Duplicate location in pricing: ${locationId}`,
+          400,
         );
       }
 
       locationIdsSeen.add(locationId);
 
       if (
-        !serviceLocationIds.has(locationId)
+        !serviceLocationIds.has(
+          locationId,
+        )
       ) {
-        throw new Error(
+        throw createHttpError(
           `Location ${locationId} does not belong to service`,
-        );
-      }
-
-      if (
-        !Array.isArray(
-          locationPricing.components,
-        ) ||
-        locationPricing.components.length ===
-        0
-      ) {
-        throw new Error(
-          `Location ${locationId} must contain components`,
+          400,
         );
       }
 
@@ -138,33 +135,32 @@ export class ServicePricingService {
         new Set<string>();
 
       for (
-        const componentPricing of
-        locationPricing.components
+        const componentPricing
+        of locationPricing.components
       ) {
-        const componentId = String(
-          componentPricing.componentId,
-        );
+        const componentId =
+          String(
+            componentPricing.componentId,
+          );
 
         if (
-          !Types.ObjectId.isValid(
+          componentIdsSeen.has(
             componentId,
           )
         ) {
-          throw new Error(
-            `Invalid componentId: ${componentId}`,
-          );
-        }
-
-        if (
-          componentIdsSeen.has(componentId)
-        ) {
-          throw new Error(
+          throw createHttpError(
             `Duplicate component ${componentId} for location ${locationId}`,
+            400,
           );
         }
 
-        componentIdsSeen.add(componentId);
-        allComponentIds.add(componentId);
+        componentIdsSeen.add(
+          componentId,
+        );
+
+        allComponentIds.add(
+          componentId,
+        );
 
         if (
           typeof componentPricing.price !==
@@ -174,8 +170,9 @@ export class ServicePricingService {
           ) ||
           componentPricing.price < 0
         ) {
-          throw new Error(
+          throw createHttpError(
             `Invalid price for component ${componentId}`,
+            400,
           );
         }
 
@@ -183,49 +180,40 @@ export class ServicePricingService {
           componentPricing.taxProfileId;
 
         if (taxProfileId) {
-          if (
-            !Types.ObjectId.isValid(
-              taxProfileId,
-            )
-          ) {
-            throw new Error(
-              `Invalid taxProfileId: ${taxProfileId}`,
-            );
-          }
-
           allTaxProfileIds.add(
             taxProfileId,
           );
         }
 
-        const taxPriceMode =
-          componentPricing.taxPriceMode ??
-          "EXCLUSIVE";
-
         if (
-          taxPriceMode !== "EXCLUSIVE" &&
-          taxPriceMode !== "INCLUSIVE"
+          componentPricing.taxPriceMode !==
+          undefined &&
+          componentPricing.taxPriceMode !==
+          "EXCLUSIVE" &&
+          componentPricing.taxPriceMode !==
+          "INCLUSIVE"
         ) {
-          throw new Error(
+          throw createHttpError(
             `Invalid taxPriceMode for component ${componentId}`,
+            400,
           );
         }
       }
     }
 
-    /*
-     * Validate that components belong to
-     * this service and tier.
-     */
-    const componentObjectIds =
-      Array.from(allComponentIds).map(
-        (id) => new Types.ObjectId(id),
-      );
+    const componentObjectIds = [
+      ...allComponentIds,
+    ].map(
+      (id) =>
+        new Types.ObjectId(id),
+    );
 
     const validComponents =
       await ServiceComponent.find({
-        serviceId,
-        tierId,
+        serviceId:
+          new Types.ObjectId(serviceId),
+        tierId:
+          new Types.ObjectId(tierId),
         componentId: {
           $in: componentObjectIds,
         },
@@ -233,37 +221,37 @@ export class ServicePricingService {
         .select("componentId")
         .lean();
 
-    const validComponentSet = new Set(
-      validComponents.map((component) =>
-        component.componentId.toString(),
-      ),
-    );
-
-    const invalidComponentIds =
-      Array.from(allComponentIds).filter(
-        (componentId) =>
-          !validComponentSet.has(
-            componentId,
-          ),
+    const validComponentSet =
+      new Set(
+        validComponents.map(
+          (component) =>
+            component.componentId.toString(),
+        ),
       );
 
-    if (invalidComponentIds.length > 0) {
-      throw new Error(
-        `Components do not belong to this service tier: ${invalidComponentIds.join(
-          ", ",
-        )}`,
+    const invalidComponentIds = [
+      ...allComponentIds,
+    ].filter(
+      (componentId) =>
+        !validComponentSet.has(
+          componentId,
+        ),
+    );
+
+    if (
+      invalidComponentIds.length > 0
+    ) {
+      throw createHttpError(
+        `Components do not belong to this service tier: ${invalidComponentIds.join(", ")}`,
+        400,
       );
     }
 
-    /*
-     * Validate all tax profiles in one query.
-     */
-    const taxProfileIds =
-      Array.from(allTaxProfileIds);
+    const taxProfileIds = [
+      ...allTaxProfileIds,
+    ];
 
     if (taxProfileIds.length > 0) {
-      const now = new Date();
-
       const validTaxProfiles =
         await TaxProfile.find({
           _id: {
@@ -272,8 +260,7 @@ export class ServicePricingService {
                 new Types.ObjectId(id),
             ),
           },
-
-          isActive: true
+          isActive: true,
         })
           .select("_id")
           .lean();
@@ -289,42 +276,51 @@ export class ServicePricingService {
       const invalidTaxProfileIds =
         taxProfileIds.filter(
           (id) =>
-            !validTaxProfileSet.has(id),
+            !validTaxProfileSet.has(
+              id,
+            ),
         );
 
       if (
         invalidTaxProfileIds.length > 0
       ) {
-        throw new Error(
-          `Inactive, expired, future, or invalid tax profiles: ${invalidTaxProfileIds.join(
-            ", ",
-          )}`,
+        throw createHttpError(
+          `Inactive or invalid tax profiles: ${invalidTaxProfileIds.join(", ")}`,
+          400,
         );
       }
     }
 
-    const bulkOps: any[] = [];
-    const requestedPricingKeys =
-      new Set<string>();
+    const serviceObjectId =
+      new Types.ObjectId(serviceId);
 
-    /*
-     * Build normalized bulk updates.
-     *
-     * bulkWrite does not execute the normal
-     * document pre-validation middleware, so
-     * defaults are handled here explicitly.
-     */
-    for (const locationPricing of pricing) {
-      const locationId =
-        String(locationPricing.locationId);
+    const tierObjectId =
+      new Types.ObjectId(tierId);
+
+    const bulkOperations: any[] = [];
+
+    const requestedPairs: Array<{
+      locationId: Types.ObjectId;
+      componentId: Types.ObjectId;
+    }> = [];
+
+    for (
+      const locationPricing
+      of pricing
+    ) {
+      const locationObjectId =
+        new Types.ObjectId(
+          locationPricing.locationId,
+        );
 
       for (
-        const componentPricing of
-        locationPricing.components
+        const componentPricing
+        of locationPricing.components
       ) {
-        const componentId = String(
-          componentPricing.componentId,
-        );
+        const componentObjectId =
+          new Types.ObjectId(
+            componentPricing.componentId,
+          );
 
         const taxProfileId =
           componentPricing.taxProfileId ??
@@ -336,30 +332,24 @@ export class ServicePricingService {
             "EXCLUSIVE"
             : "EXCLUSIVE";
 
-        requestedPricingKeys.add(
-          `${locationId}_${componentId}`,
-        );
+        requestedPairs.push({
+          locationId:
+            locationObjectId,
+          componentId:
+            componentObjectId,
+        });
 
-        bulkOps.push({
+        bulkOperations.push({
           updateOne: {
             filter: {
               serviceId:
-                new Types.ObjectId(
-                  serviceId,
-                ),
-
+                serviceObjectId,
               tierId:
-                new Types.ObjectId(tierId),
-
+                tierObjectId,
               locationId:
-                new Types.ObjectId(
-                  locationId,
-                ),
-
+                locationObjectId,
               componentId:
-                new Types.ObjectId(
-                  componentId,
-                ),
+                componentObjectId,
             },
 
             update: {
@@ -375,28 +365,18 @@ export class ServicePricingService {
                     : null,
 
                 taxPriceMode,
+                isActive: true,
               },
 
               $setOnInsert: {
                 serviceId:
-                  new Types.ObjectId(
-                    serviceId,
-                  ),
-
+                  serviceObjectId,
                 tierId:
-                  new Types.ObjectId(
-                    tierId,
-                  ),
-
+                  tierObjectId,
                 locationId:
-                  new Types.ObjectId(
-                    locationId,
-                  ),
-
+                  locationObjectId,
                 componentId:
-                  new Types.ObjectId(
-                    componentId,
-                  ),
+                  componentObjectId,
               },
             },
 
@@ -406,55 +386,42 @@ export class ServicePricingService {
       }
     }
 
-    /*
-     * Current behavior treats the payload as
-     * the full replacement for this service tier.
-     *
-     * Any records not present in the request
-     * are deleted.
-     */
-    const requestedPairs =
-      Array.from(
-        requestedPricingKeys,
-      ).map((key) => {
-        const separatorIndex =
-          key.indexOf("_");
+    const session =
+      await mongoose.startSession();
 
-        const locationId = key.slice(
-          0,
-          separatorIndex,
-        );
+    try {
+      session.startTransaction();
 
-        const componentId = key.slice(
-          separatorIndex + 1,
-        );
-
-        return {
-          locationId:
-            new Types.ObjectId(locationId),
-
-          componentId:
-            new Types.ObjectId(componentId),
-        };
-      });
-
-    await ServicePricing.deleteMany({
-      serviceId:
-        new Types.ObjectId(serviceId),
-
-      tierId:
-        new Types.ObjectId(tierId),
-
-      $nor: requestedPairs,
-    });
-
-    if (bulkOps.length > 0) {
       await ServicePricing.bulkWrite(
-        bulkOps,
+        bulkOperations,
         {
           ordered: true,
+          session,
         },
       );
+
+      await ServicePricing.deleteMany(
+        {
+          serviceId:
+            serviceObjectId,
+          tierId:
+            tierObjectId,
+          $nor: requestedPairs,
+        },
+        {
+          session,
+        },
+      );
+
+      await session.commitTransaction();
+    } catch (error) {
+      if (session.inTransaction()) {
+        await session.abortTransaction();
+      }
+
+      throw error;
+    } finally {
+      await session.endSession();
     }
 
     await ServiceCascadingEngine.run(
@@ -465,7 +432,8 @@ export class ServicePricingService {
       success: true,
       message:
         "Pricing updated successfully",
-      updatedCount: bulkOps.length,
+      updatedCount:
+        bulkOperations.length,
     };
   }
 
@@ -474,172 +442,206 @@ export class ServicePricingService {
     tierId: string,
     locationId: string,
   ) {
-    if (!Types.ObjectId.isValid(serviceId)) {
-      throw new Error("Invalid serviceId");
-    }
-
-    if (!Types.ObjectId.isValid(tierId)) {
-      throw new Error("Invalid tierId");
-    }
-
-    if (!Types.ObjectId.isValid(locationId)) {
-      throw new Error("Invalid locationId");
-    }
-
-    const service = await Service.findById(serviceId).lean();
+    const service = await Service.findById(
+      serviceId,
+    ).lean();
 
     if (!service) {
-      throw new Error("Service not found");
+      throw createHttpError(
+        "Service not found",
+        404,
+      );
     }
 
     if (!service.isActive) {
-      throw new Error("Service is inactive");
+      throw createHttpError(
+        "Service is inactive",
+        400,
+      );
     }
 
-    const tier = service.tiers.find((t) => t.tierId.toString() === tierId);
-
-    if (!tier) {
-      throw new Error("Tier does not belong to service");
-    }
-
-    const location = service.locations.find(
-      (l) => l.locationId.toString() === locationId,
+    const tier = service.tiers.find(
+      (item) =>
+        item.tierId.toString() ===
+        tierId,
     );
 
+    if (!tier) {
+      throw createHttpError(
+        "Tier does not belong to service",
+        400,
+      );
+    }
+
+    const location =
+      service.locations.find(
+        (item) =>
+          item.locationId.toString() ===
+          locationId,
+      );
+
     if (!location) {
-      throw new Error("Location does not belong to service");
+      throw createHttpError(
+        "Location does not belong to service",
+        400,
+      );
     }
 
     if (!location.isActive) {
-      throw new Error("Location is inactive for this service");
+      throw createHttpError(
+        "Location is inactive for this service",
+        400,
+      );
     }
 
-    const components = await ServiceComponent.find({
-      serviceId,
-      tierId,
-    })
-      .populate({
-        path: "componentId",
-        select: `
-          name
-          description
-          imageUrl
-          isActive
-        `,
+    const components =
+      await ServiceComponent.find({
+        serviceId:
+          new Types.ObjectId(serviceId),
+        tierId:
+          new Types.ObjectId(tierId),
       })
-      .select(
-        `
-        componentId
-        isRequired
-        items
-        displayOrder
-      `,
-      )
-      .sort({ displayOrder: 1 })
-      .lean();
+        .populate({
+          path: "componentId",
+          match: {
+            isActive: true,
+          },
+          select:
+            "name description imageUrl isActive",
+        })
+        .select(
+          "componentId isRequired items",
+        )
+        .lean();
 
     const pricing =
       await ServicePricing.find({
-        serviceId,
-        tierId,
-        locationId,
+        serviceId:
+          new Types.ObjectId(serviceId),
+        tierId:
+          new Types.ObjectId(tierId),
+        locationId:
+          new Types.ObjectId(locationId),
+        isActive: true,
       })
-        .select(`
-      componentId
-      price
-      taxProfileId
-      taxPriceMode
-    `)
+        .select(
+          "componentId price taxProfileId taxPriceMode",
+        )
         .populate({
           path: "taxProfileId",
-          select: `
-        name
-        code
-        treatment
-        totalRate
-        isActive
-      `,
+          match: {
+            isActive: true,
+          },
+          select:
+            "name code treatment totalRate isActive",
         })
         .lean();
 
     const pricingMap = new Map(
-      pricing.map((pricingRecord) => [
-        pricingRecord.componentId.toString(),
-        pricingRecord,
-      ]),
+      pricing.map(
+        (pricingRecord) => [
+          pricingRecord.componentId.toString(),
+          pricingRecord,
+        ],
+      ),
     );
 
     const resolvedComponents =
-      components.map((component) => {
-        const componentData =
-          component.componentId as any;
+      components.flatMap(
+        (component) => {
+          const componentData = component.componentId as unknown as PopulatedComponent | null;
 
-        const componentId =
-          componentData._id.toString();
+          if (!componentData) {
+            return [];
+          }
 
-        const pricingRecord =
-          pricingMap.get(componentId);
+          const componentId =
+            componentData._id.toString();
 
-        const taxProfile =
-          pricingRecord?.taxProfileId as
-          | any
-          | null
-          | undefined;
+          const pricingRecord =
+            pricingMap.get(componentId);
 
-        return {
-          componentId:
-            componentData._id,
+          const taxProfile =
+            pricingRecord?.taxProfileId as
+            | {
+              _id: Types.ObjectId;
+              name?: string;
+              code?: string;
+              treatment?: string;
+              totalRate?: number;
+              isActive?: boolean;
+            }
+            | null
+            | undefined;
 
-          name:
-            componentData.name,
+          return [
+            {
+              componentId:
+                componentData._id,
 
-          description:
-            componentData.description ?? "",
+              name:
+                componentData.name,
 
-          imageUrl:
-            componentData.imageUrl ?? null,
+              description:
+                componentData.description ??
+                "",
 
-          isRequired:
-            component.isRequired,
-
-          price:
-            pricingRecord?.price ?? null,
-
-          isPriceConfigured:
-            Boolean(pricingRecord),
-
-          tax: pricingRecord
-            ? {
-              taxProfileId:
-                taxProfile?._id ?? null,
-
-              profileName:
-                taxProfile?.name ?? null,
-
-              profileCode:
-                taxProfile?.code ?? null,
-
-              treatment:
-                taxProfile?.treatment ??
+              imageUrl:
+                componentData.imageUrl ??
                 null,
 
-              totalRate:
-                taxProfile?.totalRate ?? 0,
+              isRequired:
+                component.isRequired,
 
-              priceMode:
-                pricingRecord.taxProfileId
-                  ? pricingRecord.taxPriceMode
-                  : "EXCLUSIVE",
+              price:
+                pricingRecord?.price ??
+                null,
 
-              isTaxConfigured:
-                Boolean(taxProfile),
-            }
-            : null,
+              isPriceConfigured:
+                Boolean(
+                  pricingRecord,
+                ),
 
-          items:
-            component.items ?? [],
-        };
-      });
+              tax: pricingRecord
+                ? {
+                  taxProfileId:
+                    taxProfile?._id ??
+                    null,
+
+                  profileName:
+                    taxProfile?.name ??
+                    null,
+
+                  profileCode:
+                    taxProfile?.code ??
+                    null,
+
+                  treatment:
+                    taxProfile?.treatment ??
+                    null,
+
+                  totalRate:
+                    taxProfile?.totalRate ??
+                    0,
+
+                  priceMode:
+                    taxProfile
+                      ? pricingRecord.taxPriceMode
+                      : "EXCLUSIVE",
+
+                  isTaxConfigured:
+                    Boolean(
+                      taxProfile,
+                    ),
+                }
+                : null,
+
+              items:
+                component.items ?? [],
+            },
+          ];
+        },
+      );
 
     const requiredComponents =
       resolvedComponents.filter(
@@ -672,11 +674,16 @@ export class ServicePricingService {
       service: {
         id: service._id,
         name: service.name,
-        shortDescription: service.shortDescription,
-        fullDescription: service.fullDescription,
-        thumbnailImage: service.thumbnailImage,
-        bannerImage: service.bannerImage,
-        serviceReference: service.serviceReference,
+        shortDescription:
+          service.shortDescription,
+        fullDescription:
+          service.fullDescription,
+        thumbnailImage:
+          service.thumbnailImage,
+        bannerImage:
+          service.bannerImage,
+        serviceReference:
+          service.serviceReference,
       },
 
       tier: {
@@ -685,15 +692,21 @@ export class ServicePricingService {
       },
 
       location: {
-        id: location.locationId,
+        id:
+          location.locationId,
         name: location.name,
       },
-      components: resolvedComponents,
+
+      components:
+        resolvedComponents,
 
       summary: {
-        totalComponents: resolvedComponents.length,
-        requiredComponentCount: requiredComponents.length,
-        optionalComponentCount: optionalComponents.length,
+        totalComponents:
+          resolvedComponents.length,
+        requiredComponentCount:
+          requiredComponents.length,
+        optionalComponentCount:
+          optionalComponents.length,
         startingPrice,
         isAvailable,
       },

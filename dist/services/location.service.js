@@ -1,41 +1,62 @@
-import mongoose, { Types } from "mongoose";
-import { Location } from "../models/location.model.js";
+import mongoose, { Types, } from "mongoose";
+import { Location, } from "../models/location.model.js";
 import { Service } from "../models/service.model.js";
 import { Package } from "../models/package.model.js";
 import { escapeRegex } from "../utils/escapeRegex.js";
+const createHttpError = (message, statusCode) => {
+    const error = new Error(message);
+    error.statusCode = statusCode;
+    return error;
+};
 export class LocationService {
     static async createLocation(data) {
-        const newLocation = new Location(data);
-        return await newLocation.save();
+        return Location.create(data);
     }
-    static applyFilter(filterValue) {
-        if (!filterValue)
+    static applyStringFilter(filterValue) {
+        if (!filterValue?.trim())
             return undefined;
-        const values = filterValue.split(",").map((val) => val.trim());
-        return { $in: values };
+        const values = filterValue
+            .split(",")
+            .map((value) => value.trim())
+            .filter(Boolean);
+        return values.length > 0 ? { $in: values } : undefined;
     }
-    static async FindLocation(params) {
+    static applyObjectIdFilter(filterValue) {
+        if (!filterValue?.trim())
+            return undefined;
+        const values = filterValue
+            .split(",")
+            .map((value) => value.trim())
+            .filter((value) => Types.ObjectId.isValid(value))
+            .map((value) => new Types.ObjectId(value));
+        return values.length > 0 ? { $in: values } : undefined;
+    }
+    static async findLocation(params) {
         const { searchTerm, countryFilter, stateIdFilter, cityIdFilter, pincodeFilter, limit = 40, page = 1, isActive, sortBy = "createdAt", sortOrder = "desc", } = params;
-        const skip = limit * (page - 1);
+        const safeLimit = Math.min(Math.max(limit, 1), 100);
+        const safePage = Math.max(page, 1);
+        const skip = safeLimit * (safePage - 1);
         const query = {};
         if (typeof isActive === "boolean") {
             query.isActive = isActive;
         }
-        if (countryFilter)
-            query.country = this.applyFilter(countryFilter);
-        if (stateIdFilter)
-            query.stateId = this.applyFilter(stateIdFilter);
-        if (cityIdFilter)
-            query.cityId = this.applyFilter(cityIdFilter);
-        if (pincodeFilter)
-            query.pincode = this.applyFilter(pincodeFilter);
-        const isTextSearch = !!searchTerm?.trim() && searchTerm.trim().length > 4;
-        if (searchTerm?.trim()) {
-            const term = searchTerm.trim();
+        const countryQuery = this.applyStringFilter(countryFilter);
+        const stateQuery = this.applyObjectIdFilter(stateIdFilter);
+        const cityQuery = this.applyObjectIdFilter(cityIdFilter);
+        const pincodeQuery = this.applyStringFilter(pincodeFilter);
+        if (countryQuery)
+            query.country = countryQuery;
+        if (stateQuery)
+            query.stateId = stateQuery;
+        if (cityQuery)
+            query.cityId = cityQuery;
+        if (pincodeQuery)
+            query.pincode = pincodeQuery;
+        const term = searchTerm?.trim();
+        const isTextSearch = Boolean(term && term.length > 4);
+        if (term) {
             if (isTextSearch) {
-                query.$text = {
-                    $search: term,
-                };
+                query.$text = { $search: term };
             }
             else {
                 query.$or = [
@@ -53,86 +74,92 @@ export class LocationService {
                 ];
             }
         }
-        let sortCriteria = {};
+        const allowedSortFields = new Set([
+            "name",
+            "country",
+            "pincode",
+            "createdAt",
+            "updatedAt",
+        ]);
+        let sortCriteria;
         if (isTextSearch && sortBy === "relevance") {
             sortCriteria = {
-                score: {
-                    $meta: "textScore",
-                },
+                score: { $meta: "textScore" },
             };
         }
         else {
-            sortCriteria[sortBy] = sortOrder === "desc" ? -1 : 1;
-            if (sortBy !== "createdAt") {
+            const safeSortBy = allowedSortFields.has(sortBy)
+                ? sortBy
+                : "createdAt";
+            sortCriteria = {
+                [safeSortBy]: sortOrder === "asc" ? 1 : -1,
+            };
+            if (safeSortBy !== "createdAt") {
                 sortCriteria.createdAt = -1;
             }
         }
-        try {
-            const [data, total] = await Promise.all([
-                Location.find(query)
-                    .populate("stateId", "name")
-                    .populate("cityId", "name")
-                    .sort(sortCriteria)
-                    .skip(skip)
-                    .limit(limit)
-                    .lean(),
-                Location.countDocuments(query),
-            ]);
-            const formattedData = data.map((loc) => ({
-                id: loc._id,
-                name: loc.name,
-                country: loc.country,
-                state: {
-                    id: loc.stateId?._id,
-                    name: loc.stateId?.name,
-                },
-                city: {
-                    id: loc.cityId?._id,
-                    name: loc.cityId?.name,
-                },
-                pincode: loc.pincode,
-                fullAddress: loc.fullAddress,
-                isActive: loc.isActive,
-                image: loc.image,
-                description: loc.description,
-                location: loc.location,
-            }));
-            return {
-                data: formattedData,
-                total,
-                page,
-                totalPages: Math.ceil(total / limit),
-            };
-        }
-        catch (error) {
-            throw new Error(`Location fetched failed: ${error.message}`);
-        }
+        const [data, total] = await Promise.all([
+            Location.find(query)
+                .populate("stateId", "name")
+                .populate("cityId", "name")
+                .sort(sortCriteria)
+                .skip(skip)
+                .limit(safeLimit)
+                .lean(),
+            Location.countDocuments(query),
+        ]);
+        const formattedData = data.map((location) => ({
+            id: location._id,
+            name: location.name,
+            country: location.country,
+            state: {
+                id: location.stateId?._id,
+                name: location.stateId?.name,
+            },
+            city: {
+                id: location.cityId?._id,
+                name: location.cityId?.name,
+            },
+            pincode: location.pincode,
+            fullAddress: location.fullAddress,
+            isActive: location.isActive,
+            image: location.image,
+            description: location.description,
+            location: location.location,
+        }));
+        return {
+            data: formattedData,
+            total,
+            page: safePage,
+            totalPages: Math.ceil(total / safeLimit),
+        };
     }
     static async updateLocation(locationId, updateData) {
-        try {
-            const updatedLocation = await Location.findByIdAndUpdate(locationId, { $set: updateData }, { new: true, runValidators: true }).lean();
-            if (!updatedLocation) {
-                throw new Error("Location not found");
-            }
-            return updatedLocation;
+        const updatedLocation = await Location.findByIdAndUpdate(locationId, { $set: updateData }, {
+            new: true,
+            runValidators: true,
+        }).lean();
+        if (!updatedLocation) {
+            throw createHttpError("Location not found", 404);
         }
-        catch (error) {
-            throw new Error(`Location Update Failed: ${error.message}`);
-        }
+        return updatedLocation;
     }
     static async getDeactivationImpact(locationId) {
+        const targetId = new Types.ObjectId(locationId);
+        const linkedLocationQuery = {
+            locations: {
+                $elemMatch: {
+                    locationId: targetId,
+                    isActive: true,
+                },
+            },
+        };
         const [services, packages] = await Promise.all([
-            Service.find({
-                "locations.locationId": locationId,
-                "locations.isActive": true,
-            }, {
+            Service.find(linkedLocationQuery, {
                 _id: 1,
                 name: 1,
             }).lean(),
-            Package.find({
-                "locations.locationId": locationId,
-                "locations.isActive": true,
-            }, {
+            Package.find(linkedLocationQuery, {
                 _id: 1,
                 name: 1,
             }).lean(),
@@ -145,45 +172,83 @@ export class LocationService {
         };
     }
     static async softDeleteLocation(locationId, status, confirmed = false) {
-        // Verify location exists
-        const location = await Location.findById(locationId).lean();
+        const location = await Location.findById(locationId)
+            .select("_id isActive")
+            .lean();
         if (!location) {
-            throw new Error("Location not found");
+            throw createHttpError("Location not found", 404);
         }
-        // Confirmation only when deactivating
-        if (!status && !confirmed) {
-            const impact = await this.getDeactivationImpact(locationId);
+        if (location.isActive === status) {
             return {
-                requiresConfirmation: true,
-                impact,
+                success: true,
+                unchanged: true,
             };
         }
-        const session = await Location.db.startSession();
+        if (!status && !confirmed) {
+            const impact = await this.getDeactivationImpact(locationId);
+            if (impact.servicesCount > 0 ||
+                impact.packagesCount > 0) {
+                return {
+                    requiresConfirmation: true,
+                    impact,
+                };
+            }
+        }
+        const session = await mongoose.startSession();
         try {
-            await session.withTransaction(async () => {
-                // Always update the parent location
-                await Location.findByIdAndUpdate(locationId, { isActive: status }, { session });
-                // Only cascade when deactivating
-                if (!status) {
-                    const targetId = mongoose.Types.ObjectId.isValid(locationId)
-                        ? new mongoose.Types.ObjectId(locationId)
-                        : locationId;
-                    const updatePayload = {
-                        $set: {
-                            "locations.$[loc].isActive": false,
+            session.startTransaction();
+            const updatedLocation = await Location.findByIdAndUpdate(locationId, { $set: { isActive: status } }, {
+                new: true,
+                session,
+            }).lean();
+            if (!updatedLocation) {
+                throw createHttpError("Location not found", 404);
+            }
+            if (!status) {
+                const targetId = new Types.ObjectId(locationId);
+                const updatePayload = {
+                    $set: {
+                        "locations.$[loc].isActive": false,
+                    },
+                };
+                const options = {
+                    session,
+                    arrayFilters: [
+                        {
+                            "loc.locationId": targetId,
+                            "loc.isActive": true,
                         },
-                    };
-                    const options = {
-                        session,
-                        arrayFilters: [{ "loc.locationId": targetId }],
-                    };
-                    await Service.updateMany({ "locations.locationId": targetId }, updatePayload, options);
-                    await Package.updateMany({ "locations.locationId": targetId }, updatePayload, options);
-                }
-            });
-            return { success: true };
+                    ],
+                };
+                await Promise.all([
+                    Service.updateMany({
+                        locations: {
+                            $elemMatch: {
+                                locationId: targetId,
+                                isActive: true,
+                            },
+                        },
+                    }, updatePayload, options),
+                    Package.updateMany({
+                        locations: {
+                            $elemMatch: {
+                                locationId: targetId,
+                                isActive: true,
+                            },
+                        },
+                    }, updatePayload, options),
+                ]);
+            }
+            await session.commitTransaction();
+            return {
+                success: true,
+                location: updatedLocation,
+            };
         }
         catch (error) {
+            if (session.inTransaction()) {
+                await session.abortTransaction();
+            }
             throw error;
         }
         finally {
@@ -191,61 +256,45 @@ export class LocationService {
         }
     }
     static async getLocationById(locationId) {
-        try {
-            const location = await Location.findById(locationId).lean().exec();
-            if (!location) {
-                const error = new Error("Location not found");
-                error.statusCode = 404;
-                throw error;
-            }
-            return location;
+        const location = await Location.findById(locationId)
+            .populate("stateId", "name")
+            .populate("cityId", "name")
+            .lean();
+        if (!location) {
+            throw createHttpError("Location not found", 404);
         }
-        catch (error) {
-            throw new Error(`Failed to get location: ${error.message}`);
-        }
+        return location;
     }
     static async getLocationByIds(locationIds) {
-        try {
-            const validIds = locationIds.filter((id) => Types.ObjectId.isValid(id));
-            if (validIds.length === 0) {
-                throw new Error("No valid location IDs provided");
-            }
-            const locations = await Location.find({
-                _id: { $in: validIds },
-            })
-                .populate("stateId", "name")
-                .populate("cityId", "name")
-                .lean()
-                .exec();
-            if (!locations || locations.length === 0) {
-                const error = new Error("Locations not found");
-                error.statusCode = 404;
-                throw error;
-            }
-            const formattedData = locations.map((loc) => ({
-                id: loc._id,
-                name: loc.name,
-                country: loc.country,
-                state: {
-                    id: loc.stateId?._id,
-                    name: loc.stateId?.name,
-                },
-                city: {
-                    id: loc.cityId?._id,
-                    name: loc.cityId?.name,
-                },
-                pincode: loc.pincode,
-                fullAddress: loc.fullAddress,
-                isActive: loc.isActive,
-                image: loc.image,
-                description: loc.description,
-                location: loc.location,
-            }));
-            return formattedData;
+        const objectIds = locationIds.map((id) => new Types.ObjectId(id));
+        const locations = await Location.find({
+            _id: { $in: objectIds },
+        })
+            .populate("stateId", "name")
+            .populate("cityId", "name")
+            .lean();
+        if (locations.length === 0) {
+            throw createHttpError("Locations not found", 404);
         }
-        catch (error) {
-            throw new Error(`Failed to get locations: ${error.message}`);
-        }
+        return locations.map((location) => ({
+            id: location._id,
+            name: location.name,
+            country: location.country,
+            state: {
+                id: location.stateId?._id,
+                name: location.stateId?.name,
+            },
+            city: {
+                id: location.cityId?._id,
+                name: location.cityId?.name,
+            },
+            pincode: location.pincode,
+            fullAddress: location.fullAddress,
+            isActive: location.isActive,
+            image: location.image,
+            description: location.description,
+            location: location.location,
+        }));
     }
 }
 //# sourceMappingURL=location.service.js.map

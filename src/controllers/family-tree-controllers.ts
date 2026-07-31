@@ -72,7 +72,7 @@ const getSourceFromRole = (
         .toUpperCase();
 
     switch (normalizedRole) {
-        case "CUSTOMER":
+        case "USER":
         case "USER":
             return "CUSTOMER_SELF";
 
@@ -132,6 +132,9 @@ const buildActorContext = (
     authenticatedUser: AuthenticatedUser,
     access: ResolvedFamilyTreeAccess,
 ): FamilyTreeActorContext => {
+    const isSelfAccess =
+        access.ownerId === authenticatedUser.userId;
+
     return {
         ownerId: access.ownerId,
 
@@ -141,8 +144,9 @@ const buildActorContext = (
         actorRole:
             authenticatedUser.role,
 
-        source:
-            getSourceFromRole(
+        source: isSelfAccess
+            ? "CUSTOMER_SELF"
+            : getSourceFromRole(
                 authenticatedUser.role,
             ),
 
@@ -316,14 +320,18 @@ export const getFamilyMembers = async (
         const filters: GetFamilyMembersQuery =
             {
                 page:
-                    typeof page === "string"
-                        ? Number(page) || 1
-                        : 1,
+                    typeof page === "number"
+                        ? page
+                        : typeof page === "string"
+                            ? Number(page)
+                            : 1,
 
                 limit:
-                    typeof limit === "string"
-                        ? Number(limit) || 20
-                        : 20,
+                    typeof limit === "number"
+                        ? limit
+                        : typeof limit === "string"
+                            ? Number(limit)
+                            : 20,
             };
 
         if (typeof search === "string") {
@@ -583,14 +591,18 @@ export const getFamilyTreeActivities = async (
                     }),
 
                     page:
-                        typeof page === "string"
-                            ? Number(page) || 1
-                            : 1,
+                        typeof page === "number"
+                            ? page
+                            : typeof page === "string"
+                                ? Number(page)
+                                : 1,
 
                     limit:
-                        typeof limit === "string"
-                            ? Number(limit) || 20
-                            : 20,
+                        typeof limit === "number"
+                            ? limit
+                            : typeof limit === "string"
+                                ? Number(limit)
+                                : 20,
                 },
             );
 
@@ -643,14 +655,18 @@ export const getFamilyMemberActivities = async (
                 familyMemberId,
                 {
                     page:
-                        typeof page === "string"
-                            ? Number(page) || 1
-                            : 1,
+                        typeof page === "number"
+                            ? page
+                            : typeof page === "string"
+                                ? Number(page)
+                                : 1,
 
                     limit:
-                        typeof limit === "string"
-                            ? Number(limit) || 20
-                            : 20,
+                        typeof limit === "number"
+                            ? limit
+                            : typeof limit === "string"
+                                ? Number(limit)
+                                : 20,
                 },
             );
 

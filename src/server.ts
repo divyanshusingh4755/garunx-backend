@@ -1,13 +1,185 @@
 import "dotenv/config";
+
+import type {
+  Server,
+} from "node:http";
+
+import mongoose from "mongoose";
+
 import app from "./app.js";
 
-const PORT = process.env.PORT || 3000;
+import {
+  connectDB,
+} from "./config/db.js";
 
-const server = app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
-});
+const rawPort =
+  process.env.PORT?.trim() ??
+  "3000";
 
-process.on("unhandledRejection", (err: Error) => {
-  console.log(`Error: ${err.message}`);
-  server.close(() => process.exit(1));
-});
+const port =
+  Number(rawPort);
+
+if (
+  !Number.isInteger(port) ||
+  port < 1 ||
+  port > 65535
+) {
+  throw new Error(
+    "PORT must be an integer between 1 and 65535",
+  );
+}
+
+let server:
+  Server | undefined;
+
+let isShuttingDown =
+  false;
+
+const shutdown = async (
+  reason: string,
+  exitCode: number,
+): Promise<void> => {
+  if (isShuttingDown) {
+    return;
+  }
+
+  isShuttingDown = true;
+
+  console.error(
+    `Shutting down: ${reason}`,
+  );
+
+  const closeDatabase =
+    async (): Promise<void> => {
+      if (
+        mongoose.connection.readyState !==
+        0
+      ) {
+        await mongoose.disconnect();
+      }
+    };
+
+  if (!server) {
+    try {
+      await closeDatabase();
+    } finally {
+      process.exit(exitCode);
+    }
+
+    return;
+  }
+
+  server.close(
+    async (error?: Error) => {
+      try {
+        await closeDatabase();
+      } catch (
+        disconnectError: unknown
+      ) {
+        console.error(
+          "MongoDB disconnect failed:",
+          disconnectError,
+        );
+
+        process.exit(1);
+        return;
+      }
+
+      if (error) {
+        console.error(
+          "HTTP server shutdown failed:",
+          error,
+        );
+
+        process.exit(1);
+        return;
+      }
+
+      process.exit(exitCode);
+    },
+  );
+};
+
+const startServer =
+  async (): Promise<void> => {
+    await connectDB();
+
+    server =
+      app.listen(
+        port,
+        () => {
+          console.log(
+            `Server running on port ${port}`,
+          );
+        },
+      );
+
+    server.on(
+      "error",
+      (error: Error) => {
+        void shutdown(
+          error.message,
+          1,
+        );
+      },
+    );
+  };
+
+process.on(
+  "unhandledRejection",
+  (reason: unknown) => {
+    const message =
+      reason instanceof Error
+        ? reason.message
+        : String(reason);
+
+    void shutdown(
+      `Unhandled rejection: ${message}`,
+      1,
+    );
+  },
+);
+
+process.on(
+  "uncaughtException",
+  (error: Error) => {
+    void shutdown(
+      `Uncaught exception: ${error.message}`,
+      1,
+    );
+  },
+);
+
+process.on(
+  "SIGTERM",
+  () => {
+    void shutdown(
+      "SIGTERM received",
+      0,
+    );
+  },
+);
+
+process.on(
+  "SIGINT",
+  () => {
+    void shutdown(
+      "SIGINT received",
+      0,
+    );
+  },
+);
+
+startServer().catch(
+  (error: unknown) => {
+    const message =
+      error instanceof Error
+        ? error.message
+        : String(error);
+
+    void shutdown(
+      `Startup failed: ${message}`,
+      1,
+    );
+  },
+);

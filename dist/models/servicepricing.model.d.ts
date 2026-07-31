@@ -1,6 +1,6 @@
-import { type Document, Types } from "mongoose";
+import { type Types } from "mongoose";
 export type TaxPriceMode = "EXCLUSIVE" | "INCLUSIVE";
-export interface IServicePricing extends Document {
+export interface IServicePricing {
     serviceId: Types.ObjectId;
     componentId: Types.ObjectId;
     tierId: Types.ObjectId;
@@ -8,12 +8,13 @@ export interface IServicePricing extends Document {
     price: number;
     taxProfileId: Types.ObjectId | null;
     taxPriceMode: TaxPriceMode;
+    isActive: boolean;
     createdAt: Date;
     updatedAt: Date;
 }
-export declare const ServicePricing: import("mongoose").Model<IServicePricing, {}, {}, {}, Document<unknown, {}, IServicePricing, {}, import("mongoose").DefaultSchemaOptions> & IServicePricing & Required<{
+export declare const ServicePricing: import("mongoose").Model<IServicePricing, {}, {}, {}, import("mongoose").Document<unknown, {}, IServicePricing, {}, import("mongoose").DefaultSchemaOptions> & IServicePricing & {
     _id: Types.ObjectId;
-}> & {
+} & {
     __v: number;
 } & {
     id: string;

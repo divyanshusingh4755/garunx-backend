@@ -1,11 +1,12 @@
 import { Types } from "mongoose";
-import { type ITaxProfile, type TaxTreatment } from "../models/tax-profile.model.js";
+import { type ITaxProfile } from "../models/tax-profile.model.js";
+import type { TaxTreatment } from "../types/tax.types.js";
 export interface CreateTaxProfilePayload {
     name: string;
     code: string;
     treatment: TaxTreatment;
     totalRate: number;
-    description?: string;
+    description?: string | null;
     createdBy?: string | Types.ObjectId;
 }
 export interface UpdateTaxProfilePayload {
@@ -25,7 +26,9 @@ export interface TaxProfileFilters {
 export declare class TaxProfileService {
     private static getTaxProfileUsage;
     private static validateObjectId;
+    private static toObjectId;
     private static normalizeOptionalString;
+    private static validateTreatmentRate;
     static createTaxProfile(payload: CreateTaxProfilePayload): Promise<ITaxProfile>;
     static getTaxProfiles(filters?: TaxProfileFilters): Promise<{
         data: (ITaxProfile & Required<{
@@ -59,33 +62,12 @@ export declare class TaxProfileService {
     } & {
         id: string;
     }>;
-    static updateTaxProfileStatus(taxProfileId: string, isActive: boolean, updatedBy?: string | Types.ObjectId): Promise<(import("mongoose").Document<unknown, {}, ITaxProfile, {}, import("mongoose").DefaultSchemaOptions> & ITaxProfile & Required<{
+    static updateTaxProfileStatus(taxProfileId: string, isActive: boolean, updatedBy?: string | Types.ObjectId): Promise<import("mongoose").Document<unknown, {}, ITaxProfile, {}, import("mongoose").DefaultSchemaOptions> & ITaxProfile & Required<{
         _id: Types.ObjectId;
     }> & {
         __v: number;
     } & {
         id: string;
-    }) | {
-        success: boolean;
-        message: string;
-        usage: {
-            services: {
-                serviceId: string;
-                serviceName: string;
-                pricingCount: number;
-            }[];
-            packages: {
-                packageId: string;
-                packageName: string;
-                pricingCount: number;
-            }[];
-            summary: {
-                servicePricingCount: number;
-                packagePricingCount: number;
-                affectedServiceCount: number;
-                affectedPackageCount: number;
-            };
-        };
     }>;
 }
 //# sourceMappingURL=taxprofile.service.d.ts.map

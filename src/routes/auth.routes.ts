@@ -465,6 +465,58 @@ export const coordinatorListValidation = [
 ];
 
 
+const verifyOtpValidation = [
+    body("otp").notEmpty().withMessage("OTP is required").isLength({ min: 6, max: 6 }).withMessage("OTP must be 6 digits"),
+    body().custom(({ userId, email }) => {
+        if (!userId && !email) throw new Error("User ID or email is required");
+        if (userId && email) throw new Error("Provide either User ID or email, not both");
+        return true;
+    }),
+    body("userId").optional().isMongoId().withMessage("Invalid User ID"),
+    body("email").optional().isEmail().normalizeEmail(),
+    validate,
+];
+
+const resendOtpValidation = [
+    body().custom(({ userId, email, role }) => {
+        if (!userId && !email) throw new Error("User ID or email is required");
+        if (userId && email) throw new Error("Provide either User ID or email, not both");
+        if (email && !role) throw new Error("Role is required for password reset OTP");
+        return true;
+    }),
+    body("userId").optional().isMongoId().withMessage("Invalid User ID"),
+    body("email").optional().isEmail().normalizeEmail(),
+    body("role").optional().isIn(Object.values(Role)).withMessage("Invalid role"),
+    validate,
+];
+
+const loginValidation = [
+    body("identifier").notEmpty().withMessage("Email or phone number is required").isString().trim(),
+    body("password").notEmpty().withMessage("Password is required"),
+    body("role").notEmpty().withMessage("Role is required").isIn(Object.values(Role)).withMessage("Invalid role"),
+    validate,
+];
+
+const forgotPasswordValidation = [
+    body("email").isEmail().withMessage("Valid email is required").normalizeEmail(),
+    body("role").notEmpty().withMessage("Role is required").isIn(Object.values(Role)).withMessage("Invalid role"),
+    validate,
+];
+
+const resetPasswordValidation = [
+    body("userId").isMongoId().withMessage("Invalid User ID"),
+    body("newPassword").isStrongPassword({ minLength: 8, minLowercase: 1, minUppercase: 1, minNumbers: 1, minSymbols: 0 })
+        .withMessage("Password must be at least 8 characters and include uppercase, lowercase, and a number"),
+    validate,
+];
+
+const changePasswordValidation = [
+    body("oldPassword").notEmpty().withMessage("Current password is required"),
+    body("newPassword").isStrongPassword({ minLength: 8, minLowercase: 1, minUppercase: 1, minNumbers: 1, minSymbols: 0 })
+        .withMessage("Password must be at least 8 characters and include uppercase, lowercase, and a number"),
+    validate,
+];
+
 // PUBLIC AUTH
 
 router.post(
@@ -476,18 +528,21 @@ router.post(
 router.post(
     "/verify-otp",
     otpRateLimiter,
+    verifyOtpValidation,
     verifyOtp,
 );
 
 router.post(
     "/resend-otp",
     otpRateLimiter,
+    resendOtpValidation,
     resendOtp,
 );
 
 router.post(
     "/login",
     authRateLimiter,
+    loginValidation,
     login,
 );
 
@@ -513,12 +568,14 @@ router.post(
 router.post(
     "/forgot-password",
     passwordResetRateLimiter,
+    forgotPasswordValidation,
     forgotPassword,
 );
 
 router.post(
     "/reset-password",
     passwordResetRateLimiter,
+    resetPasswordValidation,
     resetPassword,
 );
 
@@ -548,6 +605,7 @@ router.patch(
 router.post(
     "/change-password",
     authenticate,
+    changePasswordValidation,
     changePassword,
 );
 
@@ -566,14 +624,6 @@ router.patch(
     authorizeRoles(Role.COORDINATOR),
     coordinatorAvailabilityValidation,
     updateCoordinatorAvailability,
-);
-
-router.patch(
-    "/coordinator/settings",
-    authenticate,
-    authorizeRoles(Role.COORDINATOR),
-    coordinatorSettingsValidation,
-    updateCoordinatorSettings,
 );
 
 router.put(
@@ -651,6 +701,14 @@ router.patch(
     authorizeRoles(Role.ADMIN),
     coordinatorApprovalValidation,
     updateCoordinatorApproval,
+);
+
+router.patch(
+    "/coordinators/:coordinatorId/settings",
+    authenticate,
+    authorizeRoles(Role.ADMIN),
+    coordinatorSettingsValidation,
+    updateCoordinatorSettings,
 );
 
 // UPLOADS

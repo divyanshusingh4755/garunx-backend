@@ -1,14 +1,43 @@
 import { ComponentService } from "../services/component.service.js";
+const getStatusCode = (error) => {
+    if (typeof error?.statusCode === "number") {
+        return error.statusCode;
+    }
+    if (error?.name === "ValidationError") {
+        return 400;
+    }
+    if (error?.code === 11000) {
+        return 409;
+    }
+    return 500;
+};
 export const createComponent = async (req, res) => {
     try {
-        const component = await ComponentService.createComponent(req.body);
-        res.status(201).json({
+        const { name, categoryId, description, imageUrl, isRemovable, isBundled, isActive, } = req.body;
+        const component = await ComponentService.createComponent({
+            name,
+            categoryId,
+            description,
+            ...(imageUrl !== undefined && {
+                imageUrl,
+            }),
+            ...(isRemovable !== undefined && {
+                isRemovable,
+            }),
+            ...(isBundled !== undefined && {
+                isBundled,
+            }),
+            ...(isActive !== undefined && {
+                isActive,
+            }),
+        });
+        return res.status(201).json({
             success: true,
             data: component,
         });
     }
     catch (error) {
-        res.status(400).json({
+        return res.status(getStatusCode(error)).json({
             success: false,
             message: error.message || "Failed to create component",
         });
@@ -16,15 +45,14 @@ export const createComponent = async (req, res) => {
 };
 export const updateComponent = async (req, res) => {
     try {
-        const { componentId } = req.params;
-        const component = await ComponentService.updateComponent(componentId, req.body);
-        res.status(200).json({
+        const component = await ComponentService.updateComponent(req.params.componentId, req.body);
+        return res.status(200).json({
             success: true,
             data: component,
         });
     }
     catch (error) {
-        res.status(400).json({
+        return res.status(getStatusCode(error)).json({
             success: false,
             message: error.message || "Failed to update component",
         });
@@ -32,10 +60,9 @@ export const updateComponent = async (req, res) => {
 };
 export const toggleComponentStatus = async (req, res) => {
     try {
-        const { componentId } = req.params;
-        const { isActive, confirmed } = req.body;
-        const result = await ComponentService.toggleComponentStatus(componentId, isActive, confirmed);
-        if (result?.requiresConfirmation) {
+        const { isActive, confirmed = false, } = req.body;
+        const result = await ComponentService.toggleComponentStatus(req.params.componentId, isActive, confirmed);
+        if (result.requiresConfirmation) {
             return res.status(200).json({
                 success: true,
                 requiresConfirmation: true,
@@ -43,26 +70,30 @@ export const toggleComponentStatus = async (req, res) => {
                 data: result,
             });
         }
-        return res.status(200).json(result);
+        return res.status(200).json({
+            success: true,
+            message: `Component ${isActive ? "activated" : "deactivated"} successfully`,
+            data: result,
+        });
     }
     catch (error) {
-        res.status(400).json({
+        return res.status(getStatusCode(error)).json({
             success: false,
-            message: error.message || "Failed to update component status",
+            message: error.message ||
+                "Failed to update component status",
         });
     }
 };
 export const getComponentById = async (req, res) => {
     try {
-        const { componentId } = req.params;
-        const component = await ComponentService.getComponentById(componentId);
-        res.status(200).json({
+        const component = await ComponentService.getComponentById(req.params.componentId);
+        return res.status(200).json({
             success: true,
             data: component,
         });
     }
     catch (error) {
-        res.status(404).json({
+        return res.status(getStatusCode(error)).json({
             success: false,
             message: error.message || "Component not found",
         });
@@ -70,21 +101,56 @@ export const getComponentById = async (req, res) => {
 };
 export const getAllComponents = async (req, res) => {
     try {
-        const { searchTerm, categoryId, tier, limit, page, isRemovable, isActive, isBundled, sortBy, sortOrder, } = req.query;
-        const parseBool = (val) => val === "true" ? true : val === "false" ? false : undefined;
-        const { data, total, page: CurrentPage, totalPages, } = await ComponentService.FindComponents(searchTerm, categoryId, Number(limit) || 20, Number(page) || 1, parseBool(isRemovable), parseBool(isActive), parseBool(isBundled), sortBy || "name", sortOrder || "asc");
-        res.status(200).json({
+        const { searchTerm, categoryId, limit, page, isRemovable, isActive, isBundled, sortBy, sortOrder, } = req.query;
+        const parseBoolean = (value) => {
+            if (value === "true")
+                return true;
+            if (value === "false")
+                return false;
+            return undefined;
+        };
+        const removableStatus = parseBoolean(isRemovable);
+        const activeStatus = parseBoolean(isActive);
+        const bundledStatus = parseBoolean(isBundled);
+        const result = await ComponentService.findComponents({
+            limit: limit ? Number(limit) : 20,
+            page: page ? Number(page) : 1,
+            sortBy: typeof sortBy === "string"
+                ? sortBy
+                : "name",
+            sortOrder: sortOrder === "asc" ||
+                sortOrder === "desc"
+                ? sortOrder
+                : "asc",
+            ...(typeof searchTerm === "string" && {
+                searchTerm,
+            }),
+            ...(typeof categoryId === "string" && {
+                categoryId,
+            }),
+            ...(removableStatus !== undefined && {
+                isRemovable: removableStatus,
+            }),
+            ...(activeStatus !== undefined && {
+                isActive: activeStatus,
+            }),
+            ...(bundledStatus !== undefined && {
+                isBundled: bundledStatus,
+            }),
+        });
+        return res.status(200).json({
             success: true,
-            data,
-            total,
-            CurrentPage,
-            totalPages,
+            data: result.data,
+            total: result.total,
+            currentPage: result.page,
+            totalPages: result.totalPages,
         });
     }
     catch (error) {
-        res.status(400).json({
+        return res.status(getStatusCode(error)).json({
             success: false,
-            message: error.message || "Failed to fetch products",
+            message: error.message ||
+                "Failed to fetch components",
         });
     }
 };

@@ -1,12 +1,10 @@
 import mongoose from "mongoose";
-export const ConnectDB = async () => {
-    try {
-        const conn = await mongoose.connect(process.env.MONGO_URI || '');
-        console.log(`MongoDB connected: ${conn.connection.host}`);
+export const connectDB = async () => {
+    const mongoUri = process.env.MONGO_URI?.trim();
+    if (!mongoUri) {
+        throw new Error("MONGO_URI is not configured");
     }
-    catch (error) {
-        console.log("Error connecting to MongoDB:", error);
-        process.exit(1);
-    }
+    const connection = await mongoose.connect(mongoUri);
+    console.log(`MongoDB connected: ${connection.connection.host}`);
 };
 //# sourceMappingURL=db.js.map

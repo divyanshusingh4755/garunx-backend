@@ -1,36 +1,56 @@
-import { State } from "../models/state.model.js";
+import {} from "mongoose";
+import { State, } from "../models/state.model.js";
 import { escapeRegex } from "../utils/escapeRegex.js";
+const createHttpError = (message, statusCode) => {
+    const error = new Error(message);
+    error.statusCode = statusCode;
+    return error;
+};
 export class StateService {
     static applyFilter(filterValue) {
-        if (!filterValue)
+        if (!filterValue?.trim())
             return undefined;
-        const values = filterValue.split(",").map((val) => val.trim());
-        return { $in: values };
+        const values = filterValue
+            .split(",")
+            .map((value) => value.trim())
+            .filter(Boolean);
+        return values.length > 0 ? { $in: values } : undefined;
     }
-    static async createState(name, country, gstCode, image, description, location) {
-        const newState = new State({
+    static async createState(params) {
+        const { name, country, gstCode, image, description, location, } = params;
+        return State.create({
             name: name.trim(),
             country: country.trim(),
             gstCode: gstCode.trim(),
-            image,
-            description,
-            location,
+            ...(image !== undefined && {
+                image,
+            }),
+            ...(description !== undefined && {
+                description,
+            }),
+            ...(location !== undefined && {
+                location,
+            }),
         });
-        return newState.save();
     }
-    static async FindState(searchTerm, countryFilter, stateFilter, limit = 40, page = 1, isActive, sortBy = "createdAt", sortOrder = "desc") {
-        const skip = limit * (page - 1);
+    static async findState(params) {
+        const { searchTerm, countryFilter, stateFilter, limit = 40, page = 1, isActive, sortBy = "createdAt", sortOrder = "desc", } = params;
+        const safeLimit = Math.min(Math.max(limit, 1), 100);
+        const safePage = Math.max(page, 1);
+        const skip = safeLimit * (safePage - 1);
         const query = {};
         if (typeof isActive === "boolean") {
             query.isActive = isActive;
         }
-        if (countryFilter)
-            query.country = this.applyFilter(countryFilter);
-        if (stateFilter)
-            query.name = this.applyFilter(stateFilter);
-        const isTextSearch = !!searchTerm?.trim() && searchTerm.trim().length > 4;
-        if (searchTerm?.trim()) {
-            const term = searchTerm.trim();
+        const countryQuery = this.applyFilter(countryFilter);
+        const stateQuery = this.applyFilter(stateFilter);
+        if (countryQuery)
+            query.country = countryQuery;
+        if (stateQuery)
+            query.name = stateQuery;
+        const term = searchTerm?.trim();
+        const isTextSearch = Boolean(term && term.length > 4);
+        if (term) {
             if (isTextSearch) {
                 query.$text = {
                     $search: term,
@@ -43,8 +63,8 @@ export class StateService {
                 };
             }
         }
-        let sortCriteria = {};
-        let projection = {};
+        let projection;
+        let sortCriteria;
         if (isTextSearch && sortBy === "relevance") {
             projection = {
                 score: {
@@ -58,33 +78,39 @@ export class StateService {
             };
         }
         else {
-            sortCriteria[sortBy] = sortOrder === "desc" ? -1 : 1;
-            if (sortBy !== "createdAt") {
+            const allowedSortFields = new Set([
+                "name",
+                "country",
+                "gstCode",
+                "createdAt",
+                "updatedAt",
+            ]);
+            const safeSortBy = allowedSortFields.has(sortBy)
+                ? sortBy
+                : "createdAt";
+            sortCriteria = {
+                [safeSortBy]: sortOrder === "asc" ? 1 : -1,
+            };
+            if (safeSortBy !== "createdAt") {
                 sortCriteria.createdAt = -1;
             }
         }
-        try {
-            const [data, total] = await Promise.all([
-                State.find(query, projection)
-                    .sort(sortCriteria)
-                    .skip(skip)
-                    .limit(limit)
-                    .lean(),
-                State.countDocuments(query),
-            ]);
-            return { data, total, page, totalPages: Math.ceil(total / limit) };
-        }
-        catch (error) {
-            throw new Error(`State fetch failed: ${error.message}`);
-        }
+        const [data, total] = await Promise.all([
+            State.find(query, projection)
+                .sort(sortCriteria)
+                .skip(skip)
+                .limit(safeLimit)
+                .lean(),
+            State.countDocuments(query),
+        ]);
+        return {
+            data,
+            total,
+            page: safePage,
+            totalPages: Math.ceil(total / safeLimit),
+        };
     }
     static async updateState(stateId, updateData) {
-        if (updateData.location?.coordinates) {
-            updateData.location = {
-                type: "Point",
-                coordinates: updateData.location.coordinates,
-            };
-        }
         const updatedState = await State.findByIdAndUpdate(stateId, {
             $set: updateData,
         }, {
@@ -92,34 +118,32 @@ export class StateService {
             runValidators: true,
         }).lean();
         if (!updatedState) {
-            throw new Error("State not found");
+            throw createHttpError("State not found", 404);
         }
         return updatedState;
     }
     static async softDeleteState(stateId, status) {
-        try {
-            const deletedState = await State.findByIdAndUpdate(stateId, { isActive: status }, { new: true, runValidators: true }).lean();
-            if (!deletedState)
-                throw new Error("State not found");
-            return deletedState;
+        const updatedState = await State.findByIdAndUpdate(stateId, {
+            $set: {
+                isActive: status,
+            },
+        }, {
+            new: true,
+            runValidators: true,
+        }).lean();
+        if (!updatedState) {
+            throw createHttpError("State not found", 404);
         }
-        catch (error) {
-            throw new Error(`Delete failed: ${error.message}`);
-        }
+        return updatedState;
     }
     static async getStateById(stateId) {
-        try {
-            const state = await State.findById(stateId).lean().exec();
-            if (!state) {
-                const error = new Error("state not found");
-                error.statusCode = 404;
-                throw error;
-            }
-            return state;
+        const state = await State.findById(stateId)
+            .lean()
+            .exec();
+        if (!state) {
+            throw createHttpError("State not found", 404);
         }
-        catch (error) {
-            throw new Error(`Failed to get state: ${error.message}`);
-        }
+        return state;
     }
 }
 //# sourceMappingURL=state.service.js.map

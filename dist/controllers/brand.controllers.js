@@ -2,24 +2,40 @@ import BrandingService from "../services/branding.service.js";
 export const getTheme = async (req, res) => {
     try {
         const theme = await BrandingService.getAppTheme();
-        res.status(200).json({ success: true, theme });
+        return res.status(200).json({
+            success: true,
+            theme,
+        });
     }
     catch (error) {
-        res.status(400).json({
+        const statusCode = error.message
+            ?.toLowerCase()
+            .includes("not found")
+            ? 404
+            : 500;
+        return res.status(statusCode).json({
             success: false,
-            message: error.message || 'Failed to get app theme'
+            message: error.message || "Failed to get app theme",
         });
     }
 };
 export const updateTheme = async (req, res) => {
     try {
-        await BrandingService.updateAppTheme(req.body.theme);
-        res.status(201).json({ success: true, message: "Theme updated successfully" });
+        const branding = await BrandingService.updateAppTheme(req.body.theme);
+        return res.status(200).json({
+            success: true,
+            message: "Theme updated successfully",
+            data: {
+                version: branding.version,
+                theme: branding.theme,
+            },
+        });
     }
     catch (error) {
-        res.status(400).json({
+        const statusCode = error?.code === 11000 ? 409 : 400;
+        return res.status(statusCode).json({
             success: false,
-            message: error.message || 'Failed to update brand theme'
+            message: error.message || "Failed to update brand theme",
         });
     }
 };

@@ -4,6 +4,7 @@ import { Role } from "../types/rbac.js";
 import mongoose from "mongoose";
 import jwt from "jsonwebtoken";
 import { Session } from "../models/session.model.js";
+import { Counter } from "../models/counter.model.js";
 import crypto from "crypto";
 import nodemailer from "nodemailer";
 import { generateUniqueCode } from "../utils/generateUniqueCode.js";
@@ -78,9 +79,15 @@ class AuthService {
             const generatedOtp = Math.floor(100000 + Math.random() * 900000).toString();
             const otpExpiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 mins
             const filter = existingUser ? { _id: existingUser._id } : { $or: query };
+            let userReference = existingUser?.userReference;
+            if (!userReference) {
+                const counter = await Counter.findOneAndUpdate({ id: "userId" }, { $inc: { seq: 1 } }, { new: true, upsert: true, session });
+                userReference = `GX-${counter.seq.toString().padStart(4, "0")}`;
+            }
             // Upsert User (Update unverified or create new)
             const user = (await User.findOneAndUpdate(filter, {
                 role,
+                userReference,
                 otp: generatedOtp,
                 otpExpiresAt,
                 isOtpVerified: false, // Always false for manual registration until OTP check
@@ -108,8 +115,15 @@ class AuthService {
     }
     static async socialAuth(role, email, userAgent, ip) {
         try {
-            const user = await User.findOneAndUpdate({ role, email }, {
-                $set: { isOtpVerified: true },
+            const normalizedEmail = email.toLowerCase();
+            const existingUser = await User.findOne({ role, email: normalizedEmail });
+            let userReference = existingUser?.userReference;
+            if (!userReference) {
+                const counter = await Counter.findOneAndUpdate({ id: "userId" }, { $inc: { seq: 1 } }, { new: true, upsert: true });
+                userReference = `GX-${counter.seq.toString().padStart(4, "0")}`;
+            }
+            const user = await User.findOneAndUpdate({ role, email: normalizedEmail }, {
+                $set: { isOtpVerified: true, userReference },
                 $setOnInsert: {
                     isComplete: false,
                     referralCode: `REF-${generateUniqueCode()}`,
@@ -132,16 +146,17 @@ class AuthService {
         }
     }
     static async verifyOtp(userId, otp, email) {
+        // Registration OTP verification
         if (userId) {
-            // Find OTP in DB
             const user = await User.findById(userId);
-            if (!user)
+            if (!user) {
                 throw new Error("User not found.");
-            if (!user.otp)
+            }
+            if (!user.otp) {
                 throw new Error("No OTP was requested for this account.");
-            // Check Expiry
-            if (user.otpExpiresAt && new Date() > user.otpExpiresAt) {
-                // Clear expired OTP to keep DB clean
+            }
+            if (user.otpExpiresAt &&
+                new Date() > user.otpExpiresAt) {
                 user.otp = null;
                 user.otpExpiresAt = null;
                 await user.save();
@@ -150,37 +165,37 @@ class AuthService {
             if (user.otp !== otp) {
                 throw new Error("Invalid OTP.");
             }
-            // Success
             user.isOtpVerified = true;
-            user.otp = null; // Clear it
+            user.otp = null;
             user.otpExpiresAt = null;
             await user.save();
             return user;
         }
+        // Forgot-password OTP verification
         if (email) {
-            // hash the incoming token to match
-            const hashedToken = crypto.createHash("sha256").update(otp).digest("hex");
-            // Find user with valid token
+            const hashedToken = crypto
+                .createHash("sha256")
+                .update(otp)
+                .digest("hex");
             const user = await User.findOne({
-                email: email,
+                email: email.toLowerCase(),
                 resetPasswordToken: hashedToken,
-                resetPasswordExpires: { $gt: Date.now() },
+                resetPasswordExpires: {
+                    $gt: new Date(),
+                },
             });
             if (!user) {
                 throw new Error("OTP is invalid or has expired");
             }
-            if (user.resetPasswordToken) {
-                user.isResetVerified = true;
-                user.resetPasswordToken = undefined;
-                user.resetPasswordExpires = undefined;
-            }
-            user.isOtpVerified = true;
+            user.isResetVerified = true;
+            // Do not clear these here.
+            // resetPassword() still needs the expiry.
             await user.save();
             return user;
         }
         throw new Error("Invalid verification type.");
     }
-    static async resendOtp(userId, email) {
+    static async resendOtp(userId, email, role) {
         const expiryTime = new Date(Date.now() + 15 * 60 * 1000); // 15 mins
         if (userId) {
             // Find the specific document by ID
@@ -206,8 +221,10 @@ class AuthService {
             };
         }
         if (email) {
-            // Find the specific document by ID
-            const user = await User.findOne({ email });
+            if (!role) {
+                throw new Error("Role is required when resending a password reset OTP.");
+            }
+            const user = await User.findOne({ email: email.toLowerCase(), role });
             if (!user)
                 throw new Error("User not found. Please restart registration.");
             // Generate 6-digit OTP
@@ -253,12 +270,16 @@ class AuthService {
         throw new Error("Invalid resend type.");
     }
     static async loginUser(identifier, role, password, userAgent, ip) {
+        if (!identifier?.trim()) {
+            throw new Error("Email or phone number is required");
+        }
         if (!password) {
             throw new Error("Password is required for manual login");
         }
+        const normalizedIdentifier = identifier.trim();
         const user = (await User.findOne({
             role,
-            $or: [{ email: identifier.toLowerCase() }, { phoneNumber: identifier }],
+            $or: [{ email: normalizedIdentifier.toLowerCase() }, { phoneNumber: normalizedIdentifier }],
         }).select("+password"));
         if (!user || !user.password)
             throw new Error("Invalid Credentials");
@@ -385,8 +406,8 @@ class AuthService {
         const salt = await bcrypt.genSalt(10);
         user.password = await bcrypt.hash(newPassword, salt);
         user.isResetVerified = false;
-        user.resetPasswordToken = undefined;
-        user.resetPasswordExpires = undefined;
+        user.resetPasswordToken = null;
+        user.resetPasswordExpires = null;
         await user.save();
         // security: Invalidate all existing sessions
         await Session.deleteMany({ userId: user._id });
@@ -515,7 +536,7 @@ class AuthService {
         try {
             const user = await User.findOne({
                 $or: [
-                    { email: identifier, role },
+                    { email: identifier.toLowerCase(), role },
                     { phoneNumber: identifier, role },
                 ],
             })
@@ -990,15 +1011,20 @@ class AuthService {
             query["coordinatorProfile.availabilityStatus"] =
                 availabilityStatus;
         }
-        if (locationId) {
-            query["coordinatorProfile.serviceableLocations.locationId"] =
-                new mongoose.Types.ObjectId(locationId);
-        }
-        if (caste) {
-            query["coordinatorProfile.serviceableLocations.caste"] = caste;
-        }
-        if (gotra) {
-            query["coordinatorProfile.serviceableLocations.gotra"] = gotra;
+        if (locationId || caste || gotra) {
+            const locationMatch = {};
+            if (locationId) {
+                locationMatch.locationId = new mongoose.Types.ObjectId(locationId);
+            }
+            if (caste) {
+                locationMatch.caste = caste;
+            }
+            if (gotra) {
+                locationMatch.gotra = gotra;
+            }
+            query["coordinatorProfile.serviceableLocations"] = {
+                $elemMatch: locationMatch,
+            };
         }
         if (typeof autoAssignmentEnabled === "boolean") {
             query["coordinatorProfile.autoAssignmentEnabled"] =

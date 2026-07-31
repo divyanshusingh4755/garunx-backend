@@ -8,6 +8,7 @@ const packageTierServiceSchema = new Schema({
     name: {
         type: String,
         required: true,
+        trim: true,
     },
     isRequired: {
         type: Boolean,
@@ -31,7 +32,10 @@ const packageTierMapSchema = new Schema({
         required: true,
         index: true,
     },
-    services: [packageTierServiceSchema],
+    services: {
+        type: [packageTierServiceSchema],
+        default: [],
+    },
 }, {
     timestamps: true,
 });

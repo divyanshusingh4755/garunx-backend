@@ -1,6 +1,10 @@
-import { model, Schema } from "mongoose";
+import { model, Schema, } from "mongoose";
 const categorySchema = new Schema({
-    label: { type: String, required: true, trim: true },
+    label: {
+        type: String,
+        required: true,
+        trim: true,
+    },
     value: {
         type: String,
         required: true,
@@ -8,17 +12,41 @@ const categorySchema = new Schema({
         lowercase: true,
         trim: true,
     },
-    type: { type: String, enum: ["service", "product"], required: true },
-    image: { type: String },
-    description: { type: String },
-    isActive: { type: Boolean, default: true },
-    displayOrder: { type: Number, default: 0 },
-}, { timestamps: true });
-categorySchema.index({ type: 1, isActive: 1, displayOrder: 1 });
+    type: {
+        type: String,
+        enum: ["service", "product"],
+        required: true,
+    },
+    image: {
+        type: String,
+    },
+    description: {
+        type: String,
+        trim: true,
+    },
+    isActive: {
+        type: Boolean,
+        default: true,
+    },
+    displayOrder: {
+        type: Number,
+        default: 0,
+        min: 0,
+    },
+}, {
+    timestamps: true,
+});
+categorySchema.index({
+    type: 1,
+    isActive: 1,
+    displayOrder: 1,
+});
 categorySchema.index({ label: 1 });
 categorySchema.index({
     label: "text",
     value: "text",
-}, { name: "CategoryTextSearchIndex" });
+}, {
+    name: "CategoryTextSearchIndex",
+});
 export const Category = model("Category", categorySchema);
 //# sourceMappingURL=category.model.js.map

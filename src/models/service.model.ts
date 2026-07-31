@@ -1,4 +1,8 @@
-import { model, Schema, Types, Document } from "mongoose";
+import {
+  model,
+  Schema,
+  type Types,
+} from "mongoose";
 
 export interface ILocationService {
   name: string;
@@ -11,55 +15,104 @@ export interface IServiceTier {
   tierId: Types.ObjectId;
 }
 
-export interface IService extends Document {
+export interface IService {
   name: string;
   shortDescription: string;
   fullDescription: string;
   categoryId: Types.ObjectId;
-  thumbnailImage?: string;
+  thumbnailImage: string;
   bannerImage?: string;
   isActive: boolean;
   serviceReference: string;
   locations: ILocationService[];
   tiers: IServiceTier[];
   isComplete: boolean;
-  subServiceComponents?: any[];
+  startingPrice: number;
+  subServiceComponents?: unknown[];
+  createdAt: Date;
+  updatedAt: Date;
 }
 
-const locationSchema = new Schema<ILocationService>(
-  {
-    name: { type: String, required: true },
-    isActive: { type: Boolean, default: true },
-    locationId: {
-      type: Schema.Types.ObjectId,
-      required: true,
-      index: true,
-      ref: "Location",
-    },
-  },
-  { _id: false },
-);
+const locationSchema =
+  new Schema<ILocationService>(
+    {
+      name: {
+        type: String,
+        required: true,
+        trim: true,
+      },
 
-const tierSchema = new Schema<IServiceTier>(
-  {
-    name: { type: String, required: true },
-    tierId: {
-      type: Schema.Types.ObjectId,
-      required: true,
-      index: true,
-      ref: "Tier",
+      isActive: {
+        type: Boolean,
+        required: true,
+        default: true,
+      },
+
+      locationId: {
+        type: Schema.Types.ObjectId,
+        required: true,
+        index: true,
+        ref: "Location",
+      },
     },
-  },
-  { _id: false },
-);
+    {
+      _id: false,
+    },
+  );
+
+const tierSchema =
+  new Schema<IServiceTier>(
+    {
+      name: {
+        type: String,
+        required: true,
+        trim: true,
+      },
+
+      tierId: {
+        type: Schema.Types.ObjectId,
+        required: true,
+        index: true,
+        ref: "Tier",
+      },
+    },
+    {
+      _id: false,
+    },
+  );
 
 const serviceSchema = new Schema<IService>(
   {
-    name: { type: String, required: true, trim: true },
-    shortDescription: { type: String, required: true, maxLength: 200 },
-    fullDescription: { type: String, required: true },
-    thumbnailImage: { type: String, required: true },
-    bannerImage: { type: String },
+    name: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+
+    shortDescription: {
+      type: String,
+      required: true,
+      trim: true,
+      maxLength: 200,
+    },
+
+    fullDescription: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+
+    thumbnailImage: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+
+    bannerImage: {
+      type: String,
+      trim: true,
+    },
+
     categoryId: {
       type: Schema.Types.ObjectId,
       ref: "Category",
@@ -67,29 +120,63 @@ const serviceSchema = new Schema<IService>(
       index: true,
     },
 
-    locations: [locationSchema],
-    tiers: [tierSchema],
+    locations: {
+      type: [locationSchema],
+      default: [],
+    },
 
-    isActive: { type: Boolean, default: true, index: true },
-    serviceReference: { type: String, unique: true },
+    tiers: {
+      type: [tierSchema],
+      default: [],
+    },
+
+    isActive: {
+      type: Boolean,
+      required: true,
+      default: true,
+      index: true,
+    },
+
+    serviceReference: {
+      type: String,
+      required: true,
+      unique: true,
+      trim: true,
+    },
+
     isComplete: {
       type: Boolean,
+      required: true,
       default: false,
       index: true,
+    },
+
+    startingPrice: {
+      type: Number,
+      required: true,
+      default: 0,
+      min: 0,
     },
   },
   {
     timestamps: true,
-    toJSON: { virtuals: true },
-    toObject: { virtuals: true },
+    toJSON: {
+      virtuals: true,
+    },
+    toObject: {
+      virtuals: true,
+    },
   },
 );
 
-serviceSchema.virtual("subServiceComponents", {
-  ref: "SubServiceComponent",
-  localField: "_id",
-  foreignField: "serviceId",
-});
+serviceSchema.virtual(
+  "subServiceComponents",
+  {
+    ref: "SubServiceComponent",
+    localField: "_id",
+    foreignField: "serviceId",
+  },
+);
 
 serviceSchema.index({
   categoryId: 1,
@@ -97,18 +184,26 @@ serviceSchema.index({
   isComplete: 1,
 });
 
-serviceSchema.index({ name: 1 });
+serviceSchema.index({
+  name: 1,
+});
 
-// Text Search Index
 serviceSchema.index(
   {
     name: "text",
     shortDescription: "text",
   },
-  { name: "ServiceTextSearchIndex" },
+  {
+    name: "ServiceTextSearchIndex",
+  },
 );
 
-// Functional Indexes
-serviceSchema.index({ isActive: 1, categoryId: 1 });
+serviceSchema.index({
+  isActive: 1,
+  categoryId: 1,
+});
 
-export const Service = model<IService>("Service", serviceSchema);
+export const Service = model<IService>(
+  "Service",
+  serviceSchema,
+);

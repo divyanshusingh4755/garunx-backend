@@ -1,33 +1,92 @@
-import type { Request } from "express";
-import { HttpError } from "../utils/httpError.js";
+import type {
+  Request,
+} from "express";
 
-export interface CartOwner {
-  userId?: string;
-  guestId?: string;
-}
+import {
+  HttpError,
+} from "../utils/httpError.js";
 
-export const getCartOwner = (req: Request): CartOwner => {
-  const userId = req.user?.userId;
-  const guestId = req.headers["x-guest-id"] as string | undefined;
+export type CartOwner =
+  | {
+      userId: string;
+      guestId?: never;
+    }
+  | {
+      userId?: never;
+      guestId: string;
+    };
 
-  if (!userId && !guestId) {
-    throw new HttpError(401, "Authentication or guestId is required");
+const getSingleHeaderValue = (
+  value:
+    | string
+    | string[]
+    | undefined,
+): string | undefined => {
+  if (
+    typeof value !== "string"
+  ) {
+    return undefined;
+  }
+
+  const normalized =
+    value.trim();
+
+  return normalized ||
+    undefined;
+};
+
+export const getCartOwner = (
+  req: Request,
+): CartOwner => {
+  const userId =
+    req.user?.userId;
+
+  /*
+   * An authenticated user always owns their authenticated cart.
+   * Ignoring x-guest-id here prevents a caller from creating
+   * ambiguous owner queries containing both identities.
+   */
+  if (userId) {
+    return {
+      userId,
+    };
+  }
+
+  const guestId =
+    getSingleHeaderValue(
+      req.headers[
+        "x-guest-id"
+      ],
+    );
+
+  if (!guestId) {
+    throw new HttpError(
+      401,
+      "Authentication or guestId is required",
+    );
   }
 
   return {
-    ...(userId ? { userId } : {}),
-    ...(guestId ? { guestId } : {}),
+    guestId,
   };
 };
 
-export const buildCartOwnerQuery = (owner: CartOwner) => {
-  if (owner.userId) {
-    return { userId: owner.userId };
+export const buildCartOwnerQuery = (
+  owner: CartOwner,
+):
+  | {
+      userId: string;
+    }
+  | {
+      guestId: string;
+    } => {
+  if ("userId" in owner) {
+    return {
+      userId: owner.userId,
+    };
   }
 
-  if (owner.guestId) {
-    return { guestId: owner.guestId };
-  }
-
-  throw new Error("Cart owner missing");
+  return {
+    guestId: owner.guestId,
+  };
 };

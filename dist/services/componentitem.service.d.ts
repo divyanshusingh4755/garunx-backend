@@ -1,32 +1,40 @@
-import mongoose from "mongoose";
-import { type IComponentItem } from "../models/componentitem.model.js";
 import { Types } from "mongoose";
+import { type IComponentItem } from "../models/componentitem.model.js";
+type CreateComponentItemInput = {
+    name: string;
+    price?: number;
+    isActive?: boolean;
+};
+type ComponentItemUpdate = Partial<Pick<IComponentItem, "name" | "price" | "isActive">>;
 export declare class ComponentItemService {
-    static createComponentItem(payload: Partial<IComponentItem>): Promise<mongoose.Document<unknown, {}, IComponentItem, {}, mongoose.DefaultSchemaOptions> & IComponentItem & Required<{
+    static createComponentItem(payload: CreateComponentItemInput): Promise<import("mongoose").Document<unknown, {}, IComponentItem, {}, import("mongoose").DefaultSchemaOptions> & IComponentItem & {
         _id: Types.ObjectId;
-    }> & {
+    } & {
         __v: number;
     } & {
         id: string;
     }>;
-    static updateComponentItem(componentItemId: string, updateData: Partial<IComponentItem>): Promise<mongoose.Document<unknown, {}, IComponentItem, {}, mongoose.DefaultSchemaOptions> & IComponentItem & Required<{
+    static updateComponentItem(componentItemId: string, updateData: ComponentItemUpdate): Promise<IComponentItem & {
         _id: Types.ObjectId;
-    }> & {
-        __v: number;
     } & {
-        id: string;
+        __v: number;
     }>;
-    static getComponentItemById(componentItemId: string): Promise<mongoose.Document<unknown, {}, IComponentItem, {}, mongoose.DefaultSchemaOptions> & IComponentItem & Required<{
+    static getComponentItemById(componentItemId: string): Promise<IComponentItem & {
         _id: Types.ObjectId;
-    }> & {
-        __v: number;
     } & {
-        id: string;
+        __v: number;
     }>;
-    static getAllComponentItems(searchTerm?: string, limit?: number, page?: number, isActive?: boolean, sortBy?: string, sortOrder?: "asc" | "desc"): Promise<{
-        data: (IComponentItem & Required<{
+    static getAllComponentItems(params: {
+        searchTerm?: string;
+        limit?: number;
+        page?: number;
+        isActive?: boolean;
+        sortBy?: string;
+        sortOrder?: "asc" | "desc";
+    }): Promise<{
+        data: (IComponentItem & {
             _id: Types.ObjectId;
-        }> & {
+        } & {
             __v: number;
         })[];
         total: number;
@@ -35,27 +43,43 @@ export declare class ComponentItemService {
     }>;
     static getDeactivationImpact(componentItemId: string): Promise<{
         affectedServiceComponentsCount: number;
-        affected: (import("../models/servicecomponent.model.js").IServiceComponent & Required<{
+        affected: (import("../models/servicecomponent.model.js").IServiceComponent & {
             _id: Types.ObjectId;
-        }> & {
+        } & {
             __v: number;
         })[];
     }>;
     static updateComponentItemStatus(componentItemId: string, isActive: boolean, confirmed?: boolean): Promise<{
+        success: boolean;
+        unchanged: boolean;
+        componentItem: IComponentItem & {
+            _id: Types.ObjectId;
+        } & {
+            __v: number;
+        };
+        requiresConfirmation?: never;
+        impact?: never;
+    } | {
         requiresConfirmation: boolean;
         impact: {
             affectedServiceComponentsCount: number;
-            affected: (import("../models/servicecomponent.model.js").IServiceComponent & Required<{
+            affected: (import("../models/servicecomponent.model.js").IServiceComponent & {
                 _id: Types.ObjectId;
-            }> & {
+            } & {
                 __v: number;
             })[];
         };
         success?: never;
-        message?: never;
+        unchanged?: never;
+        componentItem?: never;
     } | {
         success: boolean;
-        message: string;
+        componentItem: IComponentItem & {
+            _id: Types.ObjectId;
+        } & {
+            __v: number;
+        };
+        unchanged?: never;
         requiresConfirmation?: never;
         impact?: never;
     }>;

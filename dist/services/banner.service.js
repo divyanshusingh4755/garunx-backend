@@ -1,6 +1,12 @@
-import { Banner } from "../models/banner.model.js";
-import { escapeRegex } from "../utils/escapeRegex.js";
+import { Types } from "mongoose";
+import { Banner, } from "../models/banner.model.js";
+import { escapeRegex, } from "../utils/escapeRegex.js";
 export class BannerService {
+    static ensureValidId(id) {
+        if (!Types.ObjectId.isValid(id)) {
+            throw new Error("Invalid banner ID");
+        }
+    }
     static async createBanner(bannerData) {
         if (!bannerData.name?.trim()) {
             throw new Error("Banner name is required");
@@ -18,48 +24,88 @@ export class BannerService {
             throw new Error("Format is required");
         }
         const banner = new Banner(bannerData);
-        return await banner.save();
+        await banner.validate();
+        return banner.save();
     }
     static async updateBanner(id, updateData) {
-        delete updateData._id;
-        delete updateData.version;
-        delete updateData.createdAt;
-        delete updateData.updatedAt;
-        const banner = await Banner.findByIdAndUpdate(id, updateData, {
-            new: true,
-            runValidators: true,
-            overwriteDiscriminatorKey: false,
-        });
+        this.ensureValidId(id);
+        const banner = await Banner.findById(id);
         if (!banner) {
             throw new Error("Banner not found");
         }
-        return banner;
+        const protectedFields = new Set([
+            "_id",
+            "version",
+            "createdAt",
+            "updatedAt",
+            "__v",
+        ]);
+        for (const [field, value] of Object.entries(updateData)) {
+            if (protectedFields.has(field) ||
+                field === "redirect") {
+                continue;
+            }
+            banner.set(field, value);
+        }
+        if (updateData.redirect !== undefined) {
+            const incomingRedirect = updateData.redirect;
+            const redirectType = incomingRedirect?.type ??
+                banner.redirect?.type ??
+                "NONE";
+            banner.redirect = {
+                type: redirectType,
+                ...(["SERVICE", "PACKAGE", "CATEGORY", "PRODUCT"]
+                    .includes(redirectType) &&
+                    incomingRedirect?.refId
+                    ? {
+                        refId: incomingRedirect.refId,
+                    }
+                    : {}),
+                ...(redirectType === "URL" &&
+                    incomingRedirect?.url
+                    ? {
+                        url: incomingRedirect.url,
+                    }
+                    : {}),
+            };
+        }
+        await banner.validate();
+        return banner.save();
     }
     static async getBannerById(id) {
-        const banner = await Banner.findById(id).lean();
+        this.ensureValidId(id);
+        const banner = await Banner.findById(id)
+            .lean();
         if (!banner) {
             throw new Error("Banner not found");
         }
         return banner;
     }
     static async deleteBanner(id) {
-        const banner = await Banner.findById(id);
+        this.ensureValidId(id);
+        const banner = await Banner.findByIdAndDelete(id);
         if (!banner) {
             throw new Error("Banner not found");
         }
-        return await Banner.findByIdAndDelete(id);
+        return banner;
     }
     static async toggleBannerStatus(id) {
+        this.ensureValidId(id);
         const banner = await Banner.findById(id);
         if (!banner) {
             throw new Error("Banner not found");
         }
         banner.isActive = !banner.isActive;
-        await banner.save();
-        return banner;
+        return banner.save();
     }
     static async findBanners(searchTerm, placement, format, redirectType, limit = 20, page = 1, isActive, sortBy = "displayOrder", sortOrder = "asc") {
-        const skip = limit * (page - 1);
+        const safePage = Number.isInteger(page) && page > 0
+            ? page
+            : 1;
+        const safeLimit = Number.isInteger(limit) && limit > 0
+            ? Math.min(limit, 100)
+            : 20;
+        const skip = safeLimit * (safePage - 1);
         const query = {};
         if (typeof isActive === "boolean") {
             query.isActive = isActive;
@@ -73,34 +119,55 @@ export class BannerService {
         if (redirectType) {
             query["redirect.type"] = redirectType;
         }
-        const isTextSearch = !!searchTerm?.trim() && searchTerm.trim().length > 4;
-        if (searchTerm?.trim()) {
-            const term = searchTerm.trim();
+        const normalizedSearch = searchTerm?.trim();
+        const isTextSearch = Boolean(normalizedSearch &&
+            normalizedSearch.length > 4);
+        if (normalizedSearch) {
             if (isTextSearch) {
                 query.$text = {
-                    $search: term,
+                    $search: normalizedSearch,
                 };
             }
             else {
                 query.name = {
-                    $regex: `^${escapeRegex(term)}`,
+                    $regex: `^${escapeRegex(normalizedSearch)}`,
                     $options: "i",
                 };
             }
         }
+        const allowedSortFields = new Set([
+            "displayOrder",
+            "createdAt",
+            "updatedAt",
+            "name",
+            "placement",
+            "format",
+            "isActive",
+            "relevance",
+        ]);
+        const safeSortBy = allowedSortFields.has(sortBy)
+            ? sortBy
+            : "displayOrder";
         let projection = {};
-        let sortCriteria = {};
-        if (isTextSearch && sortBy === "relevance") {
-            projection = {
-                score: { $meta: "textScore" },
-            };
+        let sortCriteria;
+        if (isTextSearch &&
+            safeSortBy === "relevance") {
             sortCriteria = {
-                score: { $meta: "textScore" },
+                score: {
+                    $meta: "textScore",
+                },
             };
         }
         else {
-            sortCriteria[sortBy] = sortOrder === "desc" ? -1 : 1;
-            if (sortBy !== "createdAt") {
+            const actualSortField = safeSortBy === "relevance"
+                ? "displayOrder"
+                : safeSortBy;
+            sortCriteria = {
+                [actualSortField]: sortOrder === "desc"
+                    ? -1
+                    : 1,
+            };
+            if (actualSortField !== "createdAt") {
                 sortCriteria.createdAt = -1;
             }
         }
@@ -109,19 +176,23 @@ export class BannerService {
                 Banner.find(query, projection)
                     .sort(sortCriteria)
                     .skip(skip)
-                    .limit(limit)
+                    .limit(safeLimit)
                     .lean(),
                 Banner.countDocuments(query),
             ]);
             return {
                 data,
                 total,
-                page,
-                totalPages: Math.ceil(total / limit),
+                page: safePage,
+                limit: safeLimit,
+                totalPages: Math.ceil(total / safeLimit),
             };
         }
         catch (error) {
-            throw new Error(`Banner fetch failed: ${error.message}`);
+            const message = error instanceof Error
+                ? error.message
+                : "Unknown error";
+            throw new Error(`Banner fetch failed: ${message}`);
         }
     }
 }

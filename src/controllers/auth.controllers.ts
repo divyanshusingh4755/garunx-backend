@@ -100,7 +100,7 @@ export const verifyOtp = async (req: Request, res: Response) => {
 
 export const resendOtp = async (req: Request, res: Response) => {
     try {
-        const { userId, email } = req.body;
+        const { userId, email, role } = req.body;
 
         if (!userId && !email) {
             return res.status(400).json({
@@ -109,7 +109,7 @@ export const resendOtp = async (req: Request, res: Response) => {
             });
         }
 
-        const result = await AuthService.resendOtp(userId, email);
+        const result = await AuthService.resendOtp(userId, email, role);
 
         res.status(200).json({
             success: true,
@@ -889,18 +889,23 @@ export const updateCoordinatorSettings = async (
     res: Response,
 ) => {
     try {
-        const coordinatorId = req.user?.userId;
+        const adminId = req.user?.userId;
         const { maxDailyBookings, autoAssignmentEnabled } = req.body;
+        const {coordinatorId} = req.params;
 
-        if (!coordinatorId) {
+        if (!adminId) {
             return res.status(401).json({
                 success: false,
                 message: "Unauthorized",
             });
         }
 
+        if (!coordinatorId) {
+            return res.status(400).json({ success: false, message: "Coordinator ID is required." });
+        }
+
         const data = await AuthService.updateCoordinatorSettings(
-            coordinatorId,
+            coordinatorId as string,
             {
                 maxDailyBookings,
                 autoAssignmentEnabled,

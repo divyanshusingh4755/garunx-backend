@@ -1,4 +1,9 @@
 import mongoose, { Types } from "mongoose";
+import { type ILocation, type IGeoPoint } from "../models/location.model.js";
+type LocationUpdate = Partial<Pick<ILocation, "name" | "country" | "fullAddress" | "pincode" | "image" | "description" | "isActive" | "location">> & {
+    stateId?: string;
+    cityId?: string;
+};
 export declare class LocationService {
     static createLocation(data: {
         name: string;
@@ -9,19 +14,17 @@ export declare class LocationService {
         pincode: string;
         image?: string;
         description?: string;
-        location?: {
-            type: "Point";
-            coordinates: [number, number];
-        };
-    }): Promise<mongoose.Document<unknown, {}, import("../models/location.model.js").ILocation, {}, mongoose.DefaultSchemaOptions> & import("../models/location.model.js").ILocation & Required<{
+        location?: IGeoPoint;
+    }): Promise<mongoose.Document<unknown, {}, ILocation, {}, mongoose.DefaultSchemaOptions> & ILocation & {
         _id: Types.ObjectId;
-    }> & {
+    } & {
         __v: number;
     } & {
         id: string;
     }>;
-    private static applyFilter;
-    static FindLocation(params: {
+    private static applyStringFilter;
+    private static applyObjectIdFilter;
+    static findLocation(params: {
         searchTerm?: string;
         countryFilter?: string;
         stateIdFilter?: string;
@@ -29,7 +32,7 @@ export declare class LocationService {
         pincodeFilter?: string;
         limit?: number;
         page?: number;
-        isActive?: boolean | undefined;
+        isActive?: boolean;
         sortBy?: string;
         sortOrder?: "asc" | "desc";
     }): Promise<{
@@ -56,31 +59,17 @@ export declare class LocationService {
         page: number;
         totalPages: number;
     }>;
-    static updateLocation(locationId: string, updateData: {
-        name?: string;
-        country?: string;
-        stateId?: string;
-        cityId?: string;
-        fullAddress?: string;
-        pincode?: string;
-        image?: string;
-        description?: string;
-        location?: {
-            type: "Point";
-            coordinates: [number, number];
-        };
-        isActive?: boolean;
-    }): Promise<import("../models/location.model.js").ILocation & Required<{
+    static updateLocation(locationId: string, updateData: LocationUpdate): Promise<ILocation & {
         _id: Types.ObjectId;
-    }> & {
+    } & {
         __v: number;
     }>;
     static getDeactivationImpact(locationId: string): Promise<{
         servicesCount: number;
         packagesCount: number;
-        services: (import("../models/service.model.js").IService & Required<{
+        services: (import("../models/service.model.js").IService & {
             _id: Types.ObjectId;
-        }> & {
+        } & {
             __v: number;
         })[];
         packages: (import("../models/package.model.js").IPackage & Required<{
@@ -90,13 +79,19 @@ export declare class LocationService {
         })[];
     }>;
     static softDeleteLocation(locationId: string, status: boolean, confirmed?: boolean): Promise<{
+        success: boolean;
+        unchanged: boolean;
+        requiresConfirmation?: never;
+        impact?: never;
+        location?: never;
+    } | {
         requiresConfirmation: boolean;
         impact: {
             servicesCount: number;
             packagesCount: number;
-            services: (import("../models/service.model.js").IService & Required<{
+            services: (import("../models/service.model.js").IService & {
                 _id: Types.ObjectId;
-            }> & {
+            } & {
                 __v: number;
             })[];
             packages: (import("../models/package.model.js").IPackage & Required<{
@@ -106,14 +101,22 @@ export declare class LocationService {
             })[];
         };
         success?: never;
+        unchanged?: never;
+        location?: never;
     } | {
         success: boolean;
+        location: ILocation & {
+            _id: Types.ObjectId;
+        } & {
+            __v: number;
+        };
+        unchanged?: never;
         requiresConfirmation?: never;
         impact?: never;
     }>;
-    static getLocationById(locationId: string): Promise<import("../models/location.model.js").ILocation & Required<{
+    static getLocationById(locationId: string): Promise<ILocation & {
         _id: Types.ObjectId;
-    }> & {
+    } & {
         __v: number;
     }>;
     static getLocationByIds(locationIds: string[]): Promise<{
@@ -136,4 +139,5 @@ export declare class LocationService {
         location: any;
     }[]>;
 }
+export {};
 //# sourceMappingURL=location.service.d.ts.map

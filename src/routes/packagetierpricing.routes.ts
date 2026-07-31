@@ -1,4 +1,9 @@
-import { Router } from "express";
+import {
+  Router,
+  type Request,
+  type Response,
+  type NextFunction,
+} from "express";
 import { body, query, validationResult } from "express-validator";
 import { authenticate } from "../middleware/authenticate.js";
 import {
@@ -8,13 +13,16 @@ import {
 
 const router = Router();
 
-const validate = (req: any, res: any, next: any) => {
+const validate = (req: Request, res: Response, next: NextFunction) => {
   const errors = validationResult(req);
 
   if (!errors.isEmpty()) {
+    const firstError = errors.array()[0];
+
     return res.status(400).json({
       success: false,
-      message: errors.array()[0]?.msg,
+      message: firstError?.msg,
+      error: firstError,
     });
   }
 
@@ -39,9 +47,7 @@ router.post(
 
   body("pricing")
     .isArray({ min: 1 })
-    .withMessage(
-      "pricing must contain at least one location",
-    ),
+    .withMessage("pricing must contain at least one location"),
 
   body("pricing.*.locationId")
     .notEmpty()
@@ -51,9 +57,7 @@ router.post(
 
   body("pricing.*.services")
     .isArray({ min: 1 })
-    .withMessage(
-      "Each location must contain at least one service",
-    ),
+    .withMessage("Each location must contain at least one service"),
 
   body("pricing.*.services.*.serviceId")
     .notEmpty()
@@ -61,77 +65,50 @@ router.post(
     .isMongoId()
     .withMessage("Invalid serviceId"),
 
-  body(
-    "pricing.*.services.*.fixedPrice",
-  )
+  body("pricing.*.services.*.fixedPrice")
     .optional({ nullable: true })
     .isFloat({ min: 0 })
-    .withMessage(
-      "fixedPrice must be a non-negative number",
-    )
+    .withMessage("fixedPrice must be a non-negative number")
     .toFloat(),
 
-  body(
-    "pricing.*.services.*.discountPercent",
-  )
+  body("pricing.*.services.*.discountPercent")
     .optional({ nullable: true })
-    .isFloat({
-      min: 0,
-      max: 100,
-    })
-    .withMessage(
-      "discountPercent must be between 0 and 100",
-    )
+    .isFloat({ min: 0, max: 100 })
+    .withMessage("discountPercent must be between 0 and 100")
     .toFloat(),
 
-  body(
-    "pricing.*.services.*.taxProfileId",
-  )
+  body("pricing.*.services.*.taxProfileId")
     .notEmpty()
     .withMessage("taxProfileId is required")
     .isMongoId()
     .withMessage("Invalid taxProfileId"),
 
-  body(
-    "pricing.*.services.*.taxPriceMode",
-  )
-    .notEmpty()
-    .withMessage("taxPriceMode is required")
+  body("pricing.*.services.*.taxPriceMode")
+    .optional()
     .isIn(["EXCLUSIVE", "INCLUSIVE"])
-    .withMessage(
-      "taxPriceMode must be EXCLUSIVE or INCLUSIVE",
-    ),
+    .withMessage("taxPriceMode must be EXCLUSIVE or INCLUSIVE"),
 
-  body("pricing.*.services.*")
-    .custom((servicePricing) => {
-      const hasFixedPrice =
-        servicePricing.fixedPrice !== undefined &&
-        servicePricing.fixedPrice !== null;
+  body("pricing.*.services.*").custom((servicePricing) => {
+    const hasFixedPrice =
+      servicePricing.fixedPrice !== undefined &&
+      servicePricing.fixedPrice !== null;
 
-      const hasDiscountPercent =
-        servicePricing.discountPercent !== undefined &&
-        servicePricing.discountPercent !== null;
+    const hasDiscountPercent =
+      servicePricing.discountPercent !== undefined &&
+      servicePricing.discountPercent !== null;
 
-      if (
-        hasFixedPrice &&
-        hasDiscountPercent
-      ) {
-        throw new Error(
-          "fixedPrice and discountPercent cannot be provided together",
-        );
-      }
+    if (hasFixedPrice && hasDiscountPercent) {
+      throw new Error(
+        "fixedPrice and discountPercent cannot be provided together",
+      );
+    }
 
-      if (
-        !hasFixedPrice &&
-        !hasDiscountPercent
-      ) {
-        throw new Error(
-          "Either fixedPrice or discountPercent is required",
-        );
-      }
+    if (!hasFixedPrice && !hasDiscountPercent) {
+      throw new Error("Either fixedPrice or discountPercent is required");
+    }
 
-      return true;
-    }),
+    return true;
+  }),
 
   validate,
   bulkUpsertPackageTierPricing,
@@ -140,9 +117,25 @@ router.post(
 router.get(
   "/resolve",
   authenticate,
-  query("packageId").isMongoId().withMessage("Invalid packageId"),
-  query("tierId").isMongoId().withMessage("Invalid tierId"),
-  query("locationId").isMongoId().withMessage("Invalid locationId"),
+
+  query("packageId")
+    .notEmpty()
+    .withMessage("packageId is required")
+    .isMongoId()
+    .withMessage("Invalid packageId"),
+
+  query("tierId")
+    .notEmpty()
+    .withMessage("tierId is required")
+    .isMongoId()
+    .withMessage("Invalid tierId"),
+
+  query("locationId")
+    .notEmpty()
+    .withMessage("locationId is required")
+    .isMongoId()
+    .withMessage("Invalid locationId"),
+
   validate,
   resolvePackagePricing,
 );

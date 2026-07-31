@@ -1,10 +1,15 @@
-import { Types, Document } from "mongoose";
+import { Types, type Document } from "mongoose";
 import { Role } from "../types/rbac.js";
 import { ApprovalStatus, AvailabilityStatus, Caste, Gender, Gotra, VerificationStatus } from "../types/enums.js";
 export interface IRatingSummary {
     averageRating: number;
     totalRatings: number;
     ratingSum: number;
+}
+export interface IServiceableLocation {
+    locationId: Types.ObjectId;
+    caste?: Caste[];
+    gotra?: Gotra[];
 }
 export interface ICoordinatorProfile {
     averageRating: number;
@@ -19,11 +24,22 @@ export interface ICoordinatorProfile {
     maxDailyBookings: number;
     autoAssignmentEnabled: boolean;
     lastAvailabilityChangedAt?: Date;
-    serviceableLocations?: {
-        locationId: Types.ObjectId;
-        caste?: Caste[];
-        gotra?: Gotra[];
-    }[];
+    serviceableLocations: IServiceableLocation[];
+}
+export interface IDocumentVerification {
+    aadharCard?: string;
+    panCard?: string;
+    status: VerificationStatus;
+    rejectionReason?: string | null;
+}
+export interface IBankDocumentVerification {
+    bankPassbook?: string;
+    accountNumber?: string;
+    accountName?: string;
+    bankName?: string;
+    ifscCode?: string;
+    status: VerificationStatus;
+    rejectionReason?: string | null;
 }
 export interface IUser extends Document {
     phoneNumber?: string;
@@ -37,29 +53,16 @@ export interface IUser extends Document {
     fullName?: string;
     dob?: Date;
     gender?: Gender;
-    profileImage?: string;
+    profileImage?: string | null;
     isComplete: boolean;
     isResetVerified: boolean;
     referralCode?: string;
-    referredBy?: Types.ObjectId;
+    referredBy?: Types.ObjectId | null;
     resetPasswordToken?: string | null;
     resetPasswordExpires?: Date | null;
-    savedLocations?: string[];
-    documentVerification: {
-        aadharCard?: string;
-        panCard?: string;
-        status: VerificationStatus;
-        rejectionReason?: string | null;
-    };
-    bankDocumentVerification: {
-        bankPassbook?: string;
-        accountNumber?: string;
-        accountName?: string;
-        bankName?: string;
-        ifscCode?: string;
-        status: VerificationStatus;
-        rejectionReason?: string | null;
-    };
+    savedLocations: string[];
+    documentVerification: IDocumentVerification;
+    bankDocumentVerification: IBankDocumentVerification;
     caste?: Caste;
     gotra?: Gotra;
     isDocumentVerified: boolean;
@@ -67,6 +70,8 @@ export interface IUser extends Document {
     userReference: string;
     ratingSummary?: IRatingSummary;
     coordinatorProfile?: ICoordinatorProfile;
+    createdAt: Date;
+    updatedAt: Date;
 }
 export declare const User: import("mongoose").Model<IUser, {}, {}, {}, Document<unknown, {}, IUser, {}, import("mongoose").DefaultSchemaOptions> & IUser & Required<{
     _id: Types.ObjectId;

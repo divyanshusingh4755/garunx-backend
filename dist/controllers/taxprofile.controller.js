@@ -1,19 +1,33 @@
 import { TaxProfileService, } from "../services/taxprofile.service.js";
 function getAuthenticatedUserId(req) {
-    const user = req.user;
-    return (user?._id?.toString() ||
-        user?.id?.toString() ||
-        user?.userId?.toString());
+    const userId = req.user?.userId;
+    return userId
+        ? String(userId)
+        : null;
 }
 export class TaxProfileController {
     static async create(req, res, next) {
         try {
             const adminId = getAuthenticatedUserId(req);
-            const taxProfile = await TaxProfileService
-                .createTaxProfile({
-                ...req.body,
+            if (!adminId) {
+                return res.status(401).json({
+                    success: false,
+                    message: "Unauthorized",
+                });
+            }
+            const payload = {
+                name: req.body.name,
+                code: req.body.code,
+                treatment: req.body.treatment,
+                totalRate: req.body.totalRate,
                 createdBy: adminId,
-            });
+            };
+            if (Object.prototype.hasOwnProperty.call(req.body, "description")) {
+                payload.description =
+                    req.body.description;
+            }
+            const taxProfile = await TaxProfileService
+                .createTaxProfile(payload);
             return res.status(201).json({
                 success: true,
                 message: "Tax profile created successfully",
@@ -21,31 +35,47 @@ export class TaxProfileController {
             });
         }
         catch (error) {
-            next(error);
+            return next(error);
         }
     }
     static async list(req, res, next) {
         try {
-            const isActive = req.query.isActive === undefined
-                ? undefined
-                : req.query.isActive === "true";
             const filters = {};
-            if (req.query.search) {
-                filters.search = req.query.search;
+            if (typeof req.query.search ===
+                "string") {
+                filters.search =
+                    req.query.search;
             }
-            if (req.query.treatment) {
-                filters.treatment = req.query.treatment;
+            if (typeof req.query.treatment ===
+                "string") {
+                filters.treatment =
+                    req.query.treatment;
             }
-            if (req.query.isActive !== undefined) {
-                filters.isActive = req.query.isActive === "true";
+            if (req.query.isActive === "true") {
+                filters.isActive = true;
             }
-            if (req.query.page) {
-                filters.page = Number(req.query.page);
+            else if (req.query.isActive === "false") {
+                filters.isActive = false;
             }
-            if (req.query.limit) {
-                filters.limit = Number(req.query.limit);
+            const page = typeof req.query.page ===
+                "number"
+                ? req.query.page
+                : Number(req.query.page);
+            if (Number.isInteger(page) &&
+                page > 0) {
+                filters.page = page;
             }
-            const result = await TaxProfileService.getTaxProfiles(filters);
+            const limit = typeof req.query.limit ===
+                "number"
+                ? req.query.limit
+                : Number(req.query.limit);
+            if (Number.isInteger(limit) &&
+                limit > 0) {
+                filters.limit =
+                    Math.min(limit, 100);
+            }
+            const result = await TaxProfileService
+                .getTaxProfiles(filters);
             return res.status(200).json({
                 success: true,
                 message: "Tax profiles fetched successfully",
@@ -53,7 +83,7 @@ export class TaxProfileController {
             });
         }
         catch (error) {
-            next(error);
+            return next(error);
         }
     }
     static async listActive(_req, res, next) {
@@ -67,30 +97,53 @@ export class TaxProfileController {
             });
         }
         catch (error) {
-            next(error);
+            return next(error);
         }
     }
     static async getById(req, res, next) {
         try {
             const taxProfile = await TaxProfileService
-                .getTaxProfileById(req.params.taxProfileId);
+                .getTaxProfileById(req.params
+                .taxProfileId);
             return res.status(200).json({
                 success: true,
                 data: taxProfile,
             });
         }
         catch (error) {
-            next(error);
+            return next(error);
         }
     }
     static async update(req, res, next) {
         try {
             const adminId = getAuthenticatedUserId(req);
-            const taxProfile = await TaxProfileService
-                .updateTaxProfile(req.params.taxProfileId, {
-                ...req.body,
+            if (!adminId) {
+                return res.status(401).json({
+                    success: false,
+                    message: "Unauthorized",
+                });
+            }
+            const payload = {
                 updatedBy: adminId,
-            });
+            };
+            if (Object.prototype.hasOwnProperty.call(req.body, "name")) {
+                payload.name = req.body.name;
+            }
+            if (Object.prototype.hasOwnProperty.call(req.body, "treatment")) {
+                payload.treatment =
+                    req.body.treatment;
+            }
+            if (Object.prototype.hasOwnProperty.call(req.body, "totalRate")) {
+                payload.totalRate =
+                    req.body.totalRate;
+            }
+            if (Object.prototype.hasOwnProperty.call(req.body, "description")) {
+                payload.description =
+                    req.body.description;
+            }
+            const taxProfile = await TaxProfileService
+                .updateTaxProfile(req.params
+                .taxProfileId, payload);
             return res.status(200).json({
                 success: true,
                 message: "Tax profile updated successfully",
@@ -98,14 +151,21 @@ export class TaxProfileController {
             });
         }
         catch (error) {
-            next(error);
+            return next(error);
         }
     }
     static async updateStatus(req, res, next) {
         try {
             const adminId = getAuthenticatedUserId(req);
+            if (!adminId) {
+                return res.status(401).json({
+                    success: false,
+                    message: "Unauthorized",
+                });
+            }
             const taxProfile = await TaxProfileService
-                .updateTaxProfileStatus(req.params.taxProfileId, req.body.isActive, adminId);
+                .updateTaxProfileStatus(req.params
+                .taxProfileId, req.body.isActive, adminId);
             return res.status(200).json({
                 success: true,
                 message: req.body.isActive
@@ -115,7 +175,7 @@ export class TaxProfileController {
             });
         }
         catch (error) {
-            next(error);
+            return next(error);
         }
     }
 }

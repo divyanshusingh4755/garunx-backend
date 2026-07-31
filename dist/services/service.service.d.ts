@@ -1,23 +1,32 @@
-import { Types } from "mongoose";
-import mongoose from "mongoose";
+import mongoose, { Types } from "mongoose";
+import { type IService } from "../models/service.model.js";
+type CreateServiceInput = {
+    name: string;
+    shortDescription: string;
+    fullDescription: string;
+    categoryId: string;
+    thumbnailImage: string;
+    bannerImage?: string;
+};
+type UpdateServiceInput = Partial<Pick<IService, "name" | "shortDescription" | "fullDescription" | "thumbnailImage" | "bannerImage">> & {
+    categoryId?: string;
+};
 export declare class ServiceService {
-    static createService(payload: any): Promise<mongoose.Document<unknown, {}, import("../models/service.model.js").IService, {}, mongoose.DefaultSchemaOptions> & import("../models/service.model.js").IService & Required<{
+    static createService(payload: CreateServiceInput): Promise<mongoose.Document<unknown, {}, IService, {}, mongoose.DefaultSchemaOptions> & IService & {
         _id: Types.ObjectId;
-    }> & {
+    } & {
         __v: number;
     } & {
         id: string;
     }>;
-    static updateService(serviceId: string, payload: any): Promise<mongoose.Document<unknown, {}, import("../models/service.model.js").IService, {}, mongoose.DefaultSchemaOptions> & import("../models/service.model.js").IService & Required<{
+    static updateService(serviceId: string, payload: UpdateServiceInput): Promise<IService & {
         _id: Types.ObjectId;
-    }> & {
-        __v: number;
     } & {
-        id: string;
+        __v: number;
     }>;
-    static getServiceById(serviceId: string): Promise<import("../models/service.model.js").IService & Required<{
+    static getServiceById(serviceId: string): Promise<IService & {
         _id: Types.ObjectId;
-    }> & {
+    } & {
         __v: number;
     }>;
     static getDeactivationImpact(serviceId: string): Promise<{
@@ -34,20 +43,24 @@ export declare class ServiceService {
         }> & {
             __v: number;
         })[];
-        servicePricing: (import("../models/servicepricing.model.js").IServicePricing & Required<{
+        servicePricing: (import("../models/servicepricing.model.js").IServicePricing & {
             _id: Types.ObjectId;
-        }> & {
+        } & {
             __v: number;
         })[];
     }>;
     static toggleServiceStatus(serviceId: string, isActive: boolean, confirmed?: boolean): Promise<{
         success: boolean;
-        message: string;
+        unchanged: boolean;
+        service: IService & {
+            _id: Types.ObjectId;
+        } & {
+            __v: number;
+        };
         requiresConfirmation?: never;
         impact?: never;
     } | {
         requiresConfirmation: boolean;
-        message: string;
         impact: {
             packageUsageCount: number;
             packagePricingCount: number;
@@ -62,28 +75,59 @@ export declare class ServiceService {
             }> & {
                 __v: number;
             })[];
-            servicePricing: (import("../models/servicepricing.model.js").IServicePricing & Required<{
+            servicePricing: (import("../models/servicepricing.model.js").IServicePricing & {
                 _id: Types.ObjectId;
-            }> & {
+            } & {
                 __v: number;
             })[];
         };
         success?: never;
-    }>;
-    static getServicesByLocation(cityIds?: string[], categoryIds?: string[], limit?: number, page?: number, isActive?: boolean, isComplete?: boolean, sortBy?: string, sortOrder?: "asc" | "desc"): Promise<{
-        data: (import("../models/service.model.js").IService & Required<{
+        unchanged?: never;
+        service?: never;
+    } | {
+        success: boolean;
+        service: IService & {
             _id: Types.ObjectId;
-        }> & {
+        } & {
+            __v: number;
+        };
+        unchanged?: never;
+        requiresConfirmation?: never;
+        impact?: never;
+    }>;
+    static getServicesByLocation(params: {
+        cityIds?: string[];
+        categoryIds?: string[];
+        limit?: number;
+        page?: number;
+        isActive?: boolean;
+        isComplete?: boolean;
+        sortBy?: string;
+        sortOrder?: "asc" | "desc";
+    }): Promise<{
+        data: (IService & {
+            _id: Types.ObjectId;
+        } & {
             __v: number;
         })[];
         total: number;
         page: number;
         totalPages: number;
     }>;
-    static FindServices(searchTerm?: string, categoryId?: string, locationId?: string, limit?: number, page?: number, isActive?: boolean, isComplete?: boolean, sortBy?: string, sortOrder?: "asc" | "desc"): Promise<{
-        data: (import("../models/service.model.js").IService & Required<{
+    static findServices(params: {
+        searchTerm?: string;
+        categoryId?: string;
+        locationId?: string;
+        limit?: number;
+        page?: number;
+        isActive?: boolean;
+        isComplete?: boolean;
+        sortBy?: string;
+        sortOrder?: "asc" | "desc";
+    }): Promise<{
+        data: (IService & {
             _id: Types.ObjectId;
-        }> & {
+        } & {
             __v: number;
         })[];
         total: number;
@@ -96,35 +140,45 @@ export declare class ServiceService {
         success: boolean;
         message: string;
         locations: {
-            locationId: any;
-            name: any;
+            locationId: Types.ObjectId;
+            name: string;
             isActive: boolean;
         }[];
     }>;
     static removeServiceLocation(serviceId: string, locationId: string): Promise<{
         success: boolean;
+        unchanged: boolean;
         message: string;
         locations: import("../models/service.model.js").ILocationService[];
+    } | {
+        success: boolean;
+        message: string;
+        locations: import("../models/service.model.js").ILocationService[];
+        unchanged?: never;
     }>;
     static updateServiceTiers(serviceId: string, tiers: {
         tierId: string;
     }[]): Promise<{
         success: boolean;
+        unchanged: boolean;
         message: string;
-        tiers?: never;
+        tiers: import("../models/service.model.js").IServiceTier[];
     } | {
         success: boolean;
         message: string;
         tiers: import("../models/service.model.js").IServiceTier[];
+        unchanged?: never;
     }>;
     static removeServiceTier(serviceId: string, tierId: string): Promise<{
         success: boolean;
+        unchanged: boolean;
         message: string;
-        tiers?: never;
+        tiers: import("../models/service.model.js").IServiceTier[];
     } | {
         success: boolean;
         message: string;
         tiers: import("../models/service.model.js").IServiceTier[];
+        unchanged?: never;
     }>;
     static getFullService(serviceId: string): Promise<{
         service: {
@@ -132,8 +186,9 @@ export declare class ServiceService {
             name: string;
             shortDescription: string;
             fullDescription: string;
-            thumbnailImage: string | undefined;
+            thumbnailImage: string;
             bannerImage: string | undefined;
+            startingPrice: number;
             category: {
                 id: Types.ObjectId;
                 label: string;
@@ -144,7 +199,7 @@ export declare class ServiceService {
             isComplete: boolean;
             serviceReference: string;
         };
-        subServiceComponents: any[];
+        subServiceComponents: unknown[];
         locations: import("../models/service.model.js").ILocationService[];
         tiers: {
             tierId: Types.ObjectId;
@@ -158,14 +213,24 @@ export declare class ServiceService {
             name: string;
             shortDescription: string;
             fullDescription: string;
-            thumbnailImage: string | undefined;
+            thumbnailImage: string;
             bannerImage: string | undefined;
+            startingPrice: number;
             isActive: boolean;
             isComplete: boolean;
             serviceReference: string;
         };
-        subServiceComponents: any[];
-        locations: any[];
+        subServiceComponents: unknown[];
+        locations: {
+            locationDetails: {
+                locationId: any;
+                locationName: any;
+                city: any;
+            } | null;
+            name: string;
+            isActive: boolean;
+            locationId: Types.ObjectId;
+        }[];
         tiers: {
             tierId: Types.ObjectId;
             name: string;
@@ -178,4 +243,5 @@ export declare class ServiceService {
         issues: string[];
     }>;
 }
+export {};
 //# sourceMappingURL=service.service.d.ts.map

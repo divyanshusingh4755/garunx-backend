@@ -71,5 +71,10 @@ export declare enum MemberLifeStatus {
     ALIVE = "ALIVE",
     DECEASED = "DECEASED"
 }
-export type FamilyMemberSource = "CUSTOMER_SELF" | "COORDINATOR_BOOKING" | "ADMIN_MANUAL" | "SYSTEM_IMPORT";
+export declare enum FamilyMemberSource {
+    CUSTOMER_SELF = "CUSTOMER_SELF",
+    COORDINATOR_BOOKING = "COORDINATOR_BOOKING",
+    ADMIN_MANUAL = "ADMIN_MANUAL",
+    SYSTEM_IMPORT = "SYSTEM_IMPORT"
+}
 //# sourceMappingURL=enums.d.ts.map

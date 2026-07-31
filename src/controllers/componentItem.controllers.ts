@@ -1,93 +1,168 @@
 import type { Request, Response } from "express";
 import ComponentItemService from "../services/componentitem.service.js";
 
-export const createComponentItem = async (req: Request, res: Response) => {
-  try {
-    const componentItem = await ComponentItemService.createComponentItem(
-      req.body,
-    );
-
-    res.status(201).json({
-      success: true,
-      data: componentItem,
-    });
-  } catch (error: any) {
-    res.status(400).json({
-      success: false,
-      message: error.message || "Failed to create component item",
-    });
+const getStatusCode = (error: any): number => {
+  if (typeof error?.statusCode === "number") {
+    return error.statusCode;
   }
+
+  if (error?.name === "ValidationError") {
+    return 400;
+  }
+
+  if (error?.code === 11000) {
+    return 409;
+  }
+
+  return 500;
 };
 
-export const updateComponentItem = async (req: Request, res: Response) => {
+export const createComponentItem = async (
+  req: Request,
+  res: Response,
+) => {
   try {
-    const { componentItemId } = req.params;
-    const componentItem = await ComponentItemService.updateComponentItem(
-      componentItemId as string,
-      req.body,
-    );
-
-    res.status(200).json({
-      success: true,
-      data: componentItem,
-    });
-  } catch (error: any) {
-    res.status(400).json({
-      success: false,
-      message: error.message || "Failed to update component item",
-    });
-  }
-};
-
-export const getComponentItemById = async (req: Request, res: Response) => {
-  try {
-    const { componentItemId } = req.params;
-    const componentItem = await ComponentItemService.getComponentItemById(
-      componentItemId as string,
-    );
-
-    res.status(200).json({
-      success: true,
-      data: componentItem,
-    });
-  } catch (error: any) {
-    res.status(400).json({
-      success: false,
-      message: error.message || "Failed to get component item by id",
-    });
-  }
-};
-
-export const getAllComponentItems = async (req: Request, res: Response) => {
-  try {
-    const { searchTerm, limit, page, isActive, sortBy, sortOrder } = req.query;
-    const parseBool = (val: any) =>
-      val === "true" ? true : val === "false" ? false : undefined;
     const {
-      data,
-      total,
-      page: CurrentPage,
-      totalPages,
-    } = await ComponentItemService.getAllComponentItems(
-      searchTerm as string,
-      Number(limit) || 20,
-      Number(page) || 1,
-      parseBool(isActive),
-      (sortBy as string) || "name",
-      (sortOrder as "asc" | "desc") || "asc",
-    );
+      name,
+      price,
+      isActive,
+    } = req.body;
 
-    res.status(200).json({
+    const componentItem =
+      await ComponentItemService.createComponentItem({
+        name,
+
+        ...(price !== undefined && {
+          price,
+        }),
+
+        ...(isActive !== undefined && {
+          isActive,
+        }),
+      });
+
+    return res.status(201).json({
       success: true,
-      data,
-      total,
-      CurrentPage,
-      totalPages,
+      data: componentItem,
     });
   } catch (error: any) {
-    res.status(400).json({
+    return res.status(getStatusCode(error)).json({
       success: false,
-      message: error.message || "Failed to get all component item",
+      message:
+        error.message ||
+        "Failed to create component item",
+    });
+  }
+};
+
+export const updateComponentItem = async (
+  req: Request,
+  res: Response,
+) => {
+  try {
+    const componentItem =
+      await ComponentItemService.updateComponentItem(
+        req.params.componentItemId as string,
+        req.body,
+      );
+
+    return res.status(200).json({
+      success: true,
+      data: componentItem,
+    });
+  } catch (error: any) {
+    return res.status(getStatusCode(error)).json({
+      success: false,
+      message:
+        error.message ||
+        "Failed to update component item",
+    });
+  }
+};
+
+export const getComponentItemById = async (
+  req: Request,
+  res: Response,
+) => {
+  try {
+    const componentItem =
+      await ComponentItemService.getComponentItemById(
+        req.params.componentItemId as string,
+      );
+
+    return res.status(200).json({
+      success: true,
+      data: componentItem,
+    });
+  } catch (error: any) {
+    return res.status(getStatusCode(error)).json({
+      success: false,
+      message:
+        error.message ||
+        "Failed to get component item by id",
+    });
+  }
+};
+
+export const getAllComponentItems = async (
+  req: Request,
+  res: Response,
+) => {
+  try {
+    const {
+      searchTerm,
+      limit,
+      page,
+      isActive,
+      sortBy,
+      sortOrder,
+    } = req.query;
+
+    const activeStatus =
+      isActive === "true"
+        ? true
+        : isActive === "false"
+          ? false
+          : undefined;
+
+    const result =
+      await ComponentItemService.getAllComponentItems({
+        limit: limit ? Number(limit) : 20,
+        page: page ? Number(page) : 1,
+
+        sortBy:
+          typeof sortBy === "string"
+            ? sortBy
+            : "name",
+
+        sortOrder:
+          sortOrder === "asc" ||
+          sortOrder === "desc"
+            ? sortOrder
+            : "asc",
+
+        ...(typeof searchTerm === "string" && {
+          searchTerm,
+        }),
+
+        ...(activeStatus !== undefined && {
+          isActive: activeStatus,
+        }),
+      });
+
+    return res.status(200).json({
+      success: true,
+      data: result.data,
+      total: result.total,
+      currentPage: result.page,
+      totalPages: result.totalPages,
+    });
+  } catch (error: any) {
+    return res.status(getStatusCode(error)).json({
+      success: false,
+      message:
+        error.message ||
+        "Failed to get all component items",
     });
   }
 };
@@ -97,29 +172,41 @@ export const updateComponentItemStatus = async (
   res: Response,
 ) => {
   try {
-    const { componentItemId } = req.params;
-    const { isActive, confirmed } = req.body;
-
-    const result = await ComponentItemService.updateComponentItemStatus(
-      componentItemId as string,
+    const {
       isActive,
-      confirmed,
-    );
+      confirmed = false,
+    } = req.body;
 
-    if ((result as any)?.requiresConfirmation) {
+    const result =
+      await ComponentItemService.updateComponentItemStatus(
+        req.params.componentItemId as string,
+        isActive,
+        confirmed,
+      );
+
+    if (result.requiresConfirmation) {
       return res.status(200).json({
         success: true,
         requiresConfirmation: true,
-        message: "This component item is used in service configurations.",
+        message:
+          "This component item is used in service configurations.",
         data: result,
       });
     }
 
-    return res.status(200).json(result);
+    return res.status(200).json({
+      success: true,
+      message: `Component item ${
+        isActive ? "activated" : "deactivated"
+      } successfully`,
+      data: result,
+    });
   } catch (error: any) {
-    return res.status(400).json({
+    return res.status(getStatusCode(error)).json({
       success: false,
-      message: error.message || "Failed to update status of component item",
+      message:
+        error.message ||
+        "Failed to update status of component item",
     });
   }
 };

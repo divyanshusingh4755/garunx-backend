@@ -1,4 +1,4 @@
-import type { ILineTax, ITaxProfileSnapshot } from "../types/tax.types.js";
+import { type ILineTax, type ITaxProfileSnapshot } from "../types/tax.types.js";
 export interface CalculateLineTaxInput {
     /**
      * Original line price before discount.
@@ -13,7 +13,7 @@ export interface CalculateLineTaxInput {
      */
     profile: ITaxProfileSnapshot;
     /**
-     * State where your business is GST-registered.
+     * State where the business is GST-registered.
      */
     supplierStateCode: string;
     /**
@@ -24,6 +24,8 @@ export interface CalculateLineTaxInput {
 export declare class TaxCalculatorService {
     private static round;
     private static validateAmount;
+    private static validateProfile;
+    private static normalizeStateCode;
     private static resolveJurisdiction;
     static calculateLineTax(input: CalculateLineTaxInput): ILineTax;
 }

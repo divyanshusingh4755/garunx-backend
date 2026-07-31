@@ -11,24 +11,64 @@ interface CartValidationResult {
 declare class CartService {
     private static applyLineTax;
     private static round;
+    private static ensureUniqueIds;
     private static clearLineDiscounts;
     private static calculateCouponDiscount;
     private static allocateDiscountToCartLines;
     private static applyPricingResults;
     static ensureCartEditable(cart: ICart): void;
-    static createServiceCart(owner: CartOwner, payload: any): Promise<mongoose.Document<unknown, {}, ICart, {}, mongoose.DefaultSchemaOptions> & ICart & Required<{
-        _id: Types.ObjectId;
-    }> & {
-        __v: number;
-    } & {
-        id: string;
+    private static formatCartResponse;
+    static createServiceCart(owner: CartOwner, payload: any): Promise<{
+        _id: any;
+        cartType: string;
+        serviceId: any;
+        packageId: any;
+        name: any;
+        thumbnailImage: any;
+        categoryId: any;
+        tierId: any;
+        tierName: any;
+        locationId: any;
+        locationName: any;
+        items: import("./cart-pricing.engine.js").CalculatedComponentItem[] | import("./cart-pricing.engine.js").CalculatedServiceItem[];
+        addonComponents: any;
+        addonServices: any;
+        basePrice: any;
+        addonPrice: any;
+        subtotal: any;
+        discountAmount: any;
+        totalAmount: any;
+        taxSummary: any;
+        coupon: any;
+        status: any;
+        createdAt: any;
+        updatedAt: any;
     }>;
-    static createPackageCart(owner: CartOwner, payload: any): Promise<mongoose.Document<unknown, {}, ICart, {}, mongoose.DefaultSchemaOptions> & ICart & Required<{
-        _id: Types.ObjectId;
-    }> & {
-        __v: number;
-    } & {
-        id: string;
+    static createPackageCart(owner: CartOwner, payload: any): Promise<{
+        _id: any;
+        cartType: string;
+        serviceId: any;
+        packageId: any;
+        name: any;
+        thumbnailImage: any;
+        categoryId: any;
+        tierId: any;
+        tierName: any;
+        locationId: any;
+        locationName: any;
+        items: import("./cart-pricing.engine.js").CalculatedComponentItem[] | import("./cart-pricing.engine.js").CalculatedServiceItem[];
+        addonComponents: any;
+        addonServices: any;
+        basePrice: any;
+        addonPrice: any;
+        subtotal: any;
+        discountAmount: any;
+        totalAmount: any;
+        taxSummary: any;
+        coupon: any;
+        status: any;
+        createdAt: any;
+        updatedAt: any;
     }>;
     static getUserCarts(owner: CartOwner, filters?: any): Promise<{
         carts: (mongoose.Document<unknown, {}, ICart, {}, mongoose.DefaultSchemaOptions> & ICart & Required<{
@@ -48,21 +88,21 @@ declare class CartService {
         };
     }>;
     static getCartById(owner: CartOwner, cartId: string): Promise<{
-        service: import("../models/service.model.js").IService & Required<{
+        service: import("../models/service.model.js").IService & {
             _id: Types.ObjectId;
-        }> & {
+        } & {
             __v: number;
         };
         selectedComponents: {
-            component: (import("../models/component.model.js").IComponent & Required<{
+            component: (import("../models/component.model.js").IComponent & {
                 _id: Types.ObjectId;
-            }> & {
+            } & {
                 __v: number;
             }) | undefined;
             items: {
-                itemDetails: (import("../models/componentitem.model.js").IComponentItem & Required<{
+                itemDetails: (import("../models/componentitem.model.js").IComponentItem & {
                     _id: Types.ObjectId;
-                }> & {
+                } & {
                     __v: number;
                 }) | undefined;
                 itemId: Types.ObjectId;
@@ -76,15 +116,15 @@ declare class CartService {
             tax?: ILineTax;
         }[];
         addonComponents: {
-            component: (import("../models/component.model.js").IComponent & Required<{
+            component: (import("../models/component.model.js").IComponent & {
                 _id: Types.ObjectId;
-            }> & {
+            } & {
                 __v: number;
             }) | undefined;
             items: {
-                itemDetails: (import("../models/componentitem.model.js").IComponentItem & Required<{
+                itemDetails: (import("../models/componentitem.model.js").IComponentItem & {
                     _id: Types.ObjectId;
-                }> & {
+                } & {
                     __v: number;
                 }) | undefined;
                 itemId: Types.ObjectId;
@@ -102,8 +142,8 @@ declare class CartService {
         guestId?: string;
         serviceId?: Types.ObjectId;
         packageId?: Types.ObjectId;
-        couponId?: Types.ObjectId | undefined;
-        couponCode?: string | undefined;
+        couponId?: Types.ObjectId;
+        couponCode?: string;
         name: string;
         thumbnailImage?: string;
         categoryId: Types.ObjectId;
@@ -120,8 +160,8 @@ declare class CartService {
             caste?: string;
             gotra?: string;
         };
-        selectedServices?: ISelectedService[];
-        addonServices?: IAddonService[];
+        selectedServices: ISelectedService[];
+        addonServices: IAddonService[];
         scheduledDate?: Date;
         scheduledTime?: string;
         notes?: string;
@@ -152,15 +192,15 @@ declare class CartService {
         package: any;
         services: {
             components: {
-                component: (import("../models/component.model.js").IComponent & Required<{
+                component: (import("../models/component.model.js").IComponent & {
                     _id: Types.ObjectId;
-                }> & {
+                } & {
                     __v: number;
                 }) | undefined;
                 items: {
-                    itemDetails: (import("../models/componentitem.model.js").IComponentItem & Required<{
+                    itemDetails: (import("../models/componentitem.model.js").IComponentItem & {
                         _id: Types.ObjectId;
-                    }> & {
+                    } & {
                         __v: number;
                     }) | undefined;
                     itemId: Types.ObjectId;
@@ -172,40 +212,27 @@ declare class CartService {
                 componentId: Types.ObjectId;
                 tierId: Types.ObjectId;
                 isRequired: boolean;
+                createdAt: Date;
+                updatedAt: Date;
                 _id: Types.ObjectId;
-                $locals: Record<string, unknown>;
-                $op: "save" | "validate" | "remove" | null;
-                $where: Record<string, unknown>;
-                baseModelName?: string;
-                collection: mongoose.Collection;
-                db: mongoose.Connection;
-                errors?: mongoose.Error.ValidationError;
-                isNew: boolean;
-                schema: mongoose.Schema;
                 __v: number;
             }[];
             name: string;
             shortDescription: string;
             fullDescription: string;
             categoryId: Types.ObjectId;
-            thumbnailImage?: string;
+            thumbnailImage: string;
             bannerImage?: string;
             isActive: boolean;
             serviceReference: string;
             locations: import("../models/service.model.js").ILocationService[];
             tiers: import("../models/service.model.js").IServiceTier[];
             isComplete: boolean;
-            subServiceComponents?: any[];
+            startingPrice: number;
+            subServiceComponents?: unknown[];
+            createdAt: Date;
+            updatedAt: Date;
             _id: Types.ObjectId;
-            $locals: Record<string, unknown>;
-            $op: "save" | "validate" | "remove" | null;
-            $where: Record<string, unknown>;
-            baseModelName?: string;
-            collection: mongoose.Collection;
-            db: mongoose.Connection;
-            errors?: mongoose.Error.ValidationError;
-            isNew: boolean;
-            schema: mongoose.Schema;
             __v: number;
         }[];
         selectedServices: any[];
@@ -215,8 +242,8 @@ declare class CartService {
         guestId?: string;
         serviceId?: Types.ObjectId;
         packageId?: Types.ObjectId;
-        couponId?: Types.ObjectId | undefined;
-        couponCode?: string | undefined;
+        couponId?: Types.ObjectId;
+        couponCode?: string;
         name: string;
         thumbnailImage?: string;
         categoryId: Types.ObjectId;
@@ -233,8 +260,8 @@ declare class CartService {
             caste?: string;
             gotra?: string;
         };
-        selectedComponents?: ISelectedComponent[];
-        addonComponents?: ISelectedComponent[];
+        selectedComponents: ISelectedComponent[];
+        addonComponents: ISelectedComponent[];
         scheduledDate?: Date;
         scheduledTime?: string;
         notes?: string;

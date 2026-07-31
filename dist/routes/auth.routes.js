@@ -368,27 +368,77 @@ export const coordinatorListValidation = [
         .withMessage("Sort order must be asc or desc"),
     validate,
 ];
+const verifyOtpValidation = [
+    body("otp").notEmpty().withMessage("OTP is required").isLength({ min: 6, max: 6 }).withMessage("OTP must be 6 digits"),
+    body().custom(({ userId, email }) => {
+        if (!userId && !email)
+            throw new Error("User ID or email is required");
+        if (userId && email)
+            throw new Error("Provide either User ID or email, not both");
+        return true;
+    }),
+    body("userId").optional().isMongoId().withMessage("Invalid User ID"),
+    body("email").optional().isEmail().normalizeEmail(),
+    validate,
+];
+const resendOtpValidation = [
+    body().custom(({ userId, email, role }) => {
+        if (!userId && !email)
+            throw new Error("User ID or email is required");
+        if (userId && email)
+            throw new Error("Provide either User ID or email, not both");
+        if (email && !role)
+            throw new Error("Role is required for password reset OTP");
+        return true;
+    }),
+    body("userId").optional().isMongoId().withMessage("Invalid User ID"),
+    body("email").optional().isEmail().normalizeEmail(),
+    body("role").optional().isIn(Object.values(Role)).withMessage("Invalid role"),
+    validate,
+];
+const loginValidation = [
+    body("identifier").notEmpty().withMessage("Email or phone number is required").isString().trim(),
+    body("password").notEmpty().withMessage("Password is required"),
+    body("role").notEmpty().withMessage("Role is required").isIn(Object.values(Role)).withMessage("Invalid role"),
+    validate,
+];
+const forgotPasswordValidation = [
+    body("email").isEmail().withMessage("Valid email is required").normalizeEmail(),
+    body("role").notEmpty().withMessage("Role is required").isIn(Object.values(Role)).withMessage("Invalid role"),
+    validate,
+];
+const resetPasswordValidation = [
+    body("userId").isMongoId().withMessage("Invalid User ID"),
+    body("newPassword").isStrongPassword({ minLength: 8, minLowercase: 1, minUppercase: 1, minNumbers: 1, minSymbols: 0 })
+        .withMessage("Password must be at least 8 characters and include uppercase, lowercase, and a number"),
+    validate,
+];
+const changePasswordValidation = [
+    body("oldPassword").notEmpty().withMessage("Current password is required"),
+    body("newPassword").isStrongPassword({ minLength: 8, minLowercase: 1, minUppercase: 1, minNumbers: 1, minSymbols: 0 })
+        .withMessage("Password must be at least 8 characters and include uppercase, lowercase, and a number"),
+    validate,
+];
 // PUBLIC AUTH
 router.post("/register", registerValidation, register);
-router.post("/verify-otp", otpRateLimiter, verifyOtp);
-router.post("/resend-otp", otpRateLimiter, resendOtp);
-router.post("/login", authRateLimiter, login);
+router.post("/verify-otp", otpRateLimiter, verifyOtpValidation, verifyOtp);
+router.post("/resend-otp", otpRateLimiter, resendOtpValidation, resendOtp);
+router.post("/login", authRateLimiter, loginValidation, login);
 router.post("/social", authRateLimiter, socialRegisterValidation, socialAuth);
 router.post("/refresh-token", refreshToken);
 router.post("/logout", logout);
 // PASSWORD RECOVERY
-router.post("/forgot-password", passwordResetRateLimiter, forgotPassword);
-router.post("/reset-password", passwordResetRateLimiter, resetPassword);
+router.post("/forgot-password", passwordResetRateLimiter, forgotPasswordValidation, forgotPassword);
+router.post("/reset-password", passwordResetRateLimiter, resetPasswordValidation, resetPassword);
 // PROFILE COMPLETION 
 router.patch("/complete-profile", profileValidation, completeProfile);
 // CURRENT USER
 router.get("/me", authenticate, getCurrentUser);
 router.patch("/update-profile", authenticate, updateProfileValidation, updateProfile);
-router.post("/change-password", authenticate, changePassword);
+router.post("/change-password", authenticate, changePasswordValidation, changePassword);
 router.patch("/upload-documents", authenticate, documentUploadValidation, submitVerificationDocuments);
 // COORDINATOR SELF-MANAGEMENT
 router.patch("/coordinator/availability", authenticate, authorizeRoles(Role.COORDINATOR), coordinatorAvailabilityValidation, updateCoordinatorAvailability);
-router.patch("/coordinator/settings", authenticate, authorizeRoles(Role.COORDINATOR), coordinatorSettingsValidation, updateCoordinatorSettings);
 router.put("/coordinator/serviceable-locations", authenticate, authorizeRoles(Role.COORDINATOR), serviceableLocationsValidation, updateServiceableLocations);
 // ADMIN USERS
 router.get("/get-all-user", authenticate, authorizeRoles(Role.ADMIN), getAllUsers);
@@ -403,6 +453,7 @@ router.patch("/verify-documents", authenticate, authorizeRoles(Role.ADMIN), veri
 router.get("/coordinators", authenticate, authorizeRoles(Role.ADMIN), coordinatorListValidation, getCoordinators);
 router.get("/coordinators/:coordinatorId", authenticate, authorizeRoles(Role.ADMIN), coordinatorIdValidation, getCoordinatorById);
 router.patch("/coordinators/:coordinatorId/approval", authenticate, authorizeRoles(Role.ADMIN), coordinatorApprovalValidation, updateCoordinatorApproval);
+router.patch("/coordinators/:coordinatorId/settings", authenticate, authorizeRoles(Role.ADMIN), coordinatorSettingsValidation, updateCoordinatorSettings);
 // UPLOADS
 router.post("/upload-single", upload.single("image"), uploadSingle);
 router.post("/upload-multiple", upload.array("images", 5), uploadMutliple);

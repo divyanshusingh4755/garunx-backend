@@ -1,34 +1,63 @@
+import { Types, } from "mongoose";
 import { SubServiceComponent, } from "../models/subservices.model.js";
+import { Service } from "../models/service.model.js";
 import { escapeRegex } from "../utils/escapeRegex.js";
+const createHttpError = (message, statusCode) => {
+    const error = new Error(message);
+    error.statusCode = statusCode;
+    return error;
+};
 export class SubServiceComponentService {
-    static applyFilter(filterValue) {
-        if (!filterValue)
+    static applyServiceFilter(filterValue) {
+        if (!filterValue?.trim()) {
             return undefined;
-        const values = filterValue.split(",").map((val) => val.trim());
-        return { $in: values };
+        }
+        const values = filterValue
+            .split(",")
+            .map((value) => value.trim())
+            .filter(Boolean)
+            .map((value) => new Types.ObjectId(value));
+        return values.length > 0
+            ? {
+                $in: values,
+            }
+            : undefined;
     }
-    static async createSubServiceComponent(name, description, serviceId, image, isActive) {
-        const newSubServiceComponent = new SubServiceComponent({
-            name,
-            description,
-            serviceId,
-            image,
-            isActive,
+    static async createSubServiceComponent(payload) {
+        const serviceExists = await Service.exists({
+            _id: payload.serviceId,
         });
-        return await newSubServiceComponent.save();
+        if (!serviceExists) {
+            throw createHttpError("Service not found", 404);
+        }
+        return SubServiceComponent.create({
+            name: payload.name.trim(),
+            description: payload.description.trim(),
+            serviceId: payload.serviceId,
+            ...(payload.image !== undefined && {
+                image: payload.image,
+            }),
+            ...(payload.isActive !== undefined && {
+                isActive: payload.isActive,
+            }),
+        });
     }
-    static async findSubServiceComponents(searchTerm, serviceId, limit = 40, page = 1, isActive, sortBy = "createdAt", sortOrder = "desc") {
-        const skip = limit * (page - 1);
+    static async findSubServiceComponents(params) {
+        const { searchTerm, serviceId, limit = 40, page = 1, isActive, sortBy = "createdAt", sortOrder = "desc", } = params;
+        const safeLimit = Math.min(Math.max(limit, 1), 100);
+        const safePage = Math.max(page, 1);
+        const skip = safeLimit * (safePage - 1);
         const query = {};
         if (typeof isActive === "boolean") {
             query.isActive = isActive;
         }
-        if (serviceId) {
-            query.serviceId = this.applyFilter(serviceId);
+        const serviceFilter = this.applyServiceFilter(serviceId);
+        if (serviceFilter) {
+            query.serviceId = serviceFilter;
         }
-        const isTextSearch = !!searchTerm?.trim() && searchTerm.trim().length > 4;
-        if (searchTerm?.trim()) {
-            const term = searchTerm.trim();
+        const term = searchTerm?.trim();
+        const isTextSearch = Boolean(term && term.length > 4);
+        if (term) {
             if (isTextSearch) {
                 query.$text = {
                     $search: term,
@@ -41,8 +70,15 @@ export class SubServiceComponentService {
                 };
             }
         }
-        let sortCriteria = {};
-        if (isTextSearch && sortBy === "relevance") {
+        let projection;
+        let sortCriteria;
+        if (isTextSearch &&
+            sortBy === "relevance") {
+            projection = {
+                score: {
+                    $meta: "textScore",
+                },
+            };
             sortCriteria = {
                 score: {
                     $meta: "textScore",
@@ -50,84 +86,108 @@ export class SubServiceComponentService {
             };
         }
         else {
-            sortCriteria[sortBy] = sortOrder === "desc" ? -1 : 1;
-            if (sortBy !== "createdAt") {
+            const allowedSortFields = new Set([
+                "name",
+                "createdAt",
+                "updatedAt",
+                "isActive",
+            ]);
+            const safeSortBy = allowedSortFields.has(sortBy)
+                ? sortBy
+                : "createdAt";
+            sortCriteria = {
+                [safeSortBy]: sortOrder === "asc" ? 1 : -1,
+            };
+            if (safeSortBy !== "createdAt") {
                 sortCriteria.createdAt = -1;
             }
         }
-        let projection = {};
-        if (isTextSearch && sortBy === "relevance") {
-            projection = {
-                score: {
-                    $meta: "textScore",
-                },
-            };
-        }
-        try {
-            const [data, total] = await Promise.all([
-                SubServiceComponent.find(query, projection)
-                    .populate("serviceId")
-                    .sort(sortCriteria)
-                    .skip(skip)
-                    .limit(limit)
-                    .lean(),
-                SubServiceComponent.countDocuments(query),
-            ]);
-            return {
-                data,
-                total,
-                page,
-                totalPages: Math.ceil(total / limit),
-            };
-        }
-        catch (error) {
-            throw new Error(`Sub Service Component fetch failed: ${error.message}`);
-        }
+        const [data, total] = await Promise.all([
+            SubServiceComponent.find(query, projection)
+                .populate("serviceId", "name serviceReference isActive")
+                .sort(sortCriteria)
+                .skip(skip)
+                .limit(safeLimit)
+                .lean(),
+            SubServiceComponent.countDocuments(query),
+        ]);
+        return {
+            data,
+            total,
+            page: safePage,
+            totalPages: Math.ceil(total / safeLimit),
+        };
     }
     static async updateSubServiceComponent(subServiceComponentId, updateData) {
-        try {
-            const updatedSubServiceComponent = await SubServiceComponent.findByIdAndUpdate(subServiceComponentId, { $set: updateData }, { new: true, runValidators: true })
-                .populate("serviceId")
-                .lean();
-            if (!updatedSubServiceComponent) {
-                throw new Error("Sub Service Component not found");
+        if (updateData.serviceId !== undefined) {
+            const serviceExists = await Service.exists({
+                _id: updateData.serviceId,
+            });
+            if (!serviceExists) {
+                throw createHttpError("Service not found", 404);
             }
-            return updatedSubServiceComponent;
         }
-        catch (error) {
-            throw new Error(`Sub Service Component Update Failed: ${error.message}`);
+        const normalizedUpdate = {
+            ...updateData,
+        };
+        if (updateData.name !== undefined) {
+            normalizedUpdate.name =
+                updateData.name.trim();
         }
+        if (updateData.description !== undefined) {
+            normalizedUpdate.description =
+                updateData.description.trim();
+        }
+        const updatedSubServiceComponent = await SubServiceComponent.findByIdAndUpdate(subServiceComponentId, {
+            $set: normalizedUpdate,
+        }, {
+            new: true,
+            runValidators: true,
+        })
+            .populate("serviceId", "name serviceReference isActive")
+            .lean();
+        if (!updatedSubServiceComponent) {
+            throw createHttpError("Sub Service Component not found", 404);
+        }
+        return updatedSubServiceComponent;
     }
     static async toggleSubServiceComponent(subServiceComponentId, status) {
-        try {
-            const updatedSubServiceComponent = await SubServiceComponent.findByIdAndUpdate(subServiceComponentId, { isActive: status }, { new: true, runValidators: true })
-                .populate("serviceId")
-                .lean();
-            if (!updatedSubServiceComponent) {
-                throw new Error("Sub Service Component not found");
-            }
-            return updatedSubServiceComponent;
+        const existing = await SubServiceComponent.findById(subServiceComponentId)
+            .select("_id isActive")
+            .lean();
+        if (!existing) {
+            throw createHttpError("Sub Service Component not found", 404);
         }
-        catch (error) {
-            throw new Error(`Toggle failed: ${error.message}`);
+        if (existing.isActive === status) {
+            return {
+                ...existing,
+                unchanged: true,
+            };
         }
+        const updatedSubServiceComponent = await SubServiceComponent.findByIdAndUpdate(subServiceComponentId, {
+            $set: {
+                isActive: status,
+            },
+        }, {
+            new: true,
+            runValidators: true,
+        })
+            .populate("serviceId", "name serviceReference isActive")
+            .lean();
+        if (!updatedSubServiceComponent) {
+            throw createHttpError("Sub Service Component not found", 404);
+        }
+        return updatedSubServiceComponent;
     }
     static async getSubServiceComponentById(subServiceComponentId) {
-        try {
-            const subServiceComponent = await SubServiceComponent.findById(subServiceComponentId)
-                .populate("serviceId")
-                .lean()
-                .exec();
-            if (!subServiceComponent) {
-                const error = new Error("Sub Service Component not found");
-                error.statusCode = 404;
-                throw error;
-            }
-            return subServiceComponent;
+        const subServiceComponent = await SubServiceComponent.findById(subServiceComponentId)
+            .populate("serviceId", "name serviceReference isActive")
+            .lean()
+            .exec();
+        if (!subServiceComponent) {
+            throw createHttpError("Sub Service Component not found", 404);
         }
-        catch (error) {
-            throw new Error(`Failed to get Sub Service Component: ${error.message}`);
-        }
+        return subServiceComponent;
     }
 }
 //# sourceMappingURL=subservices.service.js.map

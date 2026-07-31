@@ -1,8 +1,69 @@
-import type { Request, Response } from "express";
-import { CouponService } from "../services/coupon.service.js";
-import type { ICoupon } from "../models/coupon.model.js";
+import type {
+  Request,
+  Response,
+} from "express";
 
-export const createCoupon = async (req: Request, res: Response) => {
+import {
+  CouponService,
+} from "../services/coupon.service.js";
+
+import type {
+  ICoupon,
+} from "../models/coupon.model.js";
+
+type CouponUpdateData = Partial<
+  Pick<
+    ICoupon,
+    | "name"
+    | "couponCode"
+    | "applicableOn"
+    | "services"
+    | "packages"
+    | "assignedUserId"
+    | "discount"
+    | "discountType"
+    | "usageLimit"
+    | "validFrom"
+    | "validTill"
+    | "minOrderAmount"
+    | "maxDiscountAmount"
+    | "isFirstOrderOnly"
+    | "isActive"
+  >
+>;
+
+const getErrorMessage = (
+  error: unknown,
+  fallback: string,
+): string =>
+  error instanceof Error
+    ? error.message
+    : fallback;
+
+const getErrorStatus = (
+  error: unknown,
+): number => {
+  if (
+    error instanceof Error &&
+    error.message === "Coupon not found"
+  ) {
+    return 404;
+  }
+
+  if (
+    error instanceof Error &&
+    error.message.includes("already exists")
+  ) {
+    return 409;
+  }
+
+  return 400;
+};
+
+export const createCoupon = async (
+  req: Request,
+  res: Response,
+) => {
   try {
     const {
       name,
@@ -10,6 +71,7 @@ export const createCoupon = async (req: Request, res: Response) => {
       applicableOn,
       services,
       packages,
+      assignedUserId,
       discount,
       discountType,
       usageLimit,
@@ -21,206 +83,290 @@ export const createCoupon = async (req: Request, res: Response) => {
       isActive,
     } = req.body;
 
-    const coupon = await CouponService.createCoupon({
+    const couponData: CouponUpdateData = {
       name,
       couponCode,
       applicableOn,
-      services: services || [],
-      packages: packages || [],
-      discount: Number(discount),
+      services: services ?? [],
+      packages: packages ?? [],
+      discount,
       discountType,
-      usageLimit: Number(usageLimit) || 0,
-      validFrom,
-      validTill,
-      minOrderAmount: Number(minOrderAmount) || 0,
-      isFirstOrderOnly: isFirstOrderOnly ?? false,
+      usageLimit: usageLimit ?? 0,
+      minOrderAmount: minOrderAmount ?? 0,
+      isFirstOrderOnly:
+        isFirstOrderOnly ?? false,
       isActive: isActive ?? true,
-      ...(maxDiscountAmount !== undefined
-        ? { maxDiscountAmount: Number(maxDiscountAmount) }
-        : {}),
-    });
+    };
+
+    if (assignedUserId !== undefined) {
+      couponData.assignedUserId =
+        assignedUserId;
+    }
+
+    if (validFrom !== undefined) {
+      couponData.validFrom =
+        new Date(validFrom);
+    }
+
+    if (validTill !== undefined) {
+      couponData.validTill =
+        new Date(validTill);
+    }
+
+    if (maxDiscountAmount !== undefined) {
+      couponData.maxDiscountAmount =
+        maxDiscountAmount;
+    }
+
+    const coupon =
+      await CouponService.createCoupon(
+        couponData,
+      );
 
     return res.status(201).json({
       success: true,
       message: "Coupon created successfully",
       data: coupon,
     });
-  } catch (error: any) {
-    const status = error.message?.includes("already exists") ? 409 : 400;
-
-    return res.status(status).json({
-      success: false,
-      message: error.message,
-    });
+  } catch (error: unknown) {
+    return res
+      .status(getErrorStatus(error))
+      .json({
+        success: false,
+        message: getErrorMessage(
+          error,
+          "Failed to create coupon",
+        ),
+      });
   }
 };
 
-export const updateCoupon = async (req: Request, res: Response) => {
+export const updateCoupon = async (
+  req: Request,
+  res: Response,
+) => {
   try {
     const { id } = req.params;
+    const updateData: CouponUpdateData = {};
 
-    const {
-      name,
-      couponCode,
-      applicableOn,
-      services,
-      packages,
-      discount,
-      discountType,
-      usageLimit,
-      validFrom,
-      validTill,
-      minOrderAmount,
-      maxDiscountAmount,
-      isFirstOrderOnly,
-      isActive,
-    } = req.body;
+    const directFields = [
+      "name",
+      "couponCode",
+      "applicableOn",
+      "services",
+      "packages",
+      "assignedUserId",
+      "discount",
+      "discountType",
+      "usageLimit",
+      "minOrderAmount",
+      "maxDiscountAmount",
+      "isFirstOrderOnly",
+      "isActive",
+    ] as const;
 
-    const updateData: Partial<ICoupon> = {};
+    for (const field of directFields) {
+      if (
+        Object.prototype.hasOwnProperty.call(
+          req.body,
+          field,
+        )
+      ) {
+        Object.assign(updateData, {
+          [field]: req.body[field],
+        });
+      }
+    }
 
-    if (name !== undefined) updateData.name = name;
+    if (
+      Object.prototype.hasOwnProperty.call(
+        req.body,
+        "validFrom",
+      )
+    ) {
+      updateData.validFrom =
+        new Date(req.body.validFrom);
+    }
 
-    if (couponCode !== undefined) updateData.couponCode = couponCode;
+    if (
+      Object.prototype.hasOwnProperty.call(
+        req.body,
+        "validTill",
+      )
+    ) {
+      updateData.validTill =
+        new Date(req.body.validTill);
+    }
 
-    if (applicableOn !== undefined) updateData.applicableOn = applicableOn;
-
-    if (services !== undefined) updateData.services = services;
-
-    if (packages !== undefined) updateData.packages = packages;
-
-    if (discount !== undefined) updateData.discount = Number(discount);
-
-    if (discountType !== undefined) updateData.discountType = discountType;
-
-    if (usageLimit !== undefined) updateData.usageLimit = Number(usageLimit);
-
-    if (validFrom !== undefined) updateData.validFrom = new Date(validFrom);
-
-    if (validTill !== undefined) updateData.validTill = new Date(validTill);
-
-    if (minOrderAmount !== undefined)
-      updateData.minOrderAmount = Number(minOrderAmount);
-
-    if (maxDiscountAmount !== undefined)
-      updateData.maxDiscountAmount = Number(maxDiscountAmount);
-
-    if (isFirstOrderOnly !== undefined)
-      updateData.isFirstOrderOnly = isFirstOrderOnly;
-
-    if (isActive !== undefined) updateData.isActive = isActive;
-
-    const coupon = await CouponService.updateCoupon(id as string, updateData);
+    const coupon =
+      await CouponService.updateCoupon(
+        id as string,
+        updateData,
+      );
 
     return res.status(200).json({
       success: true,
       message: "Coupon updated successfully",
       data: coupon,
     });
-  } catch (error: any) {
-    const status =
-      error.message === "Coupon not found"
-        ? 404
-        : error.message?.includes("already exists")
-          ? 409
-          : 400;
-
-    return res.status(status).json({
-      success: false,
-      message: error.message,
-    });
+  } catch (error: unknown) {
+    return res
+      .status(getErrorStatus(error))
+      .json({
+        success: false,
+        message: getErrorMessage(
+          error,
+          "Failed to update coupon",
+        ),
+      });
   }
 };
 
-export const validateCoupon = async (req: Request, res: Response) => {
+export const validateCoupon = async (
+  req: Request,
+  res: Response,
+) => {
   try {
     const userId = req.user?.userId;
-    const { couponCode, serviceId, packageId, amount, isFirstOrder } = req.body;
 
     if (!userId) {
-      return res
-        .status(401)
-        .json({ success: false, message: "Unauthorized access" });
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized access",
+      });
     }
 
-    const result = await CouponService.validateCoupon({
+    const {
       couponCode,
       serviceId,
       packageId,
-      orderAmount: Number(amount),
+      amount,
+      isFirstOrder,
+    } = req.body;
+
+    const input = {
+      couponCode,
+      orderAmount: amount,
       userId,
-      isFirstOrder: Boolean(isFirstOrder),
-    });
+      isFirstOrder:
+        isFirstOrder ?? false,
+      ...(serviceId !== undefined
+        ? { serviceId }
+        : {}),
+      ...(packageId !== undefined
+        ? { packageId }
+        : {}),
+    };
+
+    const result =
+      await CouponService.validateCoupon(
+        input,
+      );
 
     return res.status(200).json({
       success: true,
       data: result,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     return res.status(400).json({
       success: false,
-      message: error.message,
+      message: getErrorMessage(
+        error,
+        "Failed to validate coupon",
+      ),
     });
   }
 };
 
-export const getCouponById = async (req: Request, res: Response) => {
+export const getCouponById = async (
+  req: Request,
+  res: Response,
+) => {
   try {
-    const { id } = req.params;
+    const coupon =
+      await CouponService.getCouponById(
+        req.params.id as string,
+      );
 
-    const coupon = await CouponService.getCouponById(id as string);
-
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       data: coupon,
     });
-  } catch (error: any) {
-    res.status(error.message === "Coupon not found" ? 404 : 400).json({
-      success: false,
-      message: error.message,
-    });
+  } catch (error: unknown) {
+    return res
+      .status(getErrorStatus(error))
+      .json({
+        success: false,
+        message: getErrorMessage(
+          error,
+          "Failed to fetch coupon",
+        ),
+      });
   }
 };
 
-export const deleteCoupon = async (req: Request, res: Response) => {
+export const deleteCoupon = async (
+  req: Request,
+  res: Response,
+) => {
   try {
-    const { id } = req.params;
+    await CouponService.deleteCoupon(
+      req.params.id as string,
+    );
 
-    await CouponService.deleteCoupon(id as string);
-
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       message: "Coupon deleted successfully",
     });
-  } catch (error: any) {
-    res.status(error.message === "Coupon not found" ? 404 : 400).json({
-      success: false,
-      message: error.message,
-    });
+  } catch (error: unknown) {
+    return res
+      .status(getErrorStatus(error))
+      .json({
+        success: false,
+        message: getErrorMessage(
+          error,
+          "Failed to delete coupon",
+        ),
+      });
   }
 };
 
-export const toggleCouponStatus = async (req: Request, res: Response) => {
+export const toggleCouponStatus = async (
+  req: Request,
+  res: Response,
+) => {
   try {
-    const { id } = req.params;
+    const coupon =
+      await CouponService.toggleCouponStatus(
+        req.params.id as string,
+      );
 
-    const coupon = await CouponService.toggleCouponStatus(id as string);
-
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       message: `Coupon ${
-        coupon.isActive ? "activated" : "deactivated"
+        coupon.isActive
+          ? "activated"
+          : "deactivated"
       } successfully`,
       data: coupon,
     });
-  } catch (error: any) {
-    res.status(error.message === "Coupon not found" ? 404 : 400).json({
-      success: false,
-      message: error.message,
-    });
+  } catch (error: unknown) {
+    return res
+      .status(getErrorStatus(error))
+      .json({
+        success: false,
+        message: getErrorMessage(
+          error,
+          "Failed to update coupon status",
+        ),
+      });
   }
 };
 
-export const getAllCoupons = async (req: Request, res: Response) => {
+export const getAllCoupons = async (
+  req: Request,
+  res: Response,
+) => {
   try {
     const {
       searchTerm,
@@ -233,25 +379,60 @@ export const getAllCoupons = async (req: Request, res: Response) => {
       sortOrder,
     } = req.query;
 
-    const result = await CouponService.findCoupons(
-      searchTerm as string,
-      Number(limit) || 20,
-      Number(page) || 1,
-      isActive === "true" ? true : isActive === "false" ? false : undefined,
-      assignedUserId as string,
-      applicableOn as string | string[],
-      (sortBy as string) || "createdAt",
-      (sortOrder as "asc" | "desc") || "desc",
-    );
+    const parsedLimit =
+      typeof limit === "number"
+        ? limit
+        : Number(limit);
 
-    res.status(200).json({
+    const parsedPage =
+      typeof page === "number"
+        ? page
+        : Number(page);
+
+    const result =
+      await CouponService.findCoupons(
+        typeof searchTerm === "string"
+          ? searchTerm
+          : undefined,
+        Number.isInteger(parsedLimit) &&
+          parsedLimit > 0
+          ? Math.min(parsedLimit, 100)
+          : 20,
+        Number.isInteger(parsedPage) &&
+          parsedPage > 0
+          ? parsedPage
+          : 1,
+        isActive === "true"
+          ? true
+          : isActive === "false"
+            ? false
+            : undefined,
+        typeof assignedUserId === "string"
+          ? assignedUserId
+          : undefined,
+        typeof applicableOn === "string" ||
+          Array.isArray(applicableOn)
+          ? applicableOn as string | string[]
+          : undefined,
+        typeof sortBy === "string"
+          ? sortBy
+          : "createdAt",
+        sortOrder === "asc"
+          ? "asc"
+          : "desc",
+      );
+
+    return res.status(200).json({
       success: true,
       ...result,
     });
-  } catch (error: any) {
-    res.status(400).json({
+  } catch (error: unknown) {
+    return res.status(400).json({
       success: false,
-      message: error.message || "Failed to fetch coupons",
+      message: getErrorMessage(
+        error,
+        "Failed to fetch coupons",
+      ),
     });
   }
 };

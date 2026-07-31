@@ -1,62 +1,132 @@
-import { State, type IState } from "../models/state.model.js";
+import {
+  type QueryFilter,
+  type SortOrder,
+} from "mongoose";
+import {
+  State,
+  type IState,
+  type IGeoPoint,
+} from "../models/state.model.js";
 import { escapeRegex } from "../utils/escapeRegex.js";
 
+type StateUpdate = Partial<
+  Pick<
+    IState,
+    | "country"
+    | "name"
+    | "gstCode"
+    | "image"
+    | "description"
+    | "isActive"
+    | "location"
+  >
+>;
+
+const createHttpError = (
+  message: string,
+  statusCode: number,
+) => {
+  const error = new Error(message) as Error & {
+    statusCode: number;
+  };
+
+  error.statusCode = statusCode;
+  return error;
+};
+
 export class StateService {
-  private static applyFilter(filterValue?: string) {
-    if (!filterValue) return undefined;
-    const values = filterValue.split(",").map((val) => val.trim());
-    return { $in: values };
+  private static applyFilter(
+    filterValue?: string,
+  ): { $in: string[] } | undefined {
+    if (!filterValue?.trim()) return undefined;
+
+    const values = filterValue
+      .split(",")
+      .map((value) => value.trim())
+      .filter(Boolean);
+
+    return values.length > 0 ? { $in: values } : undefined;
   }
 
-  static async createState(
-    name: string,
-    country: string,
-    gstCode: string,
-    image?: string,
-    description?: string,
-    location?: {
-      type: "Point";
-      coordinates: [number, number];
-    },
-  ) {
-    const newState = new State({
-      name: name.trim(),
-      country: country.trim(),
-      gstCode: gstCode.trim(),
+  static async createState(params: {
+    name: string;
+    country: string;
+    gstCode: string;
+    image?: string;
+    description?: string;
+    location?: IGeoPoint;
+  }) {
+    const {
+      name,
+      country,
+      gstCode,
       image,
       description,
       location,
-    });
+    } = params;
 
-    return newState.save();
+    return State.create({
+      name: name.trim(),
+      country: country.trim(),
+      gstCode: gstCode.trim(),
+
+      ...(image !== undefined && {
+        image,
+      }),
+
+      ...(description !== undefined && {
+        description,
+      }),
+
+      ...(location !== undefined && {
+        location,
+      }),
+    });
   }
 
-  static async FindState(
-    searchTerm?: string,
-    countryFilter?: string,
-    stateFilter?: string,
-    limit: number = 40,
-    page: number = 1,
-    isActive?: boolean,
-    sortBy: string = "createdAt",
-    sortOrder: "asc" | "desc" = "desc",
-  ) {
-    const skip = limit * (page - 1);
-    const query: any = {};
+  static async findState(params: {
+    searchTerm?: string;
+    countryFilter?: string;
+    stateFilter?: string;
+    limit?: number;
+    page?: number;
+    isActive?: boolean;
+    sortBy?: string;
+    sortOrder?: "asc" | "desc";
+  }) {
+    const {
+      searchTerm,
+      countryFilter,
+      stateFilter,
+      limit = 40,
+      page = 1,
+      isActive,
+      sortBy = "createdAt",
+      sortOrder = "desc",
+    } = params;
+
+    const safeLimit = Math.min(Math.max(limit, 1), 100);
+    const safePage = Math.max(page, 1);
+    const skip = safeLimit * (safePage - 1);
+
+    const query: QueryFilter<IState> = {};
 
     if (typeof isActive === "boolean") {
       query.isActive = isActive;
     }
 
-    if (countryFilter) query.country = this.applyFilter(countryFilter);
-    if (stateFilter) query.name = this.applyFilter(stateFilter);
+    const countryQuery =
+      this.applyFilter(countryFilter);
+    const stateQuery =
+      this.applyFilter(stateFilter);
 
-    const isTextSearch =
-      !!searchTerm?.trim() && searchTerm.trim().length > 4;
+    if (countryQuery) query.country = countryQuery;
+    if (stateQuery) query.name = stateQuery;
 
-    if (searchTerm?.trim()) {
-      const term = searchTerm.trim();
+    const term = searchTerm?.trim();
+    const isTextSearch = Boolean(term && term.length > 4);
 
+    if (term) {
       if (isTextSearch) {
         query.$text = {
           $search: term,
@@ -69,8 +139,14 @@ export class StateService {
       }
     }
 
-    let sortCriteria: any = {};
-    let projection: any = {};
+    let projection:
+      | Record<string, unknown>
+      | undefined;
+
+    let sortCriteria: Record<
+      string,
+      SortOrder | { $meta: "textScore" }
+    >;
 
     if (isTextSearch && sortBy === "relevance") {
       projection = {
@@ -85,41 +161,49 @@ export class StateService {
         },
       };
     } else {
-      sortCriteria[sortBy] = sortOrder === "desc" ? -1 : 1;
+      const allowedSortFields = new Set([
+        "name",
+        "country",
+        "gstCode",
+        "createdAt",
+        "updatedAt",
+      ]);
 
-      if (sortBy !== "createdAt") {
+      const safeSortBy = allowedSortFields.has(sortBy)
+        ? sortBy
+        : "createdAt";
+
+      sortCriteria = {
+        [safeSortBy]: sortOrder === "asc" ? 1 : -1,
+      };
+
+      if (safeSortBy !== "createdAt") {
         sortCriteria.createdAt = -1;
       }
     }
 
-    try {
-      const [data, total] = await Promise.all([
-        State.find(query, projection)
-          .sort(sortCriteria)
-          .skip(skip)
-          .limit(limit)
-          .lean(),
-        State.countDocuments(query),
-      ]);
+    const [data, total] = await Promise.all([
+      State.find(query, projection)
+        .sort(sortCriteria)
+        .skip(skip)
+        .limit(safeLimit)
+        .lean(),
 
-      return { data, total, page, totalPages: Math.ceil(total / limit) };
-    } catch (error: any) {
-      throw new Error(`State fetch failed: ${error.message}`);
-    }
+      State.countDocuments(query),
+    ]);
+
+    return {
+      data,
+      total,
+      page: safePage,
+      totalPages: Math.ceil(total / safeLimit),
+    };
   }
 
   static async updateState(
     stateId: string,
-    updateData: Partial<IState>,
+    updateData: StateUpdate,
   ) {
-    if (updateData.location?.coordinates) {
-      updateData.location = {
-        type: "Point",
-        coordinates:
-          updateData.location.coordinates,
-      };
-    }
-
     const updatedState =
       await State.findByIdAndUpdate(
         stateId,
@@ -133,38 +217,48 @@ export class StateService {
       ).lean();
 
     if (!updatedState) {
-      throw new Error("State not found");
+      throw createHttpError("State not found", 404);
     }
 
     return updatedState;
   }
 
-  static async softDeleteState(stateId: string, status: boolean) {
-    try {
-      const deletedState = await State.findByIdAndUpdate(
+  static async softDeleteState(
+    stateId: string,
+    status: boolean,
+  ) {
+    const updatedState =
+      await State.findByIdAndUpdate(
         stateId,
-        { isActive: status },
-        { new: true, runValidators: true },
+        {
+          $set: {
+            isActive: status,
+          },
+        },
+        {
+          new: true,
+          runValidators: true,
+        },
       ).lean();
 
-      if (!deletedState) throw new Error("State not found");
-      return deletedState;
-    } catch (error: any) {
-      throw new Error(`Delete failed: ${error.message}`);
+    if (!updatedState) {
+      throw createHttpError("State not found", 404);
     }
+
+    return updatedState;
   }
 
-  static async getStateById(stateId: string) {
-    try {
-      const state = await State.findById(stateId).lean().exec();
-      if (!state) {
-        const error = new Error("state not found");
-        (error as any).statusCode = 404;
-        throw error;
-      }
-      return state;
-    } catch (error: any) {
-      throw new Error(`Failed to get state: ${error.message}`);
+  static async getStateById(
+    stateId: string,
+  ) {
+    const state = await State.findById(stateId)
+      .lean()
+      .exec();
+
+    if (!state) {
+      throw createHttpError("State not found", 404);
     }
+
+    return state;
   }
 }

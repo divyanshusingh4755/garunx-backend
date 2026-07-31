@@ -1,8 +1,44 @@
 import type { Request, Response } from "express";
+
 import { FAQService } from "../services/faq.service.js";
 import type { IFAQ } from "../models/faq.model.js";
 
-export const createFaq = async (req: Request, res: Response) => {
+type FaqUpdateData = Partial<
+  Pick<
+    IFAQ,
+    | "name"
+    | "question"
+    | "answer"
+    | "faqType"
+    | "displayOrder"
+    | "isActive"
+  >
+>;
+
+const getErrorMessage = (
+  error: unknown,
+  fallback: string,
+): string => {
+  return error instanceof Error
+    ? error.message
+    : fallback;
+};
+
+const getErrorStatus = (error: unknown): number => {
+  if (
+    error instanceof Error &&
+    error.message === "FAQ not found"
+  ) {
+    return 404;
+  }
+
+  return 400;
+};
+
+export const createFaq = async (
+  req: Request,
+  res: Response,
+) => {
   try {
     const {
       name,
@@ -18,119 +54,177 @@ export const createFaq = async (req: Request, res: Response) => {
       question,
       answer,
       faqType,
-      displayOrder: Number(displayOrder ?? 0),
-      isActive: isActive ?? true,
+      displayOrder:
+        displayOrder === undefined
+          ? 0
+          : displayOrder,
+      isActive:
+        isActive === undefined
+          ? true
+          : isActive,
     });
 
-    res.status(201).json({
+    return res.status(201).json({
       success: true,
       message: "FAQ created successfully",
       data: faq,
     });
-  } catch (error: any) {
-    res.status(400).json({
+  } catch (error: unknown) {
+    return res.status(400).json({
       success: false,
-      message: error.message,
+      message: getErrorMessage(
+        error,
+        "Failed to create FAQ",
+      ),
     });
   }
 };
 
-export const updateFaq = async (req: Request, res: Response) => {
+export const updateFaq = async (
+  req: Request,
+  res: Response,
+) => {
   try {
     const { id } = req.params;
+    const updateData: FaqUpdateData = {};
 
-    const {
-      name,
-      question,
-      answer,
-      faqType,
-      displayOrder,
-      isActive,
-    } = req.body;
+    const allowedFields = [
+      "name",
+      "question",
+      "answer",
+      "faqType",
+      "displayOrder",
+      "isActive",
+    ] as const;
 
-    const updateData: Partial<IFAQ> = {
-      name,
-      question,
-      answer,
-      faqType,
-      isActive,
-    };
-
-    if (displayOrder !== undefined) {
-      updateData.displayOrder = Number(displayOrder);
+    for (const field of allowedFields) {
+      if (
+        Object.prototype.hasOwnProperty.call(
+          req.body,
+          field,
+        )
+      ) {
+        Object.assign(updateData, {
+          [field]: req.body[field],
+        });
+      }
     }
 
-    const faq = await FAQService.updateFaq(id as string, updateData);
+    const faq = await FAQService.updateFaq(
+      id as string,
+      updateData,
+    );
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       message: "FAQ updated successfully",
       data: faq,
     });
-  } catch (error: any) {
-    res.status(error.message === "FAQ not found" ? 404 : 400).json({
-      success: false,
-      message: error.message,
-    });
+  } catch (error: unknown) {
+    return res
+      .status(getErrorStatus(error))
+      .json({
+        success: false,
+        message: getErrorMessage(
+          error,
+          "Failed to update FAQ",
+        ),
+      });
   }
 };
 
-export const getFaqById = async (req: Request, res: Response) => {
+export const getFaqById = async (
+  req: Request,
+  res: Response,
+) => {
   try {
     const { id } = req.params;
 
-    const faq = await FAQService.getFaqById(id as string);
+    const faq = await FAQService.getFaqById(
+      id as string,
+    );
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       data: faq,
     });
-  } catch (error: any) {
-    res.status(error.message === "FAQ not found" ? 404 : 400).json({
-      success: false,
-      message: error.message,
-    });
+  } catch (error: unknown) {
+    return res
+      .status(getErrorStatus(error))
+      .json({
+        success: false,
+        message: getErrorMessage(
+          error,
+          "Failed to fetch FAQ",
+        ),
+      });
   }
 };
 
-export const deleteFaq = async (req: Request, res: Response) => {
+export const deleteFaq = async (
+  req: Request,
+  res: Response,
+) => {
   try {
     const { id } = req.params;
 
     await FAQService.deleteFaq(id as string);
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       message: "FAQ deleted successfully",
     });
-  } catch (error: any) {
-    res.status(error.message === "FAQ not found" ? 404 : 400).json({
-      success: false,
-      message: error.message,
-    });
+  } catch (error: unknown) {
+    return res
+      .status(getErrorStatus(error))
+      .json({
+        success: false,
+        message: getErrorMessage(
+          error,
+          "Failed to delete FAQ",
+        ),
+      });
   }
 };
 
-export const toggleFaqStatus = async (req: Request, res: Response) => {
+export const toggleFaqStatus = async (
+  req: Request,
+  res: Response,
+) => {
   try {
     const { id } = req.params;
 
-    const faq = await FAQService.toggleFaqStatus(id as string);
+    const faq =
+      await FAQService.toggleFaqStatus(
+        id as string,
+      );
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
-      message: `FAQ ${faq.isActive ? "activated" : "deactivated"} successfully`,
+      message: `FAQ ${
+        faq.isActive
+          ? "activated"
+          : "deactivated"
+      } successfully`,
       data: faq,
     });
-  } catch (error: any) {
-    res.status(error.message === "FAQ not found" ? 404 : 400).json({
-      success: false,
-      message: error.message,
-    });
+  } catch (error: unknown) {
+    return res
+      .status(getErrorStatus(error))
+      .json({
+        success: false,
+        message: getErrorMessage(
+          error,
+          "Failed to update FAQ status",
+        ),
+      });
   }
 };
 
-export const getAllFaqs = async (req: Request, res: Response) => {
+export const getAllFaqs = async (
+  req: Request,
+  res: Response,
+) => {
   try {
     const {
       searchTerm,
@@ -142,24 +236,55 @@ export const getAllFaqs = async (req: Request, res: Response) => {
       sortOrder,
     } = req.query;
 
+    const parsedLimit =
+      typeof limit === "number"
+        ? limit
+        : Number(limit);
+
+    const parsedPage =
+      typeof page === "number"
+        ? page
+        : Number(page);
+
     const result = await FAQService.findFaqs(
-      searchTerm as string,
-      faqType as string,
-      Number(limit) || 20,
-      Number(page) || 1,
-      isActive === "true" ? true : isActive === "false" ? false : undefined,
-      (sortBy as string) || "displayOrder",
-      (sortOrder as "asc" | "desc") || "asc",
+      typeof searchTerm === "string"
+        ? searchTerm
+        : undefined,
+      typeof faqType === "string"
+        ? faqType
+        : undefined,
+      Number.isInteger(parsedLimit) &&
+        parsedLimit > 0
+        ? Math.min(parsedLimit, 100)
+        : 20,
+      Number.isInteger(parsedPage) &&
+        parsedPage > 0
+        ? parsedPage
+        : 1,
+      isActive === "true"
+        ? true
+        : isActive === "false"
+          ? false
+          : undefined,
+      typeof sortBy === "string"
+        ? sortBy
+        : "displayOrder",
+      sortOrder === "desc"
+        ? "desc"
+        : "asc",
     );
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       ...result,
     });
-  } catch (error: any) {
-    res.status(400).json({
+  } catch (error: unknown) {
+    return res.status(400).json({
       success: false,
-      message: error.message,
+      message: getErrorMessage(
+        error,
+        "Failed to fetch FAQs",
+      ),
     });
   }
 };

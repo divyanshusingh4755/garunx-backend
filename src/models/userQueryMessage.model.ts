@@ -1,116 +1,114 @@
 import {
-    Schema,
-    Types,
-    model,
-    Document,
-    Model,
+  Schema,
+  Types,
+  model,
+  type Document,
+  type Model,
 } from "mongoose";
 
 export type QueryMessageSenderType =
-    | "CUSTOMER"
-    | "COORDINATOR"
-    | "ADMIN";
+  | "USER"
+  | "COORDINATOR"
+  | "ADMIN";
 
 export interface IUserQueryMessage
-    extends Document {
-
-    queryId: Types.ObjectId;
-
-    senderId: Types.ObjectId;
-
-    senderType: QueryMessageSenderType;
-
-    message?: string;
-
-    imageUrls: string[];
-
-    createdAt: Date;
-    updatedAt: Date;
+  extends Document {
+  queryId: Types.ObjectId;
+  senderId: Types.ObjectId;
+  senderType:
+    QueryMessageSenderType;
+  message?: string;
+  imageUrls: string[];
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 const userQueryMessageSchema =
-    new Schema<IUserQueryMessage>(
-        {
-            queryId: {
-                type: Schema.Types.ObjectId,
-                ref: "UserQuery",
-                required: true,
-                index: true,
-            },
+  new Schema<IUserQueryMessage>(
+    {
+      queryId: {
+        type: Schema.Types.ObjectId,
+        ref: "UserQuery",
+        required: true,
+        index: true,
+      },
 
-            senderId: {
-                type: Schema.Types.ObjectId,
-                ref: "User",
-                required: true,
-                index: true,
-            },
+      senderId: {
+        type: Schema.Types.ObjectId,
+        ref: "User",
+        required: true,
+        index: true,
+      },
 
-            senderType: {
-                type: String,
-                enum: [
-                    "CUSTOMER",
-                    "COORDINATOR",
-                    "ADMIN",
-                ] satisfies QueryMessageSenderType[],
-                required: true,
-                index: true,
-            },
+      senderType: {
+        type: String,
+        enum: [
+          "USER",
+          "COORDINATOR",
+          "ADMIN",
+        ] satisfies QueryMessageSenderType[],
+        required: true,
+        index: true,
+      },
 
-            message: {
-                type: String,
-                trim: true,
-                maxlength: 2000,
-            },
+      message: {
+        type: String,
+        trim: true,
+        maxlength: 2000,
+      },
 
-            imageUrls: {
-                type: [
-                    {
-                        type: String,
-                        trim: true,
-                        maxlength: 2000,
-                    },
-                ],
-                default: [],
-            },
+      imageUrls: {
+        type: [
+          {
+            type: String,
+            trim: true,
+            maxlength: 2000,
+          },
+        ],
+        default: [],
+        validate: {
+          validator: (
+            value: string[],
+          ) =>
+            Array.isArray(value) &&
+            value.length <= 5,
+          message:
+            "A maximum of 5 images is allowed",
         },
-        {
-            timestamps: true,
-        },
-    );
-
-
-// At least message or image is required
-userQueryMessageSchema.pre(
-    "validate",
-    function () {
-        const hasMessage =
-            typeof this.message === "string" &&
-            this.message.trim().length > 0;
-
-        const hasImages =
-            Array.isArray(this.imageUrls) &&
-            this.imageUrls.length > 0;
-
-        if (
-            !hasMessage &&
-            !hasImages
-        ) {
-            throw new Error(
-                "Message or at least one image is required",
-            );
-        }
+      },
     },
+    {
+      timestamps: true,
+    },
+  );
+
+userQueryMessageSchema.pre(
+  "validate",
+  function () {
+    const hasMessage =
+      typeof this.message === "string" &&
+      this.message.trim().length > 0;
+
+    const hasImages =
+      Array.isArray(this.imageUrls) &&
+      this.imageUrls.length > 0;
+
+    if (!hasMessage && !hasImages) {
+      throw new Error(
+        "Message or at least one image is required",
+      );
+    }
+  },
 );
 
-// Conversation listing
 userQueryMessageSchema.index({
-    queryId: 1,
-    createdAt: 1,
+  queryId: 1,
+  createdAt: 1,
 });
 
 export const UserQueryMessage:
-    Model<IUserQueryMessage> =
+  Model<IUserQueryMessage> =
     model<IUserQueryMessage>(
-        "UserQueryMessage",
-        userQueryMessageSchema,
+      "UserQueryMessage",
+      userQueryMessageSchema,
     );

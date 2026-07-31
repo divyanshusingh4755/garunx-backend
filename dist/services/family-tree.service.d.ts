@@ -117,7 +117,7 @@ declare class FamilyTreeService {
                 gotra: import("../types/enums.js").Gotra | undefined;
                 designatedPandit: string | undefined;
                 visitors: string[];
-                profileImage: string | undefined;
+                profileImage: string | null | undefined;
                 notes: string | undefined;
                 audit: {
                     createdAt: Date;
@@ -194,7 +194,7 @@ declare class FamilyTreeService {
         gotra?: import("../types/enums.js").Gotra;
         designatedPandit?: string;
         visitors: string[];
-        profileImage?: string;
+        profileImage?: string | null;
         notes?: string;
         createdAt: Date;
         updatedAt: Date;

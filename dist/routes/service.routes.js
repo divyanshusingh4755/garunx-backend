@@ -1,5 +1,5 @@
 import { Router, } from "express";
-import { body, param, validationResult } from "express-validator";
+import { body, param, query, validationResult, } from "express-validator";
 import { getAllServices, createService, updateService, getServiceById, toggleServiceStatus, getFullService, updateServiceLocations, removeServiceLocation, updateServiceTiers, removeServiceTier, getServicesByLocation, getFullServiceByCities, getServiceDiagnostics, } from "../controllers/service.controllers.js";
 import { authenticate } from "../middleware/authenticate.js";
 const router = Router();
@@ -9,30 +9,39 @@ const validate = (req, res, next) => {
         const firstError = errors.array()[0];
         return res.status(400).json({
             success: false,
-            message: firstError?.msg,
+            message: firstError?.msg ?? "Validation failed",
             error: firstError,
         });
     }
     next();
 };
 const serviceIdValidation = [
-    param("serviceId").isMongoId().withMessage("Invalid service ID"),
+    param("serviceId")
+        .isMongoId()
+        .withMessage("Invalid service ID"),
     validate,
 ];
 const serviceValidation = [
-    body("name").notEmpty().withMessage("Name is required").isString().trim(),
+    body("name")
+        .isString()
+        .withMessage("Name must be a string")
+        .trim()
+        .notEmpty()
+        .withMessage("Name is required"),
     body("shortDescription")
+        .isString()
+        .withMessage("Short description must be a string")
+        .trim()
         .notEmpty()
         .withMessage("Short description is required")
-        .isString()
-        .trim()
         .isLength({ max: 200 })
         .withMessage("Short description max length is 200"),
     body("fullDescription")
-        .notEmpty()
-        .withMessage("Full description is required")
         .isString()
-        .trim(),
+        .withMessage("Full description must be a string")
+        .trim()
+        .notEmpty()
+        .withMessage("Full description is required"),
     body("categoryId")
         .notEmpty()
         .withMessage("Category ID is required")
@@ -44,11 +53,20 @@ const serviceValidation = [
         .isURL()
         .withMessage("Thumbnail image must be valid URL"),
     body("bannerImage")
-        .optional()
+        .optional({ values: "falsy" })
         .isURL()
         .withMessage("Banner image must be valid URL"),
-    body("locations").optional().isArray().withMessage("locations must be array"),
-    body("locations.*.name").optional().isString().trim(),
+    body("locations")
+        .optional()
+        .isArray()
+        .withMessage("locations must be array"),
+    body("locations.*.name")
+        .optional()
+        .isString()
+        .withMessage("Location name must be a string")
+        .trim()
+        .notEmpty()
+        .withMessage("Location name cannot be empty"),
     body("locations.*.locationId")
         .optional()
         .isMongoId()
@@ -57,9 +75,21 @@ const serviceValidation = [
         .optional()
         .isBoolean()
         .withMessage("Location isActive must be boolean"),
-    body("tiers").optional().isArray().withMessage("tiers must be array"),
-    body("tiers.*.name").optional().isString().trim(),
-    body("tiers.*.tierId").optional().isMongoId().withMessage("Invalid tier ID"),
+    body("tiers")
+        .optional()
+        .isArray()
+        .withMessage("tiers must be array"),
+    body("tiers.*.name")
+        .optional()
+        .isString()
+        .withMessage("Tier name must be a string")
+        .trim()
+        .notEmpty()
+        .withMessage("Tier name cannot be empty"),
+    body("tiers.*.tierId")
+        .optional()
+        .isMongoId()
+        .withMessage("Invalid tier ID"),
     body("isActive")
         .optional()
         .isBoolean()
@@ -67,52 +97,92 @@ const serviceValidation = [
     validate,
 ];
 const updateServiceValidation = [
-    param("serviceId").isMongoId().withMessage("Invalid service ID"),
-    body("name").optional().isString().trim(),
+    param("serviceId")
+        .isMongoId()
+        .withMessage("Invalid service ID"),
+    body().custom((value) => {
+        const allowedFields = [
+            "name",
+            "shortDescription",
+            "fullDescription",
+            "categoryId",
+            "thumbnailImage",
+            "bannerImage",
+        ];
+        const suppliedFields = Object.keys(value ?? {});
+        if (suppliedFields.length === 0) {
+            throw new Error("At least one update field is required");
+        }
+        const invalidFields = suppliedFields.filter((field) => !allowedFields.includes(field));
+        if (invalidFields.length > 0) {
+            throw new Error(`Invalid update fields: ${invalidFields.join(", ")}`);
+        }
+        return true;
+    }),
+    body("name")
+        .optional()
+        .isString()
+        .withMessage("Name must be a string")
+        .trim()
+        .notEmpty()
+        .withMessage("Name cannot be empty"),
     body("shortDescription")
         .optional()
         .isString()
+        .withMessage("Short description must be a string")
         .trim()
+        .notEmpty()
+        .withMessage("Short description cannot be empty")
         .isLength({ max: 200 })
         .withMessage("Short description max length is 200"),
-    body("fullDescription").optional().isString().trim(),
-    body("categoryId").optional().isMongoId().withMessage("Invalid category ID"),
+    body("fullDescription")
+        .optional()
+        .isString()
+        .withMessage("Full description must be a string")
+        .trim()
+        .notEmpty()
+        .withMessage("Full description cannot be empty"),
+    body("categoryId")
+        .optional()
+        .isMongoId()
+        .withMessage("Invalid category ID"),
     body("thumbnailImage")
         .optional()
         .isURL()
         .withMessage("Thumbnail image must be valid URL"),
     body("bannerImage")
-        .optional()
+        .optional({ values: "falsy" })
         .isURL()
         .withMessage("Banner image must be valid URL"),
-    body("locations").optional().isArray().withMessage("locations must be array"),
-    body("locations.*.locationId")
-        .optional()
-        .isMongoId()
-        .withMessage("Invalid location ID"),
-    body("tiers").optional().isArray().withMessage("tiers must be array"),
-    body("tiers.*.tierId").optional().isMongoId().withMessage("Invalid tier ID"),
-    body("isActive")
-        .optional()
-        .isBoolean()
-        .withMessage("isActive must be boolean"),
     validate,
 ];
 const serviceStatusValidation = [
-    param("serviceId").isMongoId().withMessage("Invalid service ID"),
+    param("serviceId")
+        .isMongoId()
+        .withMessage("Invalid service ID"),
     body("isActive")
-        .notEmpty()
+        .exists({ checkNull: true })
         .withMessage("isActive is required")
         .isBoolean()
         .withMessage("isActive must be boolean"),
+    body("confirmed")
+        .optional()
+        .isBoolean()
+        .withMessage("confirmed must be boolean"),
     validate,
 ];
 const updateLocationsValidation = [
-    param("id").isMongoId().withMessage("Invalid service ID"),
+    param("id")
+        .isMongoId()
+        .withMessage("Invalid service ID"),
     body("locations")
         .isArray({ min: 1 })
         .withMessage("locations array is required"),
-    body("locations.*.name").notEmpty().withMessage("Location name is required"),
+    body("locations.*.name")
+        .optional()
+        .isString()
+        .withMessage("Location name must be a string")
+        .trim(),
     body("locations.*.locationId")
         .notEmpty()
         .withMessage("Location ID is required")
@@ -125,14 +195,26 @@ const updateLocationsValidation = [
     validate,
 ];
 const removeLocationValidation = [
-    param("id").isMongoId().withMessage("Invalid service ID"),
-    param("locationId").isMongoId().withMessage("Invalid location ID"),
+    param("id")
+        .isMongoId()
+        .withMessage("Invalid service ID"),
+    param("locationId")
+        .isMongoId()
+        .withMessage("Invalid location ID"),
     validate,
 ];
 const updateTiersValidation = [
-    param("id").isMongoId().withMessage("Invalid service ID"),
-    body("tiers").isArray({ min: 1 }).withMessage("tiers array is required"),
-    body("tiers.*.name").notEmpty().withMessage("Tier name is required"),
+    param("id")
+        .isMongoId()
+        .withMessage("Invalid service ID"),
+    body("tiers")
+        .isArray({ min: 1 })
+        .withMessage("tiers array is required"),
+    body("tiers.*.name")
+        .optional()
+        .isString()
+        .withMessage("Tier name must be a string")
+        .trim(),
     body("tiers.*.tierId")
         .notEmpty()
         .withMessage("Tier ID is required")
@@ -141,17 +223,104 @@ const updateTiersValidation = [
     validate,
 ];
 const removeTierValidation = [
-    param("id").isMongoId().withMessage("Invalid service ID"),
-    param("tierId").isMongoId().withMessage("Invalid tier ID"),
+    param("id")
+        .isMongoId()
+        .withMessage("Invalid service ID"),
+    param("tierId")
+        .isMongoId()
+        .withMessage("Invalid tier ID"),
     validate,
 ];
-router.get("/", getAllServices);
-router.get("/getServicesByLocation", authenticate, getServicesByLocation);
+const fullServiceByCitiesValidation = [
+    param("serviceId")
+        .isMongoId()
+        .withMessage("Invalid service ID"),
+    body("cityIds")
+        .isArray({ min: 1 })
+        .withMessage("cityIds must be a non-empty array"),
+    body("cityIds.*")
+        .isMongoId()
+        .withMessage("Each city ID must be valid"),
+    validate,
+];
+const listValidation = [
+    query("categoryId")
+        .optional()
+        .isMongoId()
+        .withMessage("Invalid category ID"),
+    query("locationId")
+        .optional()
+        .isMongoId()
+        .withMessage("Invalid location ID"),
+    query("limit")
+        .optional()
+        .isInt({ min: 1, max: 100 })
+        .withMessage("limit must be between 1 and 100"),
+    query("page")
+        .optional()
+        .isInt({ min: 1 })
+        .withMessage("page must be at least 1"),
+    query("isActive")
+        .optional()
+        .isBoolean()
+        .withMessage("isActive must be true or false"),
+    query("isComplete")
+        .optional()
+        .isBoolean()
+        .withMessage("isComplete must be true or false"),
+    query("sortBy")
+        .optional()
+        .isIn([
+        "name",
+        "createdAt",
+        "updatedAt",
+        "startingPrice",
+        "isActive",
+        "isComplete",
+        "relevance",
+    ])
+        .withMessage("Invalid sortBy value"),
+    query("sortOrder")
+        .optional()
+        .isIn(["asc", "desc"])
+        .withMessage("sortOrder must be asc or desc"),
+    validate,
+];
+const servicesByLocationValidation = [
+    query("cityIds")
+        .optional()
+        .custom((value) => {
+        const ids = String(value)
+            .split(",")
+            .map((id) => id.trim())
+            .filter(Boolean);
+        if (ids.some((id) => !/^[a-f\d]{24}$/i.test(id))) {
+            throw new Error("One or more city IDs are invalid");
+        }
+        return true;
+    }),
+    query("categoryIds")
+        .optional()
+        .custom((value) => {
+        const ids = String(value)
+            .split(",")
+            .map((id) => id.trim())
+            .filter(Boolean);
+        if (ids.some((id) => !/^[a-f\d]{24}$/i.test(id))) {
+            throw new Error("One or more category IDs are invalid");
+        }
+        return true;
+    }),
+    ...listValidation.filter((validator) => validator !== validate),
+    validate,
+];
+router.get("/", listValidation, getAllServices);
+router.get("/getServicesByLocation", authenticate, servicesByLocationValidation, getServicesByLocation);
 router.get("/:serviceId/full", serviceIdValidation, getFullService);
 router.get("/:serviceId/diagnostics", authenticate, serviceIdValidation, getServiceDiagnostics);
 router.get("/:serviceId", serviceIdValidation, getServiceById);
 router.post("/", authenticate, serviceValidation, createService);
-router.post("/:serviceId/getFullServiceByCities", serviceIdValidation, getFullServiceByCities);
+router.post("/:serviceId/getFullServiceByCities", fullServiceByCitiesValidation, getFullServiceByCities);
 router.patch("/:serviceId", authenticate, updateServiceValidation, updateService);
 router.patch("/:serviceId/status", authenticate, serviceStatusValidation, toggleServiceStatus);
 router.post("/:id/locations", authenticate, updateLocationsValidation, updateServiceLocations);

@@ -4,7 +4,12 @@ import {
   type Response,
   type NextFunction,
 } from "express";
-import { body, validationResult } from "express-validator";
+import {
+  body,
+  param,
+  query,
+  validationResult,
+} from "express-validator";
 import { authenticate } from "../middleware/authenticate.js";
 import {
   createState,
@@ -17,18 +22,18 @@ import {
 const router = Router();
 
 const validate = (
-  req: any,
-  res: any,
-  next: any,
+  req: Request,
+  res: Response,
+  next: NextFunction,
 ) => {
   const errors = validationResult(req);
 
   if (!errors.isEmpty()) {
+    const firstError = errors.array()[0];
+
     return res.status(400).json({
       success: false,
-      message:
-        errors.array()[0]?.msg ??
-        "Validation failed",
+      message: firstError?.msg ?? "Validation failed",
       errors: errors.array(),
     });
   }
@@ -36,101 +41,274 @@ const validate = (
   next();
 };
 
-const createStateValidation = [
-  body("country")
-    .notEmpty()
-    .withMessage("country is required")
-    .isString()
-    .trim(),
-
-  body("name")
-    .notEmpty()
-    .withMessage("name is required")
-    .isString()
-    .trim(),
-
-  body("gstCode")
-    .notEmpty()
-    .withMessage("gstCode is required")
-    .matches(/^\d{2}$/)
-    .withMessage(
-      "gstCode must contain exactly 2 digits",
-    ),
-
-  body("image")
+const locationValidation = [
+  body("location")
     .optional()
-    .isURL()
-    .withMessage(
-      "Image must be a valid URL",
-    ),
+    .isObject()
+    .withMessage("location must be an object"),
 
-  body("description")
+  body("location.type")
     .optional()
-    .isString()
-    .trim(),
+    .equals("Point")
+    .withMessage('location.type must be "Point"'),
 
   body("location.coordinates")
     .optional()
     .isArray({ min: 2, max: 2 })
-    .withMessage(
-      "Coordinates must be [longitude, latitude]",
-    ),
+    .withMessage("Coordinates must be [longitude, latitude]")
+    .custom((coordinates: unknown[]) => {
+      if (
+        coordinates.length !== 2 ||
+        !coordinates.every(
+          (coordinate) =>
+            typeof coordinate === "number" &&
+            Number.isFinite(coordinate),
+        )
+      ) {
+        throw new Error(
+          "Longitude and latitude must be valid numbers",
+        );
+      }
 
+      const [longitude, latitude] = coordinates as [
+        number,
+        number,
+      ];
+
+      if (longitude < -180 || longitude > 180) {
+        throw new Error(
+          "Longitude must be between -180 and 180",
+        );
+      }
+
+      if (latitude < -90 || latitude > 90) {
+        throw new Error(
+          "Latitude must be between -90 and 90",
+        );
+      }
+
+      return true;
+    }),
+
+  body("location").custom((location) => {
+    if (!location) return true;
+
+    if (!location.type || !location.coordinates) {
+      throw new Error(
+        "location.type and location.coordinates are required together",
+      );
+    }
+
+    return true;
+  }),
+];
+
+const createStateValidation = [
+  body("country")
+    .isString()
+    .withMessage("country must be a string")
+    .trim()
+    .notEmpty()
+    .withMessage("country is required"),
+
+  body("name")
+    .isString()
+    .withMessage("name must be a string")
+    .trim()
+    .notEmpty()
+    .withMessage("name is required"),
+
+  body("gstCode")
+    .isString()
+    .withMessage("gstCode must be a string")
+    .trim()
+    .matches(/^\d{2}$/)
+    .withMessage("gstCode must contain exactly 2 digits"),
+
+  body("image")
+    .optional({ values: "falsy" })
+    .isURL()
+    .withMessage("Image must be a valid URL"),
+
+  body("description")
+    .optional()
+    .isString()
+    .withMessage("description must be a string")
+    .trim(),
+
+  ...locationValidation,
   validate,
 ];
 
 const updateStateValidation = [
+  param("id")
+    .isMongoId()
+    .withMessage("Invalid state ID"),
+
+  body().custom((value) => {
+    const allowedFields = [
+      "country",
+      "name",
+      "gstCode",
+      "image",
+      "description",
+      "location",
+      "isActive",
+    ];
+
+    const suppliedFields = Object.keys(value ?? {});
+
+    if (suppliedFields.length === 0) {
+      throw new Error("At least one update field is required");
+    }
+
+    const invalidFields = suppliedFields.filter(
+      (field) => !allowedFields.includes(field),
+    );
+
+    if (invalidFields.length > 0) {
+      throw new Error(
+        `Invalid update fields: ${invalidFields.join(", ")}`,
+      );
+    }
+
+    return true;
+  }),
+
   body("country")
     .optional()
     .isString()
+    .withMessage("country must be a string")
     .trim()
     .notEmpty()
-    .withMessage(
-      "country cannot be empty",
-    ),
+    .withMessage("country cannot be empty"),
 
   body("name")
     .optional()
     .isString()
+    .withMessage("name must be a string")
     .trim()
     .notEmpty()
-    .withMessage(
-      "name cannot be empty",
-    ),
+    .withMessage("name cannot be empty"),
 
   body("gstCode")
     .optional()
+    .isString()
+    .withMessage("gstCode must be a string")
+    .trim()
     .matches(/^\d{2}$/)
-    .withMessage(
-      "gstCode must contain exactly 2 digits",
-    ),
+    .withMessage("gstCode must contain exactly 2 digits"),
 
   body("image")
-    .optional({ nullable: true })
+    .optional({ values: "falsy" })
     .isURL()
-    .withMessage(
-      "Image must be a valid URL",
-    ),
+    .withMessage("Image must be a valid URL"),
 
   body("description")
-    .optional({ nullable: true })
+    .optional()
     .isString()
+    .withMessage("description must be a string")
     .trim(),
 
-  body("location.coordinates")
+  body("isActive")
     .optional()
-    .isArray({ min: 2, max: 2 })
-    .withMessage(
-      "Coordinates must be [longitude, latitude]",
-    ),
+    .isBoolean()
+    .withMessage("isActive must be a boolean"),
+
+  ...locationValidation,
+  validate,
+];
+
+const stateIdValidation = [
+  param("id")
+    .isMongoId()
+    .withMessage("Invalid state ID"),
 
   validate,
 ];
 
-// --- 2. State Routes ---
-router.get("/get-all-state", getAllState); // Specific first
-router.post("/create-state", authenticate, createStateValidation, createState);
-router.patch("/update-state/:id", authenticate, updateStateValidation, updateState);
-router.get("/:id", authenticate, getStateById); // Dynamic last
-router.patch("/:id/status", authenticate, deleteState);
+const statusValidation = [
+  param("id")
+    .isMongoId()
+    .withMessage("Invalid state ID"),
+
+  body("status")
+    .exists({ checkNull: true })
+    .withMessage("status is required")
+    .isBoolean()
+    .withMessage("status must be a boolean"),
+
+  validate,
+];
+
+const listValidation = [
+  query("limit")
+    .optional()
+    .isInt({ min: 1, max: 100 })
+    .withMessage("limit must be between 1 and 100"),
+
+  query("page")
+    .optional()
+    .isInt({ min: 1 })
+    .withMessage("page must be at least 1"),
+
+  query("isActive")
+    .optional()
+    .isBoolean()
+    .withMessage("isActive must be true or false"),
+
+  query("sortOrder")
+    .optional()
+    .isIn(["asc", "desc"])
+    .withMessage("sortOrder must be asc or desc"),
+
+  query("sortBy")
+    .optional()
+    .isIn([
+      "name",
+      "country",
+      "gstCode",
+      "createdAt",
+      "updatedAt",
+      "relevance",
+    ])
+    .withMessage("Invalid sortBy value"),
+
+  validate,
+];
+
+router.get(
+  "/get-all-state",
+  listValidation,
+  getAllState,
+);
+
+router.post(
+  "/create-state",
+  authenticate,
+  createStateValidation,
+  createState,
+);
+
+router.patch(
+  "/update-state/:id",
+  authenticate,
+  updateStateValidation,
+  updateState,
+);
+
+router.get(
+  "/:id",
+  authenticate,
+  stateIdValidation,
+  getStateById,
+);
+
+router.patch(
+  "/:id/status",
+  authenticate,
+  statusValidation,
+  deleteState,
+);
+
 export default router;

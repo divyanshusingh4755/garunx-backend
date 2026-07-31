@@ -1,5 +1,5 @@
-import { Document, Types } from "mongoose";
-export type TaxTreatment = "TAXABLE" | "EXEMPT" | "NIL_RATED" | "NON_GST";
+import { Types, type Document } from "mongoose";
+import { TaxTreatment } from "../types/tax.types.js";
 export interface ITaxProfile extends Document {
     name: string;
     code: string;

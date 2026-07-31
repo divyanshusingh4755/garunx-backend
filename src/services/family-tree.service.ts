@@ -491,6 +491,7 @@ class FamilyTreeService {
     private static validateLifeStatus(
         lifeStatus: MemberLifeStatus,
         dateOfDeath?: Date | null,
+        dob?: Date | null,
     ): void {
         if (
             lifeStatus ===
@@ -499,6 +500,25 @@ class FamilyTreeService {
         ) {
             throw new Error(
                 "Date of death cannot be provided for an alive member",
+            );
+        }
+
+        if (
+            dob &&
+            dob.getTime() > Date.now()
+        ) {
+            throw new Error(
+                "DOB cannot be in the future",
+            );
+        }
+
+        if (
+            dob &&
+            dateOfDeath &&
+            dateOfDeath < dob
+        ) {
+            throw new Error(
+                "Date of death cannot be before DOB",
             );
         }
     }
@@ -517,18 +537,21 @@ class FamilyTreeService {
                 ),
             isDeleted: false,
         })
-            .populate(
-                "fatherId",
-                FAMILY_MEMBER_POPULATE_SELECT,
-            )
-            .populate(
-                "motherId",
-                FAMILY_MEMBER_POPULATE_SELECT,
-            )
-            .populate(
-                "spouseIds",
-                FAMILY_MEMBER_POPULATE_SELECT,
-            )
+            .populate({
+                path: "fatherId",
+                select: FAMILY_MEMBER_POPULATE_SELECT,
+                match: { isDeleted: false },
+            })
+            .populate({
+                path: "motherId",
+                select: FAMILY_MEMBER_POPULATE_SELECT,
+                match: { isDeleted: false },
+            })
+            .populate({
+                path: "spouseIds",
+                select: FAMILY_MEMBER_POPULATE_SELECT,
+                match: { isDeleted: false },
+            })
             .populate(
                 "createdBy",
                 "fullName role userReference",
@@ -585,6 +608,7 @@ class FamilyTreeService {
             FamilyTreeService.validateLifeStatus(
                 lifeStatus,
                 dateOfDeath,
+                dob,
             );
 
             const uniqueSpouseIds =
@@ -1188,13 +1212,14 @@ class FamilyTreeService {
         } = query;
 
         const pageNumber =
-            Math.max(1, page);
+            Number.isInteger(page) && page > 0
+                ? page
+                : 1;
 
         const limitNumber =
-            Math.min(
-                100,
-                Math.max(1, limit),
-            );
+            Number.isInteger(limit) && limit > 0
+                ? Math.min(100, limit)
+                : 20;
 
         const skip =
             (pageNumber - 1) *
@@ -1578,9 +1603,15 @@ class FamilyTreeService {
                     existingMember.dateOfDeath;
             }
 
+            const finalDob =
+                payload.dob !== undefined
+                    ? payload.dob
+                    : existingMember.dob;
+
             FamilyTreeService.validateLifeStatus(
                 finalLifeStatus,
                 finalDateOfDeath,
+                finalDob,
             );
 
             const updateData: Record<
@@ -1928,93 +1959,10 @@ class FamilyTreeService {
             }
 
             /*
-             * Keep the family member record for audit,
-             * but remove its active relationship links
-             * from the other non-deleted members.
+             * This is a soft delete. Keep relationship references
+             * intact so restoration can fully recover the tree.
+             * Read queries hide deleted related members.
              */
-            await FamilyMember.updateMany(
-                {
-                    ownerId:
-                        new Types.ObjectId(
-                            context.ownerId,
-                        ),
-
-                    isDeleted: false,
-
-                    spouseIds:
-                        familyMember._id,
-                },
-                {
-                    $pull: {
-                        spouseIds:
-                            familyMember._id,
-                    },
-
-                    $set: {
-                        updatedBy:
-                            new Types.ObjectId(
-                                context.actorId,
-                            ),
-                    },
-                },
-                {
-                    session,
-                },
-            );
-
-            await FamilyMember.updateMany(
-                {
-                    ownerId:
-                        new Types.ObjectId(
-                            context.ownerId,
-                        ),
-
-                    isDeleted: false,
-
-                    fatherId:
-                        familyMember._id,
-                },
-                {
-                    $set: {
-                        fatherId: null,
-
-                        updatedBy:
-                            new Types.ObjectId(
-                                context.actorId,
-                            ),
-                    },
-                },
-                {
-                    session,
-                },
-            );
-
-            await FamilyMember.updateMany(
-                {
-                    ownerId:
-                        new Types.ObjectId(
-                            context.ownerId,
-                        ),
-
-                    isDeleted: false,
-
-                    motherId:
-                        familyMember._id,
-                },
-                {
-                    $set: {
-                        motherId: null,
-
-                        updatedBy:
-                            new Types.ObjectId(
-                                context.actorId,
-                            ),
-                    },
-                },
-                {
-                    session,
-                },
-            );
 
             familyMember.isDeleted =
                 true;
@@ -2111,13 +2059,14 @@ class FamilyTreeService {
         } = query;
 
         const pageNumber =
-            Math.max(1, page);
+            Number.isInteger(page) && page > 0
+                ? page
+                : 1;
 
         const limitNumber =
-            Math.min(
-                100,
-                Math.max(1, limit),
-            );
+            Number.isInteger(limit) && limit > 0
+                ? Math.min(100, limit)
+                : 20;
 
         const skip =
             (pageNumber - 1) *
@@ -2276,13 +2225,14 @@ class FamilyTreeService {
         } = query;
 
         const pageNumber =
-            Math.max(1, page);
+            Number.isInteger(page) && page > 0
+                ? page
+                : 1;
 
         const limitNumber =
-            Math.min(
-                100,
-                Math.max(1, limit),
-            );
+            Number.isInteger(limit) && limit > 0
+                ? Math.min(100, limit)
+                : 20;
 
         const skip =
             (pageNumber - 1) *
@@ -2504,58 +2454,6 @@ class FamilyTreeService {
                         session,
                     });
 
-                    /*
-                     * Restore spouse links only when the related
-                     * spouse is active and belongs to the same tree.
-                     *
-                     * This prevents reconnecting the restored member
-                     * to deleted or foreign records.
-                     */
-                    const activeSpouses =
-                        await FamilyMember.find({
-                            _id: {
-                                $in:
-                                    member.spouseIds ??
-                                    [],
-                            },
-
-                            ownerId:
-                                new Types.ObjectId(
-                                    ownerId,
-                                ),
-
-                            isDeleted: false,
-                        })
-                            .select("_id spouseIds")
-                            .session(session);
-
-                    for (
-                        const spouse
-                        of activeSpouses
-                    ) {
-                        const alreadyLinked =
-                            spouse.spouseIds.some(
-                                (spouseId) =>
-                                    spouseId.toString() ===
-                                    member._id.toString(),
-                            );
-
-                        if (!alreadyLinked) {
-                            spouse.spouseIds.push(
-                                member._id,
-                            );
-
-                            spouse.updatedBy =
-                                new Types.ObjectId(
-                                    actorId,
-                                );
-
-                            await spouse.save({
-                                session,
-                            });
-                        }
-                    }
-
                     await FamilyTreeService.createActivity(
                         context,
                         member._id,
@@ -2604,18 +2502,30 @@ class FamilyTreeService {
                                 "updatedBy",
                                 "fullName role profileImage",
                             )
-                            .populate(
-                                "fatherId",
-                                "fullName relation gender lifeStatus profileImage",
-                            )
-                            .populate(
-                                "motherId",
-                                "fullName relation gender lifeStatus profileImage",
-                            )
-                            .populate(
-                                "spouseIds",
-                                "fullName relation gender lifeStatus profileImage",
-                            )
+                            .populate({
+                                path: "fatherId",
+                                select:
+                                    "fullName relation gender lifeStatus profileImage",
+                                match: {
+                                    isDeleted: false,
+                                },
+                            })
+                            .populate({
+                                path: "motherId",
+                                select:
+                                    "fullName relation gender lifeStatus profileImage",
+                                match: {
+                                    isDeleted: false,
+                                },
+                            })
+                            .populate({
+                                path: "spouseIds",
+                                select:
+                                    "fullName relation gender lifeStatus profileImage",
+                                match: {
+                                    isDeleted: false,
+                                },
+                            })
                             .session(session);
                 },
             );

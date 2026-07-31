@@ -73,8 +73,6 @@ export enum FamilyRelation {
 export enum FamilyEdgeType {
   PARENT = "PARENT",
   MARRIAGE = "MARRIAGE",
-  // GUARDIAN = "GUARDIAN",
-  // CUSTOM = "CUSTOM",
 }
 
 export enum MemberLifeStatus {
@@ -82,8 +80,9 @@ export enum MemberLifeStatus {
   DECEASED = "DECEASED",
 }
 
-export type FamilyMemberSource =
-  | "CUSTOMER_SELF"
-  | "COORDINATOR_BOOKING"
-  | "ADMIN_MANUAL"
-  | "SYSTEM_IMPORT";
+export enum FamilyMemberSource {
+  CUSTOMER_SELF = "CUSTOMER_SELF",
+  COORDINATOR_BOOKING = "COORDINATOR_BOOKING",
+  ADMIN_MANUAL = "ADMIN_MANUAL",
+  SYSTEM_IMPORT = "SYSTEM_IMPORT",
+}

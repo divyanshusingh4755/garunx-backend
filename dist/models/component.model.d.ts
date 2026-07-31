@@ -1,5 +1,5 @@
-import { Document, Types } from "mongoose";
-export interface IComponent extends Document {
+import { type Types } from "mongoose";
+export interface IComponent {
     name: string;
     isRemovable: boolean;
     isBundled: boolean;
@@ -7,10 +7,12 @@ export interface IComponent extends Document {
     description: string;
     imageUrl?: string;
     isActive: boolean;
+    createdAt: Date;
+    updatedAt: Date;
 }
-export declare const Component: import("mongoose").Model<IComponent, {}, {}, {}, Document<unknown, {}, IComponent, {}, import("mongoose").DefaultSchemaOptions> & IComponent & Required<{
+export declare const Component: import("mongoose").Model<IComponent, {}, {}, {}, import("mongoose").Document<unknown, {}, IComponent, {}, import("mongoose").DefaultSchemaOptions> & IComponent & {
     _id: Types.ObjectId;
-}> & {
+} & {
     __v: number;
 } & {
     id: string;

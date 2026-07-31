@@ -1,6 +1,7 @@
-import rateLimit from 'express-rate-limit';
+import rateLimit from "express-rate-limit";
+const fifteenMinutes = 15 * 60 * 1000;
 export const authRateLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000,
+    windowMs: fifteenMinutes,
     limit: 10,
     standardHeaders: true,
     legacyHeaders: false,
@@ -10,7 +11,7 @@ export const authRateLimiter = rateLimit({
     },
 });
 export const otpRateLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000,
+    windowMs: fifteenMinutes,
     limit: 5,
     standardHeaders: true,
     legacyHeaders: false,
@@ -20,7 +21,7 @@ export const otpRateLimiter = rateLimit({
     },
 });
 export const passwordResetRateLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000,
+    windowMs: fifteenMinutes,
     limit: 5,
     standardHeaders: true,
     legacyHeaders: false,

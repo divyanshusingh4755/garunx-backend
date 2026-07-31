@@ -1,4 +1,4 @@
-import { Schema, model, Types } from "mongoose";
+import { Schema, model, } from "mongoose";
 const citySchema = new Schema({
     name: {
         type: String,
@@ -9,6 +9,7 @@ const citySchema = new Schema({
     country: {
         type: String,
         required: true,
+        trim: true,
         index: true,
     },
     stateId: {
@@ -19,12 +20,15 @@ const citySchema = new Schema({
     },
     image: {
         type: String,
+        trim: true,
     },
     description: {
         type: String,
+        trim: true,
     },
     isActive: {
         type: Boolean,
+        required: true,
         default: true,
         index: true,
     },
@@ -32,13 +36,28 @@ const citySchema = new Schema({
         type: {
             type: String,
             enum: ["Point"],
+            required: true,
         },
         coordinates: {
-            type: [Number], // [longitude, latitude]
+            type: [Number],
+            required: true,
+            validate: {
+                validator: (coordinates) => coordinates.length === 2 &&
+                    coordinates.every(Number.isFinite) &&
+                    coordinates[0] >= -180 &&
+                    coordinates[0] <= 180 &&
+                    coordinates[1] >= -90 &&
+                    coordinates[1] <= 90,
+                message: "Coordinates must be valid [longitude, latitude]",
+            },
         },
     },
-}, { timestamps: true });
-citySchema.index({ location: "2dsphere" });
+}, {
+    timestamps: true,
+});
+citySchema.index({
+    location: "2dsphere",
+});
 citySchema.index({
     country: 1,
     stateId: 1,
@@ -50,6 +69,8 @@ citySchema.index({
 });
 citySchema.index({
     name: "text",
-}, { name: "CityTextSearchIndex" });
+}, {
+    name: "CityTextSearchIndex",
+});
 export const City = model("City", citySchema);
 //# sourceMappingURL=city.model.js.map

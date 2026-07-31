@@ -1,5 +1,5 @@
-import { Types } from "mongoose";
-import { Service } from "../models/service.model.js";
+import mongoose, { Types, } from "mongoose";
+import { Service, } from "../models/service.model.js";
 import { Category } from "../models/category.model.js";
 import { generateSlug } from "../utils/generateSlug.js";
 import { getNextSequence } from "../utils/getNextSequence.js";
@@ -9,116 +9,121 @@ import { ServicePricing } from "../models/servicepricing.model.js";
 import { Location } from "../models/location.model.js";
 import { ServiceCascadingEngine } from "./cascading-engine.service.js";
 import { Component } from "../models/component.model.js";
-import mongoose from "mongoose";
+import { ComponentItem } from "../models/componentitem.model.js";
 import { PackageTierMap } from "../models/packagetiermap.model.js";
 import { PackageTierPricing } from "../models/packagetierpricing.model.js";
-import { ComponentItem } from "../models/componentitem.model.js";
 import { escapeRegex } from "../utils/escapeRegex.js";
+const createHttpError = (message, statusCode) => {
+    const error = new Error(message);
+    error.statusCode = statusCode;
+    return error;
+};
 export class ServiceService {
     static async createService(payload) {
-        let { name, shortDescription, fullDescription, categoryId, thumbnailImage, bannerImage, } = payload;
-        name = name?.trim();
-        shortDescription = shortDescription?.trim();
-        fullDescription = fullDescription?.trim();
-        if (!name || !shortDescription || !categoryId) {
-            throw new Error("Missing required fields");
-        }
-        if (!Types.ObjectId.isValid(categoryId)) {
-            throw new Error("Invalid categoryId format");
-        }
-        const categoryExists = await Category.exists({ _id: categoryId });
+        const name = payload.name.trim();
+        const shortDescription = payload.shortDescription.trim();
+        const fullDescription = payload.fullDescription.trim();
+        const categoryId = payload.categoryId;
+        const thumbnailImage = payload.thumbnailImage.trim();
+        const categoryExists = await Category.exists({
+            _id: categoryId,
+        });
         if (!categoryExists) {
-            throw new Error("Invalid categoryId");
+            throw createHttpError("Category not found", 404);
         }
         const slug = generateSlug(name);
-        const seq = await getNextSequence(`service_${slug}`);
-        const serviceReference = `${slug}_${String(seq).padStart(4, "0")}`;
-        const service = await Service.create({
+        const sequence = await getNextSequence(`service_${slug}`);
+        const serviceReference = `${slug}_${String(sequence).padStart(4, "0")}`;
+        return Service.create({
             name,
             shortDescription,
             fullDescription,
             categoryId,
             thumbnailImage,
-            bannerImage,
             locations: [],
             tiers: [],
             serviceReference,
             isActive: false,
             isComplete: false,
+            startingPrice: 0,
+            ...(payload.bannerImage !== undefined && {
+                bannerImage: payload.bannerImage,
+            }),
         });
-        return service;
     }
     static async updateService(serviceId, payload) {
-        const { name, shortDescription, fullDescription, categoryId, thumbnailImage, bannerImage, } = payload;
-        if (!Types.ObjectId.isValid(serviceId)) {
-            throw new Error("Invalid serviceId");
-        }
-        const service = await Service.findById(serviceId);
-        if (!service) {
-            throw new Error("Service not found");
-        }
         const updateData = {};
-        if (name !== undefined) {
-            if (!name.trim()) {
-                throw new Error("Service name cannot be empty");
-            }
-            updateData.name = name.trim();
+        if (payload.name !== undefined) {
+            updateData.name = payload.name.trim();
         }
-        if (shortDescription !== undefined) {
-            if (!shortDescription.trim()) {
-                throw new Error("Short description cannot be empty");
-            }
-            updateData.shortDescription = shortDescription.trim();
+        if (payload.shortDescription !== undefined) {
+            updateData.shortDescription =
+                payload.shortDescription.trim();
         }
-        if (fullDescription !== undefined) {
-            if (fullDescription && typeof fullDescription === "string") {
-                updateData.fullDescription = fullDescription.trim();
-            }
-            else {
-                throw new Error("Invalid fullDescription");
-            }
+        if (payload.fullDescription !== undefined) {
+            updateData.fullDescription =
+                payload.fullDescription.trim();
         }
-        if (thumbnailImage !== undefined) {
-            updateData.thumbnailImage = thumbnailImage;
+        if (payload.thumbnailImage !== undefined) {
+            updateData.thumbnailImage =
+                payload.thumbnailImage;
         }
-        if (bannerImage !== undefined) {
-            updateData.bannerImage = bannerImage;
+        if (payload.bannerImage !== undefined) {
+            updateData.bannerImage =
+                payload.bannerImage;
         }
-        if (categoryId !== undefined) {
-            if (!Types.ObjectId.isValid(categoryId)) {
-                throw new Error("Invalid categoryId format");
-            }
-            const categoryExists = await Category.exists({ _id: categoryId });
+        if (payload.categoryId !== undefined) {
+            const categoryExists = await Category.exists({
+                _id: payload.categoryId,
+            });
             if (!categoryExists) {
-                throw new Error("Invalid CategoryId");
+                throw createHttpError("Category not found", 404);
             }
-            updateData.categoryId = categoryId;
+            updateData.categoryId =
+                payload.categoryId;
         }
-        if (Object.keys(updateData).length === 0) {
-            throw new Error("No valid fields provided for update");
+        const updatedService = await Service.findByIdAndUpdate(serviceId, {
+            $set: updateData,
+        }, {
+            new: true,
+            runValidators: true,
+        }).lean();
+        if (!updatedService) {
+            throw createHttpError("Service not found", 404);
         }
-        const updatedService = await Service.findByIdAndUpdate(serviceId, { $set: updateData }, { new: true, runValidators: true });
-        if (!updatedService)
-            throw new Error("Service not found");
         return updatedService;
     }
     static async getServiceById(serviceId) {
-        if (!Types.ObjectId.isValid(serviceId)) {
-            throw new Error("Invalid serviceId");
-        }
         const service = await Service.findById(serviceId).lean();
-        if (!service)
-            throw new Error("Service not found");
+        if (!service) {
+            throw createHttpError("Service not found", 404);
+        }
         return service;
     }
     static async getDeactivationImpact(serviceId) {
-        const [packageMappings, packagePricing, servicePricing] = await Promise.all([
-            // 1. Where service is used in packages
-            PackageTierMap.find({ "services.serviceId": serviceId }, { _id: 1, packageId: 1, tierId: 1 }).lean(),
-            // 2. Package pricing tied to this service
-            PackageTierPricing.find({ serviceId }, { _id: 1 }).lean(),
-            // 3. Service pricing (optional visibility)
-            ServicePricing.find({ serviceId }, { _id: 1 }).lean(),
+        const serviceObjectId = new Types.ObjectId(serviceId);
+        const [packageMappings, packagePricing, servicePricing,] = await Promise.all([
+            PackageTierMap.find({
+                services: {
+                    $elemMatch: {
+                        serviceId: serviceObjectId,
+                    },
+                },
+            }, {
+                _id: 1,
+                packageId: 1,
+                tierId: 1,
+            }).lean(),
+            PackageTierPricing.find({
+                serviceId: serviceObjectId,
+            }, {
+                _id: 1,
+            }).lean(),
+            ServicePricing.find({
+                serviceId: serviceObjectId,
+            }, {
+                _id: 1,
+            }).lean(),
         ]);
         return {
             packageUsageCount: packageMappings.length,
@@ -130,168 +135,196 @@ export class ServiceService {
         };
     }
     static async toggleServiceStatus(serviceId, isActive, confirmed = false) {
-        if (!Types.ObjectId.isValid(serviceId)) {
-            throw new Error("Invalid serviceId");
-        }
-        const service = await Service.findById(serviceId);
+        const service = await Service.findById(serviceId)
+            .select("_id isActive")
+            .lean();
         if (!service) {
-            throw new Error("Service not found");
+            throw createHttpError("Service not found", 404);
         }
         if (service.isActive === isActive) {
             return {
                 success: true,
-                message: `Service already ${isActive ? "active" : "inactive"}`,
+                unchanged: true,
+                service,
             };
         }
-        // Confirmation only when deactivating
         if (!isActive && !confirmed) {
-            const impact = await ServiceService.getDeactivationImpact(serviceId);
-            return {
-                requiresConfirmation: true,
-                message: "This service is used in packages and pricing. Are you sure?",
-                impact,
-            };
+            const impact = await this.getDeactivationImpact(serviceId);
+            if (impact.packageUsageCount > 0 ||
+                impact.packagePricingCount > 0 ||
+                impact.servicePricingCount > 0) {
+                return {
+                    requiresConfirmation: true,
+                    impact,
+                };
+            }
         }
-        // Validate only when activating
         if (isActive) {
-            const validation = await ServiceService.validateServiceConfiguration(serviceId);
+            const validation = await this.validateServiceConfiguration(serviceId);
             if (!validation.isComplete) {
-                throw new Error("Service configuration incomplete. Cannot activate.");
+                throw createHttpError("Service configuration incomplete. Cannot activate.", 400);
             }
         }
         const session = await mongoose.startSession();
         try {
-            await session.withTransaction(async () => {
-                // Always update the service
-                await Service.findByIdAndUpdate(serviceId, { isActive }, { session });
-                // Only clean up related data when deactivating
-                if (!isActive) {
-                    await PackageTierMap.updateMany({
-                        "services.serviceId": new mongoose.Types.ObjectId(serviceId),
+            session.startTransaction();
+            const updatedService = await Service.findByIdAndUpdate(serviceId, {
+                $set: {
+                    isActive,
+                },
+            }, {
+                new: true,
+                session,
+            }).lean();
+            if (!updatedService) {
+                throw createHttpError("Service not found", 404);
+            }
+            if (!isActive) {
+                await Promise.all([
+                    ServicePricing.updateMany({
+                        serviceId: new Types.ObjectId(serviceId),
+                        isActive: true,
                     }, {
-                        $pull: {
-                            services: {
-                                serviceId: new mongoose.Types.ObjectId(serviceId),
-                            },
+                        $set: {
+                            isActive: false,
                         },
-                    }, { session });
-                    await PackageTierPricing.deleteMany({ serviceId }, { session });
-                }
-            });
-            // Run cascading only when activating
+                    }, {
+                        session,
+                    }),
+                    PackageTierPricing.updateMany({
+                        serviceId: new Types.ObjectId(serviceId),
+                        isActive: true,
+                    }, {
+                        $set: {
+                            isActive: false,
+                        },
+                    }, {
+                        session,
+                    }),
+                ]);
+            }
+            await session.commitTransaction();
             if (isActive) {
                 await ServiceCascadingEngine.run(serviceId);
             }
             return {
                 success: true,
-                message: `Service ${isActive ? "activated" : "deactivated"} successfully`,
+                service: updatedService,
             };
+        }
+        catch (error) {
+            if (session.inTransaction()) {
+                await session.abortTransaction();
+            }
+            throw error;
         }
         finally {
             await session.endSession();
         }
     }
-    static async getServicesByLocation(cityIds, categoryIds, limit = 20, page = 1, isActive, isComplete, sortBy = "createdAt", sortOrder = "desc") {
-        const skip = (page - 1) * limit;
+    static async getServicesByLocation(params) {
+        const { cityIds, categoryIds, limit = 20, page = 1, isActive, isComplete, sortBy = "createdAt", sortOrder = "desc", } = params;
+        const safeLimit = Math.min(Math.max(limit, 1), 100);
+        const safePage = Math.max(page, 1);
+        const skip = (safePage - 1) * safeLimit;
         const matchQuery = {};
         if (cityIds?.length) {
-            const invalidIds = cityIds.filter((id) => !Types.ObjectId.isValid(id));
-            if (invalidIds.length > 0) {
-                throw new Error(`Invalid cityIds: ${invalidIds.join(", ")}`);
-            }
+            const locations = await Location.find({
+                cityId: {
+                    $in: cityIds.map((id) => new Types.ObjectId(id)),
+                },
+                isActive: true,
+            })
+                .select("_id")
+                .lean();
+            matchQuery["locations.locationId"] = {
+                $in: locations.map((location) => location._id),
+            };
+        }
+        if (typeof isActive === "boolean") {
+            matchQuery.isActive = isActive;
+        }
+        if (typeof isComplete === "boolean") {
+            matchQuery.isComplete = isComplete;
         }
         if (categoryIds?.length) {
-            const invalidCategoryIds = categoryIds.filter((id) => !Types.ObjectId.isValid(id));
-            if (invalidCategoryIds.length > 0) {
-                throw new Error(`Invalid categoryIds: ${invalidCategoryIds.join(", ")}`);
-            }
+            matchQuery.categoryId = {
+                $in: categoryIds.map((id) => new Types.ObjectId(id)),
+            };
         }
-        try {
-            if (cityIds?.length) {
-                const locations = await Location.find({
-                    cityId: {
-                        $in: cityIds.map((id) => new Types.ObjectId(id)),
-                    },
+        const allowedSortFields = new Set([
+            "name",
+            "createdAt",
+            "updatedAt",
+            "startingPrice",
+            "isActive",
+            "isComplete",
+        ]);
+        const safeSortBy = allowedSortFields.has(sortBy)
+            ? sortBy
+            : "createdAt";
+        const sortCriteria = {
+            [safeSortBy]: sortOrder === "asc" ? 1 : -1,
+        };
+        const [services, total] = await Promise.all([
+            Service.find(matchQuery)
+                .populate({
+                path: "subServiceComponents",
+                match: {
                     isActive: true,
-                })
-                    .select("_id")
-                    .lean();
-                const locationIds = locations.map((loc) => loc._id);
-                matchQuery["locations.locationId"] = {
-                    $in: locationIds,
-                };
-            }
-            if (isActive !== undefined) {
-                matchQuery.isActive = isActive;
-            }
-            if (isComplete !== undefined) {
-                matchQuery.isComplete = isComplete;
-            }
-            if (categoryIds?.length) {
-                matchQuery.categoryId = {
-                    $in: categoryIds.map((id) => new Types.ObjectId(id)),
-                };
-            }
-            const sortCriteria = {
-                [sortBy]: sortOrder === "desc" ? -1 : 1,
-            };
-            const [services, total] = await Promise.all([
-                Service.find(matchQuery)
-                    .populate({
-                    path: "subServiceComponents",
-                    match: { isActive: true },
-                    select: "name description image isActive",
-                })
-                    .select({
-                    name: 1,
-                    shortDescription: 1,
-                    thumbnailImage: 1,
-                    categoryId: 1,
-                    isActive: 1,
-                    serviceReference: 1,
-                    createdAt: 1,
-                    isComplete: 1,
-                    locations: 1,
-                    tiers: 1,
-                })
-                    .sort(sortCriteria)
-                    .skip(skip)
-                    .limit(limit)
-                    .lean({ virtuals: true }),
-                Service.countDocuments(matchQuery),
-            ]);
-            return {
-                data: services,
-                total,
-                page,
-                totalPages: Math.ceil(total / limit),
-            };
-        }
-        catch (error) {
-            throw new Error(`Fetching services by location failed: ${error.message}`);
-        }
+                },
+                select: "name description image isActive",
+            })
+                .select({
+                name: 1,
+                shortDescription: 1,
+                thumbnailImage: 1,
+                categoryId: 1,
+                isActive: 1,
+                serviceReference: 1,
+                createdAt: 1,
+                isComplete: 1,
+                startingPrice: 1,
+                locations: 1,
+                tiers: 1,
+            })
+                .sort(sortCriteria)
+                .skip(skip)
+                .limit(safeLimit)
+                .lean({
+                virtuals: true,
+            }),
+            Service.countDocuments(matchQuery),
+        ]);
+        return {
+            data: services,
+            total,
+            page: safePage,
+            totalPages: Math.ceil(total / safeLimit),
+        };
     }
-    static async FindServices(searchTerm, categoryId, locationId, limit = 20, page = 1, isActive, isComplete, sortBy = "createdAt", sortOrder = "desc") {
-        const skip = (page - 1) * limit;
+    static async findServices(params) {
+        const { searchTerm, categoryId, locationId, limit = 20, page = 1, isActive, isComplete, sortBy = "createdAt", sortOrder = "desc", } = params;
+        const safeLimit = Math.min(Math.max(limit, 1), 100);
+        const safePage = Math.max(page, 1);
+        const skip = (safePage - 1) * safeLimit;
         const matchQuery = {};
-        if (isActive !== undefined)
+        if (typeof isActive === "boolean") {
             matchQuery.isActive = isActive;
-        if (isComplete !== undefined)
+        }
+        if (typeof isComplete === "boolean") {
             matchQuery.isComplete = isComplete;
+        }
         if (categoryId) {
-            if (!Types.ObjectId.isValid(categoryId)) {
-                throw new Error("Invalid categoryId");
-            }
-            matchQuery.categoryId = new Types.ObjectId(categoryId);
+            matchQuery.categoryId =
+                new Types.ObjectId(categoryId);
         }
         if (locationId) {
-            if (!Types.ObjectId.isValid(locationId)) {
-                throw new Error("Invalid locationId");
-            }
-            matchQuery["locations.locationId"] = new Types.ObjectId(locationId);
+            matchQuery["locations.locationId"] =
+                new Types.ObjectId(locationId);
         }
-        const term = searchTerm?.trim() ?? "";
-        const useTextSearch = term.length > 4;
+        const term = searchTerm?.trim();
+        const useTextSearch = Boolean(term && term.length > 4);
         if (term) {
             if (useTextSearch) {
                 matchQuery.$text = {
@@ -305,109 +338,130 @@ export class ServiceService {
                 };
             }
         }
-        let sortCriteria = {};
-        if (useTextSearch && sortBy === "relevance") {
+        let projection;
+        let sortCriteria;
+        if (useTextSearch &&
+            sortBy === "relevance") {
+            projection = {
+                score: {
+                    $meta: "textScore",
+                },
+            };
             sortCriteria = {
-                score: { $meta: "textScore" },
+                score: {
+                    $meta: "textScore",
+                },
             };
         }
         else {
-            sortCriteria[sortBy] = sortOrder === "desc" ? -1 : 1;
-        }
-        try {
-            const [data, total] = await Promise.all([
-                Service.find(matchQuery)
-                    .populate({
-                    path: "subServiceComponents",
-                    match: { isActive: true },
-                    select: "name description image isActive",
-                })
-                    .select({
-                    name: 1,
-                    shortDescription: 1,
-                    thumbnailImage: 1,
-                    categoryId: 1,
-                    isActive: 1,
-                    serviceReference: 1,
-                    createdAt: 1,
-                    isComplete: 1,
-                    locations: 1,
-                    tiers: 1,
-                    ...(useTextSearch && {
-                        score: { $meta: "textScore" },
-                    }),
-                })
-                    .sort(sortCriteria)
-                    .skip(skip)
-                    .limit(limit)
-                    .lean({ virtuals: true }),
-                Service.countDocuments(matchQuery),
+            const allowedSortFields = new Set([
+                "name",
+                "createdAt",
+                "updatedAt",
+                "startingPrice",
+                "isActive",
+                "isComplete",
             ]);
-            return { data, total, page, totalPages: Math.ceil(total / limit) };
+            const safeSortBy = allowedSortFields.has(sortBy)
+                ? sortBy
+                : "createdAt";
+            sortCriteria = {
+                [safeSortBy]: sortOrder === "asc" ? 1 : -1,
+            };
+            if (safeSortBy !== "createdAt") {
+                sortCriteria.createdAt = -1;
+            }
         }
-        catch (error) {
-            throw new Error(`Service fetch failed: ${error.message}`);
-        }
+        const [data, total] = await Promise.all([
+            Service.find(matchQuery, projection)
+                .populate({
+                path: "subServiceComponents",
+                match: {
+                    isActive: true,
+                },
+                select: "name description image isActive",
+            })
+                .select({
+                name: 1,
+                shortDescription: 1,
+                thumbnailImage: 1,
+                categoryId: 1,
+                isActive: 1,
+                serviceReference: 1,
+                createdAt: 1,
+                isComplete: 1,
+                startingPrice: 1,
+                locations: 1,
+                tiers: 1,
+            })
+                .sort(sortCriteria)
+                .skip(skip)
+                .limit(safeLimit)
+                .lean({
+                virtuals: true,
+            }),
+            Service.countDocuments(matchQuery),
+        ]);
+        return {
+            data,
+            total,
+            page: safePage,
+            totalPages: Math.ceil(total / safeLimit),
+        };
     }
     static async updateServiceLocations(serviceId, locations) {
-        if (!Types.ObjectId.isValid(serviceId)) {
-            throw new Error("Invalid serviceId");
-        }
         const service = await Service.findById(serviceId);
         if (!service) {
-            throw new Error("Service not found");
+            throw createHttpError("Service not found", 404);
         }
-        if (!Array.isArray(locations) || locations.length === 0) {
-            throw new Error("At least one location is required");
-        }
-        const uniqueIds = [...new Set(locations.map((l) => l.locationId))];
-        const objectIds = [];
-        for (const id of uniqueIds) {
-            if (!Types.ObjectId.isValid(id)) {
-                throw new Error(`Invalid locationId: ${id}`);
-            }
-            objectIds.push(new Types.ObjectId(id));
-        }
+        const uniqueIds = [
+            ...new Set(locations.map((location) => location.locationId)),
+        ];
+        const objectIds = uniqueIds.map((id) => new Types.ObjectId(id));
         const validLocations = await Location.find({
-            _id: { $in: objectIds },
-        }).select("_id name");
-        if (validLocations.length !== objectIds.length) {
-            throw new Error("One or more locationIds are Invalid");
+            _id: {
+                $in: objectIds,
+            },
+        })
+            .select("_id name")
+            .lean();
+        if (validLocations.length !==
+            objectIds.length) {
+            throw createHttpError("One or more location IDs are invalid", 400);
         }
-        const formattedLocations = validLocations.map((loc) => ({
-            locationId: loc._id,
-            name: loc.name,
+        const formattedLocations = validLocations.map((location) => ({
+            locationId: location._id,
+            name: location.name,
             isActive: true,
         }));
-        service.locations = formattedLocations;
+        service.locations =
+            formattedLocations;
         await service.save();
         await ServiceCascadingEngine.run(serviceId);
         return {
             success: true,
-            message: "Service locationIds updated successfully",
+            message: "Service locations updated successfully",
             locations: formattedLocations,
         };
     }
     static async removeServiceLocation(serviceId, locationId) {
-        if (!Types.ObjectId.isValid(serviceId)) {
-            throw new Error("Invalid serviceId");
-        }
-        if (!Types.ObjectId.isValid(locationId)) {
-            throw new Error("Invalid locationId");
-        }
         const service = await Service.findById(serviceId);
         if (!service) {
-            throw new Error("Service not found");
+            throw createHttpError("Service not found", 404);
         }
-        const exists = service.locations.some((loc) => loc.locationId.toString() === locationId);
+        const exists = service.locations.some((location) => location.locationId.toString() ===
+            locationId);
         if (!exists) {
             return {
                 success: true,
+                unchanged: true,
                 message: "Location already not present",
                 locations: service.locations,
             };
         }
-        service.locations = service.locations.filter((loc) => loc.locationId.toString() !== locationId);
+        service.locations =
+            service.locations.filter((location) => location.locationId.toString() !==
+                locationId);
         await service.save();
         await ServiceCascadingEngine.run(serviceId);
         return {
@@ -417,44 +471,43 @@ export class ServiceService {
         };
     }
     static async updateServiceTiers(serviceId, tiers) {
-        if (!Types.ObjectId.isValid(serviceId)) {
-            throw new Error("Invalid serviceId");
-        }
         const service = await Service.findById(serviceId);
         if (!service) {
-            throw new Error("Service not found");
+            throw createHttpError("Service not found", 404);
         }
-        if (!Array.isArray(tiers) || tiers.length === 0) {
-            throw new Error("At least one tier is required");
-        }
-        const uniqueIds = [...new Set(tiers.map((t) => t.tierId))];
-        const objectIds = [];
-        for (const id of uniqueIds) {
-            if (!Types.ObjectId.isValid(id)) {
-                throw new Error(`Invalid tierId: ${id}`);
-            }
-            objectIds.push(new Types.ObjectId(id));
-        }
+        const uniqueIds = [
+            ...new Set(tiers.map((tier) => tier.tierId)),
+        ];
+        const objectIds = uniqueIds.map((id) => new Types.ObjectId(id));
         const validTiers = await Tier.find({
-            _id: { $in: objectIds },
-        }).select("_id name");
-        if (validTiers.length !== objectIds.length) {
-            throw new Error("One or more tierIds are invalid");
+            _id: {
+                $in: objectIds,
+            },
+        })
+            .select("_id name")
+            .lean();
+        if (validTiers.length !==
+            objectIds.length) {
+            throw createHttpError("One or more tier IDs are invalid", 400);
         }
-        const currentIds = service.tiers.map((t) => t.tierId.toString());
+        const currentIds = service.tiers.map((tier) => tier.tierId.toString());
         const newIds = objectIds.map((id) => id.toString());
-        const isSame = currentIds.length === newIds.length &&
+        const isSame = currentIds.length ===
+            newIds.length &&
             currentIds.every((id) => newIds.includes(id));
         if (isSame) {
             return {
                 success: true,
+                unchanged: true,
                 message: "No changes in tiers",
+                tiers: service.tiers,
             };
         }
-        service.tiers = validTiers.map((t) => ({
-            tierId: t._id,
-            name: t.name,
-        }));
+        service.tiers =
+            validTiers.map((tier) => ({
+                tierId: tier._id,
+                name: tier.name,
+            }));
         await service.save();
         await ServiceCascadingEngine.run(serviceId);
         return {
@@ -464,24 +517,23 @@ export class ServiceService {
         };
     }
     static async removeServiceTier(serviceId, tierId) {
-        if (!Types.ObjectId.isValid(serviceId)) {
-            throw new Error("Invalid serviceId");
-        }
-        if (!Types.ObjectId.isValid(tierId)) {
-            throw new Error("Invalid tierId");
-        }
         const service = await Service.findById(serviceId);
         if (!service) {
-            throw new Error("Service not found");
+            throw createHttpError("Service not found", 404);
         }
-        const exists = service.tiers.some((t) => t.tierId.toString() === tierId);
+        const exists = service.tiers.some((tier) => tier.tierId.toString() ===
+            tierId);
         if (!exists) {
             return {
                 success: true,
+                unchanged: true,
                 message: "Tier already not present",
+                tiers: service.tiers,
             };
         }
-        service.tiers = service.tiers.filter((t) => t.tierId.toString() !== tierId);
+        service.tiers =
+            service.tiers.filter((tier) => tier.tierId.toString() !==
+                tierId);
         await service.save();
         await ServiceCascadingEngine.run(serviceId);
         return {
@@ -491,62 +543,82 @@ export class ServiceService {
         };
     }
     static async getFullService(serviceId) {
-        if (!Types.ObjectId.isValid(serviceId)) {
-            throw new Error("Invalid serviceId");
-        }
         const service = await Service.findById(serviceId)
             .populate({
             path: "subServiceComponents",
-            match: { isActive: true },
+            match: {
+                isActive: true,
+            },
             select: "name description image isActive",
-            options: { sort: { createdAt: -1 } },
+            options: {
+                sort: {
+                    createdAt: -1,
+                },
+            },
         })
-            .lean({ virtuals: true });
+            .lean({
+            virtuals: true,
+        });
         if (!service) {
-            throw new Error("Service not found");
+            throw createHttpError("Service not found", 404);
         }
-        const [serviceComponents, pricing, serviceCategory] = await Promise.all([
-            ServiceComponent.find({ serviceId }).lean(),
-            ServicePricing.find({ serviceId }).lean(),
-            Category.findById(service.categoryId).select("label value image").lean(),
+        const [serviceComponents, pricing, serviceCategory,] = await Promise.all([
+            ServiceComponent.find({
+                serviceId,
+            }).lean(),
+            ServicePricing.find({
+                serviceId,
+            }).lean(),
+            Category.findById(service.categoryId)
+                .select("label value image")
+                .lean(),
         ]);
-        const componentIds = serviceComponents.map((c) => c.componentId);
+        const componentIds = serviceComponents.map((component) => component.componentId);
         const componentDocs = await Component.find({
-            _id: { $in: componentIds },
+            _id: {
+                $in: componentIds,
+            },
         }).lean();
-        const componentMap = new Map(componentDocs.map((c) => [c._id.toString(), c]));
-        const itemIds = serviceComponents.flatMap((c) => c.items?.map((i) => i.itemId) || []);
+        const componentMap = new Map(componentDocs.map((component) => [
+            component._id.toString(),
+            component,
+        ]));
+        const itemIds = serviceComponents.flatMap((component) => component.items?.map((item) => item.itemId) ?? []);
         const itemDocs = await ComponentItem.find({
-            _id: { $in: itemIds },
+            _id: {
+                $in: itemIds,
+            },
         }).lean();
-        const itemMap = new Map(itemDocs.map((i) => [i._id.toString(), i]));
+        const itemMap = new Map(itemDocs.map((item) => [
+            item._id.toString(),
+            item,
+        ]));
         const pricingMap = new Map();
-        for (const p of pricing) {
-            const key = `${p.tierId}_${p.componentId}`;
-            if (!pricingMap.has(key)) {
-                pricingMap.set(key, []);
-            }
-            pricingMap.get(key).push({
-                locationId: p.locationId,
-                price: p.price,
+        for (const price of pricing) {
+            const key = `${price.tierId}_${price.componentId}`;
+            const existing = pricingMap.get(key) ?? [];
+            existing.push({
+                locationId: price.locationId,
+                price: price.price,
             });
+            pricingMap.set(key, existing);
         }
         const grouped = {};
-        for (const comp of serviceComponents) {
-            const tierId = comp.tierId.toString();
+        for (const component of serviceComponents) {
+            const tierId = component.tierId.toString();
             if (!grouped[tierId]) {
                 grouped[tierId] = {
-                    tierId: comp.tierId,
+                    tierId: component.tierId,
                     components: [],
                 };
             }
-            const pricingKey = `${comp.tierId}_${comp.componentId}`;
-            const componentDetails = componentMap.get(comp.componentId.toString());
+            const pricingKey = `${component.tierId}_${component.componentId}`;
+            const componentDetails = componentMap.get(component.componentId.toString());
             grouped[tierId].components.push({
-                componentId: comp.componentId,
-                name: comp.name,
-                description: comp.description,
-                isRequired: comp.isRequired,
+                componentId: component.componentId,
+                name: component.name,
+                description: component.description,
+                isRequired: component.isRequired,
                 component: componentDetails
                     ? {
                         id: componentDetails._id,
@@ -556,11 +628,11 @@ export class ServiceService {
                         isActive: componentDetails.isActive,
                     }
                     : null,
-                items: (comp.items || []).map((item) => ({
+                items: (component.items ?? []).map((item) => ({
                     ...item,
-                    itemDetails: itemMap.get(item.itemId.toString()) || null,
+                    itemDetails: itemMap.get(item.itemId.toString()) ?? null,
                 })),
-                pricing: pricingMap.get(pricingKey) || [],
+                pricing: pricingMap.get(pricingKey) ?? [],
             });
         }
         return {
@@ -571,6 +643,7 @@ export class ServiceService {
                 fullDescription: service.fullDescription,
                 thumbnailImage: service.thumbnailImage,
                 bannerImage: service.bannerImage,
+                startingPrice: service.startingPrice,
                 category: serviceCategory
                     ? {
                         id: serviceCategory._id,
@@ -583,26 +656,16 @@ export class ServiceService {
                 isComplete: service.isComplete,
                 serviceReference: service.serviceReference,
             },
-            subServiceComponents: service.subServiceComponents || [],
+            subServiceComponents: service.subServiceComponents ?? [],
             locations: service.locations,
-            tiers: service.tiers.map((t) => ({
-                tierId: t.tierId,
-                name: t.name,
+            tiers: service.tiers.map((tier) => ({
+                tierId: tier.tierId,
+                name: tier.name,
             })),
             components: grouped,
         };
     }
     static async getFullServiceByCities(serviceId, cityIds) {
-        if (!Types.ObjectId.isValid(serviceId)) {
-            throw new Error("Invalid serviceId");
-        }
-        if (!Array.isArray(cityIds) || cityIds.length === 0) {
-            throw new Error("cityIds must be a non-empty array");
-        }
-        const invalidCityIds = cityIds.filter((id) => !Types.ObjectId.isValid(id));
-        if (invalidCityIds.length > 0) {
-            throw new Error(`Invalid cityIds: ${invalidCityIds.join(", ")}`);
-        }
         const locations = await Location.find({
             cityId: {
                 $in: cityIds.map((id) => new Types.ObjectId(id)),
@@ -615,37 +678,50 @@ export class ServiceService {
         })
             .select("_id name cityId")
             .lean();
-        const locationIds = locations.map((loc) => loc._id);
-        const locationMap = new Map(locations.map((loc) => [
-            loc._id.toString(),
+        const locationIds = locations.map((location) => location._id);
+        const locationMap = new Map(locations.map((location) => [
+            location._id.toString(),
             {
-                locationId: loc._id,
-                locationName: loc.name,
-                city: loc.cityId,
+                locationId: location._id,
+                locationName: location.name,
+                city: location.cityId,
             },
         ]));
         const service = await Service.findById(serviceId)
             .populate({
             path: "subServiceComponents",
-            match: { isActive: true },
+            match: {
+                isActive: true,
+            },
             select: "name description image isActive",
-            options: { sort: { createdAt: -1 } },
+            options: {
+                sort: {
+                    createdAt: -1,
+                },
+            },
         })
-            .lean({ virtuals: true });
+            .lean({
+            virtuals: true,
+        });
         if (!service) {
-            throw new Error("Service not found");
+            throw createHttpError("Service not found", 404);
         }
         const filteredLocations = service.locations
-            .filter((loc) => locationIds.some((id) => id.toString() === loc.locationId.toString()))
-            .map((loc) => ({
-            ...loc,
-            locationDetails: locationMap.get(loc.locationId.toString()) || null,
+            .filter((location) => locationIds.some((id) => id.toString() ===
+            location.locationId.toString()))
+            .map((location) => ({
+            ...location,
+            locationDetails: locationMap.get(location.locationId.toString()) ?? null,
         }));
-        const [components, pricing, componentDetails] = await Promise.all([
-            ServiceComponent.find({ serviceId }).lean(),
+        const [components, pricing, componentDetails,] = await Promise.all([
+            ServiceComponent.find({
+                serviceId,
+            }).lean(),
             ServicePricing.find({
                 serviceId,
-                locationId: { $in: locationIds },
+                locationId: {
+                    $in: locationIds,
+                },
             }).lean(),
             Component.find({
                 isActive: true,
@@ -653,47 +729,47 @@ export class ServiceService {
                 .select("name imageUrl")
                 .lean(),
         ]);
-        const componentMap = new Map(componentDetails.map((comp) => [
-            comp._id.toString(),
+        const componentMap = new Map(componentDetails.map((component) => [
+            component._id.toString(),
             {
-                imageUrl: comp.imageUrl || null,
-                name: comp.name,
+                imageUrl: component.imageUrl ?? null,
+                name: component.name,
             },
         ]));
         const pricingMap = new Map();
-        for (const p of pricing) {
-            const key = `${p.tierId}_${p.componentId}`;
-            if (!pricingMap.has(key)) {
-                pricingMap.set(key, []);
-            }
-            pricingMap.get(key).push({
-                locationId: p.locationId,
-                locationDetails: locationMap.get(p.locationId.toString()) || null,
-                price: p.price,
+        for (const price of pricing) {
+            const key = `${price.tierId}_${price.componentId}`;
+            const existing = pricingMap.get(key) ?? [];
+            existing.push({
+                locationId: price.locationId,
+                locationDetails: locationMap.get(price.locationId.toString()) ?? null,
+                price: price.price,
             });
+            pricingMap.set(key, existing);
         }
         const grouped = {};
-        for (const comp of components) {
-            const tierId = comp.tierId.toString();
-            const pricingKey = `${comp.tierId}_${comp.componentId}`;
-            const componentPricing = pricingMap.get(pricingKey) || [];
+        for (const component of components) {
+            const tierId = component.tierId.toString();
+            const pricingKey = `${component.tierId}_${component.componentId}`;
+            const componentPricing = pricingMap.get(pricingKey) ?? [];
             if (componentPricing.length === 0) {
                 continue;
             }
             if (!grouped[tierId]) {
                 grouped[tierId] = {
-                    tierId: comp.tierId,
+                    tierId: component.tierId,
                     components: [],
                 };
             }
-            const componentInfo = componentMap.get(comp.componentId.toString());
+            const componentInfo = componentMap.get(component.componentId.toString());
             grouped[tierId].components.push({
-                componentId: comp.componentId,
-                name: comp.name,
-                description: comp.description,
-                isRequired: comp.isRequired,
-                imageUrl: componentInfo?.imageUrl || null,
-                items: comp.items || [],
+                componentId: component.componentId,
+                name: component.name,
+                description: component.description,
+                isRequired: component.isRequired,
+                imageUrl: componentInfo?.imageUrl ??
+                    null,
+                items: component.items ?? [],
                 pricing: componentPricing,
             });
         }
@@ -706,57 +782,56 @@ export class ServiceService {
                 fullDescription: service.fullDescription,
                 thumbnailImage: service.thumbnailImage,
                 bannerImage: service.bannerImage,
+                startingPrice: service.startingPrice,
                 isActive: service.isActive,
                 isComplete: service.isComplete,
                 serviceReference: service.serviceReference,
             },
-            subServiceComponents: service.subServiceComponents || [],
+            subServiceComponents: service.subServiceComponents ?? [],
             locations: filteredLocations,
-            tiers: filteredTiers.map((t) => ({
-                tierId: t.tierId,
-                name: t.name,
+            tiers: filteredTiers.map((tier) => ({
+                tierId: tier.tierId,
+                name: tier.name,
             })),
             components: grouped,
         };
     }
     static async updateServiceStartingPrice(serviceId) {
-        // fetch all required component mappings
         const components = await ServiceComponent.find({
             serviceId,
             isRequired: true,
         }).lean();
         if (!components.length) {
             await Service.findByIdAndUpdate(serviceId, {
-                startingPrice: 0,
+                $set: {
+                    startingPrice: 0,
+                },
             });
             return;
         }
-        // group required components by tier
         const tierComponentMap = new Map();
         for (const component of components) {
             const tierId = component.tierId.toString();
-            if (!tierComponentMap.has(tierId)) {
-                tierComponentMap.set(tierId, []);
-            }
-            tierComponentMap.get(tierId).push(component.componentId.toString());
+            const existing = tierComponentMap.get(tierId) ?? [];
+            existing.push(component.componentId.toString());
+            tierComponentMap.set(tierId, existing);
         }
-        // fetch all pricing
         const pricing = await ServicePricing.find({
             serviceId,
+            isActive: true,
         }).lean();
-        // build pricing lookup
         const pricingMap = new Map();
-        for (const p of pricing) {
-            const key = `${p.tierId}_${p.locationId}_${p.componentId}`;
-            pricingMap.set(key, p.price);
+        for (const price of pricing) {
+            const key = `${price.tierId}_${price.locationId}_${price.componentId}`;
+            pricingMap.set(key, price.price);
         }
         let minimumPrice = Infinity;
-        // calculate each tier/location combination
-        for (const [tierId, componentIds] of tierComponentMap.entries()) {
+        for (const [tierId, componentIds,] of tierComponentMap.entries()) {
             const locationIds = [
                 ...new Set(pricing
-                    .filter((p) => p.tierId.toString() === tierId)
-                    .map((p) => p.locationId.toString())),
+                    .filter((price) => price.tierId.toString() ===
+                    tierId)
+                    .map((price) => price.locationId.toString())),
             ];
             for (const locationId of locationIds) {
                 let total = 0;
@@ -764,7 +839,7 @@ export class ServiceService {
                 for (const componentId of componentIds) {
                     const key = `${tierId}_${locationId}_${componentId}`;
                     const price = pricingMap.get(key);
-                    if (price == null) {
+                    if (price === undefined) {
                         valid = false;
                         break;
                     }
@@ -776,19 +851,20 @@ export class ServiceService {
             }
         }
         await Service.findByIdAndUpdate(serviceId, {
-            startingPrice: minimumPrice === Infinity ? 0 : minimumPrice,
+            $set: {
+                startingPrice: minimumPrice === Infinity
+                    ? 0
+                    : minimumPrice,
+            },
         });
     }
     static async validateServiceConfiguration(serviceId) {
-        if (!Types.ObjectId.isValid(serviceId)) {
-            throw new Error("Invalid serviceId");
-        }
         const service = await Service.findById(serviceId).lean();
         if (!service) {
-            throw new Error("Service not found");
+            throw createHttpError("Service not found", 404);
         }
         const issues = [];
-        const activeLocations = service.locations.filter((l) => l.isActive);
+        const activeLocations = service.locations.filter((location) => location.isActive);
         if (activeLocations.length === 0) {
             issues.push("No active locations configured");
         }
@@ -804,22 +880,21 @@ export class ServiceService {
         }
         const pricing = await ServicePricing.find({
             serviceId,
+            isActive: true,
         }).lean();
-        const pricingMap = new Set(pricing.map((p) => `${p.tierId}_${p.locationId}_${p.componentId}`));
+        const pricingMap = new Set(pricing.map((price) => `${price.tierId}_${price.locationId}_${price.componentId}`));
         const tierComponentMap = new Map();
-        for (const c of requiredComponents) {
-            const tierId = c.tierId.toString();
-            if (!tierComponentMap.has(tierId)) {
-                tierComponentMap.set(tierId, []);
-            }
-            tierComponentMap.get(tierId).push(c);
+        for (const component of requiredComponents) {
+            const tierId = component.tierId.toString();
+            const existing = tierComponentMap.get(tierId) ?? [];
+            existing.push(component);
+            tierComponentMap.set(tierId, existing);
         }
         let hasValidCombination = false;
-        // now iterate efficiently
-        for (const [tierId, tierComponents] of tierComponentMap.entries()) {
+        for (const [tierId, tierComponents,] of tierComponentMap.entries()) {
             for (const location of activeLocations) {
-                const allPriced = tierComponents.every((c) => {
-                    const key = `${tierId}_${location.locationId.toString()}_${c.componentId.toString()}`;
+                const allPriced = tierComponents.every((component) => {
+                    const key = `${tierId}_${location.locationId}_${component.componentId}`;
                     return pricingMap.has(key);
                 });
                 if (allPriced) {
@@ -827,15 +902,18 @@ export class ServiceService {
                     break;
                 }
             }
-            if (hasValidCombination)
+            if (hasValidCombination) {
                 break;
+            }
         }
         if (!hasValidCombination) {
             issues.push("No fully priced tier/location combination exists");
         }
         const isComplete = issues.length === 0;
         await Service.findByIdAndUpdate(serviceId, {
-            isComplete,
+            $set: {
+                isComplete,
+            },
         });
         return {
             isComplete,

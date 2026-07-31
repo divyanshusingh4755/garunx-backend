@@ -1,28 +1,52 @@
-import { type Request, type Response, type NextFunction } from "express"
-import { Role, RolePermissions } from "../types/rbac.js"
+import type {
+  NextFunction,
+  Request,
+  Response,
+} from "express";
 
-export const hasPermission = (requiredPermission: string) => {
-    return (req: Request, res: Response, next: NextFunction) => {
-        const user = req.user
+import {
+  type Permission,
+  RolePermissions,
+} from "../types/rbac.js";
 
-        if (!user) {
-            return res.status(401).json({ success: false, message: "Authentication required" })
-        }
+export const hasPermission = (
+  requiredPermission:
+    Permission,
+) => {
+  return (
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): void => {
+    if (!req.user) {
+      res.status(401).json({
+        success: false,
+        message:
+          "Authentication required",
+      });
 
-        // Get Permission
-        const userRole = user.role as Role
-        const userPermissions = RolePermissions[userRole] || []
-
-        // 2. Merge with user-specific permissions from DB
-        // const totalPermissions = [...userPermissions, ...(user.customPermissions || [])];
-
-        if (!userPermissions.includes(requiredPermission)) {
-            return res.status(403).json({
-                success: false,
-                message: "Access Denied. Missing Permission"
-            })
-        }
-
-        next();
+      return;
     }
-}
+
+    const userPermissions =
+      RolePermissions[
+        req.user.role
+      ];
+
+    if (
+      !userPermissions.includes(
+        requiredPermission,
+      )
+    ) {
+      res.status(403).json({
+        success: false,
+        message:
+          "Access denied. Missing permission",
+      });
+
+      return;
+    }
+
+    next();
+  };
+};

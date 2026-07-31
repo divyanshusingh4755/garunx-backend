@@ -1,211 +1,571 @@
-import { Types } from "mongoose";
-import mongoose from "mongoose";
-import { Service } from "../models/service.model.js";
-import { ServiceComponent } from "../models/servicecomponent.model.js";
-import { ServicePricing } from "../models/servicepricing.model.js";
-import { ServiceService } from "./service.service.js";
+import mongoose, {
+  Types,
+  type ClientSession,
+} from "mongoose";
+
+import {
+  Service,
+} from "../models/service.model.js";
+
+import {
+  ServiceComponent,
+} from "../models/servicecomponent.model.js";
+
+import {
+  ServicePricing,
+} from "../models/servicepricing.model.js";
+
+import {
+  ServiceService,
+} from "./service.service.js";
+
+interface ServiceTierReference {
+  tierId: Types.ObjectId;
+}
+
+interface ServiceLocationReference {
+  locationId: Types.ObjectId;
+  isActive: boolean;
+}
+
+interface ServiceCascadeDocument {
+  _id: Types.ObjectId;
+  tiers: ServiceTierReference[];
+  locations: ServiceLocationReference[];
+  isComplete: boolean;
+  isActive: boolean;
+  save(options: {
+    session: ClientSession;
+  }): Promise<unknown>;
+}
+
+interface ServiceComponentReference {
+  _id: Types.ObjectId;
+  tierId: Types.ObjectId;
+  componentId: Types.ObjectId;
+  isRequired: boolean;
+}
+
+interface ServicePricingReference {
+  _id: Types.ObjectId;
+  tierId: Types.ObjectId;
+  locationId: Types.ObjectId;
+  componentId: Types.ObjectId;
+}
 
 export class ServiceCascadingEngine {
-  static async run(serviceId: string) {
-    if (!Types.ObjectId.isValid(serviceId)) {
-      throw new Error("Invalid serviceId");
+  static async run(
+    serviceId: string,
+  ): Promise<void> {
+    if (
+      !Types.ObjectId.isValid(
+        serviceId,
+      )
+    ) {
+      throw new Error(
+        "Invalid serviceId",
+      );
     }
 
-    const session = await mongoose.startSession();
+    const session =
+      await mongoose.startSession();
 
     try {
-      await session.withTransaction(async () => {
-        const service = await Service.findById(serviceId).session(session);
-        if (!service) throw new Error("Service not found");
+      await session.withTransaction(
+        async () => {
+          const service =
+            await Service.findById(
+              serviceId,
+            ).session(session);
 
-        // IMPORTANT: always re-fetch fresh state after mutations
-        await this.cleanupTierOrphans(service, session);
-        await this.cleanupLocationOrphans(service, session);
-        await this.cleanupComponentOrphans(service, session);
-        await this.cleanupPricing(service, session);
+          if (!service) {
+            throw new Error(
+              "Service not found",
+            );
+          }
 
-        // reload updated service snapshot
-        const refreshed = await Service.findById(serviceId).session(session);
-        if (!refreshed) throw new Error("Service lost during cleanup");
+          await this.cleanupTierOrphans(
+            service,
+            session,
+          );
 
-        const isComplete = await this.computeIsComplete(refreshed, session);
-        refreshed.isComplete = isComplete;
-        refreshed.isActive = isComplete;
+          await this.cleanupLocationOrphans(
+            service,
+            session,
+          );
 
-        await refreshed.save({ session });
-      });
+          await this.cleanupComponentOrphans(
+            service,
+            session,
+          );
 
-      await ServiceService.updateServiceStartingPrice(serviceId);
+          await this.cleanupPricing(
+            service,
+            session,
+          );
+
+          const refreshed =
+            await Service.findById(
+              serviceId,
+            ).session(session);
+
+          if (!refreshed) {
+            throw new Error(
+              "Service lost during cleanup",
+            );
+          }
+
+          const isComplete =
+            await this.computeIsComplete(
+              refreshed,
+              session,
+            );
+
+          refreshed.isComplete =
+            isComplete;
+
+          refreshed.isActive =
+            isComplete;
+
+          await refreshed.save({
+            session,
+          });
+        },
+      );
+
+      await ServiceService
+        .updateServiceStartingPrice(
+          serviceId,
+        );
     } finally {
-      session.endSession();
+      await session.endSession();
     }
   }
 
-  static async cleanupTierOrphans(service: any, session: any) {
-    const validTierIds = service.tiers.map((t: any) => t.tierId.toString());
+  private static getValidIdStrings(
+    values: readonly Types.ObjectId[],
+  ): string[] {
+    return values.map((value) => {
+      const id = value.toString();
 
-    if (!validTierIds.length) {
-      await ServiceComponent.deleteMany(
-        { serviceId: service._id },
-        { session },
+      if (
+        !Types.ObjectId.isValid(id)
+      ) {
+        throw new Error(
+          `Invalid ObjectId: ${id}`,
+        );
+      }
+
+      return id;
+    });
+  }
+
+  static async cleanupTierOrphans(
+    service: ServiceCascadeDocument,
+    session: ClientSession,
+  ): Promise<void> {
+    const validTierIds =
+      this.getValidIdStrings(
+        service.tiers.map(
+          (tier) => tier.tierId,
+        ),
       );
+
+    if (
+      validTierIds.length === 0
+    ) {
+      await Promise.all([
+        ServiceComponent.deleteMany(
+          {
+            serviceId:
+              service._id,
+          },
+          {
+            session,
+          },
+        ),
+
+        ServicePricing.deleteMany(
+          {
+            serviceId:
+              service._id,
+          },
+          {
+            session,
+          },
+        ),
+      ]);
+
       return;
     }
 
-    await ServiceComponent.deleteMany(
-      {
-        serviceId: service._id,
-        tierId: { $nin: validTierIds },
-      },
-      { session },
-    );
+    await Promise.all([
+      ServiceComponent.deleteMany(
+        {
+          serviceId:
+            service._id,
+          tierId: {
+            $nin: validTierIds,
+          },
+        },
+        {
+          session,
+        },
+      ),
+
+      ServicePricing.deleteMany(
+        {
+          serviceId:
+            service._id,
+          tierId: {
+            $nin: validTierIds,
+          },
+        },
+        {
+          session,
+        },
+      ),
+    ]);
   }
 
-  static async cleanupLocationOrphans(service: any, session: any) {
-    const validLocationIds = service.locations.map((l: any) =>
-      l.locationId.toString(),
-    );
+  static async cleanupLocationOrphans(
+    service: ServiceCascadeDocument,
+    session: ClientSession,
+  ): Promise<void> {
+    const validLocationIds =
+      this.getValidIdStrings(
+        service.locations.map(
+          (location) =>
+            location.locationId,
+        ),
+      );
 
-    if (!validLocationIds.length) {
-      await ServicePricing.deleteMany({ serviceId: service._id }, { session });
+    if (
+      validLocationIds.length === 0
+    ) {
+      await ServicePricing.deleteMany(
+        {
+          serviceId:
+            service._id,
+        },
+        {
+          session,
+        },
+      );
+
       return;
     }
 
     await ServicePricing.deleteMany(
       {
-        serviceId: service._id,
-        locationId: { $nin: validLocationIds },
+        serviceId:
+          service._id,
+        locationId: {
+          $nin: validLocationIds,
+        },
       },
-      { session },
+      {
+        session,
+      },
     );
   }
 
-  static async cleanupComponentOrphans(service: any, session: any) {
-    const validTierIds = service.tiers.map((t: any) => t.tierId.toString());
-
-    if (!validTierIds.length) {
-      await ServiceComponent.deleteMany(
-        { serviceId: service._id },
-        { session },
-      );
-      return;
-    }
-
+  static async cleanupComponentOrphans(
+    service: ServiceCascadeDocument,
+    session: ClientSession,
+  ): Promise<void> {
     await ServiceComponent.deleteMany(
       {
-        serviceId: service._id,
-        tierId: { $nin: validTierIds },
-      },
-      { session },
-    );
-
-    // remove broken docs safely
-    await ServiceComponent.deleteMany(
-      {
-        serviceId: service._id,
+        serviceId:
+          service._id,
         $or: [
-          { tierId: { $exists: false } },
-          { componentId: { $exists: false } },
+          {
+            tierId: {
+              $exists: false,
+            },
+          },
+          {
+            tierId: null,
+          },
+          {
+            componentId: {
+              $exists: false,
+            },
+          },
+          {
+            componentId: null,
+          },
         ],
       },
-      { session },
+      {
+        session,
+      },
     );
   }
 
-  static async cleanupPricing(service: any, session: any) {
-    const validTierIds = new Set(
-      service.tiers.map((t: any) => t.tierId.toString()),
-    );
-
-    const validLocationIds = new Set(
-      service.locations.map((l: any) => l.locationId.toString()),
-    );
-
-    const components = await ServiceComponent.find({
-      serviceId: service._id,
-    })
-      .session(session)
-      .select("tierId componentId");
-
-    const validComponentKeys = new Set(
-      components.map(
-        (c) => `${c.tierId.toString()}_${c.componentId.toString()}`,
-      ),
-    );
-
-    const pricing = await ServicePricing.find({
-      serviceId: service._id,
-    }).session(session);
-
-    const deleteIds: mongoose.Types.ObjectId[] = [];
-
-    for (const p of pricing) {
-      const tierId = p.tierId.toString();
-      const locationId = p.locationId.toString();
-      const componentId = p.componentId.toString();
-
-      const key = `${tierId}_${componentId}`;
-
-      const invalid =
-        !validTierIds.has(tierId) ||
-        !validLocationIds.has(locationId) ||
-        !validComponentKeys.has(key);
-
-      if (invalid) deleteIds.push(p._id);
-    }
-
-    if (deleteIds.length) {
-      await ServicePricing.deleteMany({ _id: { $in: deleteIds } }, { session });
-    }
-  }
-
-  static async computeIsComplete(service: any, session: any) {
-    const components = await ServiceComponent.find({
-      serviceId: service._id,
-    })
-      .session(session)
-      .lean();
-
-    const pricing = await ServicePricing.find({
-      serviceId: service._id,
-    })
-      .session(session)
-      .lean();
-
-    // 1. Filter for active locations only
-    const activeLocations = service.locations.filter((l: any) => l.isActive);
-
-    // 2. Initial Guards
-    if (!activeLocations.length) return false;
-    if (!service.tiers.length) return false;
-
-    const requiredComponents = components.filter((c) => c.isRequired);
-    if (!requiredComponents.length) return false;
-
-    // 3. Build the price set with explicit strings
-    const priceSet = new Set(
-      pricing.map(
-        (p) =>
-          `${p.tierId.toString()}_${p.locationId.toString()}_${p.componentId.toString()}`,
-      ),
-    );
-
-    // 4. Check for completion
-    for (const tier of service.tiers) {
-      const tierRequiredComponents = requiredComponents.filter(
-        (c) => c.tierId.toString() === tier.tierId.toString(),
+  static async cleanupPricing(
+    service: ServiceCascadeDocument,
+    session: ClientSession,
+  ): Promise<void> {
+    const validTierIds =
+      new Set(
+        this.getValidIdStrings(
+          service.tiers.map(
+            (tier) => tier.tierId,
+          ),
+        ),
       );
 
-      // Skip tiers that have no required components defined (optional)
-      if (tierRequiredComponents.length === 0) continue;
+    const validLocationIds =
+      new Set(
+        this.getValidIdStrings(
+          service.locations.map(
+            (location) =>
+              location.locationId,
+          ),
+        ),
+      );
 
-      // Use activeLocations here, NOT service.locations
-      for (const loc of activeLocations) {
-        for (const comp of tierRequiredComponents) {
-          const key = `${tier.tierId.toString()}_${loc.locationId.toString()}_${comp.componentId.toString()}`;
+    await ServicePricing.deleteMany(
+      {
+        serviceId:
+          service._id,
+        $or: [
+          {
+            tierId: {
+              $exists: false,
+            },
+          },
+          {
+            tierId: null,
+          },
+          {
+            locationId: {
+              $exists: false,
+            },
+          },
+          {
+            locationId: null,
+          },
+          {
+            componentId: {
+              $exists: false,
+            },
+          },
+          {
+            componentId: null,
+          },
+        ],
+      },
+      {
+        session,
+      },
+    );
 
-          if (!priceSet.has(key)) {
-            console.log(`Missing pricing for: ${key}`);
+    const components =
+      await ServiceComponent.find(
+        {
+          serviceId:
+            service._id,
+        },
+      )
+        .session(session)
+        .select(
+          "tierId componentId",
+        )
+        .lean<
+          ServiceComponentReference[]
+        >();
+
+    const validComponentKeys =
+      new Set(
+        components.map(
+          (component) =>
+            `${component.tierId.toString()}_${component.componentId.toString()}`,
+        ),
+      );
+
+    const pricing =
+      await ServicePricing.find(
+        {
+          serviceId:
+            service._id,
+        },
+      )
+        .session(session)
+        .select(
+          "tierId locationId componentId",
+        )
+        .lean<
+          ServicePricingReference[]
+        >();
+
+    const deleteIds:
+      Types.ObjectId[] = [];
+
+    for (
+      const pricingRow of pricing
+    ) {
+      const tierId =
+        pricingRow.tierId
+          .toString();
+
+      const locationId =
+        pricingRow.locationId
+          .toString();
+
+      const componentId =
+        pricingRow.componentId
+          .toString();
+
+      const componentKey =
+        `${tierId}_${componentId}`;
+
+      if (
+        !validTierIds.has(
+          tierId,
+        ) ||
+        !validLocationIds.has(
+          locationId,
+        ) ||
+        !validComponentKeys.has(
+          componentKey,
+        )
+      ) {
+        deleteIds.push(
+          pricingRow._id,
+        );
+      }
+    }
+
+    if (
+      deleteIds.length > 0
+    ) {
+      await ServicePricing.deleteMany(
+        {
+          _id: {
+            $in: deleteIds,
+          },
+        },
+        {
+          session,
+        },
+      );
+    }
+  }
+
+  static async computeIsComplete(
+    service: ServiceCascadeDocument,
+    session: ClientSession,
+  ): Promise<boolean> {
+    const components =
+      await ServiceComponent.find(
+        {
+          serviceId:
+            service._id,
+        },
+      )
+        .session(session)
+        .select(
+          "tierId componentId isRequired",
+        )
+        .lean<
+          ServiceComponentReference[]
+        >();
+
+    const pricing =
+      await ServicePricing.find(
+        {
+          serviceId:
+            service._id,
+        },
+      )
+        .session(session)
+        .select(
+          "tierId locationId componentId",
+        )
+        .lean<
+          ServicePricingReference[]
+        >();
+
+    const activeLocations =
+      service.locations.filter(
+        (location) =>
+          location.isActive,
+      );
+
+    if (
+      activeLocations.length === 0 ||
+      service.tiers.length === 0
+    ) {
+      return false;
+    }
+
+    const requiredComponents =
+      components.filter(
+        (component) =>
+          component.isRequired,
+      );
+
+    if (
+      requiredComponents.length === 0
+    ) {
+      return false;
+    }
+
+    const priceSet =
+      new Set(
+        pricing.map(
+          (pricingRow) =>
+            `${pricingRow.tierId.toString()}_${pricingRow.locationId.toString()}_${pricingRow.componentId.toString()}`,
+        ),
+      );
+
+    for (
+      const tier of
+      service.tiers
+    ) {
+      const tierId =
+        tier.tierId.toString();
+
+      const tierRequiredComponents =
+        requiredComponents.filter(
+          (component) =>
+            component.tierId
+              .toString() ===
+            tierId,
+        );
+
+      /*
+       * Every configured tier must have at least one
+       * required component. Skipping an empty tier would
+       * incorrectly mark the service complete.
+       */
+      if (
+        tierRequiredComponents.length ===
+        0
+      ) {
+        return false;
+      }
+
+      for (
+        const location of
+        activeLocations
+      ) {
+        const locationId =
+          location.locationId
+            .toString();
+
+        for (
+          const component of
+          tierRequiredComponents
+        ) {
+          const key =
+            `${tierId}_${locationId}_${component.componentId.toString()}`;
+
+          if (
+            !priceSet.has(key)
+          ) {
             return false;
           }
         }

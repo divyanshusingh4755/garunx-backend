@@ -1,30 +1,61 @@
-import { model, Schema, Document, type Types } from "mongoose";
+import {
+  model,
+  Schema,
+  type Types,
+} from "mongoose";
 
-export interface ISubServiceComponent extends Document {
+export interface ISubServiceComponent {
   name: string;
   description: string;
   serviceId: Types.ObjectId;
   image?: string;
   isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
-const subServiceComponentSchema = new Schema<ISubServiceComponent>(
-  {
-    name: { type: String, required: true },
-    description: { type: String, required: true },
-    image: String,
-    serviceId: {
-      type: Schema.Types.ObjectId,
-      ref: "Service",
-      required: true,
-      index: true,
-    },
-    isActive: { type: Boolean, default: true },
-  },
-  { timestamps: true },
-);
+const subServiceComponentSchema =
+  new Schema<ISubServiceComponent>(
+    {
+      name: {
+        type: String,
+        required: true,
+        trim: true,
+      },
 
-subServiceComponentSchema.index({ name: 1 });
+      description: {
+        type: String,
+        required: true,
+        trim: true,
+      },
+
+      image: {
+        type: String,
+        trim: true,
+      },
+
+      serviceId: {
+        type: Schema.Types.ObjectId,
+        ref: "Service",
+        required: true,
+        index: true,
+      },
+
+      isActive: {
+        type: Boolean,
+        required: true,
+        default: true,
+        index: true,
+      },
+    },
+    {
+      timestamps: true,
+    },
+  );
+
+subServiceComponentSchema.index({
+  name: 1,
+});
 
 subServiceComponentSchema.index(
   {
@@ -32,11 +63,13 @@ subServiceComponentSchema.index(
     description: "text",
   },
   {
-    name: "SubServiceComponentTextSearchIndex",
+    name:
+      "SubServiceComponentTextSearchIndex",
   },
 );
 
-export const SubServiceComponent = model<ISubServiceComponent>(
-  "SubServiceComponent",
-  subServiceComponentSchema,
-);
+export const SubServiceComponent =
+  model<ISubServiceComponent>(
+    "SubServiceComponent",
+    subServiceComponentSchema,
+  );

@@ -1,12 +1,13 @@
-import { Schema } from "mongoose";
+import {
+  Schema,
+} from "mongoose";
 
-import type {
-  ILineTax,
-  ITaxProfileSnapshot,
+import {
   TaxJurisdiction,
   TaxPriceMode,
-  TaxSourceType,
-} from "../types/tax.types.js";
+  TaxSource,
+  type ILineTax,
+  type ITaxProfileSnapshot} from "../types/tax.types.js";
 
 export const taxProfileSnapshotSchema =
   new Schema<ITaxProfileSnapshot>(
@@ -27,6 +28,7 @@ export const taxProfileSnapshotSchema =
         type: String,
         required: true,
         trim: true,
+        uppercase: true,
       },
 
       treatment: {
@@ -44,23 +46,18 @@ export const taxProfileSnapshotSchema =
         type: Number,
         required: true,
         min: 0,
+        max: 100,
       },
 
       priceMode: {
         type: String,
-        enum: [
-          "EXCLUSIVE",
-          "INCLUSIVE",
-        ] satisfies TaxPriceMode[],
+        enum: Object.values(TaxPriceMode),
         required: true,
       },
 
       source: {
         type: String,
-        enum: [
-          "SERVICE_PRICING",
-          "PACKAGE_PRICING",
-        ] satisfies TaxSourceType[],
+        enum: Object.values(TaxSource),
         required: true,
       },
     },
@@ -69,20 +66,41 @@ export const taxProfileSnapshotSchema =
     },
   );
 
+taxProfileSnapshotSchema.pre(
+  "validate",
+  function () {
+    if (
+      this.treatment === "TAXABLE" &&
+      this.totalRate <= 0
+    ) {
+      throw new Error(
+        "Taxable tax snapshot must have a rate greater than zero",
+      );
+    }
+
+    if (
+      this.treatment !== "TAXABLE" &&
+      this.totalRate !== 0
+    ) {
+      throw new Error(
+        "Non-taxable tax snapshot must have a rate equal to zero",
+      );
+    }
+  },
+);
+
 export const lineTaxSchema =
   new Schema<ILineTax>(
     {
       profile: {
-        type: taxProfileSnapshotSchema,
+        type:
+          taxProfileSnapshotSchema,
         required: true,
       },
 
       jurisdiction: {
         type: String,
-        enum: [
-          "INTRA_STATE",
-          "INTER_STATE",
-        ] satisfies TaxJurisdiction[],
+        enum: Object.values(TaxJurisdiction),
         required: true,
       },
 
@@ -96,6 +114,7 @@ export const lineTaxSchema =
         type: Number,
         default: 0,
         min: 0,
+        max: 100,
       },
 
       cgstAmount: {
@@ -108,6 +127,7 @@ export const lineTaxSchema =
         type: Number,
         default: 0,
         min: 0,
+        max: 100,
       },
 
       sgstAmount: {
@@ -120,6 +140,7 @@ export const lineTaxSchema =
         type: Number,
         default: 0,
         min: 0,
+        max: 100,
       },
 
       igstAmount: {

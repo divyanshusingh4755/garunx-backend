@@ -1,5 +1,5 @@
-import { Types, Document, Model } from "mongoose";
-export type QueryMessageSenderType = "CUSTOMER" | "COORDINATOR" | "ADMIN";
+import { Types, type Document, type Model } from "mongoose";
+export type QueryMessageSenderType = "USER" | "COORDINATOR" | "ADMIN";
 export interface IUserQueryMessage extends Document {
     queryId: Types.ObjectId;
     senderId: Types.ObjectId;

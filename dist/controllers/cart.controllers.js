@@ -123,7 +123,7 @@ export const updateSelectedServices = async (req, res) => {
         const cart = await CartService.updateSelectedServices(owner, req.params.cartId, req.body);
         res.status(200).json({
             success: true,
-            message: "Addon services updated successfully",
+            message: "Selected services updated successfully",
             cart,
         });
     }
@@ -222,13 +222,16 @@ export const recalculateCart = async (req, res) => {
 export const validateCart = async (req, res) => {
     try {
         const owner = getCartOwner(req);
-        const { persist } = req.body;
-        if (!persist) {
-            return res
-                .status(400)
-                .json({ success: false, message: "persist missing" });
+        const persist = req.body.persist === undefined
+            ? false
+            : req.body.persist;
+        if (typeof persist !== "boolean") {
+            return res.status(400).json({
+                success: false,
+                message: "persist must be boolean",
+            });
         }
-        const validation = await CartService.validateCart(owner, req.params.cartId, Boolean(persist));
+        const validation = await CartService.validateCart(owner, req.params.cartId, persist);
         res.status(200).json({
             success: true,
             validation,
@@ -358,9 +361,9 @@ export const reopenCart = async (req, res) => {
         });
     }
     catch (error) {
-        return res.status(400).json({
+        return res.status(error.statusCode || 400).json({
             success: false,
-            message: error.message,
+            message: error.message || "Failed to reopen cart",
         });
     }
 };

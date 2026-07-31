@@ -8,12 +8,7 @@ export interface IPackageTierService {
 export interface IPackageTierMap extends Document {
     packageId: Types.ObjectId;
     tierId: Types.ObjectId;
-    services: {
-        serviceId: Types.ObjectId;
-        name: string;
-        isRequired: boolean;
-        isRelated: boolean;
-    }[];
+    services: IPackageTierService[];
 }
 export declare const PackageTierMap: import("mongoose").Model<IPackageTierMap, {}, {}, {}, Document<unknown, {}, IPackageTierMap, {}, import("mongoose").DefaultSchemaOptions> & IPackageTierMap & Required<{
     _id: Types.ObjectId;

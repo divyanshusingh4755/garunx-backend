@@ -1,24 +1,26 @@
-import { type ICity } from "../models/city.model.js";
+import { Types } from "mongoose";
+import { type ICity, type IGeoPoint } from "../models/city.model.js";
+type CityUpdate = Partial<Pick<ICity, "name" | "country" | "image" | "description" | "isActive" | "location">> & {
+    stateId?: string;
+};
 export declare class CityService {
-    private static applyFilter;
+    private static applyStringFilter;
+    private static applyObjectIdFilter;
     static createCity(params: {
         name: string;
         country: string;
         stateId: string;
         image?: string;
         description?: string;
-        location?: {
-            type: "Point";
-            coordinates: [number, number];
-        };
-    }): Promise<import("mongoose").Document<unknown, {}, ICity, {}, import("mongoose").DefaultSchemaOptions> & ICity & Required<{
-        _id: import("mongoose").Types.ObjectId;
-    }> & {
+        location?: IGeoPoint;
+    }): Promise<import("mongoose").Document<unknown, {}, ICity, {}, import("mongoose").DefaultSchemaOptions> & ICity & {
+        _id: Types.ObjectId;
+    } & {
         __v: number;
     } & {
         id: string;
     }>;
-    static FindCity(params: {
+    static findCity(params: {
         searchTerm?: string;
         cityFilter?: string;
         stateIdFilter?: string;
@@ -29,29 +31,30 @@ export declare class CityService {
         sortBy?: string;
         sortOrder?: "asc" | "desc";
     }): Promise<{
-        data: (ICity & Required<{
-            _id: import("mongoose").Types.ObjectId;
-        }> & {
+        data: (ICity & {
+            _id: Types.ObjectId;
+        } & {
             __v: number;
         })[];
         total: number;
         page: number;
         totalPages: number;
     }>;
-    static updateCity(cityId: string, updateData: Partial<ICity>): Promise<ICity & Required<{
-        _id: import("mongoose").Types.ObjectId;
-    }> & {
+    static updateCity(cityId: string, updateData: CityUpdate): Promise<ICity & {
+        _id: Types.ObjectId;
+    } & {
         __v: number;
     }>;
-    static softDeleteCity(cityId: string, status: string): Promise<ICity & Required<{
-        _id: import("mongoose").Types.ObjectId;
-    }> & {
+    static softDeleteCity(cityId: string, status: boolean): Promise<ICity & {
+        _id: Types.ObjectId;
+    } & {
         __v: number;
     }>;
-    static getCityById(cityId: string): Promise<ICity & Required<{
-        _id: import("mongoose").Types.ObjectId;
-    }> & {
+    static getCityById(cityId: string): Promise<ICity & {
+        _id: Types.ObjectId;
+    } & {
         __v: number;
     }>;
 }
+export {};
 //# sourceMappingURL=city.service.d.ts.map

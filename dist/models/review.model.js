@@ -1,4 +1,4 @@
-import { Schema, Types, model, Document, Model, } from "mongoose";
+import { Schema, Types, model, } from "mongoose";
 const reviewSchema = new Schema({
     bookingId: {
         type: Schema.Types.ObjectId,
@@ -36,6 +36,7 @@ const reviewSchema = new Schema({
         type: String,
         trim: true,
         maxlength: 1000,
+        default: null,
     },
     imageUrl: {
         type: String,
@@ -43,7 +44,6 @@ const reviewSchema = new Schema({
         maxlength: 2000,
         default: null,
     },
-    // Editing
     editedAt: {
         type: Date,
     },
@@ -52,7 +52,6 @@ const reviewSchema = new Schema({
         default: 0,
         min: 0,
     },
-    // Visibility
     visibility: {
         type: String,
         enum: [
@@ -63,7 +62,6 @@ const reviewSchema = new Schema({
         default: "PUBLISHED",
         index: true,
     },
-    // Moderation
     moderationStatus: {
         type: String,
         enum: [
@@ -85,7 +83,6 @@ const reviewSchema = new Schema({
     moderatedAt: {
         type: Date,
     },
-    // Soft Delete
     isDeleted: {
         type: Boolean,
         default: false,
@@ -106,36 +103,40 @@ const reviewSchema = new Schema({
 }, {
     timestamps: true,
 });
-// One reviewer can review only once per booking
+reviewSchema.pre("validate", function () {
+    if (this.reviewerId.equals(this.revieweeId)) {
+        throw new Error("Reviewer and reviewee cannot be the same");
+    }
+    if (this.isDeleted &&
+        !this.deletedAt) {
+        this.deletedAt = new Date();
+    }
+});
 reviewSchema.index({
     bookingId: 1,
     reviewerId: 1,
 }, {
     unique: true,
+    name: "UniqueReviewerPerBooking",
 });
-// Reviews received by user/coordinator
 reviewSchema.index({
     revieweeId: 1,
     createdAt: -1,
 });
-// Reviews given by user/coordinator
 reviewSchema.index({
     reviewerId: 1,
     createdAt: -1,
 });
-// Booking-level review lookup
 reviewSchema.index({
     bookingId: 1,
     direction: 1,
 });
-// Public/visible review listing
 reviewSchema.index({
     revieweeId: 1,
     visibility: 1,
     isDeleted: 1,
     createdAt: -1,
 });
-// Admin moderation listing
 reviewSchema.index({
     moderationStatus: 1,
     visibility: 1,

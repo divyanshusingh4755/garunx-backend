@@ -32,8 +32,16 @@ export class PackageService {
     name = name?.trim();
     shortDescription = shortDescription?.trim();
     fullDescription = fullDescription?.trim();
+    thumbnailImage = thumbnailImage?.trim();
+    bannerImage = bannerImage?.trim();
 
-    if (!name || !shortDescription || !categoryId) {
+    if (
+      !name ||
+      !shortDescription ||
+      !fullDescription ||
+      !categoryId ||
+      !thumbnailImage
+    ) {
       throw new Error("Missing required fields");
     }
 
@@ -669,6 +677,7 @@ export class PackageService {
         isActive: pkg.isActive,
         isComplete: pkg.isComplete,
         packageReference: pkg.packageReference,
+        startingPrice: pkg.startingPrice,
       },
 
       locations: pkg.locations,
@@ -689,6 +698,14 @@ export class PackageService {
   ) {
     if (!Types.ObjectId.isValid(packageId)) {
       throw new Error("Invalid packageId");
+    }
+
+    if (!Types.ObjectId.isValid(tierId)) {
+      throw new Error("Invalid tierId");
+    }
+
+    if (!Types.ObjectId.isValid(locationId)) {
+      throw new Error("Invalid locationId");
     }
 
     const [pkg, mapping, pricing] = await Promise.all([
@@ -825,6 +842,7 @@ export class PackageService {
         isActive: pkg.isActive,
         isComplete: pkg.isComplete,
         packageReference: pkg.packageReference,
+        startingPrice: pkg.startingPrice,
       },
 
       locations: pkg.locations,
@@ -836,26 +854,6 @@ export class PackageService {
 
       relatedServices: hydratedRelatedServices,
     };
-  }
-
-  static async updatePackageStartingPrice(packageId: string) {
-    const pricing = await PackageTierPricing.find({
-      packageId,
-    }).lean();
-
-    if (!pricing.length) {
-      await Package.findByIdAndUpdate(packageId, {
-        startingPrice: 0,
-      });
-
-      return;
-    }
-
-    const minimumPrice = Math.min(...pricing.map((p) => p.finalPrice));
-
-    await Package.findByIdAndUpdate(packageId, {
-      startingPrice: minimumPrice,
-    });
   }
 
   static async validatePackageConfiguration(packageId: string) {
@@ -913,23 +911,31 @@ export class PackageService {
       }
     }
 
-    const requiredServiceIds = mappings.flatMap((m) =>
-      (m.services || [])
-        .filter((s: any) => s.isRequired || s.isRelated)
-        .map((s: any) => s.serviceId.toString()),
-    );
+    const requiredServiceIds = [
+      ...new Set(
+        mappings.flatMap((mapping) =>
+          (mapping.services || [])
+            .filter((service: any) => service.isRequired || service.isRelated)
+            .map((service: any) => service.serviceId.toString()),
+        ),
+      ),
+    ];
 
     if (requiredServiceIds.length) {
       const services = await Service.find({
         _id: {
-          $in: requiredServiceIds,
+          $in: requiredServiceIds.map((id) => new Types.ObjectId(id)),
         },
       })
-        .select("isActive isComplete")
+        .select("_id isActive isComplete")
         .lean();
 
+      if (services.length !== requiredServiceIds.length) {
+        issues.push("One or more required/related services do not exist");
+      }
+
       const invalidServices = services.filter(
-        (s) => !s.isActive || !s.isComplete,
+        (service) => !service.isActive || !service.isComplete,
       );
 
       if (invalidServices.length) {
@@ -992,12 +998,7 @@ export class PackageService {
       ]),
     );
 
-    const pkg = await Package.findById(packageId)
-      .populate({
-        path: "tiers.tierId",
-        select: "name",
-      })
-      .lean({ virtuals: true });
+    const pkg = await Package.findById(packageId).lean();
 
     if (!pkg) {
       throw new Error("Package not found");
@@ -1080,6 +1081,7 @@ export class PackageService {
         isActive: pkg.isActive,
         isComplete: pkg.isComplete,
         packageReference: pkg.packageReference,
+        startingPrice: pkg.startingPrice,
       },
 
       locations: filteredLocations,
@@ -1184,6 +1186,7 @@ export class PackageService {
             packageReference: 1,
             createdAt: 1,
             isComplete: 1,
+            startingPrice: 1,
             locations: 1,
             tiers: 1,
           })

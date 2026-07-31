@@ -1,21 +1,26 @@
-import { model, Schema, Document, Types } from "mongoose";
+import { model, Schema, Types, } from "mongoose";
 const bannerSchema = new Schema({
     version: {
         type: Number,
         default: 1,
+        min: 1,
     },
     name: {
         type: String,
         required: true,
         trim: true,
+        maxlength: 120,
     },
     description: {
         type: String,
         required: true,
+        trim: true,
+        maxlength: 1000,
     },
     buttonText: {
         type: String,
         trim: true,
+        maxlength: 80,
     },
     placement: {
         type: String,
@@ -31,7 +36,11 @@ const bannerSchema = new Schema({
     format: {
         type: String,
         required: true,
-        enum: ["WEB", "MOBILE", "BOTH"],
+        enum: [
+            "WEB",
+            "MOBILE",
+            "BOTH",
+        ],
     },
     isActive: {
         type: Boolean,
@@ -40,48 +49,66 @@ const bannerSchema = new Schema({
     image: {
         type: String,
         required: true,
+        trim: true,
     },
     displayOrder: {
         type: Number,
         default: 0,
+        min: 0,
     },
     redirect: {
         type: {
             type: String,
-            enum: ["NONE", "SERVICE", "PACKAGE", "CATEGORY", "PRODUCT", "URL"],
+            enum: [
+                "NONE",
+                "SERVICE",
+                "PACKAGE",
+                "CATEGORY",
+                "PRODUCT",
+                "URL",
+            ],
             default: "NONE",
+            required: true,
         },
         refId: {
             type: Schema.Types.ObjectId,
-            default: null,
-            validate: {
-                validator(value) {
-                    if (["SERVICE", "PACKAGE", "CATEGORY", "PRODUCT"].includes(this.type)) {
-                        return !!value;
-                    }
-                    return true;
-                },
-                message: "refId is required for this redirect type",
-            },
+            default: undefined,
         },
         url: {
             type: String,
-            default: null,
-            validate: {
-                validator(value) {
-                    if (this.type === "URL") {
-                        return !!value;
-                    }
-                    return true;
-                },
-                message: "url is required when redirect type is URL",
-            },
+            trim: true,
+            default: undefined,
         },
     },
 }, {
     timestamps: true,
 });
-bannerSchema.index({ name: 1 });
+bannerSchema.pre("validate", function () {
+    const redirectType = this.redirect?.type ?? "NONE";
+    this.redirect ??= {
+        type: "NONE",
+    };
+    if (["SERVICE", "PACKAGE", "CATEGORY", "PRODUCT"]
+        .includes(redirectType)) {
+        if (!this.redirect.refId) {
+            throw new Error("refId is required for this redirect type");
+        }
+        delete this.redirect.url;
+        return;
+    }
+    if (redirectType === "URL") {
+        if (!this.redirect.url?.trim()) {
+            throw new Error("url is required when redirect type is URL");
+        }
+        delete this.redirect.refId;
+        return;
+    }
+    delete this.redirect.refId;
+    delete this.redirect.url;
+});
+bannerSchema.index({
+    name: 1,
+});
 bannerSchema.index({
     placement: 1,
     format: 1,

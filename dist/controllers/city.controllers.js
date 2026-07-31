@@ -1,8 +1,20 @@
 import { CityService } from "../services/city.service.js";
+const getStatusCode = (error) => {
+    if (typeof error?.statusCode === "number") {
+        return error.statusCode;
+    }
+    if (error?.name === "ValidationError") {
+        return 400;
+    }
+    if (error?.code === 11000) {
+        return 409;
+    }
+    return 500;
+};
 export const createCity = async (req, res) => {
     try {
-        const { name, country, stateId, image, description, location } = req.body;
-        await CityService.createCity({
+        const { name, country, stateId, image, description, location, } = req.body;
+        const city = await CityService.createCity({
             name,
             country,
             stateId,
@@ -10,41 +22,66 @@ export const createCity = async (req, res) => {
             description,
             location,
         });
-        res.status(200).json({ success: true, data: "City created successfully" });
+        return res.status(201).json({
+            success: true,
+            message: "City created successfully",
+            data: city,
+        });
     }
     catch (error) {
-        res.status(error.message === "City not found" ? 404 : 400).json({
+        return res.status(getStatusCode(error)).json({
             success: false,
-            message: error.message,
+            message: error.message || "Failed to create city",
         });
     }
 };
 export const updateCity = async (req, res) => {
     try {
-        const { id } = req.params;
-        const result = await CityService.updateCity(id, req.body);
-        res.status(200).json({ success: true, data: result });
+        const city = await CityService.updateCity(req.params.id, req.body);
+        return res.status(200).json({
+            success: true,
+            data: city,
+        });
     }
     catch (error) {
-        res.status(error.message === "City not found" ? 404 : 400).json({
+        return res.status(getStatusCode(error)).json({
             success: false,
-            message: error.message,
+            message: error.message || "Failed to update city",
         });
     }
 };
 export const getAllCity = async (req, res) => {
     try {
         const { searchTerm, cityFilter, stateIdFilter, countryFilter, limit, page, isActive, sortBy, sortOrder, } = req.query;
-        const result = await CityService.FindCity({
-            searchTerm: searchTerm,
-            cityFilter: cityFilter,
-            stateIdFilter: stateIdFilter,
-            countryFilter: countryFilter,
-            limit: Number(limit) || 40,
-            page: Number(page) || 1,
-            ...(typeof isActive === "boolean" && { isActive: isActive }),
-            sortBy: sortBy || "createdAt",
-            sortOrder: sortOrder || "desc",
+        const activeStatus = isActive === "true"
+            ? true
+            : isActive === "false"
+                ? false
+                : undefined;
+        const result = await CityService.findCity({
+            limit: limit ? Number(limit) : 40,
+            page: page ? Number(page) : 1,
+            sortBy: typeof sortBy === "string"
+                ? sortBy
+                : "createdAt",
+            sortOrder: sortOrder === "asc" || sortOrder === "desc"
+                ? sortOrder
+                : "desc",
+            ...(typeof searchTerm === "string" && {
+                searchTerm,
+            }),
+            ...(typeof cityFilter === "string" && {
+                cityFilter,
+            }),
+            ...(typeof stateIdFilter === "string" && {
+                stateIdFilter,
+            }),
+            ...(typeof countryFilter === "string" && {
+                countryFilter,
+            }),
+            ...(typeof activeStatus === "boolean" && {
+                isActive: activeStatus,
+            }),
         });
         return res.status(200).json({
             success: true,
@@ -55,43 +92,41 @@ export const getAllCity = async (req, res) => {
         });
     }
     catch (error) {
-        res.status(400).json({ success: false, message: error.message });
+        return res.status(getStatusCode(error)).json({
+            success: false,
+            message: error.message || "Failed to fetch cities",
+        });
     }
 };
 export const getCityById = async (req, res) => {
     try {
-        const { id } = req.params;
-        const location = await CityService.getCityById(id);
-        res.status(200).json({ success: true, data: location });
+        const city = await CityService.getCityById(req.params.id);
+        return res.status(200).json({
+            success: true,
+            data: city,
+        });
     }
     catch (error) {
-        res.status(error.message === "City not found" ? 404 : 400).json({
+        return res.status(getStatusCode(error)).json({
             success: false,
-            message: error.message,
+            message: error.message || "Failed to get city",
         });
     }
 };
 export const deleteCity = async (req, res) => {
     try {
-        const { id } = req.params;
         const { status } = req.body;
-        if (!id || status === undefined) {
-            return res.status(400).json({
-                success: false,
-                message: "User ID and status are required.",
-            });
-        }
-        const city = await CityService.softDeleteCity(id, status);
-        res.status(200).json({
+        const city = await CityService.softDeleteCity(req.params.id, status);
+        return res.status(200).json({
             success: true,
-            message: `City marked as ${status}`,
+            message: `City ${status ? "activated" : "deactivated"} successfully`,
             data: city,
         });
     }
     catch (error) {
-        res.status(error.message === "City not found" ? 404 : 400).json({
+        return res.status(getStatusCode(error)).json({
             success: false,
-            message: error.message,
+            message: error.message || "Failed to change city status",
         });
     }
 };

@@ -74,12 +74,17 @@ export var FamilyEdgeType;
 (function (FamilyEdgeType) {
     FamilyEdgeType["PARENT"] = "PARENT";
     FamilyEdgeType["MARRIAGE"] = "MARRIAGE";
-    // GUARDIAN = "GUARDIAN",
-    // CUSTOM = "CUSTOM",
 })(FamilyEdgeType || (FamilyEdgeType = {}));
 export var MemberLifeStatus;
 (function (MemberLifeStatus) {
     MemberLifeStatus["ALIVE"] = "ALIVE";
     MemberLifeStatus["DECEASED"] = "DECEASED";
 })(MemberLifeStatus || (MemberLifeStatus = {}));
+export var FamilyMemberSource;
+(function (FamilyMemberSource) {
+    FamilyMemberSource["CUSTOMER_SELF"] = "CUSTOMER_SELF";
+    FamilyMemberSource["COORDINATOR_BOOKING"] = "COORDINATOR_BOOKING";
+    FamilyMemberSource["ADMIN_MANUAL"] = "ADMIN_MANUAL";
+    FamilyMemberSource["SYSTEM_IMPORT"] = "SYSTEM_IMPORT";
+})(FamilyMemberSource || (FamilyMemberSource = {}));
 //# sourceMappingURL=enums.js.map

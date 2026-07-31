@@ -22,14 +22,14 @@ declare class AuthService {
         accessToken: string;
         refreshToken: string;
     }>;
-    static verifyOtp(userId: string, otp: string, email: string): Promise<mongoose.Document<unknown, {}, IUser, {}, mongoose.DefaultSchemaOptions> & IUser & Required<{
+    static verifyOtp(userId: string | undefined, otp: string, email: string | undefined): Promise<mongoose.Document<unknown, {}, IUser, {}, mongoose.DefaultSchemaOptions> & IUser & Required<{
         _id: Types.ObjectId;
     }> & {
         __v: number;
     } & {
         id: string;
     }>;
-    static resendOtp(userId: string, email: string): Promise<{
+    static resendOtp(userId: string, email: string, role?: Role): Promise<{
         success: boolean;
         message: string;
         otp: string;

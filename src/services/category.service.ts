@@ -1,4 +1,4 @@
-import mongoose from "mongoose";
+import mongoose, { Types } from "mongoose";
 import { Category, type ICategory } from "../models/category.model.js";
 import { Component } from "../models/component.model.js";
 import { Package } from "../models/package.model.js";
@@ -22,15 +22,24 @@ export class CategoryService {
     }
 
     const category = new Category(categoryData);
-    return await category.save();
+
+    return category.save();
   }
 
-  static async updateCategory(id: string, updateData: Partial<ICategory>) {
+  static async updateCategory(
+    id: string,
+    updateData: Partial<ICategory>,
+  ) {
+    if (!Types.ObjectId.isValid(id)) {
+      throw new Error("Invalid category ID");
+    }
+
     if (updateData.value) {
       const existing = await Category.findOne({
         value: updateData.value,
         _id: { $ne: id },
       });
+
       if (existing) {
         throw new Error(
           `Category with value '${updateData.value}' already exists`,
@@ -44,12 +53,18 @@ export class CategoryService {
       { new: true, runValidators: true },
     );
 
-    if (!category) throw new Error("Category not found");
+    if (!category) {
+      throw new Error("Category not found");
+    }
 
     return category;
   }
 
   static async getCategoryById(id: string) {
+    if (!Types.ObjectId.isValid(id)) {
+      throw new Error("Invalid category ID");
+    }
+
     const category = await Category.findById(id).lean();
 
     if (!category) {
@@ -60,18 +75,30 @@ export class CategoryService {
   }
 
   static async deleteCategory(id: string) {
+    if (!Types.ObjectId.isValid(id)) {
+      throw new Error("Invalid category ID");
+    }
+
     const category = await Category.findById(id);
+
     if (!category) {
       throw new Error("Category not found");
     }
 
-    const hasProducts = await Component.exists({
-      categoryName: category.value,
-    });
-    if (hasProducts)
-      throw new Error("Cannot delete category being used by products");
+    const [hasComponents, hasServices, hasPackages] =
+      await Promise.all([
+        Component.exists({ categoryId: id }),
+        Service.exists({ categoryId: id }),
+        Package.exists({ categoryId: id }),
+      ]);
 
-    return await Category.findByIdAndDelete(id);
+    if (hasComponents || hasServices || hasPackages) {
+      throw new Error(
+        "Cannot delete category because it is currently in use",
+      );
+    }
+
+    await Category.findByIdAndDelete(id);
   }
 
   static async getDeactivationImpact(categoryId: string) {
@@ -81,9 +108,15 @@ export class CategoryService {
         { _id: 1, name: 1 },
       ).lean(),
 
-      Service.find({ categoryId, isActive: true }, { _id: 1, name: 1 }).lean(),
+      Service.find(
+        { categoryId, isActive: true },
+        { _id: 1, name: 1 },
+      ).lean(),
 
-      Package.find({ categoryId, isActive: true }, { _id: 1, name: 1 }).lean(),
+      Package.find(
+        { categoryId, isActive: true },
+        { _id: 1, name: 1 },
+      ).lean(),
     ]);
 
     return {
@@ -96,67 +129,89 @@ export class CategoryService {
     };
   }
 
-static async toggleCategoryStatus(categoryId: string, confirmed = false) {
-  const category = await Category.findById(categoryId);
+  static async toggleCategoryStatus(
+    categoryId: string,
+    confirmed = false,
+  ) {
+    if (!Types.ObjectId.isValid(categoryId)) {
+      throw new Error("Invalid category ID");
+    }
 
-  if (!category) {
-    throw new Error("Category not found");
-  }
+    const category = await Category.findById(categoryId);
 
-  const newStatus = !category.isActive;
+    if (!category) {
+      throw new Error("Category not found");
+    }
 
-  // Confirmation only when deactivating
-  if (!newStatus && !confirmed) {
-    const impact = await this.getDeactivationImpact(categoryId);
+    const newStatus = !category.isActive;
 
-    return {
-      requiresConfirmation: true,
-      impact,
-    };
-  }
+    if (!newStatus && !confirmed) {
+      const impact = await this.getDeactivationImpact(categoryId);
 
-  const session = await mongoose.startSession();
+      const hasImpact =
+        impact.componentsCount > 0 ||
+        impact.servicesCount > 0 ||
+        impact.packagesCount > 0;
 
-  try {
-    await session.withTransaction(async () => {
-      // Always update the category
-      await Category.findByIdAndUpdate(
-        categoryId,
-        { isActive: newStatus },
-        { session },
-      );
-
-      // Only cascade when deactivating
-      if (!newStatus) {
-        await Component.updateMany(
-          { categoryId },
-          { isActive: false },
-          { session },
-        );
-
-        await Service.updateMany(
-          { categoryId },
-          { isActive: false },
-          { session },
-        );
-
-        await Package.updateMany(
-          { categoryId },
-          { isActive: false },
-          { session },
-        );
+      if (hasImpact) {
+        return {
+          requiresConfirmation: true as const,
+          impact,
+        };
       }
-    });
+    }
 
-    return await Category.findById(categoryId).lean();
-  } catch (error) {
-    throw error;
-  } finally {
-    await session.endSession();
+    const session = await mongoose.startSession();
+
+    try {
+      await session.withTransaction(async () => {
+        await Category.findByIdAndUpdate(
+          categoryId,
+          { isActive: newStatus },
+          { session, runValidators: true },
+        );
+
+        if (!newStatus) {
+          await Promise.all([
+            Component.updateMany(
+              { categoryId },
+              { isActive: false },
+              { session },
+            ),
+
+            Service.updateMany(
+              { categoryId },
+              { isActive: false },
+              { session },
+            ),
+
+            Package.updateMany(
+              { categoryId },
+              { isActive: false },
+              { session },
+            ),
+          ]);
+        }
+      });
+
+      const updatedCategory = await Category.findById(
+        categoryId,
+      ).lean();
+
+      if (!updatedCategory) {
+        throw new Error("Category not found");
+      }
+
+      return {
+        ...updatedCategory,
+        requiresConfirmation: false as const,
+      };
+    } finally {
+      await session.endSession();
+    }
   }
-}
 
-  static async FindCategories(
+  static async findCategories(
     searchTerm?: string,
     typeFilter?: "service" | "product",
     limit: number = 40,
@@ -165,46 +220,72 @@ static async toggleCategoryStatus(categoryId: string, confirmed = false) {
     sortBy: string = "displayOrder",
     sortOrder: "asc" | "desc" = "asc",
   ) {
-    const skip = limit * (page - 1);
-    const query: any = {};
+    const safeLimit =
+      Number.isInteger(limit) && limit > 0
+        ? Math.min(limit, 100)
+        : 40;
 
-    if (typeof isActive == "boolean") {
+    const safePage =
+      Number.isInteger(page) && page > 0 ? page : 1;
+
+    const skip = safeLimit * (safePage - 1);
+    const query: Record<string, any> = {};
+
+    if (typeof isActive === "boolean") {
       query.isActive = isActive;
     }
 
-    if (typeFilter) query.type = typeFilter;
+    if (typeFilter) {
+      query.type = typeFilter;
+    }
 
+    const trimmedSearchTerm = searchTerm?.trim();
     const isTextSearch =
-      !!searchTerm?.trim() && searchTerm.trim().length > 4;
+      Boolean(trimmedSearchTerm) &&
+      trimmedSearchTerm!.length > 4;
 
-    if (searchTerm?.trim()) {
-      const term = searchTerm.trim();
-
+    if (trimmedSearchTerm) {
       if (isTextSearch) {
         query.$text = {
-          $search: term,
+          $search: trimmedSearchTerm,
         };
       } else {
         query.$or = [
           {
             label: {
-              $regex: `^${escapeRegex(term)}`,
+              $regex: `^${escapeRegex(trimmedSearchTerm)}`,
               $options: "i",
             },
           },
           {
             value: {
-              $regex: `^${escapeRegex(term)}`,
+              $regex: `^${escapeRegex(trimmedSearchTerm)}`,
+              $options: "i",
             },
           },
         ];
       }
     }
 
-    let sortCriteria: any = {};
-    let projection: any = {};
+    const allowedSortFields = new Set([
+      "label",
+      "value",
+      "type",
+      "displayOrder",
+      "isActive",
+      "createdAt",
+      "updatedAt",
+      "relevance",
+    ]);
 
-    if (isTextSearch && sortBy === "relevance") {
+    const safeSortBy = allowedSortFields.has(sortBy)
+      ? sortBy
+      : "displayOrder";
+
+    let sortCriteria: Record<string, any> = {};
+    let projection: Record<string, any> = {};
+
+    if (isTextSearch && safeSortBy === "relevance") {
       projection = {
         score: {
           $meta: "textScore",
@@ -217,9 +298,12 @@ static async toggleCategoryStatus(categoryId: string, confirmed = false) {
         },
       };
     } else {
-      sortCriteria[sortBy] = sortOrder === "desc" ? -1 : 1;
+      const field =
+        safeSortBy === "relevance" ? "displayOrder" : safeSortBy;
 
-      if (sortBy !== "createdAt") {
+      sortCriteria[field] = sortOrder === "desc" ? -1 : 1;
+
+      if (field !== "createdAt") {
         sortCriteria.createdAt = -1;
       }
     }
@@ -229,12 +313,18 @@ static async toggleCategoryStatus(categoryId: string, confirmed = false) {
         Category.find(query, projection)
           .sort(sortCriteria)
           .skip(skip)
-          .limit(limit)
+          .limit(safeLimit)
           .lean(),
+
         Category.countDocuments(query),
       ]);
 
-      return { data, total, page, totalPages: Math.ceil(total / limit) };
+      return {
+        data,
+        total,
+        page: safePage,
+        totalPages: Math.ceil(total / safeLimit),
+      };
     } catch (error: any) {
       throw new Error(`Category fetch failed: ${error.message}`);
     }

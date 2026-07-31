@@ -28,7 +28,7 @@ export interface IFamilyMember extends Document {
     gotra?: Gotra;
     designatedPandit?: string;
     visitors: string[];
-    profileImage?: string;
+    profileImage?: string | null;
     notes?: string;
     createdAt: Date;
     updatedAt: Date;

@@ -32,11 +32,13 @@ const packageTierPricingSchema = new Schema({
     fixedPrice: {
         type: Number,
         min: 0,
+        default: null,
     },
     discountPercent: {
         type: Number,
         min: 0,
         max: 100,
+        default: null,
     },
     finalPrice: {
         type: Number,
@@ -46,7 +48,7 @@ const packageTierPricingSchema = new Schema({
     taxProfileId: {
         type: Schema.Types.ObjectId,
         ref: "TaxProfile",
-        default: null,
+        required: true,
         index: true,
     },
     taxPriceMode: {

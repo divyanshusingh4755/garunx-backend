@@ -1,65 +1,66 @@
 import { ServiceService } from "../services/service.service.js";
 import { ServiceDiagnosticsEngine } from "../services/diagnostic-engine.service.js";
-import { stat } from "node:fs/promises";
+const getStatusCode = (error) => {
+    if (typeof error?.statusCode === "number") {
+        return error.statusCode;
+    }
+    if (error?.name === "ValidationError") {
+        return 400;
+    }
+    if (error?.code === 11000) {
+        return 409;
+    }
+    return 500;
+};
 export const createService = async (req, res) => {
     try {
-        const service = await ServiceService.createService(req.body);
-        res.status(201).json({
+        const { name, shortDescription, fullDescription, categoryId, thumbnailImage, bannerImage, } = req.body;
+        const service = await ServiceService.createService({
+            name,
+            shortDescription,
+            fullDescription,
+            categoryId,
+            thumbnailImage,
+            ...(bannerImage !== undefined && {
+                bannerImage,
+            }),
+        });
+        return res.status(201).json({
             success: true,
             data: service,
         });
     }
     catch (error) {
-        if (error.name === "ValidationError" || error.isOperational) {
-            return res.status(400).json({
-                success: false,
-                message: error.message,
-            });
-        }
-        if (error.code === 11000) {
-            return res.status(409).json({
-                success: false,
-                message: "Service with this reference already exists",
-            });
-        }
-        res.status(500).json({
+        return res.status(getStatusCode(error)).json({
             success: false,
-            message: error.message || "Interal server error",
+            message: error.message || "Internal server error",
         });
     }
 };
 export const updateService = async (req, res) => {
     try {
-        const { serviceId } = req.params;
-        const service = await ServiceService.updateService(serviceId, req.body);
-        res.status(200).json({
+        const service = await ServiceService.updateService(req.params.serviceId, req.body);
+        return res.status(200).json({
             success: true,
             data: service,
         });
     }
     catch (error) {
-        res.status(400).json({
+        return res.status(getStatusCode(error)).json({
             success: false,
-            message: error.message,
+            message: error.message || "Failed to update service",
         });
     }
 };
 export const toggleServiceStatus = async (req, res) => {
     try {
-        const { serviceId } = req.params;
-        const { isActive, confirmed } = req.body;
-        if (!serviceId || isActive === undefined) {
-            return res.status(400).json({
-                success: false,
-                message: "Service ID and isActive are required.",
-            });
-        }
-        const result = await ServiceService.toggleServiceStatus(serviceId, isActive, confirmed);
-        if (result?.requiresConfirmation) {
+        const { isActive, confirmed = false, } = req.body;
+        const result = await ServiceService.toggleServiceStatus(req.params.serviceId, isActive, confirmed);
+        if (result.requiresConfirmation) {
             return res.status(200).json({
                 success: true,
                 requiresConfirmation: true,
-                message: "This service is linked with services/packages. Please confirm.",
+                message: "This service is linked with packages or pricing. Please confirm.",
                 data: result,
             });
         }
@@ -70,67 +71,141 @@ export const toggleServiceStatus = async (req, res) => {
         });
     }
     catch (error) {
-        res.status(error.message === "Service not found" ? 404 : 400).json({
+        return res.status(getStatusCode(error)).json({
             success: false,
-            message: error.message,
+            message: error.message ||
+                "Failed to update service status",
         });
     }
 };
 export const getServiceById = async (req, res) => {
     try {
-        const { serviceId } = req.params;
-        const service = await ServiceService.getServiceById(serviceId);
-        res.status(200).json({
+        const service = await ServiceService.getServiceById(req.params.serviceId);
+        return res.status(200).json({
             success: true,
             data: service,
         });
     }
     catch (error) {
-        res.status(400).json({
+        return res.status(getStatusCode(error)).json({
             success: false,
-            message: error.message,
+            message: error.message || "Failed to get service",
         });
     }
 };
 export const getServicesByLocation = async (req, res) => {
     try {
         const { cityIds, categoryIds, limit, page, isActive, isComplete, sortBy, sortOrder, } = req.query;
-        const cityIdArray = typeof cityIds === "string" ? cityIds.split(",") : undefined;
-        const categoryIdArray = typeof categoryIds === "string" ? categoryIds.split(",") : undefined;
-        const activeBool = isActive === "true" ? true : isActive === "false" ? false : undefined;
-        const completeBool = isComplete === "true" ? true : isComplete === "false" ? false : undefined;
-        const { data, total, page: currentPage, totalPages, } = await ServiceService.getServicesByLocation(cityIdArray, categoryIdArray, Number(limit) || 20, Number(page) || 1, activeBool, completeBool, sortBy || "name", sortOrder || "asc");
+        const cityIdArray = typeof cityIds === "string"
+            ? cityIds
+                .split(",")
+                .map((id) => id.trim())
+                .filter(Boolean)
+            : undefined;
+        const categoryIdArray = typeof categoryIds === "string"
+            ? categoryIds
+                .split(",")
+                .map((id) => id.trim())
+                .filter(Boolean)
+            : undefined;
+        const activeStatus = isActive === "true"
+            ? true
+            : isActive === "false"
+                ? false
+                : undefined;
+        const completeStatus = isComplete === "true"
+            ? true
+            : isComplete === "false"
+                ? false
+                : undefined;
+        const result = await ServiceService.getServicesByLocation({
+            limit: limit ? Number(limit) : 20,
+            page: page ? Number(page) : 1,
+            sortBy: typeof sortBy === "string"
+                ? sortBy
+                : "name",
+            sortOrder: sortOrder === "asc" ||
+                sortOrder === "desc"
+                ? sortOrder
+                : "asc",
+            ...(cityIdArray !== undefined && {
+                cityIds: cityIdArray,
+            }),
+            ...(categoryIdArray !== undefined && {
+                categoryIds: categoryIdArray,
+            }),
+            ...(activeStatus !== undefined && {
+                isActive: activeStatus,
+            }),
+            ...(completeStatus !== undefined && {
+                isComplete: completeStatus,
+            }),
+        });
         return res.status(200).json({
             success: true,
-            data,
-            total,
-            page: currentPage,
-            totalPages,
+            data: result.data,
+            total: result.total,
+            page: result.page,
+            totalPages: result.totalPages,
         });
     }
     catch (error) {
-        return res.status(400).json({
+        return res.status(getStatusCode(error)).json({
             success: false,
-            message: error.message,
+            message: error.message ||
+                "Failed to fetch services by location",
         });
     }
 };
 export const getAllServices = async (req, res) => {
     try {
         const { searchTerm, categoryId, locationId, limit, page, isActive, isComplete, sortBy, sortOrder, } = req.query;
-        const activeBool = isActive === "true" ? true : isActive === "false" ? false : undefined;
-        const completeBool = isComplete === "true" ? true : isComplete === "false" ? false : undefined;
-        const { data, total, page: CurrentPage, totalPages, } = await ServiceService.FindServices(searchTerm, categoryId, locationId, Number(limit) || 20, Number(page) || 1, activeBool, completeBool, sortBy || "name", sortOrder || "asc");
-        res.status(200).json({
+        const activeStatus = isActive === "true"
+            ? true
+            : isActive === "false"
+                ? false
+                : undefined;
+        const completeStatus = isComplete === "true"
+            ? true
+            : isComplete === "false"
+                ? false
+                : undefined;
+        const result = await ServiceService.findServices({
+            limit: limit ? Number(limit) : 20,
+            page: page ? Number(page) : 1,
+            sortBy: typeof sortBy === "string"
+                ? sortBy
+                : "name",
+            sortOrder: sortOrder === "asc" ||
+                sortOrder === "desc"
+                ? sortOrder
+                : "asc",
+            ...(typeof searchTerm === "string" && {
+                searchTerm,
+            }),
+            ...(typeof categoryId === "string" && {
+                categoryId,
+            }),
+            ...(typeof locationId === "string" && {
+                locationId,
+            }),
+            ...(activeStatus !== undefined && {
+                isActive: activeStatus,
+            }),
+            ...(completeStatus !== undefined && {
+                isComplete: completeStatus,
+            }),
+        });
+        return res.status(200).json({
             success: true,
-            data,
-            total,
-            CurrentPage,
-            totalPages,
+            data: result.data,
+            total: result.total,
+            currentPage: result.page,
+            totalPages: result.totalPages,
         });
     }
     catch (error) {
-        res.status(400).json({
+        return res.status(getStatusCode(error)).json({
             success: false,
             message: error.message || "Failed to fetch services",
         });
@@ -138,118 +213,85 @@ export const getAllServices = async (req, res) => {
 };
 export const updateServiceLocations = async (req, res) => {
     try {
-        const { id } = req.params;
-        const { locations } = req.body;
-        const result = await ServiceService.updateServiceLocations(id, locations);
-        res.status(200).json(result);
+        const result = await ServiceService.updateServiceLocations(req.params.id, req.body.locations);
+        return res.status(200).json(result);
     }
     catch (error) {
-        if (error.message === "Service not found") {
-            return res.status(404).json({
-                success: false,
-                message: error.message,
-            });
-        }
-        return res.status(400).json({
+        return res.status(getStatusCode(error)).json({
             success: false,
-            message: error.message,
+            message: error.message ||
+                "Failed to update service locations",
         });
     }
 };
 export const removeServiceLocation = async (req, res) => {
     try {
-        const { id, locationId } = req.params;
-        const result = await ServiceService.removeServiceLocation(id, locationId);
-        res.status(200).json(result);
+        const result = await ServiceService.removeServiceLocation(req.params.id, req.params.locationId);
+        return res.status(200).json(result);
     }
     catch (error) {
-        if (error.message === "Service not found") {
-            return res.status(400).json({
-                success: false,
-                message: error.message,
-            });
-        }
-        return res.status(400).json({
+        return res.status(getStatusCode(error)).json({
             success: false,
-            message: error.message,
+            message: error.message ||
+                "Failed to remove service location",
         });
     }
 };
 export const updateServiceTiers = async (req, res) => {
     try {
-        const { id } = req.params;
-        const { tiers } = req.body;
-        const result = await ServiceService.updateServiceTiers(id, tiers);
-        res.status(200).json(result);
+        const result = await ServiceService.updateServiceTiers(req.params.id, req.body.tiers);
+        return res.status(200).json(result);
     }
     catch (error) {
-        if (error.message === "Service not found") {
-            return res.status(404).json({
-                sucess: false,
-                message: error.message,
-            });
-        }
-        return res.status(400).json({
+        return res.status(getStatusCode(error)).json({
             success: false,
-            message: error.message,
+            message: error.message ||
+                "Failed to update service tiers",
         });
     }
 };
 export const removeServiceTier = async (req, res) => {
     try {
-        const { id, tierId } = req.params;
-        const result = await ServiceService.removeServiceTier(id, tierId);
+        const result = await ServiceService.removeServiceTier(req.params.id, req.params.tierId);
         return res.status(200).json(result);
     }
     catch (error) {
-        if (error.message === "Service not found") {
-            return res.status(404).json({
-                success: false,
-                message: error.message,
-            });
-        }
-        return res.status(400).json({
+        return res.status(getStatusCode(error)).json({
             success: false,
-            message: error.message,
+            message: error.message ||
+                "Failed to remove service tier",
         });
     }
 };
 export const getFullService = async (req, res) => {
     try {
-        const { serviceId } = req.params;
-        const data = await ServiceService.getFullService(serviceId);
+        const data = await ServiceService.getFullService(req.params.serviceId);
         return res.status(200).json({
             success: true,
             data,
         });
     }
     catch (error) {
-        return res.status(400).json({
+        return res.status(getStatusCode(error)).json({
             success: false,
-            message: error.message,
+            message: error.message ||
+                "Failed to get full service",
         });
     }
 };
 export const getFullServiceByCities = async (req, res) => {
     try {
-        const { serviceId } = req.params;
-        const { cityIds } = req.body;
-        if (!Array.isArray(cityIds) || cityIds.length === 0) {
-            return res.status(400).json({
-                success: false,
-                message: "cityIds must be a non-empty array",
-            });
-        }
-        const data = await ServiceService.getFullServiceByCities(serviceId, cityIds);
+        const data = await ServiceService.getFullServiceByCities(req.params.serviceId, req.body.cityIds);
         return res.status(200).json({
             success: true,
             data,
         });
     }
     catch (error) {
-        return res.status(400).json({
+        return res.status(getStatusCode(error)).json({
             success: false,
-            message: error.message,
+            message: error.message ||
+                "Failed to get service by cities",
         });
     }
 };
@@ -262,9 +304,10 @@ export const getServiceDiagnostics = async (req, res) => {
         });
     }
     catch (error) {
-        return res.status(400).json({
+        return res.status(getStatusCode(error)).json({
             success: false,
-            message: error.message,
+            message: error.message ||
+                "Failed to get service diagnostics",
         });
     }
 };

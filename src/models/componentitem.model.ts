@@ -1,33 +1,54 @@
-import { model, Schema, Document } from "mongoose";
+import {
+  model,
+  Schema,
+} from "mongoose";
 
-export interface IComponentItem extends Document {
+export interface IComponentItem {
   name: string;
   price?: number;
   isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
-const componentItemSchema = new Schema<IComponentItem>(
-  {
-    name: {
-      type: String,
-      required: true,
-      trim: true,
-      unique: true,
+const componentItemSchema =
+  new Schema<IComponentItem>(
+    {
+      name: {
+        type: String,
+        required: true,
+        trim: true,
+        unique: true,
+      },
+
+      price: {
+        type: Number,
+        min: 0,
+      },
+
+      isActive: {
+        type: Boolean,
+        required: true,
+        default: true,
+        index: true,
+      },
     },
-    price: { type: Number },
-    isActive: { type: Boolean, default: true },
-  },
-  { timestamps: true },
-);
+    {
+      timestamps: true,
+    },
+  );
 
 componentItemSchema.index(
   {
     name: "text",
   },
-  { name: "ComponentItemTextSearchIndex" },
+  {
+    name: "ComponentItemTextSearchIndex",
+  },
 );
 
-export const ComponentItem = model<IComponentItem>(
-  "ComponentItem",
-  componentItemSchema,
-);
+export const ComponentItem =
+  model<IComponentItem>(
+    "ComponentItem",
+    componentItemSchema,
+  );

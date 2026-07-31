@@ -1,4 +1,4 @@
-import mongoose from "mongoose";
+import mongoose, { Types } from "mongoose";
 import { PackageTierMap } from "../models/packagetiermap.model.js";
 import { PackageTierPricing } from "../models/packagetierpricing.model.js";
 import { ServiceComponent } from "../models/servicecomponent.model.js";
@@ -8,39 +8,69 @@ import { escapeRegex } from "../utils/escapeRegex.js";
 export class TierService {
     static async createTier(tierData) {
         const existingTier = await Tier.findOne({
-            name: tierData.name,
+            $or: [
+                { name: tierData.name },
+                ...(tierData.tierReference
+                    ? [{ tierReference: tierData.tierReference }]
+                    : []),
+            ],
         });
         if (existingTier) {
-            throw new Error(`Tier with name '${tierData.name}' already exists`);
+            if (existingTier.name === tierData.name) {
+                throw new Error(`Tier with name '${tierData.name}' already exists`);
+            }
+            throw new Error(`Tier with reference '${tierData.tierReference}' already exists`);
         }
         const tier = new Tier(tierData);
-        return await tier.save();
+        return tier.save();
     }
     static async updateTier(id, tierData) {
+        if (!Types.ObjectId.isValid(id)) {
+            throw new Error("Invalid tier id");
+        }
+        const duplicateConditions = [];
         if (tierData.name) {
+            duplicateConditions.push({ name: tierData.name });
+        }
+        if (tierData.tierReference) {
+            duplicateConditions.push({
+                tierReference: tierData.tierReference,
+            });
+        }
+        if (duplicateConditions.length > 0) {
             const existing = await Tier.findOne({
-                name: tierData.name,
                 _id: { $ne: id },
+                $or: duplicateConditions,
             });
             if (existing) {
-                throw new Error(`Tier with value '${tierData.name}' already exists`);
+                if (tierData.name &&
+                    existing.name === tierData.name) {
+                    throw new Error(`Tier with name '${tierData.name}' already exists`);
+                }
+                throw new Error(`Tier with reference '${tierData.tierReference}' already exists`);
             }
         }
-        const tier = await Tier.findByIdAndUpdate(id, { $set: tierData }, { new: true, runValidators: true });
+        const tier = await Tier.findByIdAndUpdate(id, { $set: tierData }, {
+            new: true,
+            runValidators: true,
+        });
         if (!tier) {
             throw new Error("Tier not found");
         }
         return tier;
     }
     static async getTierById(id) {
-        const tier = await Tier.findById(id);
+        if (!Types.ObjectId.isValid(id)) {
+            throw new Error("Invalid tier id");
+        }
+        const tier = await Tier.findById(id).lean();
         if (!tier) {
             throw new Error("Tier not found");
         }
         return tier;
     }
     static async getDeactivationImpact(tierId) {
-        const [serviceComponents, servicePricing, packageMappings, packagePricing] = await Promise.all([
+        const [serviceComponents, servicePricing, packageMappings, packagePricing,] = await Promise.all([
             ServiceComponent.find({ tierId }, {
                 _id: 1,
                 serviceId: 1,
@@ -73,6 +103,12 @@ export class TierService {
         };
     }
     static async toggleTierStatus(id, isActive, confirmed = false) {
+        if (!Types.ObjectId.isValid(id)) {
+            throw new Error("Invalid tier id");
+        }
+        if (typeof isActive !== "boolean") {
+            throw new Error("isActive must be boolean");
+        }
         const tier = await Tier.findById(id);
         if (!tier) {
             throw new Error("Tier not found");
@@ -80,67 +116,98 @@ export class TierService {
         if (tier.isActive === isActive) {
             return {
                 success: true,
+                requiresConfirmation: false,
+                isActive: tier.isActive,
                 message: `Tier already ${isActive ? "active" : "inactive"}`,
             };
         }
-        // Confirmation only when deactivating
         if (!isActive && !confirmed) {
-            const impact = await TierService.getDeactivationImpact(id);
-            return {
-                requiresConfirmation: true,
-                message: "Tier is used in services and packages. Are you sure?",
-                impact,
-            };
+            const impact = await this.getDeactivationImpact(id);
+            const hasImpact = impact.serviceComponentCount > 0 ||
+                impact.servicePricingCount > 0 ||
+                impact.packageMappingCount > 0 ||
+                impact.packagePricingCount > 0;
+            if (hasImpact) {
+                return {
+                    success: true,
+                    requiresConfirmation: true,
+                    message: "Tier is used in services and packages. Are you sure?",
+                    impact,
+                };
+            }
         }
         const session = await mongoose.startSession();
         try {
             await session.withTransaction(async () => {
-                // Always update tier status
-                await Tier.findByIdAndUpdate(id, { isActive }, { session });
-                // Only remove mappings when deactivating
+                const updatedTier = await Tier.findByIdAndUpdate(id, { isActive }, {
+                    session,
+                    new: true,
+                    runValidators: true,
+                });
+                if (!updatedTier) {
+                    throw new Error("Tier not found");
+                }
                 if (!isActive) {
-                    await ServiceComponent.deleteMany({ tierId: id }, { session });
-                    await ServicePricing.deleteMany({ tierId: id }, { session });
-                    await PackageTierMap.deleteMany({ tierId: id }, { session });
-                    await PackageTierPricing.deleteMany({ tierId: id }, { session });
+                    await Promise.all([
+                        ServiceComponent.deleteMany({ tierId: id }, { session }),
+                        ServicePricing.deleteMany({ tierId: id }, { session }),
+                        PackageTierMap.deleteMany({ tierId: id }, { session }),
+                        PackageTierPricing.deleteMany({ tierId: id }, { session }),
+                    ]);
                 }
             });
             return {
                 success: true,
+                requiresConfirmation: false,
+                isActive,
                 message: `Tier ${isActive ? "activated" : "deactivated"} successfully`,
             };
-        }
-        catch (err) {
-            throw err;
         }
         finally {
             await session.endSession();
         }
     }
-    static async FindTiers(limit = 40, page = 1, sortBy, sortOrder = "asc", searchTerm, isActive) {
-        const skip = limit * (page - 1);
+    static async findTiers(limit = 40, page = 1, sortBy = "createdAt", sortOrder = "asc", searchTerm, isActive) {
+        const safeLimit = Number.isInteger(limit) && limit > 0
+            ? Math.min(limit, 100)
+            : 40;
+        const safePage = Number.isInteger(page) && page > 0 ? page : 1;
+        const skip = safeLimit * (safePage - 1);
         const query = {};
-        if (typeof isActive == "boolean") {
+        if (typeof isActive === "boolean") {
             query.isActive = isActive;
         }
-        const isTextSearch = !!searchTerm?.trim() && searchTerm.trim().length > 4;
-        if (searchTerm?.trim()) {
-            const term = searchTerm.trim();
+        const trimmedSearchTerm = searchTerm?.trim();
+        const isTextSearch = Boolean(trimmedSearchTerm) &&
+            trimmedSearchTerm.length > 4;
+        if (trimmedSearchTerm) {
             if (isTextSearch) {
                 query.$text = {
-                    $search: term,
+                    $search: trimmedSearchTerm,
                 };
             }
             else {
                 query.name = {
-                    $regex: `^${escapeRegex(term)}`,
+                    $regex: `^${escapeRegex(trimmedSearchTerm)}`,
                     $options: "i",
                 };
             }
         }
+        const allowedSortFields = new Set([
+            "name",
+            "tierReference",
+            "isActive",
+            "createdAt",
+            "updatedAt",
+            "relevance",
+        ]);
+        const safeSortBy = allowedSortFields.has(sortBy)
+            ? sortBy
+            : "createdAt";
         let sortCriteria = {};
         let projection = {};
-        if (isTextSearch && sortBy === "relevance") {
+        if (isTextSearch &&
+            safeSortBy === "relevance") {
             projection = {
                 score: {
                     $meta: "textScore",
@@ -153,8 +220,12 @@ export class TierService {
             };
         }
         else {
-            sortCriteria[sortBy] = sortOrder === "desc" ? -1 : 1;
-            if (sortBy !== "createdAt") {
+            const field = safeSortBy === "relevance"
+                ? "createdAt"
+                : safeSortBy;
+            sortCriteria[field] =
+                sortOrder === "desc" ? -1 : 1;
+            if (field !== "createdAt") {
                 sortCriteria.createdAt = -1;
             }
         }
@@ -163,14 +234,19 @@ export class TierService {
                 Tier.find(query, projection)
                     .sort(sortCriteria)
                     .skip(skip)
-                    .limit(limit)
+                    .limit(safeLimit)
                     .lean(),
                 Tier.countDocuments(query),
             ]);
-            return { data, total, page, totalPages: Math.ceil(total / limit) };
+            return {
+                data,
+                total,
+                page: safePage,
+                totalPages: Math.ceil(total / safeLimit),
+            };
         }
         catch (error) {
-            throw new Error(`Tier Fetch Failed: ${error.message}`);
+            throw new Error(`Tier fetch failed: ${error.message}`);
         }
     }
 }

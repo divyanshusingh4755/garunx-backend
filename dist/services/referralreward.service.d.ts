@@ -1,11 +1,13 @@
 import { Types } from "mongoose";
+type RewardStatus = "PENDING" | "AWARDED" | "FAILED";
 export declare class ReferralRewardService {
+    private static ensureValidObjectId;
     static processReferralReward(userId: string, bookingId: string): Promise<void>;
     static getReferralInfo(userId: string): Promise<{
         referralCode: string | undefined;
         totalReferrals: number;
         successfulReferrals: number;
-        totalRewardsEarned: any;
+        totalRewardsEarned: number;
     }>;
     static getReferralStats(userId: string): Promise<{
         pending: {
@@ -29,9 +31,10 @@ export declare class ReferralRewardService {
         })[];
         total: number;
         page: number;
+        limit: number;
         totalPages: number;
     }>;
-    static getReferralRewards(userId?: string, page?: number, limit?: number, status?: "PENDING" | "AWARDED" | "FAILED"): Promise<{
+    static getReferralRewards(userId?: string, page?: number, limit?: number, status?: RewardStatus): Promise<{
         data: (import("../models/referralreward.model.js").IReferralReward & Required<{
             _id: Types.ObjectId;
         }> & {
@@ -39,7 +42,9 @@ export declare class ReferralRewardService {
         })[];
         total: number;
         page: number;
+        limit: number;
         totalPages: number;
     }>;
 }
+export {};
 //# sourceMappingURL=referralreward.service.d.ts.map

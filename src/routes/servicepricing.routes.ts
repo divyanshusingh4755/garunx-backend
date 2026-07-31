@@ -1,4 +1,9 @@
-import { Router } from "express";
+import {
+  Router,
+  type Request,
+  type Response,
+  type NextFunction,
+} from "express";
 import {
   body,
   query,
@@ -16,19 +21,21 @@ import { authenticate } from "../middleware/authenticate.js";
 const router = Router();
 
 const validate = (
-  req: any,
-  res: any,
-  next: any,
+  req: Request,
+  res: Response,
+  next: NextFunction,
 ) => {
   const errors = validationResult(req);
 
   if (!errors.isEmpty()) {
+    const firstError = errors.array()[0];
+
     return res.status(400).json({
       success: false,
       message:
-        errors.array()[0]?.msg ??
+        firstError?.msg ??
         "Validation failed",
-      errors: errors.array(),
+      error: firstError,
     });
   }
 
@@ -74,6 +81,8 @@ const bulkPricingValidation:
       .withMessage("Invalid componentId"),
 
     body("pricing.*.components.*.price")
+      .exists({ checkNull: true })
+      .withMessage("price is required")
       .isFloat({ min: 0 })
       .withMessage(
         "price must be a non-negative number",
@@ -83,17 +92,20 @@ const bulkPricingValidation:
     body(
       "pricing.*.components.*.taxProfileId",
     )
-      .notEmpty()
-      .withMessage("taxProfileId is required")
+      .optional({
+        values: "null",
+      })
       .isMongoId()
       .withMessage("Invalid taxProfileId"),
 
     body(
       "pricing.*.components.*.taxPriceMode",
     )
-      .notEmpty()
-      .withMessage("taxPriceMode is required")
-      .isIn(["EXCLUSIVE", "INCLUSIVE"])
+      .optional()
+      .isIn([
+        "EXCLUSIVE",
+        "INCLUSIVE",
+      ])
       .withMessage(
         "taxPriceMode must be EXCLUSIVE or INCLUSIVE",
       ),

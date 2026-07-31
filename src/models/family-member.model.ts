@@ -19,7 +19,8 @@ export type FamilyMemberSource =
   | "ADMIN_MANUAL"
   | "SYSTEM_IMPORT";
 
-export interface IFamilyMember extends Document {
+export interface IFamilyMember
+  extends Document {
   ownerId: Types.ObjectId;
 
   createdBy: Types.ObjectId;
@@ -56,7 +57,7 @@ export interface IFamilyMember extends Document {
   designatedPandit?: string;
   visitors: string[];
 
-  profileImage?: string;
+  profileImage?: string | null;
   notes?: string;
 
   createdAt: Date;
@@ -67,20 +68,23 @@ const familyMemberSchema =
   new Schema<IFamilyMember>(
     {
       ownerId: {
-        type: Schema.Types.ObjectId,
+        type:
+          Schema.Types.ObjectId,
         ref: "User",
         required: true,
         index: true,
       },
 
       createdBy: {
-        type: Schema.Types.ObjectId,
+        type:
+          Schema.Types.ObjectId,
         ref: "User",
         required: true,
       },
 
       updatedBy: {
-        type: Schema.Types.ObjectId,
+        type:
+          Schema.Types.ObjectId,
         ref: "User",
         default: null,
       },
@@ -97,7 +101,8 @@ const familyMemberSchema =
       },
 
       sourceBookingId: {
-        type: Schema.Types.ObjectId,
+        type:
+          Schema.Types.ObjectId,
         ref: "Booking",
         default: null,
       },
@@ -120,7 +125,8 @@ const familyMemberSchema =
       },
 
       deletedBy: {
-        type: Schema.Types.ObjectId,
+        type:
+          Schema.Types.ObjectId,
         ref: "User",
         default: null,
       },
@@ -142,24 +148,29 @@ const familyMemberSchema =
 
       relation: {
         type: String,
-        enum: Object.values(
-          FamilyRelation,
-        ),
+        enum:
+          Object.values(
+            FamilyRelation,
+          ),
         required: true,
       },
 
       gender: {
         type: String,
-        enum: Object.values(Gender),
+        enum:
+          Object.values(Gender),
       },
 
-      dob: Date,
+      dob: {
+        type: Date,
+      },
 
       lifeStatus: {
         type: String,
-        enum: Object.values(
-          MemberLifeStatus,
-        ),
+        enum:
+          Object.values(
+            MemberLifeStatus,
+          ),
         default:
           MemberLifeStatus.ALIVE,
         required: true,
@@ -171,13 +182,15 @@ const familyMemberSchema =
       },
 
       fatherId: {
-        type: Schema.Types.ObjectId,
+        type:
+          Schema.Types.ObjectId,
         ref: "FamilyMember",
         default: null,
       },
 
       motherId: {
-        type: Schema.Types.ObjectId,
+        type:
+          Schema.Types.ObjectId,
         ref: "FamilyMember",
         default: null,
       },
@@ -190,14 +203,12 @@ const familyMemberSchema =
             ref: "FamilyMember",
           },
         ],
-
         default: [],
-
         validate: {
           validator: (
             spouseIds:
               Types.ObjectId[],
-          ) => {
+          ): boolean => {
             const uniqueIds =
               new Set(
                 spouseIds.map(
@@ -237,12 +248,14 @@ const familyMemberSchema =
 
       caste: {
         type: String,
-        enum: Object.values(Caste),
+        enum:
+          Object.values(Caste),
       },
 
       gotra: {
         type: String,
-        enum: Object.values(Gotra),
+        enum:
+          Object.values(Gotra),
       },
 
       designatedPandit: {
@@ -280,7 +293,7 @@ const familyMemberSchema =
 
 familyMemberSchema.pre(
   "validate",
-  function () {
+  function (): void {
     if (
       this.source ===
         "COORDINATOR_BOOKING" &&
@@ -292,12 +305,43 @@ familyMemberSchema.pre(
     }
 
     if (
+      this.source !==
+        "COORDINATOR_BOOKING" &&
+      this.sourceBookingId
+    ) {
+      throw new Error(
+        "Booking ID can only be provided for coordinator booking source",
+      );
+    }
+
+    if (
       this.lifeStatus ===
         MemberLifeStatus.ALIVE &&
       this.dateOfDeath
     ) {
       throw new Error(
         "Date of death cannot be provided for an alive family member",
+      );
+    }
+
+    if (
+      this.lifeStatus !==
+        MemberLifeStatus.ALIVE &&
+      !this.dateOfDeath
+    ) {
+      throw new Error(
+        "Date of death is required for a deceased family member",
+      );
+    }
+
+    if (
+      this.dob &&
+      this.dateOfDeath &&
+      this.dateOfDeath <
+        this.dob
+    ) {
+      throw new Error(
+        "Date of death cannot be earlier than date of birth",
       );
     }
 
@@ -315,7 +359,9 @@ familyMemberSchema.pre(
 
     if (
       this._id &&
-      this.fatherId?.equals(this._id)
+      this.fatherId?.equals(
+        this._id,
+      )
     ) {
       throw new Error(
         "A family member cannot be their own father",
@@ -324,7 +370,9 @@ familyMemberSchema.pre(
 
     if (
       this._id &&
-      this.motherId?.equals(this._id)
+      this.motherId?.equals(
+        this._id,
+      )
     ) {
       throw new Error(
         "A family member cannot be their own mother",
@@ -335,11 +383,34 @@ familyMemberSchema.pre(
       this._id &&
       this.spouseIds.some(
         (spouseId) =>
-          spouseId.equals(this._id),
+          spouseId.equals(
+            this._id,
+          ),
       )
     ) {
       throw new Error(
         "A family member cannot be their own spouse",
+      );
+    }
+
+    if (
+      this.isDeleted &&
+      (!this.deletedAt ||
+        !this.deletedBy)
+    ) {
+      throw new Error(
+        "Deleted family members require deletedAt and deletedBy",
+      );
+    }
+
+    if (
+      !this.isDeleted &&
+      (this.deletedAt ||
+        this.deletedBy ||
+        this.deletionReason)
+    ) {
+      throw new Error(
+        "Deletion fields cannot be set when family member is not deleted",
       );
     }
   },

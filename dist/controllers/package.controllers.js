@@ -1,5 +1,22 @@
 import { PackageService } from "../services/package.service.js";
 import { PackageDiagnosticsEngine } from "../services/package-diagnostics-engine.service.js";
+const parsePositiveInteger = (value, defaultValue, maximum) => {
+    const parsed = Number(value);
+    if (!Number.isInteger(parsed) || parsed < 1) {
+        return defaultValue;
+    }
+    return maximum ? Math.min(parsed, maximum) : parsed;
+};
+const parseIdList = (value) => {
+    if (typeof value !== "string") {
+        return undefined;
+    }
+    const ids = value
+        .split(",")
+        .map((id) => id.trim())
+        .filter(Boolean);
+    return ids.length ? ids : undefined;
+};
 export const createPackage = async (req, res) => {
     try {
         const pkg = await PackageService.createPackage(req.body);
@@ -78,7 +95,9 @@ export const getAllPackages = async (req, res) => {
         const { searchTerm, categoryId, locationId, tierId, limit, page, isActive, isComplete, sortBy, sortOrder, } = req.query;
         const activeBool = isActive === "true" ? true : isActive === "false" ? false : undefined;
         const completeBool = isComplete === "true" ? true : isComplete === "false" ? false : undefined;
-        const { data, total, page: currentPage, totalPages, } = await PackageService.findPackages(searchTerm, categoryId, locationId, tierId, Number(limit) || 20, Number(page) || 1, activeBool, completeBool, sortBy || "name", sortOrder || "asc");
+        const parsedLimit = parsePositiveInteger(limit, 20, 100);
+        const parsedPage = parsePositiveInteger(page, 1);
+        const { data, total, page: currentPage, totalPages, } = await PackageService.findPackages(searchTerm, categoryId, locationId, tierId, parsedLimit, parsedPage, activeBool, completeBool, sortBy || "name", sortOrder || "asc");
         return res.status(200).json({
             success: true,
             data,
@@ -191,12 +210,6 @@ export const getFullPackage = async (req, res) => {
 export const getRelatedPackageService = async (req, res) => {
     try {
         const { packageId, tierId, locationId } = req.params;
-        if (!packageId || !tierId || !locationId) {
-            return res.status(400).json({
-                success: false,
-                message: "packageId, tierId, locationId is required",
-            });
-        }
         const data = await PackageService.getRelatedPackageService(packageId, tierId, locationId);
         return res.status(200).json({
             success: true,
@@ -251,11 +264,13 @@ export const getFullPackageByCities = async (req, res) => {
 export const getPackagesByLocation = async (req, res) => {
     try {
         const { cityIds, categoryIds, limit, page, isActive, isComplete, sortBy, sortOrder, } = req.query;
-        const cityIdArray = typeof cityIds === "string" ? cityIds.split(",") : undefined;
-        const categoryIdArray = typeof categoryIds === "string" ? categoryIds.split(",") : undefined;
+        const cityIdArray = parseIdList(cityIds);
+        const categoryIdArray = parseIdList(categoryIds);
         const activeBool = isActive === "true" ? true : isActive === "false" ? false : undefined;
         const completeBool = isComplete === "true" ? true : isComplete === "false" ? false : undefined;
-        const { data, total, page: currentPage, totalPages, } = await PackageService.getPackagesByLocation(cityIdArray, categoryIdArray, Number(limit) || 20, Number(page) || 1, activeBool, completeBool, sortBy || "name", sortOrder || "asc");
+        const parsedLimit = parsePositiveInteger(limit, 20, 100);
+        const parsedPage = parsePositiveInteger(page, 1);
+        const { data, total, page: currentPage, totalPages, } = await PackageService.getPackagesByLocation(cityIdArray, categoryIdArray, parsedLimit, parsedPage, activeBool, completeBool, sortBy || "name", sortOrder || "asc");
         return res.status(200).json({
             success: true,
             data,

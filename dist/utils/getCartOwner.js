@@ -1,22 +1,40 @@
-import { HttpError } from "../utils/httpError.js";
+import { HttpError, } from "../utils/httpError.js";
+const getSingleHeaderValue = (value) => {
+    if (typeof value !== "string") {
+        return undefined;
+    }
+    const normalized = value.trim();
+    return normalized ||
+        undefined;
+};
 export const getCartOwner = (req) => {
     const userId = req.user?.userId;
-    const guestId = req.headers["x-guest-id"];
-    if (!userId && !guestId) {
+    /*
+     * An authenticated user always owns their authenticated cart.
+     * Ignoring x-guest-id here prevents a caller from creating
+     * ambiguous owner queries containing both identities.
+     */
+    if (userId) {
+        return {
+            userId,
+        };
+    }
+    const guestId = getSingleHeaderValue(req.headers["x-guest-id"]);
+    if (!guestId) {
         throw new HttpError(401, "Authentication or guestId is required");
     }
     return {
-        ...(userId ? { userId } : {}),
-        ...(guestId ? { guestId } : {}),
+        guestId,
     };
 };
 export const buildCartOwnerQuery = (owner) => {
-    if (owner.userId) {
-        return { userId: owner.userId };
+    if ("userId" in owner) {
+        return {
+            userId: owner.userId,
+        };
     }
-    if (owner.guestId) {
-        return { guestId: owner.guestId };
-    }
-    throw new Error("Cart owner missing");
+    return {
+        guestId: owner.guestId,
+    };
 };
 //# sourceMappingURL=getCartOwner.js.map

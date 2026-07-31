@@ -1,40 +1,97 @@
-import { FAQ, type IFAQ } from "../models/faq.model.js";
-import { escapeRegex } from "../utils/escapeRegex.js";
+import { Types } from "mongoose";
+
+import {
+  FAQ,
+  type IFAQ,
+} from "../models/faq.model.js";
+
+import {
+  escapeRegex,
+} from "../utils/escapeRegex.js";
+
+type FaqType =
+  | "User"
+  | "Coordinator"
+  | "User_Query"
+  | "Coordinator_Query";
+
+type FaqUpdateData = Partial<
+  Pick<
+    IFAQ,
+    | "name"
+    | "question"
+    | "answer"
+    | "faqType"
+    | "displayOrder"
+    | "isActive"
+  >
+>;
+
+type SortSpecification = Record<
+  string,
+  1 | -1 | { $meta: "textScore" }
+>;
+
+type ProjectionSpecification = Record<
+  string,
+  0 | 1 | { $meta: "textScore" }
+>;
 
 export class FAQService {
-  static async createFaq(faqData: Partial<IFAQ>) {
-    if (!faqData.name) {
+  private static ensureValidId(id: string): void {
+    if (!Types.ObjectId.isValid(id)) {
+      throw new Error("Invalid FAQ ID");
+    }
+  }
+
+  static async createFaq(
+    faqData: Partial<IFAQ>,
+  ) {
+    if (!faqData.name?.trim()) {
       throw new Error("Name is required");
     }
 
-    if (!faqData.question) {
+    if (!faqData.question?.trim()) {
       throw new Error("Question is required");
     }
 
-    if (!faqData.answer) {
+    if (!faqData.answer?.trim()) {
       throw new Error("Answer is required");
     }
 
     const faq = new FAQ(faqData);
-    return await faq.save();
+
+    return faq.save();
   }
 
-  static async updateFaq(id: string, updateData: Partial<IFAQ>) {
-    const faq = await FAQ.findByIdAndUpdate(
-      id,
-      { $set: updateData },
-      { new: true, runValidators: true },
-    );
+  static async updateFaq(
+    id: string,
+    updateData: FaqUpdateData,
+  ) {
+    this.ensureValidId(id);
+
+    const faq = await FAQ.findById(id);
 
     if (!faq) {
       throw new Error("FAQ not found");
     }
 
-    return faq;
+    for (
+      const [field, value] of Object.entries(
+        updateData,
+      )
+    ) {
+      faq.set(field, value);
+    }
+
+    return faq.save();
   }
 
   static async getFaqById(id: string) {
-    const faq = await FAQ.findById(id).lean();
+    this.ensureValidId(id);
+
+    const faq = await FAQ.findById(id)
+      .lean();
 
     if (!faq) {
       throw new Error("FAQ not found");
@@ -44,7 +101,10 @@ export class FAQService {
   }
 
   static async deleteFaq(id: string) {
-    const faq = await FAQ.findByIdAndDelete(id);
+    this.ensureValidId(id);
+
+    const faq =
+      await FAQ.findByIdAndDelete(id);
 
     if (!faq) {
       throw new Error("FAQ not found");
@@ -54,6 +114,8 @@ export class FAQService {
   }
 
   static async toggleFaqStatus(id: string) {
+    this.ensureValidId(id);
+
     const faq = await FAQ.findById(id);
 
     if (!faq) {
@@ -62,54 +124,86 @@ export class FAQService {
 
     faq.isActive = !faq.isActive;
 
-    await faq.save();
-
-    return faq;
+    return faq.save();
   }
 
   static async findFaqs(
     searchTerm?: string,
     faqType?: string,
-    limit: number = 20,
-    page: number = 1,
+    limit = 20,
+    page = 1,
     isActive?: boolean,
-    sortBy: string = "displayOrder",
+    sortBy = "displayOrder",
     sortOrder: "asc" | "desc" = "asc",
   ) {
-    const skip = limit * (page - 1);
+    const safeLimit =
+      Number.isInteger(limit) && limit > 0
+        ? Math.min(limit, 100)
+        : 20;
 
-    const query: any = {};
+    const safePage =
+      Number.isInteger(page) && page > 0
+        ? page
+        : 1;
+
+    const skip =
+      safeLimit * (safePage - 1);
+
+    const query: Record<string, unknown> = {};
 
     if (faqType) {
-      query.faqType = faqType;
+      query.faqType = faqType as FaqType;
     }
 
     if (typeof isActive === "boolean") {
       query.isActive = isActive;
     }
 
+    const normalizedSearch =
+      searchTerm?.trim();
+
     const isTextSearch =
-      !!searchTerm?.trim() && searchTerm.trim().length > 4;
+      Boolean(
+        normalizedSearch &&
+        normalizedSearch.length > 4,
+      );
 
-    if (searchTerm?.trim()) {
-      const term = searchTerm.trim();
-
+    if (normalizedSearch) {
       if (isTextSearch) {
         query.$text = {
-          $search: term,
+          $search: normalizedSearch,
         };
       } else {
         query.name = {
-          $regex: `^${escapeRegex(term)}`,
+          $regex:
+            `^${escapeRegex(normalizedSearch)}`,
           $options: "i",
         };
       }
     }
 
-    let sortCriteria: any = {};
-    let projection: any = {};
+    const allowedSortFields = new Set([
+      "displayOrder",
+      "createdAt",
+      "updatedAt",
+      "name",
+      "faqType",
+      "isActive",
+      "relevance",
+    ]);
 
-    if (isTextSearch && sortBy === "relevance") {
+    const safeSortBy =
+      allowedSortFields.has(sortBy)
+        ? sortBy
+        : "displayOrder";
+
+    let projection: ProjectionSpecification = {};
+    let sortCriteria: SortSpecification;
+
+    if (
+      isTextSearch &&
+      safeSortBy === "relevance"
+    ) {
       projection = {
         score: {
           $meta: "textScore",
@@ -122,28 +216,52 @@ export class FAQService {
         },
       };
     } else {
-      sortCriteria[sortBy] = sortOrder === "desc" ? -1 : 1;
+      const actualSortField =
+        safeSortBy === "relevance"
+          ? "displayOrder"
+          : safeSortBy;
 
-      if (sortBy !== "createdAt") {
+      sortCriteria = {
+        [actualSortField]:
+          sortOrder === "desc"
+            ? -1
+            : 1,
+      };
+
+      if (actualSortField !== "createdAt") {
         sortCriteria.createdAt = -1;
       }
     }
 
     try {
-      const [data, total] = await Promise.all([
-        FAQ.find(query, projection).sort(sortCriteria).skip(skip).limit(limit).lean(),
+      const [data, total] =
+        await Promise.all([
+          FAQ.find(query, projection)
+            .sort(sortCriteria)
+            .skip(skip)
+            .limit(safeLimit)
+            .lean(),
 
-        FAQ.countDocuments(query),
-      ]);
+          FAQ.countDocuments(query),
+        ]);
 
       return {
         data,
         total,
-        page,
-        totalPages: Math.ceil(total / limit),
+        page: safePage,
+        limit: safeLimit,
+        totalPages:
+          Math.ceil(total / safeLimit),
       };
-    } catch (error: any) {
-      throw new Error(`FAQ fetch failed: ${error.message}`);
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Unknown error";
+
+      throw new Error(
+        `FAQ fetch failed: ${message}`,
+      );
     }
   }
 }

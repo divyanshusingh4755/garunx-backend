@@ -73,7 +73,9 @@ const familyMemberSchema = new Schema({
         type: String,
         enum: Object.values(Gender),
     },
-    dob: Date,
+    dob: {
+        type: Date,
+    },
     lifeStatus: {
         type: String,
         enum: Object.values(MemberLifeStatus),
@@ -167,10 +169,26 @@ familyMemberSchema.pre("validate", function () {
         !this.sourceBookingId) {
         throw new Error("Booking ID is required when a family member is added by a coordinator");
     }
+    if (this.source !==
+        "COORDINATOR_BOOKING" &&
+        this.sourceBookingId) {
+        throw new Error("Booking ID can only be provided for coordinator booking source");
+    }
     if (this.lifeStatus ===
         MemberLifeStatus.ALIVE &&
         this.dateOfDeath) {
         throw new Error("Date of death cannot be provided for an alive family member");
+    }
+    if (this.lifeStatus !==
+        MemberLifeStatus.ALIVE &&
+        !this.dateOfDeath) {
+        throw new Error("Date of death is required for a deceased family member");
+    }
+    if (this.dob &&
+        this.dateOfDeath &&
+        this.dateOfDeath <
+            this.dob) {
+        throw new Error("Date of death cannot be earlier than date of birth");
     }
     if (this.fatherId &&
         this.motherId &&
@@ -188,6 +206,17 @@ familyMemberSchema.pre("validate", function () {
     if (this._id &&
         this.spouseIds.some((spouseId) => spouseId.equals(this._id))) {
         throw new Error("A family member cannot be their own spouse");
+    }
+    if (this.isDeleted &&
+        (!this.deletedAt ||
+            !this.deletedBy)) {
+        throw new Error("Deleted family members require deletedAt and deletedBy");
+    }
+    if (!this.isDeleted &&
+        (this.deletedAt ||
+            this.deletedBy ||
+            this.deletionReason)) {
+        throw new Error("Deletion fields cannot be set when family member is not deleted");
     }
 });
 familyMemberSchema.index({

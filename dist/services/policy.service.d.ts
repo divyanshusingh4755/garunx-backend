@@ -1,4 +1,4 @@
-import { Types } from "mongoose";
+import mongoose, { Types } from "mongoose";
 type PolicyType = "TERMS" | "PRIVACY" | "REFUND";
 type UserType = "User" | "Coordinator";
 interface CreatePolicyPayload {
@@ -12,14 +12,15 @@ interface UpdatePolicyPayload {
     content?: string;
 }
 export declare class PolicyService {
-    static createPolicy(payload: CreatePolicyPayload): Promise<import("mongoose").Document<unknown, {}, import("../models/policy.model.js").IContent, {}, import("mongoose").DefaultSchemaOptions> & import("../models/policy.model.js").IContent & Required<{
+    private static ensureValidId;
+    static createPolicy(payload: CreatePolicyPayload): Promise<mongoose.Document<unknown, {}, import("../models/policy.model.js").IContent, {}, mongoose.DefaultSchemaOptions> & import("../models/policy.model.js").IContent & Required<{
         _id: Types.ObjectId;
     }> & {
         __v: number;
     } & {
         id: string;
     }>;
-    static updatePolicy(id: string, payload: UpdatePolicyPayload): Promise<import("mongoose").Document<unknown, {}, import("../models/policy.model.js").IContent, {}, import("mongoose").DefaultSchemaOptions> & import("../models/policy.model.js").IContent & Required<{
+    static updatePolicy(id: string, payload: UpdatePolicyPayload): Promise<mongoose.Document<unknown, {}, import("../models/policy.model.js").IContent, {}, mongoose.DefaultSchemaOptions> & import("../models/policy.model.js").IContent & Required<{
         _id: Types.ObjectId;
     }> & {
         __v: number;
@@ -34,15 +35,10 @@ export declare class PolicyService {
         })[];
         total: number;
         page: number;
+        limit: number;
         totalPages: number;
     }>;
-    static togglePolicyStatus(id: string, isActive: boolean): Promise<import("mongoose").Document<unknown, {}, import("../models/policy.model.js").IContent, {}, import("mongoose").DefaultSchemaOptions> & import("../models/policy.model.js").IContent & Required<{
-        _id: Types.ObjectId;
-    }> & {
-        __v: number;
-    } & {
-        id: string;
-    }>;
+    static togglePolicyStatus(id: string, isActive: boolean): Promise<never>;
     static getPolicyByType(type: PolicyType, userType: UserType): Promise<import("../models/policy.model.js").IContent & Required<{
         _id: Types.ObjectId;
     }> & {

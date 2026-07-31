@@ -1,4 +1,4 @@
-import { Schema, Types, model, Document, Model, } from "mongoose";
+import { Schema, Types, model, } from "mongoose";
 const userQueryActivitySchema = new Schema({
     queryId: {
         type: Schema.Types.ObjectId,

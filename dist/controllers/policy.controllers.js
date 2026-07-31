@@ -1,7 +1,27 @@
-import { PolicyService } from "../services/policy.service.js";
+import { PolicyService, } from "../services/policy.service.js";
+const getErrorMessage = (error, fallback) => error instanceof Error
+    ? error.message
+    : fallback;
+const getErrorStatus = (error) => {
+    if (error instanceof Error &&
+        error.message === "Policy not found") {
+        return 404;
+    }
+    if (error instanceof Error &&
+        error.message.includes("policy not found")) {
+        return 404;
+    }
+    return 400;
+};
 export const createPolicy = async (req, res) => {
     try {
-        const data = await PolicyService.createPolicy(req.body);
+        const { type, userType, title, content, } = req.body;
+        const data = await PolicyService.createPolicy({
+            type,
+            userType,
+            title,
+            content,
+        });
         return res.status(201).json({
             success: true,
             data,
@@ -10,76 +30,102 @@ export const createPolicy = async (req, res) => {
     catch (error) {
         return res.status(400).json({
             success: false,
-            message: error.message,
+            message: getErrorMessage(error, "Failed to create policy"),
         });
     }
 };
 export const updatePolicy = async (req, res) => {
     try {
-        const { id } = req.params;
-        const data = await PolicyService.updatePolicy(id, req.body);
+        const payload = {};
+        if (Object.prototype.hasOwnProperty.call(req.body, "title")) {
+            payload.title = req.body.title;
+        }
+        if (Object.prototype.hasOwnProperty.call(req.body, "content")) {
+            payload.content = req.body.content;
+        }
+        const data = await PolicyService.updatePolicy(req.params.id, payload);
         return res.status(200).json({
             success: true,
             data,
         });
     }
     catch (error) {
-        return res.status(400).json({
+        return res
+            .status(getErrorStatus(error))
+            .json({
             success: false,
-            message: error.message,
+            message: getErrorMessage(error, "Failed to update policy"),
         });
     }
 };
 export const getAllPolicies = async (req, res) => {
     try {
-        const { page, isActive, limit, type, userType } = req.query;
-        const { data, total, page: currentPage, totalPages, } = await PolicyService.getAllPolicies(Number(page) || 1, Number(limit) || 20, isActive === "true" ? true : isActive === "false" ? false : undefined, type, userType);
+        const { page, isActive, limit, type, userType, } = req.query;
+        const parsedPage = typeof page === "number"
+            ? page
+            : Number(page);
+        const parsedLimit = typeof limit === "number"
+            ? limit
+            : Number(limit);
+        const result = await PolicyService.getAllPolicies(Number.isInteger(parsedPage) &&
+            parsedPage > 0
+            ? parsedPage
+            : 1, Number.isInteger(parsedLimit) &&
+            parsedLimit > 0
+            ? Math.min(parsedLimit, 100)
+            : 20, isActive === "true"
+            ? true
+            : isActive === "false"
+                ? false
+                : undefined, typeof type === "string"
+            ? type
+            : undefined, typeof userType === "string"
+            ? userType
+            : undefined);
         return res.status(200).json({
             success: true,
-            data,
-            total,
-            page: currentPage,
-            totalPages,
+            ...result,
         });
     }
     catch (error) {
         return res.status(400).json({
             success: false,
-            message: error.message,
+            message: getErrorMessage(error, "Failed to fetch policies"),
         });
     }
 };
 export const togglePolicyStatus = async (req, res) => {
     try {
-        const { id } = req.params;
-        const { isActive } = req.body;
-        const data = await PolicyService.togglePolicyStatus(id, isActive);
+        const data = await PolicyService
+            .togglePolicyStatus(req.params.id, req.body.isActive);
         return res.status(200).json({
             success: true,
             data,
         });
     }
     catch (error) {
-        return res.status(400).json({
+        return res
+            .status(getErrorStatus(error))
+            .json({
             success: false,
-            message: error.message,
+            message: getErrorMessage(error, "Failed to update policy status"),
         });
     }
 };
 export const getPolicyByType = async (req, res) => {
     try {
-        const { type } = req.params;
-        const { userType } = req.query;
-        const data = await PolicyService.getPolicyByType(type, userType);
+        const data = await PolicyService.getPolicyByType(req.params.type, req.query.userType);
         return res.status(200).json({
             success: true,
             data,
         });
     }
     catch (error) {
-        return res.status(404).json({
+        return res
+            .status(getErrorStatus(error))
+            .json({
             success: false,
-            message: error.message,
+            message: getErrorMessage(error, "Failed to fetch policy"),
         });
     }
 };

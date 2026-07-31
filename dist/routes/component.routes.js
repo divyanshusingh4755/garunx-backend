@@ -1,5 +1,5 @@
 import { Router, } from "express";
-import { body, param, validationResult } from "express-validator";
+import { body, param, query, validationResult, } from "express-validator";
 import { createComponent, getAllComponents, getComponentById, updateComponent, toggleComponentStatus, } from "../controllers/component.controllers.js";
 import { authenticate } from "../middleware/authenticate.js";
 const router = Router();
@@ -9,29 +9,34 @@ const validate = (req, res, next) => {
         const firstError = errors.array()[0];
         return res.status(400).json({
             success: false,
-            message: firstError?.msg,
+            message: firstError?.msg ?? "Validation failed",
             error: firstError,
         });
     }
     next();
 };
-const componentValidation = [
+const createComponentValidation = [
     body("name")
-        .notEmpty()
-        .withMessage("Component name is required")
         .isString()
-        .trim(),
+        .withMessage("Component name must be a string")
+        .trim()
+        .notEmpty()
+        .withMessage("Component name is required"),
     body("categoryId")
         .notEmpty()
         .withMessage("Category ID is required")
         .isMongoId()
         .withMessage("Invalid category ID"),
     body("description")
-        .notEmpty()
-        .withMessage("Description is required")
         .isString()
-        .trim(),
-    body("imageUrl").optional().isURL().withMessage("Invalid image URL"),
+        .withMessage("Description must be a string")
+        .trim()
+        .notEmpty()
+        .withMessage("Description is required"),
+    body("imageUrl")
+        .optional({ values: "falsy" })
+        .isURL()
+        .withMessage("Invalid image URL"),
     body("isRemovable")
         .optional()
         .isBoolean()
@@ -47,15 +52,51 @@ const componentValidation = [
     validate,
 ];
 const updateComponentValidation = [
-    param("componentId").isMongoId().withMessage("Invalid component ID"),
-    body("name").optional().isString().trim().withMessage("name must be string"),
-    body("categoryId").optional().isMongoId().withMessage("Invalid category ID"),
+    param("componentId")
+        .isMongoId()
+        .withMessage("Invalid component ID"),
+    body().custom((value) => {
+        const allowedFields = [
+            "name",
+            "categoryId",
+            "description",
+            "imageUrl",
+            "isRemovable",
+            "isBundled",
+            "isActive",
+        ];
+        const suppliedFields = Object.keys(value ?? {});
+        if (suppliedFields.length === 0) {
+            throw new Error("At least one update field is required");
+        }
+        const invalidFields = suppliedFields.filter((field) => !allowedFields.includes(field));
+        if (invalidFields.length > 0) {
+            throw new Error(`Invalid update fields: ${invalidFields.join(", ")}`);
+        }
+        return true;
+    }),
+    body("name")
+        .optional()
+        .isString()
+        .withMessage("name must be string")
+        .trim()
+        .notEmpty()
+        .withMessage("name cannot be empty"),
+    body("categoryId")
+        .optional()
+        .isMongoId()
+        .withMessage("Invalid category ID"),
     body("description")
         .optional()
         .isString()
+        .withMessage("description must be string")
         .trim()
-        .withMessage("description must be string"),
-    body("imageUrl").optional().isURL().withMessage("Invalid image URL"),
+        .notEmpty()
+        .withMessage("description cannot be empty"),
+    body("imageUrl")
+        .optional({ values: "falsy" })
+        .isURL()
+        .withMessage("Invalid image URL"),
     body("isRemovable")
         .optional()
         .isBoolean()
@@ -71,27 +112,73 @@ const updateComponentValidation = [
     validate,
 ];
 const componentIdValidation = [
-    param("componentId").isMongoId().withMessage("Invalid component ID"),
+    param("componentId")
+        .isMongoId()
+        .withMessage("Invalid component ID"),
     validate,
 ];
 const componentStatusValidation = [
-    param("componentId").isMongoId().withMessage("Invalid component ID"),
+    param("componentId")
+        .isMongoId()
+        .withMessage("Invalid component ID"),
     body("isActive")
-        .notEmpty()
+        .exists({ checkNull: true })
         .withMessage("isActive is required")
         .isBoolean()
         .withMessage("isActive must be boolean"),
+    body("confirmed")
+        .optional()
+        .isBoolean()
+        .withMessage("confirmed must be boolean"),
     validate,
 ];
-// Get all components
-router.get("/", getAllComponents);
-// Get component by ID
+const listValidation = [
+    query("categoryId")
+        .optional()
+        .isMongoId()
+        .withMessage("Invalid category ID"),
+    query("limit")
+        .optional()
+        .isInt({ min: 1, max: 100 })
+        .withMessage("limit must be between 1 and 100"),
+    query("page")
+        .optional()
+        .isInt({ min: 1 })
+        .withMessage("page must be at least 1"),
+    query("isRemovable")
+        .optional()
+        .isBoolean()
+        .withMessage("isRemovable must be true or false"),
+    query("isActive")
+        .optional()
+        .isBoolean()
+        .withMessage("isActive must be true or false"),
+    query("isBundled")
+        .optional()
+        .isBoolean()
+        .withMessage("isBundled must be true or false"),
+    query("sortBy")
+        .optional()
+        .isIn([
+        "name",
+        "createdAt",
+        "updatedAt",
+        "isActive",
+        "isRemovable",
+        "isBundled",
+        "relevance",
+    ])
+        .withMessage("Invalid sortBy value"),
+    query("sortOrder")
+        .optional()
+        .isIn(["asc", "desc"])
+        .withMessage("sortOrder must be asc or desc"),
+    validate,
+];
+router.get("/", listValidation, getAllComponents);
 router.get("/:componentId", authenticate, componentIdValidation, getComponentById);
-// Create component
-router.post("/", authenticate, componentValidation, createComponent);
-// Update component
+router.post("/", authenticate, createComponentValidation, createComponent);
 router.patch("/:componentId", authenticate, updateComponentValidation, updateComponent);
-// Toggle component status
 router.patch("/:componentId/status", authenticate, componentStatusValidation, toggleComponentStatus);
 export default router;
 //# sourceMappingURL=component.routes.js.map

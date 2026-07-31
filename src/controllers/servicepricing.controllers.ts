@@ -7,13 +7,55 @@ import {
   ServicePricingService,
 } from "../services/servicepricing.service.js";
 
-function getErrorMessage(
+const getStatusCode = (
   error: unknown,
-): string {
-  return error instanceof Error
+): number => {
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "statusCode" in error &&
+    typeof (
+      error as {
+        statusCode?: unknown;
+      }
+    ).statusCode === "number"
+  ) {
+    return (
+      error as {
+        statusCode: number;
+      }
+    ).statusCode;
+  }
+
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "name" in error &&
+    (error as { name?: unknown }).name ===
+      "ValidationError"
+  ) {
+    return 400;
+  }
+
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    (error as { code?: unknown }).code ===
+      11000
+  ) {
+    return 409;
+  }
+
+  return 500;
+};
+
+const getErrorMessage = (
+  error: unknown,
+): string =>
+  error instanceof Error
     ? error.message
     : "An unexpected error occurred";
-}
 
 export const bulkUpsertTierPricing =
   async (
@@ -31,11 +73,13 @@ export const bulkUpsertTierPricing =
         .status(200)
         .json(result);
     } catch (error: unknown) {
-      return res.status(400).json({
-        success: false,
-        message:
-          getErrorMessage(error),
-      });
+      return res
+        .status(getStatusCode(error))
+        .json({
+          success: false,
+          message:
+            getErrorMessage(error),
+        });
     }
   };
 
@@ -54,9 +98,9 @@ export const resolvePricing =
       const data =
         await ServicePricingService
           .resolvePricing(
-            String(serviceId),
-            String(tierId),
-            String(locationId),
+            serviceId as string,
+            tierId as string,
+            locationId as string,
           );
 
       return res
@@ -66,10 +110,12 @@ export const resolvePricing =
           data,
         });
     } catch (error: unknown) {
-      return res.status(400).json({
-        success: false,
-        message:
-          getErrorMessage(error),
-      });
+      return res
+        .status(getStatusCode(error))
+        .json({
+          success: false,
+          message:
+            getErrorMessage(error),
+        });
     }
   };

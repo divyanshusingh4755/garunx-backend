@@ -1,6 +1,7 @@
+import { TaxJurisdiction, } from "../types/tax.types.js";
 export class TaxCalculatorService {
     static round(value) {
-        return Math.round((value + Number.EPSILON) * 100) / 100;
+        return (Math.round((value + Number.EPSILON) * 100) / 100);
     }
     static validateAmount(fieldName, value) {
         if (typeof value !== "number" ||
@@ -9,18 +10,41 @@ export class TaxCalculatorService {
             throw new Error(`${fieldName} must be a valid non-negative number`);
         }
     }
+    static validateProfile(profile) {
+        this.validateAmount("profile.totalRate", profile.totalRate);
+        if (profile.totalRate > 100) {
+            throw new Error("profile.totalRate cannot exceed 100");
+        }
+        if (profile.treatment === "TAXABLE" &&
+            profile.totalRate <= 0) {
+            throw new Error("Taxable profile must have a tax rate greater than zero");
+        }
+        if (profile.treatment !== "TAXABLE" &&
+            profile.totalRate !== 0) {
+            throw new Error("Non-taxable profile must have a tax rate equal to zero");
+        }
+        if (profile.priceMode !== "INCLUSIVE" &&
+            profile.priceMode !== "EXCLUSIVE") {
+            throw new Error("Invalid tax price mode");
+        }
+    }
+    static normalizeStateCode(fieldName, value) {
+        if (typeof value !== "string") {
+            throw new Error(`${fieldName} must be a string`);
+        }
+        const normalized = value.trim();
+        if (!/^\d{2}$/.test(normalized)) {
+            throw new Error(`${fieldName} must contain exactly two digits`);
+        }
+        return normalized;
+    }
     static resolveJurisdiction(supplierStateCode, placeOfSupplyStateCode) {
-        const supplierCode = supplierStateCode.trim();
-        const placeOfSupplyCode = placeOfSupplyStateCode.trim();
-        if (!/^\d{2}$/.test(supplierCode)) {
-            throw new Error("Supplier state code must contain exactly two digits");
-        }
-        if (!/^\d{2}$/.test(placeOfSupplyCode)) {
-            throw new Error("Place of supply state code must contain exactly two digits");
-        }
-        return supplierCode === placeOfSupplyCode
-            ? "INTRA_STATE"
-            : "INTER_STATE";
+        const supplierCode = this.normalizeStateCode("Supplier state code", supplierStateCode);
+        const placeOfSupplyCode = this.normalizeStateCode("Place of supply state code", placeOfSupplyStateCode);
+        return supplierCode ===
+            placeOfSupplyCode
+            ? TaxJurisdiction.INTRA_STATE
+            : TaxJurisdiction.INTER_STATE;
     }
     static calculateLineTax(input) {
         const { amount, profile, supplierStateCode, placeOfSupplyStateCode, } = input;
@@ -30,17 +54,19 @@ export class TaxCalculatorService {
         if (discountAmount > amount) {
             throw new Error("discountAmount cannot be greater than amount");
         }
+        this.validateProfile(profile);
         const netAmount = this.round(amount - discountAmount);
         const jurisdiction = this.resolveJurisdiction(supplierStateCode, placeOfSupplyStateCode);
         /*
          * EXEMPT, NIL_RATED and NON_GST lines
-         * do not produce GST.
+         * retain their net line amount as the base,
+         * but do not produce GST.
          */
         if (profile.treatment !== "TAXABLE") {
             return {
                 profile,
                 jurisdiction,
-                taxableAmount: 0,
+                taxableAmount: netAmount,
                 cgstRate: 0,
                 cgstAmount: 0,
                 sgstRate: 0,
@@ -51,62 +77,89 @@ export class TaxCalculatorService {
                 finalAmount: netAmount,
             };
         }
-        this.validateAmount("profile.totalRate", profile.totalRate);
-        if (profile.totalRate <= 0) {
-            throw new Error("Taxable profile must have a tax rate greater than zero");
-        }
         const totalApplicableRate = profile.totalRate;
-        let rawTaxableAmount;
-        if (profile.priceMode === "INCLUSIVE") {
-            rawTaxableAmount =
-                totalApplicableRate > 0
-                    ? netAmount /
-                        (1 + totalApplicableRate / 100)
-                    : netAmount;
-        }
-        else {
-            rawTaxableAmount = netAmount;
-        }
-        const rawGstAmount = rawTaxableAmount *
-            (profile.totalRate / 100);
+        const rawTaxableAmount = profile.priceMode === "INCLUSIVE"
+            ? netAmount /
+                (1 +
+                    totalApplicableRate / 100)
+            : netAmount;
         let cgstRate = 0;
         let cgstAmount = 0;
         let sgstRate = 0;
         let sgstAmount = 0;
         let igstRate = 0;
         let igstAmount = 0;
-        if (jurisdiction === "INTRA_STATE") {
-            cgstRate = profile.totalRate / 2;
-            sgstRate = profile.totalRate / 2;
-            const roundedGstAmount = this.round(rawGstAmount);
-            cgstAmount = this.round(roundedGstAmount / 2);
+        if (profile.priceMode === "INCLUSIVE") {
             /*
-             * Subtract CGST from total GST to avoid
-             * one-paisa rounding differences.
+             * For inclusive pricing, derive the rounded
+             * taxable base first and assign the remaining
+             * amount as tax. This guarantees:
+             *
+             * taxableAmount + totalTax = netAmount
              */
-            sgstAmount = this.round(roundedGstAmount - cgstAmount);
+            const taxableAmount = this.round(rawTaxableAmount);
+            const roundedTotalTax = this.round(netAmount - taxableAmount);
+            if (jurisdiction === "INTRA_STATE") {
+                cgstRate =
+                    totalApplicableRate / 2;
+                sgstRate =
+                    totalApplicableRate / 2;
+                cgstAmount =
+                    this.round(roundedTotalTax / 2);
+                sgstAmount =
+                    this.round(roundedTotalTax -
+                        cgstAmount);
+            }
+            else {
+                igstRate =
+                    totalApplicableRate;
+                igstAmount =
+                    roundedTotalTax;
+            }
+            const totalTax = this.round(cgstAmount +
+                sgstAmount +
+                igstAmount);
+            return {
+                profile,
+                jurisdiction,
+                taxableAmount: this.round(netAmount - totalTax),
+                cgstRate: this.round(cgstRate),
+                cgstAmount,
+                sgstRate: this.round(sgstRate),
+                sgstAmount,
+                igstRate: this.round(igstRate),
+                igstAmount,
+                totalTax,
+                finalAmount: netAmount,
+            };
+        }
+        /*
+         * Exclusive pricing.
+         */
+        const taxableAmount = this.round(rawTaxableAmount);
+        const rawTaxAmount = taxableAmount *
+            (totalApplicableRate / 100);
+        if (jurisdiction === "INTRA_STATE") {
+            cgstRate =
+                totalApplicableRate / 2;
+            sgstRate =
+                totalApplicableRate / 2;
+            const roundedTotalTax = this.round(rawTaxAmount);
+            cgstAmount =
+                this.round(roundedTotalTax / 2);
+            sgstAmount =
+                this.round(roundedTotalTax -
+                    cgstAmount);
         }
         else {
-            igstRate = profile.totalRate;
-            igstAmount = this.round(rawGstAmount);
+            igstRate =
+                totalApplicableRate;
+            igstAmount =
+                this.round(rawTaxAmount);
         }
         const totalTax = this.round(cgstAmount +
             sgstAmount +
             igstAmount);
-        let taxableAmount;
-        let finalAmount;
-        if (profile.priceMode === "INCLUSIVE") {
-            /*
-             * Tax is already included in netAmount.
-             */
-            taxableAmount = this.round(netAmount - totalTax);
-            finalAmount = netAmount;
-        }
-        else {
-            taxableAmount =
-                this.round(rawTaxableAmount);
-            finalAmount = this.round(taxableAmount + totalTax);
-        }
         return {
             profile,
             jurisdiction,
@@ -118,7 +171,7 @@ export class TaxCalculatorService {
             igstRate: this.round(igstRate),
             igstAmount,
             totalTax,
-            finalAmount,
+            finalAmount: this.round(taxableAmount + totalTax),
         };
     }
 }

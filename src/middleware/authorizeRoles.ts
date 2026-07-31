@@ -1,52 +1,50 @@
 import type {
-    Request,
-    Response,
-    NextFunction,
+  NextFunction,
+  Request,
+  Response,
 } from "express";
 
-import { Role } from "../types/rbac.js";
+import {
+  Role,
+} from "../types/rbac.js";
 
 export const authorizeRoles = (
-    ...allowedRoles: Role[]
+  ...allowedRoles: Role[]
 ) => {
-    return (
-        req: Request,
-        res: Response,
-        next: NextFunction,
-    ) => {
-        if (!req.user) {
-            return res.status(401).json({
-                success: false,
-                message:
-                    "Authentication required",
-            });
-        }
+  const allowedRoleSet =
+    new Set<Role>(
+      allowedRoles,
+    );
 
-        const userRole = req.user.role;
+  return (
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): void => {
+    if (!req.user) {
+      res.status(401).json({
+        success: false,
+        message:
+          "Authentication required",
+      });
 
-        if (
-            !Object.values(Role).includes(
-                userRole as Role,
-            )
-        ) {
-            return res.status(403).json({
-                success: false,
-                message: "Invalid user role",
-            });
-        }
+      return;
+    }
 
-        if (
-            !allowedRoles.includes(
-                userRole as Role,
-            )
-        ) {
-            return res.status(403).json({
-                success: false,
-                message:
-                    "You are not authorized to access this resource",
-            });
-        }
+    if (
+      !allowedRoleSet.has(
+        req.user.role,
+      )
+    ) {
+      res.status(403).json({
+        success: false,
+        message:
+          "You are not authorized to access this resource",
+      });
 
-        return next();
-    };
+      return;
+    }
+
+    next();
+  };
 };

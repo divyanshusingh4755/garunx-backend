@@ -1,25 +1,22 @@
 import {
   model,
   Schema,
-  type Document,
-  Types,
+  type Types,
 } from "mongoose";
 
 export type TaxPriceMode =
   | "EXCLUSIVE"
   | "INCLUSIVE";
 
-export interface IServicePricing extends Document {
+export interface IServicePricing {
   serviceId: Types.ObjectId;
   componentId: Types.ObjectId;
   tierId: Types.ObjectId;
   locationId: Types.ObjectId;
-
   price: number;
-
   taxProfileId: Types.ObjectId | null;
   taxPriceMode: TaxPriceMode;
-
+  isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -70,9 +67,19 @@ const servicePricingSchema =
 
       taxPriceMode: {
         type: String,
-        enum: ["EXCLUSIVE", "INCLUSIVE"],
+        enum: [
+          "EXCLUSIVE",
+          "INCLUSIVE",
+        ],
         default: "EXCLUSIVE",
         required: true,
+      },
+
+      isActive: {
+        type: Boolean,
+        required: true,
+        default: true,
+        index: true,
       },
     },
     {
@@ -85,7 +92,8 @@ servicePricingSchema.pre(
   function () {
     if (!this.taxProfileId) {
       this.taxProfileId = null;
-      this.taxPriceMode = "EXCLUSIVE";
+      this.taxPriceMode =
+        "EXCLUSIVE";
     }
   },
 );
@@ -106,6 +114,7 @@ servicePricingSchema.index({
   serviceId: 1,
   tierId: 1,
   locationId: 1,
+  isActive: 1,
 });
 
 export const ServicePricing =

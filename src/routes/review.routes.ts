@@ -1,349 +1,418 @@
-import { Router, type Request, type Response, type NextFunction, } from "express";
-import { authenticate } from "../middleware/authenticate.js";
-import { createReview, editReview, moderateReview, getAllReviews, getMyBookingReview, getMyReviews, getCoordinatorReviews } from "../controllers/review.controllers.js";
-import { body, param, query, validationResult } from "express-validator";
-import { authorizeRoles } from "../middleware/authorizeRoles.js";
-import { Role } from "../types/rbac.js";
+import {
+  Router,
+  type Request,
+  type Response,
+  type NextFunction,
+} from "express";
 
-const validate = (req: Request, res: Response, next: NextFunction) => {
-    const errors = validationResult(req);
+import {
+  body,
+  param,
+  query,
+  validationResult,
+} from "express-validator";
 
-    if (!errors.isEmpty()) {
-        const firstError = errors.array()[0];
+import {
+  createReview,
+  editReview,
+  moderateReview,
+  getAllReviews,
+  getMyBookingReview,
+  getMyReviews,
+  getCoordinatorReviews,
+} from "../controllers/review.controllers.js";
 
-        return res.status(400).json({
-            success: false,
-            message: firstError?.msg,
-            error: firstError,
-        });
-    }
+import {
+  authenticate,
+} from "../middleware/authenticate.js";
 
-    next();
-};
+import {
+  authorizeRoles,
+} from "../middleware/authorizeRoles.js";
 
-export const createReviewValidation = [
-    param("bookingId")
-        .notEmpty()
-        .withMessage("Booking id is required")
-        .isMongoId()
-        .withMessage("Invalid booking id"),
-
-    body("rating")
-        .notEmpty()
-        .withMessage("Rating is required")
-        .isInt({ min: 1, max: 5 })
-        .withMessage("Rating must be between 1 and 5"),
-
-    body("review")
-        .optional({ nullable: true })
-        .isString()
-        .withMessage("Review must be a string")
-        .trim()
-        .isLength({ max: 1000 })
-        .withMessage(
-            "Review cannot exceed 1000 characters",
-        ),
-
-    body("imageUrl")
-        .optional({ nullable: true })
-        .isString()
-        .withMessage("Image URL must be a string")
-        .trim()
-        .isLength({ max: 2000 })
-        .withMessage(
-            "Image URL cannot exceed 2000 characters",
-        )
-        .isURL()
-        .withMessage(
-            "Image URL must be a valid URL",
-        ),
-
-    validate,
-];
-
-export const editReviewValidation = [
-    param("reviewId")
-        .notEmpty()
-        .withMessage("Review id is required")
-        .isMongoId()
-        .withMessage("Invalid review id"),
-
-    body("rating")
-        .optional()
-        .isInt({ min: 1, max: 5 })
-        .withMessage("Rating must be between 1 and 5"),
-
-    body("review")
-        .optional({ nullable: true })
-        .isString()
-        .withMessage("Review must be a string")
-        .trim()
-        .isLength({ max: 1000 })
-        .withMessage(
-            "Review cannot exceed 1000 characters",
-        ),
-
-    body("imageUrl")
-        .optional({ nullable: true })
-        .isString()
-        .withMessage("Image URL must be a string")
-        .trim()
-        .isLength({ max: 2000 })
-        .withMessage(
-            "Image URL cannot exceed 2000 characters",
-        )
-        .isURL()
-        .withMessage(
-            "Image URL must be a valid URL",
-        ),
-
-    body()
-        .custom((value) => {
-            const hasRating =
-                value.rating !== undefined;
-
-            const hasReview =
-                value.review !== undefined;
-
-            const hasImageUrl =
-                value.imageUrl !== undefined;
-
-            if (
-                !hasRating &&
-                !hasReview &&
-                !hasImageUrl
-            ) {
-                throw new Error(
-                    "At least rating, review or imageUrl is required",
-                );
-            }
-
-            return true;
-        }),
-
-    validate,
-];
-
-export const moderateReviewValidation = [
-    param("reviewId")
-        .notEmpty()
-        .withMessage("Review id is required")
-        .isMongoId()
-        .withMessage("Invalid review id"),
-
-    body("action")
-        .notEmpty()
-        .withMessage("Moderation action is required")
-        .isIn([
-            "HIDE",
-            "UNPUBLISH",
-            "PUBLISH",
-            "FLAG",
-            "UNFLAG",
-            "DELETE",
-        ])
-        .withMessage(
-            "Invalid moderation action",
-        ),
-
-    body("reason")
-        .optional({ nullable: true })
-        .isString()
-        .withMessage("Reason must be a string")
-        .trim()
-        .isLength({ max: 1000 })
-        .withMessage(
-            "Reason cannot exceed 1000 characters",
-        ),
-
-    validate,
-];
-
-export const getMyBookingReviewValidation = [
-    param("bookingId")
-        .notEmpty()
-        .withMessage(
-            "Booking id is required",
-        )
-        .isMongoId()
-        .withMessage(
-            "Invalid booking id",
-        ),
-
-    validate,
-];
-
-export const getMyReviewsValidation = [
-    query("rating")
-        .optional()
-        .isInt({ min: 1, max: 5 })
-        .withMessage(
-            "Rating must be between 1 and 5",
-        ),
-
-    query("direction")
-        .optional()
-        .isIn([
-            "CUSTOMER_TO_COORDINATOR",
-            "COORDINATOR_TO_CUSTOMER",
-        ])
-        .withMessage(
-            "Invalid review direction",
-        ),
-
-    query("page")
-        .optional()
-        .isInt({ min: 1 })
-        .withMessage(
-            "Page must be greater than 0",
-        ),
-
-    query("limit")
-        .optional()
-        .isInt({ min: 1, max: 100 })
-        .withMessage(
-            "Limit must be between 1 and 100",
-        ),
-
-    query("sortBy")
-        .optional()
-        .isIn([
-            "createdAt",
-            "updatedAt",
-            "rating",
-            "editedAt",
-        ])
-        .withMessage(
-            "Invalid sort field",
-        ),
-
-    query("sortOrder")
-        .optional()
-        .isIn([
-            "asc",
-            "desc",
-        ])
-        .withMessage(
-            "Sort order must be asc or desc",
-        ),
-
-    validate,
-];
-
-export const getCoordinatorReviewsValidation = [
-    param("coordinatorId")
-        .notEmpty()
-        .withMessage(
-            "Coordinator id is required",
-        )
-        .isMongoId()
-        .withMessage(
-            "Invalid coordinator id",
-        ),
-
-    query("rating")
-        .optional()
-        .isInt({
-            min: 1,
-            max: 5,
-        })
-        .withMessage(
-            "Rating must be between 1 and 5",
-        ),
-
-    query("page")
-        .optional()
-        .isInt({
-            min: 1,
-        })
-        .withMessage(
-            "Page must be greater than 0",
-        ),
-
-    query("limit")
-        .optional()
-        .isInt({
-            min: 1,
-            max: 100,
-        })
-        .withMessage(
-            "Limit must be between 1 and 100",
-        ),
-
-    query("sortBy")
-        .optional()
-        .isIn([
-            "createdAt",
-            "updatedAt",
-            "rating",
-            "editedAt",
-        ])
-        .withMessage(
-            "Invalid sort field",
-        ),
-
-    query("sortOrder")
-        .optional()
-        .isIn([
-            "asc",
-            "desc",
-        ])
-        .withMessage(
-            "Sort order must be asc or desc",
-        ),
-
-    validate,
-];
+import {
+  Role,
+} from "../types/rbac.js";
 
 const router = Router();
 
+const REVIEW_DIRECTIONS = [
+  "CUSTOMER_TO_COORDINATOR",
+  "COORDINATOR_TO_CUSTOMER",
+] as const;
+
+const REVIEW_VISIBILITIES = [
+  "PUBLISHED",
+  "HIDDEN",
+  "UNPUBLISHED",
+] as const;
+
+const MODERATION_STATUSES = [
+  "CLEAN",
+  "FLAGGED",
+] as const;
+
+const SORT_FIELDS = [
+  "createdAt",
+  "updatedAt",
+  "rating",
+  "editedAt",
+] as const;
+
+const validate = (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  const errors = validationResult(req);
+
+  if (!errors.isEmpty()) {
+    const firstError = errors.array()[0];
+
+    return res.status(400).json({
+      success: false,
+      message: firstError?.msg,
+      error: firstError,
+    });
+  }
+
+  return next();
+};
+
+const commonListValidation = [
+  query("rating")
+    .optional()
+    .isInt({ min: 1, max: 5 })
+    .withMessage(
+      "Rating must be between 1 and 5",
+    )
+    .toInt(),
+
+  query("page")
+    .optional()
+    .isInt({ min: 1 })
+    .withMessage(
+      "Page must be greater than 0",
+    )
+    .toInt(),
+
+  query("limit")
+    .optional()
+    .isInt({ min: 1, max: 100 })
+    .withMessage(
+      "Limit must be between 1 and 100",
+    )
+    .toInt(),
+
+  query("sortBy")
+    .optional()
+    .isIn(SORT_FIELDS)
+    .withMessage("Invalid sort field"),
+
+  query("sortOrder")
+    .optional()
+    .isIn(["asc", "desc"])
+    .withMessage(
+      "Sort order must be asc or desc",
+    ),
+];
+
+export const createReviewValidation = [
+  param("bookingId")
+    .isMongoId()
+    .withMessage("Invalid booking id"),
+
+  body("rating")
+    .exists()
+    .withMessage("Rating is required")
+    .isInt({ min: 1, max: 5 })
+    .withMessage(
+      "Rating must be between 1 and 5",
+    )
+    .toInt(),
+
+  body("review")
+    .optional({ nullable: true })
+    .isString()
+    .withMessage(
+      "Review must be a string",
+    )
+    .trim()
+    .isLength({ max: 1000 })
+    .withMessage(
+      "Review cannot exceed 1000 characters",
+    ),
+
+  body("imageUrl")
+    .optional({ nullable: true })
+    .isString()
+    .withMessage(
+      "Image URL must be a string",
+    )
+    .trim()
+    .isLength({ max: 2000 })
+    .withMessage(
+      "Image URL cannot exceed 2000 characters",
+    )
+    .isURL({
+      protocols: ["http", "https"],
+      require_protocol: true,
+    })
+    .withMessage(
+      "Image URL must be a valid HTTP or HTTPS URL",
+    ),
+
+  validate,
+];
+
+export const editReviewValidation = [
+  param("reviewId")
+    .isMongoId()
+    .withMessage("Invalid review id"),
+
+  body().custom((value) => {
+    if (
+      !value ||
+      typeof value !== "object" ||
+      Array.isArray(value)
+    ) {
+      throw new Error(
+        "Request body must be an object",
+      );
+    }
+
+    const hasEditableField = [
+      "rating",
+      "review",
+      "imageUrl",
+    ].some((field) =>
+      Object.prototype.hasOwnProperty.call(
+        value,
+        field,
+      ),
+    );
+
+    if (!hasEditableField) {
+      throw new Error(
+        "At least rating, review or imageUrl is required",
+      );
+    }
+
+    return true;
+  }),
+
+  body("rating")
+    .optional()
+    .isInt({ min: 1, max: 5 })
+    .withMessage(
+      "Rating must be between 1 and 5",
+    )
+    .toInt(),
+
+  body("review")
+    .optional({ nullable: true })
+    .isString()
+    .withMessage(
+      "Review must be a string",
+    )
+    .trim()
+    .isLength({ max: 1000 })
+    .withMessage(
+      "Review cannot exceed 1000 characters",
+    ),
+
+  body("imageUrl")
+    .optional({ nullable: true })
+    .isString()
+    .withMessage(
+      "Image URL must be a string",
+    )
+    .trim()
+    .isLength({ max: 2000 })
+    .withMessage(
+      "Image URL cannot exceed 2000 characters",
+    )
+    .isURL({
+      protocols: ["http", "https"],
+      require_protocol: true,
+    })
+    .withMessage(
+      "Image URL must be a valid HTTP or HTTPS URL",
+    ),
+
+  validate,
+];
+
+export const moderateReviewValidation = [
+  param("reviewId")
+    .isMongoId()
+    .withMessage("Invalid review id"),
+
+  body("action")
+    .exists()
+    .withMessage(
+      "Moderation action is required",
+    )
+    .isIn([
+      "HIDE",
+      "UNPUBLISH",
+      "PUBLISH",
+      "FLAG",
+      "UNFLAG",
+      "DELETE",
+    ])
+    .withMessage(
+      "Invalid moderation action",
+    ),
+
+  body("reason")
+    .optional({ nullable: true })
+    .isString()
+    .withMessage(
+      "Reason must be a string",
+    )
+    .trim()
+    .isLength({ max: 1000 })
+    .withMessage(
+      "Reason cannot exceed 1000 characters",
+    ),
+
+  validate,
+];
+
+export const getMyBookingReviewValidation = [
+  param("bookingId")
+    .isMongoId()
+    .withMessage("Invalid booking id"),
+
+  validate,
+];
+
+export const getMyReviewsValidation = [
+  query("direction")
+    .optional()
+    .isIn(REVIEW_DIRECTIONS)
+    .withMessage(
+      "Invalid review direction",
+    ),
+
+  ...commonListValidation,
+  validate,
+];
+
+export const getCoordinatorReviewsValidation = [
+  param("coordinatorId")
+    .isMongoId()
+    .withMessage(
+      "Invalid coordinator id",
+    ),
+
+  ...commonListValidation,
+  validate,
+];
+
+export const getAllReviewsValidation = [
+  query("direction")
+    .optional()
+    .isIn(REVIEW_DIRECTIONS)
+    .withMessage(
+      "Invalid review direction",
+    ),
+
+  query("visibility")
+    .optional()
+    .isIn(REVIEW_VISIBILITIES)
+    .withMessage(
+      "Invalid review visibility",
+    ),
+
+  query("moderationStatus")
+    .optional()
+    .isIn(MODERATION_STATUSES)
+    .withMessage(
+      "Invalid moderation status",
+    ),
+
+  query("isDeleted")
+    .optional()
+    .isBoolean()
+    .withMessage(
+      "isDeleted must be true or false",
+    ),
+
+  query("reviewerId")
+    .optional()
+    .isMongoId()
+    .withMessage(
+      "Invalid reviewer id",
+    ),
+
+  query("revieweeId")
+    .optional()
+    .isMongoId()
+    .withMessage(
+      "Invalid reviewee id",
+    ),
+
+  query("bookingId")
+    .optional()
+    .isMongoId()
+    .withMessage(
+      "Invalid booking id",
+    ),
+
+  ...commonListValidation,
+  validate,
+];
+
 router.get(
-    "/coordinator/:coordinatorId",
-    getCoordinatorReviewsValidation,
-    getCoordinatorReviews,
+  "/coordinator/:coordinatorId",
+  getCoordinatorReviewsValidation,
+  getCoordinatorReviews,
 );
 
 router.get(
-    "/booking/:bookingId/my-review",
-    authenticate,
-    getMyBookingReviewValidation,
-    getMyBookingReview,
+  "/booking/:bookingId/my-review",
+  authenticate,
+  getMyBookingReviewValidation,
+  getMyBookingReview,
 );
 
 router.get(
-    "/my-reviews",
-    authenticate,
-    getMyReviewsValidation,
-    getMyReviews,
+  "/my-reviews",
+  authenticate,
+  getMyReviewsValidation,
+  getMyReviews,
+);
+
+router.get(
+  "/get-all-reviews",
+  authenticate,
+  authorizeRoles(Role.ADMIN),
+  getAllReviewsValidation,
+  getAllReviews,
 );
 
 router.post(
-    "/booking/:bookingId",
-    authenticate,
-    createReviewValidation,
-    createReview,
+  "/booking/:bookingId",
+  authenticate,
+  createReviewValidation,
+  createReview,
 );
 
 router.patch(
-    "/:reviewId",
-    authenticate,
-    editReviewValidation,
-    editReview,
+  "/:reviewId/moderation",
+  authenticate,
+  authorizeRoles(Role.ADMIN),
+  moderateReviewValidation,
+  moderateReview,
 );
 
 router.patch(
-    "/:reviewId/moderation",
-    authenticate,
-    authorizeRoles(Role.ADMIN),
-    moderateReviewValidation,
-    moderateReview,
-);
-
-router.get(
-    "/get-all-reviews",
-    authenticate,
-    authorizeRoles(Role.ADMIN),
-    getAllReviews,
+  "/:reviewId",
+  authenticate,
+  editReviewValidation,
+  editReview,
 );
 
 export default router;

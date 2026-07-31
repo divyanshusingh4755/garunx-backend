@@ -1,19 +1,21 @@
-import { type Document } from "mongoose";
-export interface IState extends Document {
+export interface IGeoPoint {
+    type: "Point";
+    coordinates: [number, number];
+}
+export interface IState {
     country: string;
     name: string;
     image?: string;
     description?: string;
     isActive: boolean;
     gstCode: string;
-    location?: {
-        type: "Point";
-        coordinates: [number, number];
-    };
+    location?: IGeoPoint;
+    createdAt: Date;
+    updatedAt: Date;
 }
-export declare const State: import("mongoose").Model<IState, {}, {}, {}, Document<unknown, {}, IState, {}, import("mongoose").DefaultSchemaOptions> & IState & Required<{
+export declare const State: import("mongoose").Model<IState, {}, {}, {}, import("mongoose").Document<unknown, {}, IState, {}, import("mongoose").DefaultSchemaOptions> & IState & {
     _id: import("mongoose").Types.ObjectId;
-}> & {
+} & {
     __v: number;
 } & {
     id: string;

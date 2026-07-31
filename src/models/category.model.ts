@@ -1,4 +1,8 @@
-import { model, Schema } from "mongoose";
+import {
+  model,
+  Schema,
+  type Document,
+} from "mongoose";
 
 export interface ICategory extends Document {
   label: string;
@@ -12,7 +16,12 @@ export interface ICategory extends Document {
 
 const categorySchema = new Schema<ICategory>(
   {
-    label: { type: String, required: true, trim: true },
+    label: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+
     value: {
       type: String,
       required: true,
@@ -20,23 +29,57 @@ const categorySchema = new Schema<ICategory>(
       lowercase: true,
       trim: true,
     },
-    type: { type: String, enum: ["service", "product"], required: true },
-    image: { type: String },
-    description: { type: String },
-    isActive: { type: Boolean, default: true },
-    displayOrder: { type: Number, default: 0 },
+
+    type: {
+      type: String,
+      enum: ["service", "product"],
+      required: true,
+    },
+
+    image: {
+      type: String,
+    },
+
+    description: {
+      type: String,
+      trim: true,
+    },
+
+    isActive: {
+      type: Boolean,
+      default: true,
+    },
+
+    displayOrder: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
   },
-  { timestamps: true },
+  {
+    timestamps: true,
+  },
 );
 
-categorySchema.index({ type: 1, isActive: 1, displayOrder: 1 });
+categorySchema.index({
+  type: 1,
+  isActive: 1,
+  displayOrder: 1,
+});
+
 categorySchema.index({ label: 1 });
+
 categorySchema.index(
   {
     label: "text",
     value: "text",
   },
-  { name: "CategoryTextSearchIndex" },
+  {
+    name: "CategoryTextSearchIndex",
+  },
 );
 
-export const Category = model<ICategory>("Category", categorySchema);
+export const Category = model<ICategory>(
+  "Category",
+  categorySchema,
+);

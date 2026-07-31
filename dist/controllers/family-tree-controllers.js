@@ -30,7 +30,7 @@ const getSourceFromRole = (role) => {
         .trim()
         .toUpperCase();
     switch (normalizedRole) {
-        case "CUSTOMER":
+        case "USER":
         case "USER":
             return "CUSTOMER_SELF";
         case "COORDINATOR":
@@ -61,11 +61,14 @@ const resolveTreeAccess = async (req) => {
     };
 };
 const buildActorContext = (authenticatedUser, access) => {
+    const isSelfAccess = access.ownerId === authenticatedUser.userId;
     return {
         ownerId: access.ownerId,
         actorId: authenticatedUser.userId,
         actorRole: authenticatedUser.role,
-        source: getSourceFromRole(authenticatedUser.role),
+        source: isSelfAccess
+            ? "CUSTOMER_SELF"
+            : getSourceFromRole(authenticatedUser.role),
         ...(access.bookingId && {
             bookingId: access.bookingId,
         }),
@@ -150,12 +153,16 @@ export const getFamilyMembers = async (req, res) => {
         const { access } = await resolveTreeAccess(req);
         const { search, relation, gender, lifeStatus, page, limit, } = req.query;
         const filters = {
-            page: typeof page === "string"
-                ? Number(page) || 1
-                : 1,
-            limit: typeof limit === "string"
-                ? Number(limit) || 20
-                : 20,
+            page: typeof page === "number"
+                ? page
+                : typeof page === "string"
+                    ? Number(page)
+                    : 1,
+            limit: typeof limit === "number"
+                ? limit
+                : typeof limit === "string"
+                    ? Number(limit)
+                    : 20,
         };
         if (typeof search === "string") {
             filters.search =
@@ -281,12 +288,16 @@ export const getFamilyTreeActivities = async (req, res) => {
                 "string" && {
                 bookingId,
             }),
-            page: typeof page === "string"
-                ? Number(page) || 1
-                : 1,
-            limit: typeof limit === "string"
-                ? Number(limit) || 20
-                : 20,
+            page: typeof page === "number"
+                ? page
+                : typeof page === "string"
+                    ? Number(page)
+                    : 1,
+            limit: typeof limit === "number"
+                ? limit
+                : typeof limit === "string"
+                    ? Number(limit)
+                    : 20,
         });
         return res.status(200).json({
             success: true,
@@ -309,12 +320,16 @@ export const getFamilyMemberActivities = async (req, res) => {
         const familyMemberId = getRequiredStringParam(req.params.id, "Family member ID");
         const { page, limit, } = req.query;
         const result = await FamilyTreeService.getFamilyMemberActivities(access.ownerId, familyMemberId, {
-            page: typeof page === "string"
-                ? Number(page) || 1
-                : 1,
-            limit: typeof limit === "string"
-                ? Number(limit) || 20
-                : 20,
+            page: typeof page === "number"
+                ? page
+                : typeof page === "string"
+                    ? Number(page)
+                    : 1,
+            limit: typeof limit === "number"
+                ? limit
+                : typeof limit === "string"
+                    ? Number(limit)
+                    : 20,
         });
         return res.status(200).json({
             success: true,

@@ -26,7 +26,7 @@ export declare class PackageTierPricingService {
         package: {
             id: Types.ObjectId;
             name: string;
-            description: string | undefined;
+            description: string;
         };
         tier: {
             id: Types.ObjectId;

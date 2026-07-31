@@ -1,4 +1,4 @@
-import { Schema, Types, model, Document, Model, } from "mongoose";
+import { Schema, Types, model, } from "mongoose";
 const userQuerySchema = new Schema({
     requesterId: {
         type: Schema.Types.ObjectId,
@@ -20,12 +20,14 @@ const userQuerySchema = new Schema({
         required: true,
         unique: true,
         trim: true,
+        uppercase: true,
         index: true,
     },
     subject: {
         type: String,
         required: true,
         trim: true,
+        minlength: 3,
         maxlength: 200,
     },
     category: {
@@ -52,6 +54,7 @@ const userQuerySchema = new Schema({
             "URGENT",
         ],
         default: "NORMAL",
+        required: true,
         index: true,
     },
     status: {
@@ -63,6 +66,7 @@ const userQuerySchema = new Schema({
             "REJECTED",
         ],
         default: "PENDING",
+        required: true,
         index: true,
     },
     assignedAdminId: {
@@ -89,8 +93,10 @@ const userQuerySchema = new Schema({
             "ASSIGNED",
             "PRIORITY_CHANGED",
             "CATEGORY_CHANGED",
+            "QUERY_DELETED",
         ],
         default: "QUERY_CREATED",
+        required: true,
     },
     lastActionAt: {
         type: Date,
@@ -151,46 +157,58 @@ const userQuerySchema = new Schema({
 }, {
     timestamps: true,
 });
-// Requester's own queries
+userQuerySchema.pre("validate", function () {
+    if (this.status === "RESOLVED" &&
+        (!this.resolvedAt ||
+            !this.resolvedBy)) {
+        throw new Error("Resolved query requires resolvedAt and resolvedBy");
+    }
+    if (this.status === "REJECTED" &&
+        (!this.rejectedAt ||
+            !this.rejectedBy ||
+            !this.rejectionReason?.trim())) {
+        throw new Error("Rejected query requires rejection details");
+    }
+    if (this.isDeleted &&
+        (!this.deletedAt ||
+            !this.deletedBy ||
+            !this.deletionReason?.trim())) {
+        throw new Error("Deleted query requires deletion details");
+    }
+});
 userQuerySchema.index({
     requesterId: 1,
     isDeleted: 1,
     createdAt: -1,
 });
-// Customer / coordinator filtering
 userQuerySchema.index({
     requesterType: 1,
     isDeleted: 1,
     createdAt: -1,
 });
-// Admin status tabs
 userQuerySchema.index({
     status: 1,
     isDeleted: 1,
     createdAt: -1,
 });
-// Category filtering
 userQuerySchema.index({
     category: 1,
     status: 1,
     isDeleted: 1,
     createdAt: -1,
 });
-// Priority filtering
 userQuerySchema.index({
     priority: 1,
     status: 1,
     isDeleted: 1,
     createdAt: -1,
 });
-// Assigned admin listing
 userQuerySchema.index({
     assignedAdminId: 1,
     status: 1,
     isDeleted: 1,
     createdAt: -1,
 });
-// Latest activity sorting
 userQuerySchema.index({
     isDeleted: 1,
     lastActionAt: -1,

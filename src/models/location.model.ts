@@ -1,6 +1,15 @@
-import { Schema, model, type Document, Types } from "mongoose";
+import {
+  Schema,
+  model,
+  type Types,
+} from "mongoose";
 
-export interface ILocation extends Document {
+export interface IGeoPoint {
+  type: "Point";
+  coordinates: [number, number];
+}
+
+export interface ILocation {
   name: string;
   country: string;
   stateId: Types.ObjectId;
@@ -10,39 +19,99 @@ export interface ILocation extends Document {
   image?: string;
   description?: string;
   isActive: boolean;
-  location?: {
-    type: "Point";
-    coordinates: [number, number];
-  };
+  location?: IGeoPoint;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 const locationSchema = new Schema<ILocation>(
   {
-    name: { type: String, required: true, trim: true, index: true },
-    country: { type: String, required: true, index: true },
+    name: {
+      type: String,
+      required: true,
+      trim: true,
+      index: true,
+    },
+
+    country: {
+      type: String,
+      required: true,
+      trim: true,
+      index: true,
+    },
+
     stateId: {
       type: Schema.Types.ObjectId,
       ref: "State",
       required: true,
       index: true,
     },
+
     cityId: {
       type: Schema.Types.ObjectId,
       ref: "City",
       required: true,
       index: true,
     },
-    fullAddress: { type: String, required: true },
-    pincode: { type: String, required: true },
-    image: { type: String },
-    description: { type: String },
-    isActive: { type: Boolean, default: true },
+
+    fullAddress: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+
+    pincode: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+
+    image: {
+      type: String,
+      trim: true,
+    },
+
+    description: {
+      type: String,
+      trim: true,
+    },
+
+    isActive: {
+      type: Boolean,
+      required: true,
+      default: true,
+    },
+
     location: {
-      type: { type: String, enum: ["Point"] },
-      coordinates: { type: [Number] },
+      type: {
+        type: String,
+        enum: ["Point"],
+        required: true,
+      },
+
+      coordinates: {
+        type: [Number],
+        required: true,
+        validate: {
+          validator: (
+            coordinates: number[],
+          ): boolean =>
+            coordinates.length === 2 &&
+            coordinates.every(Number.isFinite) &&
+            coordinates[0]! >= -180 &&
+            coordinates[0]! <= 180 &&
+            coordinates[1]! >= -90 &&
+            coordinates[1]! <= 90,
+
+          message:
+            "Coordinates must be valid [longitude, latitude]",
+        },
+      },
     },
   },
-  { timestamps: true },
+  {
+    timestamps: true,
+  },
 );
 
 locationSchema.index({
@@ -61,17 +130,18 @@ locationSchema.index({
   createdAt: -1,
 });
 
-locationSchema.index({
-  pincode: 1,
-});
-
 locationSchema.index(
   {
     name: "text",
     fullAddress: "text",
     pincode: "text",
   },
-  { name: "LocationTextSearchIndex" },
+  {
+    name: "LocationTextSearchIndex",
+  },
 );
 
-export const Location = model<ILocation>("Location", locationSchema);
+export const Location = model<ILocation>(
+  "Location",
+  locationSchema,
+);

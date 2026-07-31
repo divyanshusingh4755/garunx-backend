@@ -24,7 +24,7 @@ export declare class BookingService {
     private static addMilestoneIfMissing;
     static process(req: Request): Promise<void>;
     static retryPayment(bookingId: string, userId: string): Promise<{
-        orderId: string;
+        orderId: any;
         paymentSessionId: any;
     }>;
     static getPaymentStatus(cartId: string, userId: string): Promise<{
@@ -126,7 +126,7 @@ export declare class BookingService {
         cancellation: {
             reason?: string;
             cancelledBy?: Types.ObjectId;
-            cancelledByRole?: "CUSTOMER" | "ADMIN" | "SUBADMIN" | "SYSTEM";
+            cancelledByRole?: "USER" | "ADMIN" | "SUBADMIN" | "SYSTEM";
             cancelledAt?: Date;
             refundPercentage?: number;
             refundAmount?: number;
@@ -182,7 +182,7 @@ export declare class BookingService {
     } & {
         id: string;
     })[]>;
-    static updateBookingNotes(bookingId: string, notes: string): Promise<{
+    static updateBookingNotes(bookingId: string, notes: string, userId: string): Promise<{
         bookingId: Types.ObjectId;
         notes: string;
     }>;
@@ -204,7 +204,7 @@ export declare class BookingService {
         currentCoordinator: {
             coordinatorId: Types.ObjectId;
             fullName: string | undefined;
-            profileImage: string | undefined;
+            profileImage: string | null | undefined;
             userReference: string;
             rating: {
                 averageRating: number;
@@ -391,7 +391,7 @@ export declare class BookingService {
         cancellation?: {
             reason?: string;
             cancelledBy?: Types.ObjectId;
-            cancelledByRole?: "CUSTOMER" | "ADMIN" | "SUBADMIN" | "SYSTEM";
+            cancelledByRole?: "USER" | "ADMIN" | "SUBADMIN" | "SYSTEM";
             cancelledAt?: Date;
             refundPercentage?: number;
             refundAmount?: number;
@@ -456,7 +456,7 @@ export declare class BookingService {
         coordinators: {
             coordinatorId: Types.ObjectId;
             fullName: string | undefined;
-            profileImage: string | undefined;
+            profileImage: string | null | undefined;
             gender: import("../types/enums.js").Gender | undefined;
             userReference: string;
             caste: import("../types/enums.js").Caste | undefined;

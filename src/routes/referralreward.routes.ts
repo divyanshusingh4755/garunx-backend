@@ -5,7 +5,10 @@ import {
   type NextFunction,
 } from "express";
 
-import { query, validationResult } from "express-validator";
+import {
+  query,
+  validationResult,
+} from "express-validator";
 
 import {
   getReferralInfo,
@@ -14,11 +17,17 @@ import {
   getReferralStats,
 } from "../controllers/referralreward.controllers.js";
 
-import { authenticate } from "../middleware/authenticate.js";
+import {
+  authenticate,
+} from "../middleware/authenticate.js";
 
 const router = Router();
 
-const validate = (req: Request, res: Response, next: NextFunction) => {
+const validate = (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
   const errors = validationResult(req);
 
   if (!errors.isEmpty()) {
@@ -31,19 +40,25 @@ const validate = (req: Request, res: Response, next: NextFunction) => {
     });
   }
 
-  next();
+  return next();
 };
 
 const paginationValidation = [
   query("page")
     .optional()
     .isInt({ min: 1 })
-    .withMessage("page must be greater than 0"),
+    .withMessage(
+      "page must be greater than 0",
+    )
+    .toInt(),
 
   query("limit")
     .optional()
     .isInt({ min: 1, max: 100 })
-    .withMessage("limit must be between 1 and 100"),
+    .withMessage(
+      "limit must be between 1 and 100",
+    )
+    .toInt(),
 
   validate,
 ];
@@ -51,25 +66,61 @@ const paginationValidation = [
 const rewardsValidation = [
   query("status")
     .optional()
-    .isIn(["PENDING", "AWARDED", "FAILED"])
+    .isIn([
+      "PENDING",
+      "AWARDED",
+      "FAILED",
+    ])
     .withMessage("Invalid reward status"),
+
+  query("userId")
+    .optional()
+    .isMongoId()
+    .withMessage("Invalid userId"),
 
   query("page")
     .optional()
     .isInt({ min: 1 })
-    .withMessage("page must be greater than 0"),
+    .withMessage(
+      "page must be greater than 0",
+    )
+    .toInt(),
 
   query("limit")
     .optional()
     .isInt({ min: 1, max: 100 })
-    .withMessage("limit must be between 1 and 100"),
+    .withMessage(
+      "limit must be between 1 and 100",
+    )
+    .toInt(),
 
   validate,
 ];
 
-router.get("/rewards", rewardsValidation, getReferralRewards);
-router.get("/", authenticate, getReferralInfo);
-router.get("/stats", authenticate, getReferralStats);
-router.get("/history", authenticate, paginationValidation, getReferralHistory);
+router.get(
+  "/rewards",
+  authenticate,
+  rewardsValidation,
+  getReferralRewards,
+);
+
+router.get(
+  "/stats",
+  authenticate,
+  getReferralStats,
+);
+
+router.get(
+  "/history",
+  authenticate,
+  paginationValidation,
+  getReferralHistory,
+);
+
+router.get(
+  "/",
+  authenticate,
+  getReferralInfo,
+);
 
 export default router;

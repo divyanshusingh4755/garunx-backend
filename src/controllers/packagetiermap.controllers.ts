@@ -10,7 +10,6 @@ export const bulkUpsertPackageTierMappings = async (
 
     return res.status(200).json(result);
   } catch (error: any) {
-    console.log("error", error);
     return res.status(400).json({
       success: false,
       message: error.message,
@@ -69,10 +68,7 @@ export const updatePackageTierService = async (req: Request, res: Response) => {
   try {
     const result = await PackageTierMapService.patchService(req.body);
 
-    return res.status(200).json({
-      success: true,
-      data: result,
-    });
+    return res.status(200).json(result);
   } catch (error: any) {
     return res.status(400).json({
       success: false,

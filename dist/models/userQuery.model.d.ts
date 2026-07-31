@@ -1,9 +1,9 @@
-import { Types, Document, Model } from "mongoose";
+import { Types, type Document, type Model } from "mongoose";
 export type UserQueryStatus = "PENDING" | "ONGOING" | "RESOLVED" | "REJECTED";
 export type UserQueryCategory = "BOOKING" | "PAYMENT" | "REFUND" | "SERVICE" | "PACKAGE" | "ACCOUNT" | "TECHNICAL" | "OTHER";
 export type UserQueryPriority = "LOW" | "NORMAL" | "HIGH" | "URGENT";
 export type UserQueryRequesterType = "USER" | "COORDINATOR";
-export type UserQueryLastAction = "QUERY_CREATED" | "REQUESTER_REPLIED" | "ADMIN_REPLIED" | "STATUS_CHANGED" | "ASSIGNED" | "PRIORITY_CHANGED" | "CATEGORY_CHANGED";
+export type UserQueryLastAction = "QUERY_CREATED" | "REQUESTER_REPLIED" | "ADMIN_REPLIED" | "STATUS_CHANGED" | "ASSIGNED" | "PRIORITY_CHANGED" | "CATEGORY_CHANGED" | "QUERY_DELETED";
 export interface IUserQuery extends Document {
     requesterId: Types.ObjectId;
     requesterType: UserQueryRequesterType;

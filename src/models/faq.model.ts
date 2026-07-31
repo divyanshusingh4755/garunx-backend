@@ -1,4 +1,14 @@
-import { model, Schema, Document } from "mongoose";
+import {
+  model,
+  Schema,
+  type Document,
+} from "mongoose";
+
+export type FaqType =
+  | "User"
+  | "Coordinator"
+  | "User_Query"
+  | "Coordinator_Query";
 
 export interface IFAQ extends Document {
   version: number;
@@ -7,12 +17,18 @@ export interface IFAQ extends Document {
   answer: string;
   isActive: boolean;
   displayOrder: number;
-  faqType: "User" | "Coordinator" | "User_Query" | "Coordinator_Query";
+  faqType: FaqType;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 const faqSchema = new Schema<IFAQ>(
   {
-    version: { type: Number, default: 1 },
+    version: {
+      type: Number,
+      default: 1,
+      min: 1,
+    },
 
     name: {
       type: String,
@@ -32,19 +48,36 @@ const faqSchema = new Schema<IFAQ>(
       trim: true,
     },
 
-    isActive: { type: Boolean, default: true },
+    isActive: {
+      type: Boolean,
+      default: true,
+    },
 
-    faqType: {type: String, enum: ["User", "Coordinator", "User_Query", "Coordinator_Query"], default: "User"},
+    faqType: {
+      type: String,
+      enum: [
+        "User",
+        "Coordinator",
+        "User_Query",
+        "Coordinator_Query",
+      ],
+      default: "User",
+    },
 
     displayOrder: {
       type: Number,
       default: 0,
+      min: 0,
     },
   },
-  { timestamps: true },
+  {
+    timestamps: true,
+  },
 );
 
-faqSchema.index({ name: 1 });
+faqSchema.index({
+  name: 1,
+});
 
 faqSchema.index(
   {
@@ -63,4 +96,8 @@ faqSchema.index({
   displayOrder: 1,
 });
 
-export const FAQ = model<IFAQ>("FAQ", faqSchema);
+export const FAQ =
+  model<IFAQ>(
+    "FAQ",
+    faqSchema,
+  );

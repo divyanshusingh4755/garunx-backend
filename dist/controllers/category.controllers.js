@@ -1,17 +1,24 @@
 import { CategoryService } from "../services/category.service.js";
+const parsePositiveInteger = (value, fallback, maximum) => {
+    const parsed = Number(value);
+    if (!Number.isInteger(parsed) || parsed < 1) {
+        return fallback;
+    }
+    return maximum ? Math.min(parsed, maximum) : parsed;
+};
 export const createCategory = async (req, res) => {
     try {
-        const { label, value, type, image, description, displayOrder, isActive } = req.body;
+        const { label, value, type, image, description, displayOrder, isActive, } = req.body;
         const newCategory = await CategoryService.createCategory({
             label,
             value,
             type,
             image,
             description,
-            displayOrder: Number(displayOrder) || 0,
-            isActive: isActive !== undefined ? isActive : true,
+            displayOrder: typeof displayOrder === "number" ? displayOrder : 0,
+            isActive: typeof isActive === "boolean" ? isActive : true,
         });
-        res.status(201).send({
+        return res.status(201).json({
             success: true,
             message: "Category created successfully",
             data: newCategory,
@@ -19,7 +26,7 @@ export const createCategory = async (req, res) => {
     }
     catch (error) {
         const status = error.message.includes("already exists") ? 409 : 400;
-        res.status(status).json({
+        return res.status(status).json({
             success: false,
             message: error.message,
         });
@@ -28,17 +35,17 @@ export const createCategory = async (req, res) => {
 export const updateCategory = async (req, res) => {
     try {
         const { id } = req.params;
-        const { label, value, type, image, description, displayOrder, isActive } = req.body;
+        const { label, value, type, image, description, displayOrder, isActive, } = req.body;
         const updatedCategory = await CategoryService.updateCategory(id, {
             label,
             value,
             type,
             image,
             description,
-            displayOrder: Number(displayOrder),
+            displayOrder,
             isActive,
         });
-        res.status(200).json({
+        return res.status(200).json({
             success: true,
             message: "Category updated successfully",
             data: updatedCategory,
@@ -50,7 +57,7 @@ export const updateCategory = async (req, res) => {
             : error.message.includes("already exists")
                 ? 409
                 : 400;
-        res.status(status).json({
+        return res.status(status).json({
             success: false,
             message: error.message,
         });
@@ -60,13 +67,15 @@ export const getCategoryById = async (req, res) => {
     try {
         const { id } = req.params;
         const category = await CategoryService.getCategoryById(id);
-        res.status(200).json({
+        return res.status(200).json({
             success: true,
             data: category,
         });
     }
     catch (error) {
-        res.status(error.message === "Category not found" ? 404 : 400).json({
+        return res
+            .status(error.message === "Category not found" ? 404 : 400)
+            .json({
             success: false,
             message: error.message,
         });
@@ -76,14 +85,14 @@ export const deleteCategory = async (req, res) => {
     try {
         const { id } = req.params;
         await CategoryService.deleteCategory(id);
-        res.status(200).json({
+        return res.status(200).json({
             success: true,
             message: "Category deleted successfully",
         });
     }
     catch (error) {
         const status = error.message === "Category not found" ? 404 : 400;
-        res.status(400).json({
+        return res.status(status).json({
             success: false,
             message: error.message,
         });
@@ -93,29 +102,25 @@ export const toggleCategoryStatus = async (req, res) => {
     try {
         const { id } = req.params;
         const { confirmed = false } = req.body;
-        if (!id) {
-            return res.status(400).json({
-                success: false,
-                message: "Category ID is required",
-            });
-        }
         const result = await CategoryService.toggleCategoryStatus(id, confirmed);
-        if (result?.requiresConfirmation) {
+        if (result.requiresConfirmation) {
             return res.status(200).json({
                 success: true,
                 requiresConfirmation: true,
-                message: "This category is linked with components, services, and packages.",
+                message: "This category is linked with components, services, or packages.",
                 data: result,
             });
         }
         return res.status(200).json({
             success: true,
-            message: `Category ${result?.isActive ? "activated" : "deactivated"} successfully`,
+            message: `Category ${result.isActive ? "activated" : "deactivated"} successfully`,
             data: result,
         });
     }
     catch (error) {
-        res.status(error.message === "Category not found" ? 404 : 400).json({
+        return res
+            .status(error.message === "Category not found" ? 404 : 400)
+            .json({
             success: false,
             message: error.message,
         });
@@ -123,19 +128,24 @@ export const toggleCategoryStatus = async (req, res) => {
 };
 export const getAllCategories = async (req, res) => {
     try {
-        const { searchTerm, type, // 'service' | 'product'
-        limit, page, isActive, sortBy, sortOrder, } = req.query;
-        const { data, total, page: CurrentPage, totalPages, } = await CategoryService.FindCategories(searchTerm, type, Number(limit) || 40, Number(page) || 1, isActive === "true" ? true : isActive === "false" ? false : undefined, sortBy || "displayOrder", sortOrder || "asc");
-        res.status(200).json({
+        const { searchTerm, type, limit, page, isActive, sortBy, sortOrder, } = req.query;
+        const parsedLimit = parsePositiveInteger(limit, 40, 100);
+        const parsedPage = parsePositiveInteger(page, 1);
+        const { data, total, page: currentPage, totalPages, } = await CategoryService.findCategories(searchTerm, type, parsedLimit, parsedPage, isActive === "true"
+            ? true
+            : isActive === "false"
+                ? false
+                : undefined, sortBy || "displayOrder", sortOrder || "asc");
+        return res.status(200).json({
             success: true,
             data,
             total,
-            CurrentPage,
+            currentPage,
             totalPages,
         });
     }
     catch (error) {
-        res.status(400).json({
+        return res.status(400).json({
             success: false,
             message: error.message || "Failed to fetch categories",
         });

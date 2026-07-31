@@ -1,4 +1,4 @@
-import { Schema, Types, model, Document, Model, } from "mongoose";
+import { Schema, Types, model, } from "mongoose";
 const userQueryMessageSchema = new Schema({
     queryId: {
         type: Schema.Types.ObjectId,
@@ -15,7 +15,7 @@ const userQueryMessageSchema = new Schema({
     senderType: {
         type: String,
         enum: [
-            "CUSTOMER",
+            "USER",
             "COORDINATOR",
             "ADMIN",
         ],
@@ -36,22 +36,24 @@ const userQueryMessageSchema = new Schema({
             },
         ],
         default: [],
+        validate: {
+            validator: (value) => Array.isArray(value) &&
+                value.length <= 5,
+            message: "A maximum of 5 images is allowed",
+        },
     },
 }, {
     timestamps: true,
 });
-// At least message or image is required
 userQueryMessageSchema.pre("validate", function () {
     const hasMessage = typeof this.message === "string" &&
         this.message.trim().length > 0;
     const hasImages = Array.isArray(this.imageUrls) &&
         this.imageUrls.length > 0;
-    if (!hasMessage &&
-        !hasImages) {
+    if (!hasMessage && !hasImages) {
         throw new Error("Message or at least one image is required");
     }
 });
-// Conversation listing
 userQueryMessageSchema.index({
     queryId: 1,
     createdAt: 1,

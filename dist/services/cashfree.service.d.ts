@@ -13,12 +13,19 @@ interface RefundPaymentInput {
     reason: string;
 }
 export declare class CashfreeService {
-    private static baseUrl;
-    private static clientId;
-    private static clientSecret;
+    private static readonly baseUrl;
+    private static readonly apiVersion;
+    private static getCredentials;
+    private static getRequestConfig;
+    private static validateIdentifier;
+    private static validateOrderId;
+    private static validateAmount;
+    private static getReturnUrl;
+    private static getNotifyUrl;
+    private static getProviderError;
     static createOrder(input: CreateOrderInput): Promise<any>;
     static getOrder(orderId: string): Promise<any>;
-    static verifyWebhookSignature(rawBody: string, signature: string, timestamp: string): boolean;
+    static verifyWebhookSignature(rawBody: string | Buffer, signature: string, timestamp: string): boolean;
     static refundPayment(input: RefundPaymentInput): Promise<any>;
 }
 export {};

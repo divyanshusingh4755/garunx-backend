@@ -1,5 +1,9 @@
-import { type Document, Types } from "mongoose";
-export interface ILocation extends Document {
+import { type Types } from "mongoose";
+export interface IGeoPoint {
+    type: "Point";
+    coordinates: [number, number];
+}
+export interface ILocation {
     name: string;
     country: string;
     stateId: Types.ObjectId;
@@ -9,14 +13,13 @@ export interface ILocation extends Document {
     image?: string;
     description?: string;
     isActive: boolean;
-    location?: {
-        type: "Point";
-        coordinates: [number, number];
-    };
+    location?: IGeoPoint;
+    createdAt: Date;
+    updatedAt: Date;
 }
-export declare const Location: import("mongoose").Model<ILocation, {}, {}, {}, Document<unknown, {}, ILocation, {}, import("mongoose").DefaultSchemaOptions> & ILocation & Required<{
+export declare const Location: import("mongoose").Model<ILocation, {}, {}, {}, import("mongoose").Document<unknown, {}, ILocation, {}, import("mongoose").DefaultSchemaOptions> & ILocation & {
     _id: Types.ObjectId;
-}> & {
+} & {
     __v: number;
 } & {
     id: string;

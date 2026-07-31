@@ -1,19 +1,22 @@
-import { Document, type Types } from "mongoose";
-export interface IServiceComponent extends Document {
+import { type Types } from "mongoose";
+export interface IServiceComponentItem {
+    itemId: Types.ObjectId;
+    name: string;
+}
+export interface IServiceComponent {
     name: string;
     description: string;
     serviceId: Types.ObjectId;
     componentId: Types.ObjectId;
     tierId: Types.ObjectId;
     isRequired: boolean;
-    items?: {
-        itemId: Types.ObjectId;
-        name: string;
-    }[];
+    items: IServiceComponentItem[];
+    createdAt: Date;
+    updatedAt: Date;
 }
-export declare const ServiceComponent: import("mongoose").Model<IServiceComponent, {}, {}, {}, Document<unknown, {}, IServiceComponent, {}, import("mongoose").DefaultSchemaOptions> & IServiceComponent & Required<{
+export declare const ServiceComponent: import("mongoose").Model<IServiceComponent, {}, {}, {}, import("mongoose").Document<unknown, {}, IServiceComponent, {}, import("mongoose").DefaultSchemaOptions> & IServiceComponent & {
     _id: Types.ObjectId;
-}> & {
+} & {
     __v: number;
 } & {
     id: string;

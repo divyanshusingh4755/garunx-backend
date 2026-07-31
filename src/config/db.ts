@@ -1,11 +1,22 @@
 import mongoose from "mongoose";
 
-export const ConnectDB = async (): Promise<void> => {
-    try {
-        const conn = await mongoose.connect(process.env.MONGO_URI || '');
-        console.log(`MongoDB connected: ${conn.connection.host}`);
-    } catch (error) {
-        console.log("Error connecting to MongoDB:", error);
-        process.exit(1)
+export const connectDB =
+  async (): Promise<void> => {
+    const mongoUri =
+      process.env.MONGO_URI?.trim();
+
+    if (!mongoUri) {
+      throw new Error(
+        "MONGO_URI is not configured",
+      );
     }
-}
+
+    const connection =
+      await mongoose.connect(
+        mongoUri,
+      );
+
+    console.log(
+      `MongoDB connected: ${connection.connection.host}`,
+    );
+  };

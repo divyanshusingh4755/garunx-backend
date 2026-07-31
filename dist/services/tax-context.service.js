@@ -1,8 +1,18 @@
-import { Types } from "mongoose";
-import { Location } from "../models/location.model.js";
-import { State } from "../models/state.model.js";
-import { taxConfig } from "../config/tax.config.js";
+import { Types, } from "mongoose";
+import { Location, } from "../models/location.model.js";
+import { State, } from "../models/state.model.js";
+import { taxConfig, } from "../config/tax.config.js";
 export class TaxContextService {
+    static normalizeStateCode(fieldName, value) {
+        if (typeof value !== "string") {
+            throw new Error(`${fieldName} must be a string`);
+        }
+        const normalized = value.trim();
+        if (!/^\d{2}$/.test(normalized)) {
+            throw new Error(`${fieldName} must contain exactly two digits`);
+        }
+        return normalized;
+    }
     static async resolveByLocationId(locationId) {
         const id = locationId.toString();
         if (!Types.ObjectId.isValid(id)) {
@@ -11,9 +21,7 @@ export class TaxContextService {
         if (!taxConfig.enabled) {
             throw new Error("GST is disabled");
         }
-        if (!taxConfig.supplierStateCode) {
-            throw new Error("Supplier GST state code is not configured");
-        }
+        const supplierStateCode = this.normalizeStateCode("Supplier GST state code", taxConfig.supplierStateCode);
         const location = await Location.findById(id)
             .select("stateId isActive")
             .lean();
@@ -35,15 +43,19 @@ export class TaxContextService {
         if (!state.isActive) {
             throw new Error("State configured for this location is inactive");
         }
-        if (!state.gstCode) {
-            throw new Error(`GST code is missing for state ${state.name}`);
+        const stateName = state.name ??
+            "selected state";
+        let placeOfSupplyStateCode;
+        try {
+            placeOfSupplyStateCode =
+                this.normalizeStateCode("State GST code", state.gstCode);
         }
-        if (!/^\d{2}$/.test(state.gstCode)) {
-            throw new Error(`Invalid GST code configured for state ${state.name}`);
+        catch {
+            throw new Error(`Invalid or missing GST code configured for state ${stateName}`);
         }
         return {
-            supplierStateCode: taxConfig.supplierStateCode,
-            placeOfSupplyStateCode: state.gstCode,
+            supplierStateCode,
+            placeOfSupplyStateCode,
         };
     }
 }

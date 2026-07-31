@@ -1,216 +1,801 @@
-import { Types } from "mongoose";
-import mongoose from "mongoose";
+import mongoose, {
+  Types,
+  type ClientSession,
+} from "mongoose";
 
-import { Package } from "../models/package.model.js";
-import { PackageTierMap } from "../models/packagetiermap.model.js";
-import { PackageTierPricing } from "../models/packagetierpricing.model.js";
+import {
+  Package,
+} from "../models/package.model.js";
+
+import {
+  PackageTierMap,
+} from "../models/packagetiermap.model.js";
+
+import {
+  PackageTierPricing,
+} from "../models/packagetierpricing.model.js";
+
+interface PackageTierReference {
+  tierId: Types.ObjectId;
+}
+
+interface PackageLocationReference {
+  locationId: Types.ObjectId;
+  isActive: boolean;
+}
+
+interface PackageCascadeDocument {
+  _id: Types.ObjectId;
+  tiers: PackageTierReference[];
+  locations: PackageLocationReference[];
+  isComplete: boolean;
+  isActive: boolean;
+  startingPrice: number;
+
+  save(options: {
+    session: ClientSession;
+  }): Promise<unknown>;
+}
+
+interface PackageMappedService {
+  serviceId: Types.ObjectId;
+  isRequired: boolean;
+  isRelated: boolean;
+}
+
+interface PackageTierMapReference {
+  _id: Types.ObjectId;
+  tierId: Types.ObjectId;
+  services: PackageMappedService[];
+}
+
+interface PackageTierPricingReference {
+  _id: Types.ObjectId;
+  tierId: Types.ObjectId;
+  locationId: Types.ObjectId;
+  serviceId: Types.ObjectId;
+}
 
 export class PackageCascadingEngine {
-  static async run(packageId: string) {
-    if (!Types.ObjectId.isValid(packageId)) {
-      throw new Error("Invalid packageId");
+  static async run(
+    packageId: string,
+  ): Promise<void> {
+    if (
+      !Types.ObjectId.isValid(
+        packageId,
+      )
+    ) {
+      throw new Error(
+        "Invalid packageId",
+      );
     }
 
-    const session = await mongoose.startSession();
+    const session =
+      await mongoose.startSession();
 
     try {
-      await session.withTransaction(async () => {
-        const pkg = await Package.findById(packageId).session(session);
-        if (!pkg) throw new Error("Package not found");
+      await session.withTransaction(
+        async () => {
+          const packageDocument =
+            await Package.findById(
+              packageId,
+            ).session(session);
 
-        await this.cleanupTierOrphans(pkg, session);
-        await this.cleanupLocationOrphans(pkg, session);
-        // await this.cleanupServiceOrphans(pkg, session);
-        await this.cleanupPricing(pkg, session);
+          if (!packageDocument) {
+            throw new Error(
+              "Package not found",
+            );
+          }
 
-        const refreshed = await Package.findById(packageId).session(session);
-        if (!refreshed) throw new Error("Package lost during cleanup");
+          await this.cleanupTierOrphans(
+            packageDocument,
+            session,
+          );
 
-        const isComplete = await this.computeIsComplete(refreshed, session);
+          await this.cleanupLocationOrphans(
+            packageDocument,
+            session,
+          );
 
-        refreshed.isComplete = isComplete;
-        refreshed.isActive = isComplete;
+          await this.cleanupMappingOrphans(
+            packageDocument,
+            session,
+          );
 
-        await refreshed.save({ session });
-      });
+          await this.cleanupPricing(
+            packageDocument,
+            session,
+          );
+
+          const refreshed =
+            await Package.findById(
+              packageId,
+            ).session(session);
+
+          if (!refreshed) {
+            throw new Error(
+              "Package lost during cleanup",
+            );
+          }
+
+          const [isComplete, startingPrice] =
+            await Promise.all([
+              this.computeIsComplete(
+                refreshed,
+                session,
+              ),
+
+              this.computeStartingPrice(
+                refreshed._id,
+                session,
+              ),
+            ]);
+
+          refreshed.isComplete =
+            isComplete;
+
+          refreshed.isActive =
+            isComplete;
+
+          refreshed.startingPrice =
+            startingPrice;
+
+          await refreshed.save({
+            session,
+          });
+        },
+      );
     } finally {
-      session.endSession();
+      await session.endSession();
     }
   }
 
-  static async cleanupTierOrphans(pkg: any, session: any) {
-    const validTierIds = pkg.tiers.map((t: any) => t.tierId.toString());
+  private static getValidIdStrings(
+    values: readonly Types.ObjectId[],
+  ): string[] {
+    return values.map((value) => {
+      const id = value.toString();
 
-    if (!validTierIds.length) {
-      await PackageTierMap.deleteMany({ packageId: pkg._id }, { session });
+      if (
+        !Types.ObjectId.isValid(id)
+      ) {
+        throw new Error(
+          `Invalid ObjectId: ${id}`,
+        );
+      }
+
+      return id;
+    });
+  }
+
+  static async cleanupTierOrphans(
+    packageDocument:
+      PackageCascadeDocument,
+    session: ClientSession,
+  ): Promise<void> {
+    const validTierIds =
+      this.getValidIdStrings(
+        packageDocument.tiers.map(
+          (tier) => tier.tierId,
+        ),
+      );
+
+    if (
+      validTierIds.length === 0
+    ) {
+      await Promise.all([
+        PackageTierMap.deleteMany(
+          {
+            packageId:
+              packageDocument._id,
+          },
+          {
+            session,
+          },
+        ),
+
+        PackageTierPricing.deleteMany(
+          {
+            packageId:
+              packageDocument._id,
+          },
+          {
+            session,
+          },
+        ),
+      ]);
+
       return;
     }
 
-    await PackageTierMap.deleteMany(
-      {
-        packageId: pkg._id,
-        tierId: { $nin: validTierIds },
-      },
-      { session },
-    );
+    await Promise.all([
+      PackageTierMap.deleteMany(
+        {
+          packageId:
+            packageDocument._id,
+          tierId: {
+            $nin: validTierIds,
+          },
+        },
+        {
+          session,
+        },
+      ),
+
+      PackageTierPricing.deleteMany(
+        {
+          packageId:
+            packageDocument._id,
+          tierId: {
+            $nin: validTierIds,
+          },
+        },
+        {
+          session,
+        },
+      ),
+    ]);
   }
 
-  static async cleanupLocationOrphans(pkg: any, session: any) {
-    const validLocationIds = pkg.locations.map((l: any) =>
-      l.locationId.toString(),
-    );
+  static async cleanupLocationOrphans(
+    packageDocument:
+      PackageCascadeDocument,
+    session: ClientSession,
+  ): Promise<void> {
+    const validLocationIds =
+      this.getValidIdStrings(
+        packageDocument.locations.map(
+          (location) =>
+            location.locationId,
+        ),
+      );
 
-    if (!validLocationIds.length) {
-      await PackageTierPricing.deleteMany({ packageId: pkg._id }, { session });
+    if (
+      validLocationIds.length === 0
+    ) {
+      await PackageTierPricing.deleteMany(
+        {
+          packageId:
+            packageDocument._id,
+        },
+        {
+          session,
+        },
+      );
+
       return;
     }
 
     await PackageTierPricing.deleteMany(
       {
-        packageId: pkg._id,
-        locationId: { $nin: validLocationIds },
+        packageId:
+          packageDocument._id,
+        locationId: {
+          $nin: validLocationIds,
+        },
       },
-      { session },
+      {
+        session,
+      },
     );
   }
 
-  // static async cleanupServiceOrphans(pkg: any, session: any) {
-  //   const validTierIds = pkg.tiers.map((t: any) => t.tierId.toString());
+  static async cleanupMappingOrphans(
+    packageDocument:
+      PackageCascadeDocument,
+    session: ClientSession,
+  ): Promise<void> {
+    await PackageTierMap.deleteMany(
+      {
+        packageId:
+          packageDocument._id,
+        $or: [
+          {
+            tierId: {
+              $exists: false,
+            },
+          },
+          {
+            tierId: null,
+          },
+        ],
+      },
+      {
+        session,
+      },
+    );
+  }
 
-  //   if (!validTierIds.length) {
-  //     await PackageTierMap.deleteMany({ packageId: pkg._id }, { session });
-  //     return;
-  //   }
+  static async cleanupPricing(
+    packageDocument:
+      PackageCascadeDocument,
+    session: ClientSession,
+  ): Promise<void> {
+    const validTierIds =
+      new Set(
+        this.getValidIdStrings(
+          packageDocument.tiers.map(
+            (tier) => tier.tierId,
+          ),
+        ),
+      );
 
-  //   await PackageTierMap.deleteMany(
-  //     {
-  //       packageId: pkg._id,
-  //       tierId: { $nin: validTierIds },
-  //     },
-  //     { session },
-  //   );
-  // }
+    const validLocationIds =
+      new Set(
+        this.getValidIdStrings(
+          packageDocument.locations.map(
+            (location) =>
+              location.locationId,
+          ),
+        ),
+      );
 
-  static async cleanupPricing(pkg: any, session: any) {
-    const validTierIds = new Set(
-      pkg.tiers.map((t: any) => t.tierId.toString()),
+    await PackageTierPricing.deleteMany(
+      {
+        packageId:
+          packageDocument._id,
+        $or: [
+          {
+            tierId: {
+              $exists: false,
+            },
+          },
+          {
+            tierId: null,
+          },
+          {
+            locationId: {
+              $exists: false,
+            },
+          },
+          {
+            locationId: null,
+          },
+          {
+            serviceId: {
+              $exists: false,
+            },
+          },
+          {
+            serviceId: null,
+          },
+        ],
+      },
+      {
+        session,
+      },
     );
 
-    const validLocationIds = new Set(
-      pkg.locations.map((l: any) => l.locationId.toString()),
-    );
+    const mappings =
+      await PackageTierMap.find(
+        {
+          packageId:
+            packageDocument._id,
+        },
+      )
+        .session(session)
+        .select(
+          "tierId services.serviceId",
+        )
+        .lean<
+          PackageTierMapReference[]
+        >();
 
-    const mappings = await PackageTierMap.find({
-      packageId: pkg._id,
-    })
-      .session(session)
-      .lean();
+    const serviceMapByTier =
+      new Map<
+        string,
+        Set<string>
+      >();
 
-    // Build tier -> service set map
-    const serviceMapByTier = new Map<string, Set<string>>();
+    for (
+      const mapping of mappings
+    ) {
+      const tierId =
+        mapping.tierId
+          .toString();
 
-    for (const m of mappings) {
-      const tierId = m.tierId.toString();
+      let serviceSet =
+        serviceMapByTier.get(
+          tierId,
+        );
 
-      if (!serviceMapByTier.has(tierId)) {
-        serviceMapByTier.set(tierId, new Set());
+      if (!serviceSet) {
+        serviceSet =
+          new Set<string>();
+
+        serviceMapByTier.set(
+          tierId,
+          serviceSet,
+        );
       }
 
-      const set = serviceMapByTier.get(tierId)!;
-
-      for (const s of m.services || []) {
-        set.add(s.serviceId.toString());
+      for (
+        const service of
+        mapping.services ?? []
+      ) {
+        serviceSet.add(
+          service.serviceId
+            .toString(),
+        );
       }
     }
 
-    const pricing = await PackageTierPricing.find({
-      packageId: pkg._id,
-    }).session(session);
+    const pricing =
+      await PackageTierPricing.find(
+        {
+          packageId:
+            packageDocument._id,
+        },
+      )
+        .session(session)
+        .select(
+          "tierId locationId serviceId",
+        )
+        .lean<
+          PackageTierPricingReference[]
+        >();
 
-    const deleteIds: Types.ObjectId[] = [];
+    const deleteIds:
+      Types.ObjectId[] = [];
 
-    for (const p of pricing) {
-      const tierId = p.tierId.toString();
-      const locationId = p.locationId.toString();
-      const serviceId = p.serviceId.toString();
+    for (
+      const pricingRow of pricing
+    ) {
+      const tierId =
+        pricingRow.tierId
+          .toString();
 
-      const tierValid = validTierIds.has(tierId);
-      const locationValid = validLocationIds.has(locationId);
+      const locationId =
+        pricingRow.locationId
+          .toString();
 
-      const serviceSet = serviceMapByTier.get(tierId);
-      const serviceValid = serviceSet?.has(serviceId);
+      const serviceId =
+        pricingRow.serviceId
+          .toString();
 
-      const invalid = !tierValid || !locationValid || !serviceValid;
+      const serviceSet =
+        serviceMapByTier.get(
+          tierId,
+        );
 
-      if (invalid) {
-        deleteIds.push(p._id);
+      if (
+        !validTierIds.has(
+          tierId,
+        ) ||
+        !validLocationIds.has(
+          locationId,
+        ) ||
+        !serviceSet?.has(
+          serviceId,
+        )
+      ) {
+        deleteIds.push(
+          pricingRow._id,
+        );
       }
     }
 
-    if (deleteIds.length) {
+    if (
+      deleteIds.length > 0
+    ) {
       await PackageTierPricing.deleteMany(
-        { _id: { $in: deleteIds } },
-        { session },
+        {
+          _id: {
+            $in: deleteIds,
+          },
+        },
+        {
+          session,
+        },
       );
     }
   }
 
-  static async computeIsComplete(pkg: any, session: any) {
-    const mappings = await PackageTierMap.find({
-      packageId: pkg._id,
-    })
-      .session(session)
-      .lean();
+  private static async computeStartingPrice(
+    packageId: Types.ObjectId,
+    session: ClientSession,
+  ): Promise<number> {
+    const [mappings, pricingRows] =
+      await Promise.all([
+        PackageTierMap.find({
+          packageId,
+        })
+          .session(session)
+          .select(
+            "tierId services.serviceId services.isRequired",
+          )
+          .lean(),
 
-    const pricing = await PackageTierPricing.find({
-      packageId: pkg._id,
-    })
-      .session(session)
-      .lean();
+        PackageTierPricing.find({
+          packageId,
+        })
+          .session(session)
+          .select(
+            "tierId locationId serviceId finalPrice",
+          )
+          .lean(),
+      ]);
 
-    const activeLocations = pkg.locations.filter((l: any) => l.isActive);
+    /*
+     * Store the required service IDs for every tier.
+     */
+    const requiredServicesByTier =
+      new Map<string, Set<string>>();
 
-    if (!activeLocations.length) return false;
-    if (!pkg.tiers.length) return false;
-    if (!mappings.length) return false;
+    for (const mapping of mappings) {
+      const tierId =
+        mapping.tierId.toString();
 
-    const priceSet = new Set(
-      pricing.map(
-        (p) =>
-          `${p.tierId.toString()}_${p.locationId.toString()}_${p.serviceId.toString()}`,
-      ),
-    );
+      const requiredServiceIds =
+        new Set(
+          (mapping.services ?? [])
+            .filter(
+              (service) =>
+                service.isRequired,
+            )
+            .map((service) =>
+              service.serviceId.toString(),
+            ),
+        );
 
-    let totalServicesValidated = 0;
+      requiredServicesByTier.set(
+        tierId,
+        requiredServiceIds,
+      );
+    }
 
-    for (const tier of pkg.tiers) {
-      const tierId = tier.tierId.toString();
+    /*
+     * Group pricing by tier and location.
+     */
+    const pricingByTierLocation =
+      new Map<
+        string,
+        Map<string, number>
+      >();
 
-      const tierServices = mappings
-        .filter((m) => m.tierId.toString() === tierId)
-        .flatMap((m) => m.services || []);
+    for (const pricing of pricingRows) {
+      const tierId =
+        pricing.tierId.toString();
 
-      if (!tierServices.length) {
+      const locationId =
+        pricing.locationId.toString();
+
+      const serviceId =
+        pricing.serviceId.toString();
+
+      const key =
+        `${tierId}_${locationId}`;
+
+      let servicePrices =
+        pricingByTierLocation.get(key);
+
+      if (!servicePrices) {
+        servicePrices =
+          new Map<string, number>();
+
+        pricingByTierLocation.set(
+          key,
+          servicePrices,
+        );
+      }
+
+      servicePrices.set(
+        serviceId,
+        pricing.finalPrice,
+      );
+    }
+
+    const availableStartingPrices: number[] =
+      [];
+
+    for (
+      const [key, servicePrices]
+      of pricingByTierLocation
+    ) {
+      const separatorIndex =
+        key.indexOf("_");
+
+      const tierId =
+        key.slice(0, separatorIndex);
+
+      const requiredServiceIds =
+        requiredServicesByTier.get(tierId);
+
+      /*
+       * Your resolvePricing() considers only
+       * isRequired services for starting price.
+       */
+      if (
+        !requiredServiceIds ||
+        requiredServiceIds.size === 0
+      ) {
         continue;
       }
 
-      for (const loc of activeLocations) {
-        const locationId = loc.locationId.toString();
+      const hasAllRequiredPrices =
+        [...requiredServiceIds].every(
+          (serviceId) =>
+            servicePrices.has(serviceId),
+        );
 
-        for (const svc of tierServices) {
-          const serviceId = svc.serviceId.toString();
+      if (!hasAllRequiredPrices) {
+        continue;
+      }
 
-          const key = `${tierId}_${locationId}_${serviceId}`;
+      const totalPrice =
+        [...requiredServiceIds].reduce(
+          (total, serviceId) =>
+            total +
+            (servicePrices.get(serviceId) ?? 0),
+          0,
+        );
 
-          if (!priceSet.has(key)) {
+      availableStartingPrices.push(
+        Math.round(
+          (totalPrice + Number.EPSILON) *
+          100,
+        ) / 100,
+      );
+    }
+
+    if (
+      availableStartingPrices.length === 0
+    ) {
+      return 0;
+    }
+
+    return Math.min(
+      ...availableStartingPrices,
+    );
+  }
+
+  static async computeIsComplete(
+    packageDocument:
+      PackageCascadeDocument,
+    session: ClientSession,
+  ): Promise<boolean> {
+    const mappings =
+      await PackageTierMap.find(
+        {
+          packageId:
+            packageDocument._id,
+        },
+      )
+        .session(session)
+        .select(
+          "tierId services.serviceId",
+        )
+        .lean<
+          PackageTierMapReference[]
+        >();
+
+    const pricing =
+      await PackageTierPricing.find(
+        {
+          packageId:
+            packageDocument._id,
+        },
+      )
+        .session(session)
+        .select(
+          "tierId locationId serviceId",
+        )
+        .lean<
+          PackageTierPricingReference[]
+        >();
+
+    const activeLocations =
+      packageDocument
+        .locations
+        .filter(
+          (location) =>
+            location.isActive,
+        );
+
+    if (
+      activeLocations.length === 0 ||
+      packageDocument.tiers.length ===
+      0 ||
+      mappings.length === 0
+    ) {
+      return false;
+    }
+
+    const mappingsByTier =
+      new Map<
+        string,
+        Set<string>
+      >();
+
+    for (
+      const mapping of mappings
+    ) {
+      const tierId =
+        mapping.tierId
+          .toString();
+
+      let services =
+        mappingsByTier.get(
+          tierId,
+        );
+
+      if (!services) {
+        services =
+          new Set<string>();
+
+        mappingsByTier.set(
+          tierId,
+          services,
+        );
+      }
+
+      for (
+        const service of
+        mapping.services ?? []
+      ) {
+        services.add(
+          service.serviceId
+            .toString(),
+        );
+      }
+    }
+
+    const priceSet =
+      new Set(
+        pricing.map(
+          (pricingRow) =>
+            `${pricingRow.tierId.toString()}_${pricingRow.locationId.toString()}_${pricingRow.serviceId.toString()}`,
+        ),
+      );
+
+    for (
+      const tier of
+      packageDocument.tiers
+    ) {
+      const tierId =
+        tier.tierId.toString();
+
+      const tierServices =
+        mappingsByTier.get(
+          tierId,
+        );
+
+      /*
+       * Every configured package tier must map at least
+       * one service. Skipping an empty tier would allow
+       * an incomplete package to become active.
+       */
+      if (
+        !tierServices ||
+        tierServices.size === 0
+      ) {
+        return false;
+      }
+
+      for (
+        const location of
+        activeLocations
+      ) {
+        const locationId =
+          location.locationId
+            .toString();
+
+        for (
+          const serviceId of
+          tierServices
+        ) {
+          const key =
+            `${tierId}_${locationId}_${serviceId}`;
+
+          if (
+            !priceSet.has(key)
+          ) {
             return false;
           }
-
-          totalServicesValidated++;
         }
       }
     }
 
-    return totalServicesValidated > 0;
+    return true;
   }
 }

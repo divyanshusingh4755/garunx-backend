@@ -66,8 +66,8 @@ export declare class PackageService {
             id: Types.ObjectId;
             name: string;
             shortDescription: string;
-            fullDescription: string | undefined;
-            thumbnailImage: string | undefined;
+            fullDescription: string;
+            thumbnailImage: string;
             bannerImage: string | undefined;
             category: {
                 id: any;
@@ -78,6 +78,7 @@ export declare class PackageService {
             isActive: boolean;
             isComplete: boolean;
             packageReference: string;
+            startingPrice: number;
         };
         locations: import("../models/package.model.js").IPackageLocation[];
         tiers: {
@@ -91,8 +92,8 @@ export declare class PackageService {
             id: Types.ObjectId;
             name: string;
             shortDescription: string;
-            fullDescription: string | undefined;
-            thumbnailImage: string | undefined;
+            fullDescription: string;
+            thumbnailImage: string;
             bannerImage: string | undefined;
             category: {
                 id: any;
@@ -103,6 +104,7 @@ export declare class PackageService {
             isActive: boolean;
             isComplete: boolean;
             packageReference: string;
+            startingPrice: number;
         };
         locations: import("../models/package.model.js").IPackageLocation[];
         tiers: {
@@ -124,13 +126,12 @@ export declare class PackageService {
             pricing: {
                 locationId: Types.ObjectId;
                 basePrice: number;
-                fixedPrice: number | undefined;
-                discountPercent: number | undefined;
+                fixedPrice: number | null | undefined;
+                discountPercent: number | null | undefined;
                 finalPrice: number;
             } | null;
         }[];
     }>;
-    static updatePackageStartingPrice(packageId: string): Promise<void>;
     static validatePackageConfiguration(packageId: string): Promise<{
         isComplete: boolean;
         issues: string[];
@@ -140,12 +141,13 @@ export declare class PackageService {
             id: Types.ObjectId;
             name: string;
             shortDescription: string;
-            fullDescription: string | undefined;
-            thumbnailImage: string | undefined;
+            fullDescription: string;
+            thumbnailImage: string;
             bannerImage: string | undefined;
             isActive: boolean;
             isComplete: boolean;
             packageReference: string;
+            startingPrice: number;
         };
         locations: any[];
         tiers: {

@@ -48,7 +48,7 @@ export const retryPayment = async (req: Request, res: Response) => {
   } catch (error: any) {
     console.error("Retry payment error:", error);
 
-    return res.status(400).json({
+    return res.status(error.statusCode || 400).json({
       success: false,
       message: error.message || "Failed to retry payment",
     });
@@ -114,8 +114,14 @@ export const getAllBookings = async (req: Request, res: Response) => {
       bookingReference: bookingReference as string,
       fromDate: fromDate as string,
       toDate: toDate as string,
-      limit: Number(limit) || 20,
-      page: Number(page) || 1,
+      limit:
+        Number.isInteger(Number(limit)) && Number(limit) > 0
+          ? Math.min(Number(limit), 100)
+          : 20,
+      page:
+        Number.isInteger(Number(page)) && Number(page) > 0
+          ? Number(page)
+          : 1,
       sortBy: (sortBy as string) || "createdAt",
       sortOrder: (sortOrder as "asc" | "desc") || "desc",
     });
@@ -216,9 +222,19 @@ export const updateBookingNotes = async (req: Request, res: Response) => {
     const { bookingId } = req.params;
     const { notes } = req.body;
 
+    const userId = req.user?.userId;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized",
+      });
+    }
+
     const result = await BookingService.updateBookingNotes(
       bookingId as string,
       notes,
+      userId,
     );
 
     return res.status(200).json({

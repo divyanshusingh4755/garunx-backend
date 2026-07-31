@@ -1,24 +1,49 @@
-import mongoose, { Types } from "mongoose";
-import { User } from "../models/user.model.js";
-import { ReferralReward } from "../models/referralreward.model.js";
-import { Booking } from "../models/booking.model.js";
-import { Coupon } from "../models/coupon.model.js";
-import { generateCouponCode } from "../utils/generateCouponCode.js";
+import mongoose, { Types, } from "mongoose";
+import { User, } from "../models/user.model.js";
+import { ReferralReward, } from "../models/referralreward.model.js";
+import { Booking, } from "../models/booking.model.js";
+import { Coupon, } from "../models/coupon.model.js";
+import { generateCouponCode, } from "../utils/generateCouponCode.js";
 export class ReferralRewardService {
+    static ensureValidObjectId(value, fieldName) {
+        if (!Types.ObjectId.isValid(value)) {
+            throw new Error(`Invalid ${fieldName}`);
+        }
+    }
     static async processReferralReward(userId, bookingId) {
+        this.ensureValidObjectId(userId, "userId");
+        this.ensureValidObjectId(bookingId, "bookingId");
         const session = await mongoose.startSession();
         try {
             await session.withTransaction(async () => {
-                const user = await User.findById(userId);
+                const user = await User.findById(userId).session(session);
                 if (!user) {
                     throw new Error("User not found");
                 }
                 if (!user.referredBy) {
                     return;
                 }
+                if (user.referredBy.toString() ===
+                    user._id.toString()) {
+                    return;
+                }
+                const qualifyingBooking = await Booking.findOne({
+                    _id: bookingId,
+                    userId: user._id,
+                    "payment.status": "PAID",
+                })
+                    .select("_id")
+                    .session(session)
+                    .lean();
+                if (!qualifyingBooking) {
+                    throw new Error("Paid booking not found for user");
+                }
                 const existingReward = await ReferralReward.findOne({
                     referredUserId: user._id,
-                }).session(session);
+                })
+                    .select("_id")
+                    .session(session)
+                    .lean();
                 if (existingReward) {
                     return;
                 }
@@ -33,43 +58,51 @@ export class ReferralRewardService {
                 if (!referrer) {
                     return;
                 }
-                const REFERRER_REWARD = 200;
-                const referrerCoupon = await Coupon.create([
+                const referrerRewardAmount = 200;
+                const referredRewardAmount = 100;
+                const [referrerCoupon] = await Coupon.create([
                     {
                         name: "Referral Reward",
                         couponCode: generateCouponCode("REF"),
                         assignedUserId: referrer._id,
                         applicableOn: "REFERRAL",
-                        discount: REFERRER_REWARD,
+                        services: [],
+                        packages: [],
+                        discount: referrerRewardAmount,
                         discountType: "FIXED",
                         usageLimit: 1,
                         minOrderAmount: 0,
                         isActive: true,
                     },
                 ], { session });
-                const REFERRED_REWARD = 100;
-                const referredCoupon = await Coupon.create([
+                const [referredCoupon] = await Coupon.create([
                     {
                         name: "Welcome Referral Reward",
                         couponCode: generateCouponCode("WELCOME"),
                         assignedUserId: user._id,
                         applicableOn: "REFERRAL",
-                        discount: REFERRED_REWARD,
+                        services: [],
+                        packages: [],
+                        discount: referredRewardAmount,
                         discountType: "FIXED",
                         usageLimit: 1,
                         minOrderAmount: 0,
                         isActive: true,
                     },
                 ], { session });
+                if (!referrerCoupon ||
+                    !referredCoupon) {
+                    throw new Error("Failed to create referral coupons");
+                }
                 await ReferralReward.create([
                     {
                         referrerUserId: referrer._id,
                         referredUserId: user._id,
-                        bookingId,
-                        referrerCouponId: referrerCoupon[0]._id,
-                        referredCouponId: referredCoupon[0]._id,
-                        referrerRewardAmount: 200,
-                        referredRewardAmount: 100,
+                        bookingId: qualifyingBooking._id,
+                        referrerCouponId: referrerCoupon._id,
+                        referredCouponId: referredCoupon._id,
+                        referrerRewardAmount,
+                        referredRewardAmount,
                         status: "AWARDED",
                     },
                 ], { session });
@@ -80,25 +113,26 @@ export class ReferralRewardService {
         }
     }
     static async getReferralInfo(userId) {
-        if (!Types.ObjectId.isValid(userId)) {
-            throw new Error("Invalid userId");
-        }
-        const user = await User.findById(userId).select("name referralCode").lean();
+        this.ensureValidObjectId(userId, "userId");
+        const user = await User.findById(userId)
+            .select("name referralCode")
+            .lean();
         if (!user) {
             throw new Error("User not found");
         }
-        const [totalReferrals, successfulReferrals, totalRewardsEarned] = await Promise.all([
+        const userObjectId = new Types.ObjectId(userId);
+        const [totalReferrals, successfulReferrals, totalRewards,] = await Promise.all([
             ReferralReward.countDocuments({
-                referrerUserId: userId,
+                referrerUserId: userObjectId,
             }),
             ReferralReward.countDocuments({
-                referrerUserId: userId,
+                referrerUserId: userObjectId,
                 status: "AWARDED",
             }),
             ReferralReward.aggregate([
                 {
                     $match: {
-                        referrerUserId: new Types.ObjectId(userId),
+                        referrerUserId: userObjectId,
                         status: "AWARDED",
                     },
                 },
@@ -116,13 +150,11 @@ export class ReferralRewardService {
             referralCode: user.referralCode,
             totalReferrals,
             successfulReferrals,
-            totalRewardsEarned: totalRewardsEarned[0]?.total || 0,
+            totalRewardsEarned: totalRewards[0]?.total ?? 0,
         };
     }
     static async getReferralStats(userId) {
-        if (!Types.ObjectId.isValid(userId)) {
-            throw new Error("Invalid userId");
-        }
+        this.ensureValidObjectId(userId, "userId");
         const stats = await ReferralReward.aggregate([
             {
                 $match: {
@@ -156,36 +188,36 @@ export class ReferralRewardService {
             },
         };
         for (const item of stats) {
+            const value = {
+                count: item.count,
+                reward: item.totalReward,
+            };
             if (item._id === "PENDING") {
-                result.pending = {
-                    count: item.count,
-                    reward: item.totalReward,
-                };
+                result.pending = value;
             }
-            if (item._id === "AWARDED") {
-                result.awarded = {
-                    count: item.count,
-                    reward: item.totalReward,
-                };
+            else if (item._id === "AWARDED") {
+                result.awarded = value;
             }
-            if (item._id === "FAILED") {
-                result.failed = {
-                    count: item.count,
-                    reward: item.totalReward,
-                };
+            else if (item._id === "FAILED") {
+                result.failed = value;
             }
         }
         return result;
     }
     static async getReferralHistory(userId, page = 1, limit = 20) {
-        if (!Types.ObjectId.isValid(userId)) {
-            throw new Error("Invalid userId");
-        }
-        const skip = (page - 1) * limit;
+        this.ensureValidObjectId(userId, "userId");
+        const safePage = Number.isInteger(page) && page > 0
+            ? page
+            : 1;
+        const safeLimit = Number.isInteger(limit) && limit > 0
+            ? Math.min(limit, 100)
+            : 20;
+        const skip = (safePage - 1) * safeLimit;
+        const query = {
+            referrerUserId: new Types.ObjectId(userId),
+        };
         const [data, total] = await Promise.all([
-            ReferralReward.find({
-                referrerUserId: userId,
-            })
+            ReferralReward.find(query)
                 .populate({
                 path: "referredUserId",
                 select: "name email phone",
@@ -201,24 +233,29 @@ export class ReferralRewardService {
                 createdAt: -1,
             })
                 .skip(skip)
-                .limit(limit)
+                .limit(safeLimit)
                 .lean(),
-            ReferralReward.countDocuments({
-                referrerUserId: userId,
-            }),
+            ReferralReward.countDocuments(query),
         ]);
         return {
             data,
             total,
-            page,
-            totalPages: Math.ceil(total / limit),
+            page: safePage,
+            limit: safeLimit,
+            totalPages: Math.ceil(total / safeLimit),
         };
     }
     static async getReferralRewards(userId, page = 1, limit = 20, status) {
-        if (userId && !Types.ObjectId.isValid(userId)) {
-            throw new Error("Invalid userId");
+        if (userId) {
+            this.ensureValidObjectId(userId, "userId");
         }
-        const skip = (page - 1) * limit;
+        const safePage = Number.isInteger(page) && page > 0
+            ? page
+            : 1;
+        const safeLimit = Number.isInteger(limit) && limit > 0
+            ? Math.min(limit, 100)
+            : 20;
+        const skip = (safePage - 1) * safeLimit;
         const query = {};
         if (userId) {
             query.referrerUserId = userId;
@@ -240,15 +277,16 @@ export class ReferralRewardService {
                 createdAt: -1,
             })
                 .skip(skip)
-                .limit(limit)
+                .limit(safeLimit)
                 .lean(),
             ReferralReward.countDocuments(query),
         ]);
         return {
             data,
             total,
-            page,
-            totalPages: Math.ceil(total / limit),
+            page: safePage,
+            limit: safeLimit,
+            totalPages: Math.ceil(total / safeLimit),
         };
     }
 }

@@ -4,24 +4,26 @@ interface CreateReviewInput {
     bookingId: string;
     reviewerId: string;
     rating: number;
-    review?: string;
-    imageUrl?: string;
+    review?: string | null;
+    imageUrl?: string | null;
 }
 interface EditReviewInput {
     reviewId: string;
     reviewerId: string;
     rating?: number;
-    review?: string;
-    imageUrl?: string;
+    review?: string | null;
+    imageUrl?: string | null;
 }
 export type ReviewModerationAction = "HIDE" | "UNPUBLISH" | "PUBLISH" | "FLAG" | "UNFLAG" | "DELETE";
 interface ModerateReviewInput {
     reviewId: string;
     adminId: string;
     action: ReviewModerationAction;
-    reason?: string;
+    reason?: string | null;
 }
 export declare class ReviewService {
+    private static safePagination;
+    private static getSortCriteria;
     private static adjustRatingAggregate;
     private static resolveReviewParticipants;
     static getAllReviews(params: {
@@ -46,11 +48,12 @@ export declare class ReviewService {
         })[];
         total: number;
         page: number;
+        limit: number;
         totalPages: number;
     }>;
-    static createReviewService(input: CreateReviewInput): Promise<undefined>;
-    static editReviewService(input: EditReviewInput): Promise<undefined>;
-    static moderateReviewService(input: ModerateReviewInput): Promise<undefined>;
+    static createReviewService(input: CreateReviewInput): Promise<never>;
+    static editReviewService(input: EditReviewInput): Promise<never>;
+    static moderateReviewService(input: ModerateReviewInput): Promise<never>;
     static getMyBookingReview(input: {
         bookingId: string;
         userId: string;
@@ -86,6 +89,7 @@ export declare class ReviewService {
         })[];
         total: number;
         page: number;
+        limit: number;
         totalPages: number;
     }>;
     static getCoordinatorReviews(params: {
@@ -99,7 +103,7 @@ export declare class ReviewService {
         coordinator: {
             _id: Types.ObjectId;
             fullName: string | undefined;
-            profileImage: string | undefined;
+            profileImage: string | null | undefined;
             userReference: string;
             averageRating: number;
             totalRatings: number;
@@ -111,6 +115,7 @@ export declare class ReviewService {
         })[];
         total: number;
         page: number;
+        limit: number;
         totalPages: number;
     }>;
 }

@@ -1,1 +1,1 @@
-{"version":3,"file":"counter.model.d.ts","sourceRoot":"","sources":["../../src/models/counter.model.ts"],"names":[],"mappings":"AAEA,MAAM,WAAW,QAAS,SAAQ,QAAQ;IACxC,EAAE,EAAE,MAAM,CAAC;IACX,GAAG,EAAE,MAAM,CAAC;CACb;AAOD,eAAO,MAAM,OAAO;;;;iBAA4C,CAAC"}
+{"version":3,"file":"counter.model.d.ts","sourceRoot":"","sources":["../../src/models/counter.model.ts"],"names":[],"mappings":"AAAA,OAAO,EAGL,KAAK,QAAQ,EACd,MAAM,UAAU,CAAC;AAElB,MAAM,WAAW,QACf,SAAQ,QAAQ;IAChB,EAAE,EAAE,MAAM,CAAC;IACX,GAAG,EAAE,MAAM,CAAC;CACb;AAmBD,eAAO,MAAM,OAAO;;;;iBAIjB,CAAC"}

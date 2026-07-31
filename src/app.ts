@@ -1,12 +1,16 @@
 import express, {
   type Application,
+  type NextFunction,
   type Request,
   type Response,
-  type NextFunction,
 } from "express";
-import { ConnectDB } from "./config/db.js";
+
+import cors, {
+  type CorsOptions,
+} from "cors";
+
 import helmet from "helmet";
-import cors from "cors";
+
 import authRoutes from "./routes/auth.routes.js";
 import brandingRoutes from "./routes/branding.routes.js";
 import locationRoutes from "./routes/location.routes.js";
@@ -29,33 +33,59 @@ import subServicesRoutes from "./routes/subservices.routes.js";
 import bannerRoutes from "./routes/banner.routes.js";
 import faqRoutes from "./routes/faq.routes.js";
 import couponRoutes from "./routes/coupon.routes.js";
-import referalRewardRoutes from "./routes/referralreward.routes.js";
+import referralRewardRoutes from "./routes/referralreward.routes.js";
 import policyRoutes from "./routes/policy.routes.js";
 import reviewRoutes from "./routes/review.routes.js";
 import queriesRoutes from "./routes/userQuery.routes.js";
 import taxRoutes from "./routes/taxprofile.routes.js";
-import { paymentWebhooks } from "./controllers/booking.controllers.js";
 
-const app: Application = express();
-// Connect DB
-ConnectDB();
+import {
+  paymentWebhooks,
+} from "./controllers/booking.controllers.js";
+import { HttpError } from "./utils/httpError.js";
 
-const allowedOrigins = [
-  "https://heartfelt-gelato-d455e0.netlify.app",
-  "http://localhost:3001",
-];
 
-// Middleware
-const corsOptions = {
-  origin: function (origin: any, callback: any) {
-    if (!origin || allowedOrigins.includes(origin)) {
+const app: Application =
+  express();
+
+const allowedOrigins =
+  new Set<string>([
+    "https://heartfelt-gelato-d455e0.netlify.app",
+    "http://localhost:3001",
+  ]);
+
+const corsOptions:
+  CorsOptions = {
+  origin: (
+    origin,
+    callback,
+  ): void => {
+    if (
+      origin === undefined ||
+      allowedOrigins.has(origin)
+    ) {
       callback(null, true);
-    } else {
-      callback(new Error("Not allowed by CORS"));
+      return;
     }
+
+    callback(
+      new Error(
+        "Not allowed by CORS",
+      ),
+    );
   },
+
   credentials: true,
-  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+
+  methods: [
+    "GET",
+    "POST",
+    "PUT",
+    "PATCH",
+    "DELETE",
+    "OPTIONS",
+  ],
+
   allowedHeaders: [
     "Content-Type",
     "Authorization",
@@ -64,66 +94,252 @@ const corsOptions = {
   ],
 };
 
-app.use(cors(corsOptions));
-app.options("/*splat", cors(corsOptions));
+app.set(
+  "trust proxy",
+  1,
+);
+
+app.use(
+  cors(corsOptions),
+);
+
+app.options(
+  "/*splat",
+  cors(corsOptions),
+);
 
 app.use(
   helmet({
-    crossOriginResourcePolicy: { policy: "cross-origin" },
+    crossOriginResourcePolicy: {
+      policy:
+        "cross-origin",
+    },
   }),
 );
 
+/*
+ * The webhook must remain before express.json().
+ * Cashfree signature verification requires the original raw body.
+ */
 app.post(
   "/api/booking/webhooks/cashfree",
-  express.raw({ type: "application/json" }),
+  express.raw({
+    type:
+      "application/json",
+  }),
   paymentWebhooks,
 );
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-app.set("trust proxy", 1);
+app.use(
+  express.json(),
+);
 
-// Routes
-app.use("/api/auth", authRoutes);
-app.use("/api/branding", brandingRoutes);
-app.use("/api/location", locationRoutes);
-app.use("/api/city", cityRoutes);
-app.use("/api/state", stateRoutes);
-app.use("/api/component", componentRoutes);
-app.use("/api/component-item", componentItemRoutes);
-app.use("/api/service", serviceRoutes);
-app.use("/api/sub-services", subServicesRoutes);
-app.use("/api/service-component", serviceComponentRoutes);
-app.use("/api/service-pricing", servicePricingRoutes);
-app.use("/api/package", packageRoutes);
-app.use("/api/package-tier-map", packageTierMapRoutes);
-app.use("/api/package-tier-pricing", packageTierPricingRoutes);
-app.use("/api/category", categoryRoutes);
-app.use("/api/tier", tierRoutes);
-app.use("/api/cart", cartRoutes);
-app.use("/api/booking", bookingRoutes);
-app.use("/api/family-tree", familyTreeRoutes);
-app.use("/api/banner", bannerRoutes);
-app.use("/api/faq", faqRoutes);
-app.use("/api/coupon", couponRoutes);
-app.use("/api/referal-reward", referalRewardRoutes);
-app.use("/api/policy", policyRoutes);
-app.use("/api/review", reviewRoutes);
-app.use("/api/queries", queriesRoutes)
-app.use("/api/tax", taxRoutes)
+app.use(
+  express.urlencoded({
+    extended: true,
+  }),
+);
 
-app.get("/health", (req: Request, res: Response) => {
-  res.status(200).json({ status: "ok", uptime: process.uptime() });
-});
+app.use(
+  "/api/auth",
+  authRoutes,
+);
 
-// Error handling middlware
-app.use((err: any, req: Request, res: Response, next: NextFunction) => {
-  console.error(err.stack);
-  const message =
-    process.env.NODE_ENV === "production"
-      ? "Internal server Error"
-      : err.message;
-  res.status(500).json({ success: false, message });
-});
+app.use(
+  "/api/state",
+  stateRoutes,
+);
+
+app.use(
+  "/api/city",
+  cityRoutes,
+);
+
+app.use(
+  "/api/location",
+  locationRoutes,
+);
+
+app.use(
+  "/api/category",
+  categoryRoutes,
+);
+
+app.use(
+  "/api/tier",
+  tierRoutes,
+);
+
+app.use(
+  "/api/tax",
+  taxRoutes,
+);
+
+app.use(
+  "/api/coupon",
+  couponRoutes,
+);
+
+app.use(
+  "/api/referral-reward",
+  referralRewardRoutes,
+);
+
+app.use(
+  "/api/component",
+  componentRoutes,
+);
+
+app.use(
+  "/api/component-item",
+  componentItemRoutes,
+);
+
+app.use(
+  "/api/service",
+  serviceRoutes,
+);
+
+app.use(
+  "/api/sub-services",
+  subServicesRoutes,
+);
+
+app.use(
+  "/api/service-component",
+  serviceComponentRoutes,
+);
+
+app.use(
+  "/api/service-pricing",
+  servicePricingRoutes,
+);
+
+app.use(
+  "/api/package",
+  packageRoutes,
+);
+
+app.use(
+  "/api/package-tier-map",
+  packageTierMapRoutes,
+);
+
+app.use(
+  "/api/package-tier-pricing",
+  packageTierPricingRoutes,
+);
+
+app.use(
+  "/api/cart",
+  cartRoutes,
+);
+
+app.use(
+  "/api/booking",
+  bookingRoutes,
+);
+
+app.use(
+  "/api/family-tree",
+  familyTreeRoutes,
+);
+
+app.use(
+  "/api/banner",
+  bannerRoutes,
+);
+
+app.use(
+  "/api/faq",
+  faqRoutes,
+);
+
+app.use(
+  "/api/policy",
+  policyRoutes,
+);
+
+app.use(
+  "/api/review",
+  reviewRoutes,
+);
+
+app.use(
+  "/api/queries",
+  queriesRoutes,
+);
+
+app.use(
+  "/api/branding",
+  brandingRoutes,
+);
+
+app.get(
+  "/health",
+  (
+    _req: Request,
+    res: Response,
+  ): void => {
+    res.status(200).json({
+      status: "ok",
+      uptime:
+        process.uptime(),
+    });
+  },
+);
+
+app.use(
+  (
+    _req: Request,
+    res: Response,
+  ): void => {
+    res.status(404).json({
+      success: false,
+      message:
+        "Route not found",
+    });
+  },
+);
+
+app.use(
+  (
+    error: unknown,
+    _req: Request,
+    res: Response,
+    _next: NextFunction,
+  ): void => {
+    const status =
+      error instanceof HttpError
+        ? error.statusCode
+        : 500;
+
+    const errorMessage =
+      error instanceof Error
+        ? error.message
+        : "Unknown server error";
+
+    if (error instanceof Error) {
+      console.error(
+        error.stack ??
+        error.message,
+      );
+    } else {
+      console.error(error);
+    }
+
+    const message =
+      process.env.NODE_ENV ===
+        "production" &&
+        status === 500
+        ? "Internal server error"
+        : errorMessage;
+
+    res.status(status).json({
+      success: false,
+      message,
+    });
+  },
+);
 
 export default app;

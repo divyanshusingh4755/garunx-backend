@@ -1,5 +1,5 @@
 import { Schema } from "mongoose";
-import type { ILineTax, ITaxProfileSnapshot, TaxJurisdiction, TaxPriceMode } from "../types/tax.types.js";
+import { TaxJurisdiction, TaxPriceMode, TaxSource, type ILineTax, type ITaxProfileSnapshot } from "../types/tax.types.js";
 export declare const taxProfileSnapshotSchema: Schema<ITaxProfileSnapshot, import("mongoose").Model<ITaxProfileSnapshot, any, any, any, (import("mongoose").Document<unknown, any, ITaxProfileSnapshot, any, import("mongoose").DefaultSchemaOptions> & ITaxProfileSnapshot & {
     _id: import("mongoose").Types.ObjectId;
 } & {
@@ -46,7 +46,7 @@ export declare const taxProfileSnapshotSchema: Schema<ITaxProfileSnapshot, impor
     }, "id"> & {
         id: string;
     }>;
-    treatment?: import("mongoose").SchemaDefinitionProperty<"TAXABLE" | "EXEMPT" | "NIL_RATED" | "NON_GST", ITaxProfileSnapshot, import("mongoose").Document<unknown, {}, ITaxProfileSnapshot, {
+    treatment?: import("mongoose").SchemaDefinitionProperty<import("../types/tax.types.js").TaxTreatment, ITaxProfileSnapshot, import("mongoose").Document<unknown, {}, ITaxProfileSnapshot, {
         id: string;
     }, import("mongoose").DefaultSchemaOptions> & Omit<ITaxProfileSnapshot & {
         _id: import("mongoose").Types.ObjectId;
@@ -73,7 +73,7 @@ export declare const taxProfileSnapshotSchema: Schema<ITaxProfileSnapshot, impor
     }, "id"> & {
         id: string;
     }>;
-    source?: import("mongoose").SchemaDefinitionProperty<import("../types/tax.types.js").TaxSource, ITaxProfileSnapshot, import("mongoose").Document<unknown, {}, ITaxProfileSnapshot, {
+    source?: import("mongoose").SchemaDefinitionProperty<TaxSource, ITaxProfileSnapshot, import("mongoose").Document<unknown, {}, ITaxProfileSnapshot, {
         id: string;
     }, import("mongoose").DefaultSchemaOptions> & Omit<ITaxProfileSnapshot & {
         _id: import("mongoose").Types.ObjectId;

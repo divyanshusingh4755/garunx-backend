@@ -1,4 +1,4 @@
-import { Types } from "mongoose";
+import { Types, type Document } from "mongoose";
 export interface ISession extends Document {
     userId: Types.ObjectId;
     refreshToken: string;
@@ -6,10 +6,12 @@ export interface ISession extends Document {
     ipAddress?: string;
     familyId: string;
     expiresAt: Date;
+    createdAt: Date;
+    updatedAt: Date;
 }
-export declare const Session: import("mongoose").Model<ISession, {}, {}, {}, import("mongoose").Document<unknown, {}, ISession, {}, import("mongoose").DefaultSchemaOptions> & ISession & {
+export declare const Session: import("mongoose").Model<ISession, {}, {}, {}, Document<unknown, {}, ISession, {}, import("mongoose").DefaultSchemaOptions> & ISession & Required<{
     _id: Types.ObjectId;
-} & {
+}> & {
     __v: number;
 } & {
     id: string;

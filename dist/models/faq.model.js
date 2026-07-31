@@ -1,6 +1,10 @@
-import { model, Schema, Document } from "mongoose";
+import { model, Schema, } from "mongoose";
 const faqSchema = new Schema({
-    version: { type: Number, default: 1 },
+    version: {
+        type: Number,
+        default: 1,
+        min: 1,
+    },
     name: {
         type: String,
         required: true,
@@ -16,14 +20,31 @@ const faqSchema = new Schema({
         required: true,
         trim: true,
     },
-    isActive: { type: Boolean, default: true },
-    faqType: { type: String, enum: ["User", "Coordinator", "User_Query", "Coordinator_Query"], default: "User" },
+    isActive: {
+        type: Boolean,
+        default: true,
+    },
+    faqType: {
+        type: String,
+        enum: [
+            "User",
+            "Coordinator",
+            "User_Query",
+            "Coordinator_Query",
+        ],
+        default: "User",
+    },
     displayOrder: {
         type: Number,
         default: 0,
+        min: 0,
     },
-}, { timestamps: true });
-faqSchema.index({ name: 1 });
+}, {
+    timestamps: true,
+});
+faqSchema.index({
+    name: 1,
+});
 faqSchema.index({
     name: "text",
     question: "text",

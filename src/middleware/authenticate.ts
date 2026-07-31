@@ -1,14 +1,16 @@
 import type {
+  NextFunction,
   Request,
   Response,
-  NextFunction,
 } from "express";
 
 import jwt, {
   type JwtPayload,
 } from "jsonwebtoken";
 
-import { Role } from "../types/rbac.js";
+import {
+  Role,
+} from "../types/rbac.js";
 
 interface AccessTokenPayload
   extends JwtPayload {
@@ -16,8 +18,15 @@ interface AccessTokenPayload
   role: Role;
 }
 
+const roleValues =
+  new Set<string>(
+    Object.values(Role),
+  );
+
 const isAccessTokenPayload = (
-  value: string | JwtPayload,
+  value:
+    | string
+    | JwtPayload,
 ): value is AccessTokenPayload => {
   if (
     typeof value === "string"
@@ -26,80 +35,142 @@ const isAccessTokenPayload = (
   }
 
   return (
-    typeof value.userId === "string" &&
-    Object.values(Role).includes(
-      value.role as Role,
-    )
+    typeof value.userId ===
+      "string" &&
+    value.userId.length > 0 &&
+    typeof value.role ===
+      "string" &&
+    roleValues.has(value.role)
   );
+};
+
+const getAccessSecret = (): string => {
+  const secret =
+    process.env.JWT_ACCESS_SECRET;
+
+  if (!secret) {
+    throw new Error(
+      "JWT_ACCESS_SECRET is not configured",
+    );
+  }
+
+  return secret;
+};
+
+const extractBearerToken = (
+  authorization:
+    | string
+    | undefined,
+): string | null => {
+  if (!authorization) {
+    return null;
+  }
+
+  const [scheme, token, ...rest] =
+    authorization
+      .trim()
+      .split(/\s+/);
+
+  if (
+    scheme !== "Bearer" ||
+    !token ||
+    rest.length > 0
+  ) {
+    return null;
+  }
+
+  return token;
+};
+
+const verifyAccessToken = (
+  token: string,
+  secret: string,
+): AccessTokenPayload | null => {
+  const decoded =
+    jwt.verify(
+      token,
+      secret,
+      {
+        algorithms: [
+          "HS256",
+        ],
+      },
+    );
+
+  return isAccessTokenPayload(
+    decoded,
+  )
+    ? decoded
+    : null;
 };
 
 export const authenticate = (
   req: Request,
   res: Response,
   next: NextFunction,
-) => {
-  const authorization =
-    req.headers.authorization;
+): void => {
+  const token =
+    extractBearerToken(
+      req.headers.authorization,
+    );
 
-  if (
-    !authorization?.startsWith(
-      "Bearer ",
-    )
-  ) {
-    return res.status(401).json({
+  if (!token) {
+    res.status(401).json({
       success: false,
       message:
-        "Authentication required. Please provide a Bearer token.",
+        "Authentication required. Please provide a valid Bearer token.",
     });
+
+    return;
   }
 
-  const token =
-    authorization.slice(
-      "Bearer ".length,
-    );
+  let secret: string;
 
-  const secret =
-    process.env.JWT_ACCESS_SECRET;
-
-  if (!secret) {
+  try {
+    secret =
+      getAccessSecret();
+  } catch (error: unknown) {
     console.error(
-      "JWT_ACCESS_SECRET is not configured",
+      error instanceof Error
+        ? error.message
+        : "Authentication configuration error",
     );
 
-    return res.status(500).json({
+    res.status(500).json({
       success: false,
       message:
         "Authentication configuration error",
     });
+
+    return;
   }
 
   try {
     const decoded =
-      jwt.verify(
+      verifyAccessToken(
         token,
         secret,
       );
 
-    if (
-      !isAccessTokenPayload(
-        decoded,
-      )
-    ) {
-      return res.status(401).json({
+    if (!decoded) {
+      res.status(401).json({
         success: false,
         message:
           "Invalid access token payload",
       });
+
+      return;
     }
 
     req.user = {
-      userId: decoded.userId,
+      userId:
+        decoded.userId,
       role: decoded.role,
     };
 
-    return next();
+    next();
   } catch {
-    return res.status(401).json({
+    res.status(401).json({
       success: false,
       message:
         "Invalid or expired access token",
@@ -109,53 +180,82 @@ export const authenticate = (
 
 export const optionalAuthenticate = (
   req: Request,
-  _res: Response,
+  res: Response,
   next: NextFunction,
-) => {
+): void => {
   const authorization =
     req.headers.authorization;
 
-  if (
-    !authorization?.startsWith(
-      "Bearer ",
-    )
-  ) {
-    return next();
-  }
-
-  const secret =
-    process.env.JWT_ACCESS_SECRET;
-
-  if (!secret) {
-    return next();
+  if (!authorization) {
+    next();
+    return;
   }
 
   const token =
-    authorization.slice(
-      "Bearer ".length,
+    extractBearerToken(
+      authorization,
     );
+
+  if (!token) {
+    res.status(401).json({
+      success: false,
+      message:
+        "Invalid Bearer token format",
+    });
+
+    return;
+  }
+
+  let secret: string;
+
+  try {
+    secret =
+      getAccessSecret();
+  } catch (error: unknown) {
+    console.error(
+      error instanceof Error
+        ? error.message
+        : "Authentication configuration error",
+    );
+
+    res.status(500).json({
+      success: false,
+      message:
+        "Authentication configuration error",
+    });
+
+    return;
+  }
 
   try {
     const decoded =
-      jwt.verify(
+      verifyAccessToken(
         token,
         secret,
       );
 
-    if (
-      isAccessTokenPayload(
-        decoded,
-      )
-    ) {
-      req.user = {
-        userId: decoded.userId,
-        role: decoded.role,
-      };
-    }
-  } catch {
-    // Authentication is optional,
-    // so continue as unauthenticated.
-  }
+    if (!decoded) {
+      res.status(401).json({
+        success: false,
+        message:
+          "Invalid access token payload",
+      });
 
-  return next();
+      return;
+    }
+
+    req.user = {
+      userId:
+        decoded.userId,
+      role: decoded.role,
+    };
+
+    next();
+  } catch {
+    res.status(401).json({
+      success: false,
+      message:
+        "Invalid or expired access token",
+    });
+  }
 };

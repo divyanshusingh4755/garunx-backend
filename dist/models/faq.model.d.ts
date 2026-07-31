@@ -1,4 +1,5 @@
-import { Document } from "mongoose";
+import { type Document } from "mongoose";
+export type FaqType = "User" | "Coordinator" | "User_Query" | "Coordinator_Query";
 export interface IFAQ extends Document {
     version: number;
     name: string;
@@ -6,7 +7,9 @@ export interface IFAQ extends Document {
     answer: string;
     isActive: boolean;
     displayOrder: number;
-    faqType: "User" | "Coordinator" | "User_Query" | "Coordinator_Query";
+    faqType: FaqType;
+    createdAt: Date;
+    updatedAt: Date;
 }
 export declare const FAQ: import("mongoose").Model<IFAQ, {}, {}, {}, Document<unknown, {}, IFAQ, {}, import("mongoose").DefaultSchemaOptions> & IFAQ & Required<{
     _id: import("mongoose").Types.ObjectId;

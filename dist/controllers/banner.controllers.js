@@ -1,4 +1,16 @@
 import { BannerService } from "../services/banner.service.js";
+const getErrorStatus = (error) => {
+    if (error instanceof Error &&
+        error.message === "Banner not found") {
+        return 404;
+    }
+    return 400;
+};
+const getErrorMessage = (error, fallback) => {
+    return error instanceof Error
+        ? error.message
+        : fallback;
+};
 export const createBanner = async (req, res) => {
     try {
         const { name, description, buttonText, placement, format, image, displayOrder, isActive, redirect, } = req.body;
@@ -9,43 +21,41 @@ export const createBanner = async (req, res) => {
             placement,
             format,
             image,
-            displayOrder: Number(displayOrder ?? 0),
-            isActive: isActive ?? true,
+            displayOrder: displayOrder === undefined
+                ? 0
+                : displayOrder,
+            isActive: isActive === undefined
+                ? true
+                : isActive,
             redirect,
         });
-        res.status(201).json({
+        return res.status(201).json({
             success: true,
             message: "Banner created successfully",
             data: banner,
         });
     }
     catch (error) {
-        res.status(400).json({
+        return res.status(400).json({
             success: false,
-            message: error.message,
+            message: getErrorMessage(error, "Failed to create banner"),
         });
     }
 };
 export const updateBanner = async (req, res) => {
     try {
         const { id } = req.params;
-        const updateData = {
-            ...req.body,
-        };
-        if (updateData.displayOrder !== undefined) {
-            updateData.displayOrder = Number(updateData.displayOrder);
-        }
-        const banner = await BannerService.updateBanner(id, updateData);
-        res.status(200).json({
+        const banner = await BannerService.updateBanner(id, req.body);
+        return res.status(200).json({
             success: true,
             message: "Banner updated successfully",
             data: banner,
         });
     }
     catch (error) {
-        res.status(error.message === "Banner not found" ? 404 : 400).json({
+        return res.status(getErrorStatus(error)).json({
             success: false,
-            message: error.message,
+            message: getErrorMessage(error, "Failed to update banner"),
         });
     }
 };
@@ -53,15 +63,15 @@ export const getBannerById = async (req, res) => {
     try {
         const { id } = req.params;
         const banner = await BannerService.getBannerById(id);
-        res.status(200).json({
+        return res.status(200).json({
             success: true,
             data: banner,
         });
     }
     catch (error) {
-        res.status(error.message === "Banner not found" ? 404 : 400).json({
+        return res.status(getErrorStatus(error)).json({
             success: false,
-            message: error.message,
+            message: getErrorMessage(error, "Failed to fetch banner"),
         });
     }
 };
@@ -69,15 +79,15 @@ export const deleteBanner = async (req, res) => {
     try {
         const { id } = req.params;
         await BannerService.deleteBanner(id);
-        res.status(200).json({
+        return res.status(200).json({
             success: true,
             message: "Banner deleted successfully",
         });
     }
     catch (error) {
-        res.status(error.message === "Banner not found" ? 404 : 400).json({
+        return res.status(getErrorStatus(error)).json({
             success: false,
-            message: error.message,
+            message: getErrorMessage(error, "Failed to delete banner"),
         });
     }
 };
@@ -85,36 +95,62 @@ export const toggleBannerStatus = async (req, res) => {
     try {
         const { id } = req.params;
         const banner = await BannerService.toggleBannerStatus(id);
-        res.status(200).json({
+        return res.status(200).json({
             success: true,
-            message: `Banner ${banner.isActive ? "activated" : "deactivated"} successfully`,
+            message: `Banner ${banner.isActive
+                ? "activated"
+                : "deactivated"} successfully`,
             data: banner,
         });
     }
     catch (error) {
-        res.status(error.message === "Banner not found" ? 404 : 400).json({
+        return res.status(getErrorStatus(error)).json({
             success: false,
-            message: error.message,
+            message: getErrorMessage(error, "Failed to update banner status"),
         });
     }
 };
 export const getAllBanners = async (req, res) => {
     try {
         const { searchTerm, placement, format, redirectType, isActive, limit, page, sortBy, sortOrder, } = req.query;
-        const result = await BannerService.findBanners(searchTerm, placement, format, redirectType, Number(limit) || 20, Number(page) || 1, isActive === "true"
+        const parsedLimit = typeof limit === "number"
+            ? limit
+            : Number(limit);
+        const parsedPage = typeof page === "number"
+            ? page
+            : Number(page);
+        const result = await BannerService.findBanners(typeof searchTerm === "string"
+            ? searchTerm
+            : undefined, typeof placement === "string"
+            ? placement
+            : undefined, typeof format === "string"
+            ? format
+            : undefined, typeof redirectType === "string"
+            ? redirectType
+            : undefined, Number.isInteger(parsedLimit) &&
+            parsedLimit > 0
+            ? Math.min(parsedLimit, 100)
+            : 20, Number.isInteger(parsedPage) &&
+            parsedPage > 0
+            ? parsedPage
+            : 1, isActive === "true"
             ? true
             : isActive === "false"
                 ? false
-                : undefined, sortBy || "displayOrder", sortOrder || "asc");
-        res.status(200).json({
+                : undefined, typeof sortBy === "string"
+            ? sortBy
+            : "displayOrder", sortOrder === "desc"
+            ? "desc"
+            : "asc");
+        return res.status(200).json({
             success: true,
             ...result,
         });
     }
     catch (error) {
-        res.status(400).json({
+        return res.status(400).json({
             success: false,
-            message: error.message,
+            message: getErrorMessage(error, "Failed to fetch banners"),
         });
     }
 };

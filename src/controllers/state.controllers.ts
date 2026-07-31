@@ -1,6 +1,22 @@
 import type { Request, Response } from "express";
 import { StateService } from "../services/state.service.js";
 
+const getStatusCode = (error: any): number => {
+  if (typeof error?.statusCode === "number") {
+    return error.statusCode;
+  }
+
+  if (error?.name === "ValidationError") {
+    return 400;
+  }
+
+  if (error?.code === 11000) {
+    return 409;
+  }
+
+  return 500;
+};
+
 export const createState = async (
   req: Request,
   res: Response,
@@ -15,15 +31,14 @@ export const createState = async (
       location,
     } = req.body;
 
-    const state =
-      await StateService.createState(
-        name,
-        country,
-        gstCode,
-        image,
-        description,
-        location,
-      );
+    const state = await StateService.createState({
+      name,
+      country,
+      gstCode,
+      ...(image !== undefined && { image }),
+      ...(description !== undefined && { description }),
+      ...(location !== undefined && { location }),
+    });
 
     return res.status(201).json({
       success: true,
@@ -31,27 +46,39 @@ export const createState = async (
       data: state,
     });
   } catch (error: any) {
-    return res.status(400).json({
+    return res.status(getStatusCode(error)).json({
       success: false,
-      message: error.message,
+      message: error.message || "Failed to create state",
     });
   }
 };
 
-export const updateState = async (req: Request, res: Response) => {
+export const updateState = async (
+  req: Request,
+  res: Response,
+) => {
   try {
-    const { id } = req.params;
-    const result = await StateService.updateState(id as string, req.body);
-    res.status(200).json({ success: true, data: result });
+    const result = await StateService.updateState(
+      req.params.id as string,
+      req.body,
+    );
+
+    return res.status(200).json({
+      success: true,
+      data: result,
+    });
   } catch (error: any) {
-    res.status(error.message === "State not found" ? 404 : 400).json({
+    return res.status(getStatusCode(error)).json({
       success: false,
-      message: error.message,
+      message: error.message || "Failed to update state",
     });
   }
 };
 
-export const getAllState = async (req: Request, res: Response) => {
+export const getAllState = async (
+  req: Request,
+  res: Response,
+) => {
   try {
     const {
       searchTerm,
@@ -64,22 +91,45 @@ export const getAllState = async (req: Request, res: Response) => {
       sortOrder,
     } = req.query;
 
-    let activeStatus: boolean | undefined;
-    if (isActive === "true") activeStatus = true;
-    else if (isActive === "false") activeStatus = false;
+    const activeStatus =
+      isActive === "true"
+        ? true
+        : isActive === "false"
+          ? false
+          : undefined;
 
-    const result = await StateService.FindState(
-      searchTerm as string,
-      countryFilter as string,
-      stateFilter as string,
-      Number(limit) || 40,
-      Number(page) || 1,
-      activeStatus,
-      (sortBy as string) || "state",
-      (sortOrder as "asc" | "desc") || "asc",
-    );
+    const result = await StateService.findState({
+      limit: limit ? Number(limit) : 40,
+      page: page ? Number(page) : 1,
 
-    res.status(200).json({
+      sortBy:
+        typeof sortBy === "string"
+          ? sortBy
+          : "createdAt",
+
+      sortOrder:
+        sortOrder === "asc" || sortOrder === "desc"
+          ? sortOrder
+          : "desc",
+
+      ...(typeof searchTerm === "string" && {
+        searchTerm,
+      }),
+
+      ...(typeof countryFilter === "string" && {
+        countryFilter,
+      }),
+
+      ...(typeof stateFilter === "string" && {
+        stateFilter,
+      }),
+
+      ...(typeof activeStatus === "boolean" && {
+        isActive: activeStatus,
+      }),
+    });
+
+    return res.status(200).json({
       success: true,
       data: result.data,
       total: result.total,
@@ -87,59 +137,58 @@ export const getAllState = async (req: Request, res: Response) => {
       totalPages: result.totalPages,
     });
   } catch (error: any) {
-    res.status(500).json({
+    return res.status(getStatusCode(error)).json({
       success: false,
-      message: error.message || "Internal Server Error",
+      message: error.message || "Failed to fetch states",
     });
   }
 };
 
-export const getStateById = async (req: Request, res: Response) => {
+export const getStateById = async (
+  req: Request,
+  res: Response,
+) => {
   try {
-    const { id } = req.params;
-    const location = await StateService.getStateById(id as string);
-    res.status(200).json({ success: true, data: location });
-  } catch (error: any) {
-    res.status(error.message === "State not found" ? 404 : 400).json({
-      success: false,
-      message: error.message,
-    });
-  }
-};
+    const state = await StateService.getStateById(
+      req.params.id as string,
+    );
 
-export const deleteState = async (req: Request, res: Response) => {
-  try {
-    const { id } = req.params;
-    const { status } = req.body;
-
-
-    if (
-      typeof status !== "boolean"
-    ) {
-      return res.status(400).json({
-        success: false,
-        message:
-          "status must be a boolean",
-      });
-    }
-
-    if (!id || status === undefined) {
-      return res.status(400).json({
-        success: false,
-        message: "State ID and status are required.",
-      });
-    }
-
-    const state = await StateService.softDeleteState(id as string, status);
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
-      message: `State marked as ${status}`,
       data: state,
     });
   } catch (error: any) {
-    res.status(error.message === "State not found" ? 404 : 400).json({
+    return res.status(getStatusCode(error)).json({
       success: false,
-      message: error.message,
+      message: error.message || "Failed to get state",
+    });
+  }
+};
+
+export const deleteState = async (
+  req: Request,
+  res: Response,
+) => {
+  try {
+    const { status } = req.body;
+
+    const state = await StateService.softDeleteState(
+      req.params.id as string,
+      status,
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: `State ${
+        status ? "activated" : "deactivated"
+      } successfully`,
+      data: state,
+    });
+  } catch (error: any) {
+    return res.status(getStatusCode(error)).json({
+      success: false,
+      message:
+        error.message || "Failed to change state status",
     });
   }
 };

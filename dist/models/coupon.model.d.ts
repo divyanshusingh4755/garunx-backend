@@ -1,13 +1,15 @@
-import { Document, Types } from "mongoose";
+import { type Document, Types } from "mongoose";
+export type CouponApplicableOn = "ALL" | "SERVICE" | "PACKAGE" | "REFERRAL";
+export type CouponDiscountType = "PERCENTAGE" | "FIXED";
 export interface ICoupon extends Document {
     version: number;
     name: string;
     couponCode: string;
-    applicableOn: "ALL" | "SERVICE" | "PACKAGE" | "REFERRAL";
+    applicableOn: CouponApplicableOn;
     services: Types.ObjectId[];
     packages: Types.ObjectId[];
     discount: number;
-    discountType: "PERCENTAGE" | "FIXED";
+    discountType: CouponDiscountType;
     usageLimit: number;
     usedCount: number;
     validFrom?: Date;
@@ -17,6 +19,8 @@ export interface ICoupon extends Document {
     isFirstOrderOnly: boolean;
     isActive: boolean;
     assignedUserId?: Types.ObjectId;
+    createdAt: Date;
+    updatedAt: Date;
 }
 export declare const Coupon: import("mongoose").Model<ICoupon, {}, {}, {}, Document<unknown, {}, ICoupon, {}, import("mongoose").DefaultSchemaOptions> & ICoupon & Required<{
     _id: Types.ObjectId;

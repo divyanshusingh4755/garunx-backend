@@ -1,3 +1,4 @@
+import { type Document } from "mongoose";
 export interface ICategory extends Document {
     label: string;
     value: string;
@@ -7,9 +8,9 @@ export interface ICategory extends Document {
     isActive: boolean;
     displayOrder: number;
 }
-export declare const Category: import("mongoose").Model<ICategory, {}, {}, {}, import("mongoose").Document<unknown, {}, ICategory, {}, import("mongoose").DefaultSchemaOptions> & ICategory & {
+export declare const Category: import("mongoose").Model<ICategory, {}, {}, {}, Document<unknown, {}, ICategory, {}, import("mongoose").DefaultSchemaOptions> & ICategory & Required<{
     _id: import("mongoose").Types.ObjectId;
-} & {
+}> & {
     __v: number;
 } & {
     id: string;

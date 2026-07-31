@@ -158,11 +158,20 @@ class FamilyTreeService {
             throw new Error("A family member cannot be their own mother");
         }
     }
-    static validateLifeStatus(lifeStatus, dateOfDeath) {
+    static validateLifeStatus(lifeStatus, dateOfDeath, dob) {
         if (lifeStatus ===
             MemberLifeStatus.ALIVE &&
             dateOfDeath) {
             throw new Error("Date of death cannot be provided for an alive member");
+        }
+        if (dob &&
+            dob.getTime() > Date.now()) {
+            throw new Error("DOB cannot be in the future");
+        }
+        if (dob &&
+            dateOfDeath &&
+            dateOfDeath < dob) {
+            throw new Error("Date of death cannot be before DOB");
         }
     }
     static async populateMember(ownerId, familyMemberId) {
@@ -171,9 +180,21 @@ class FamilyTreeService {
             ownerId: new Types.ObjectId(ownerId),
             isDeleted: false,
         })
-            .populate("fatherId", FAMILY_MEMBER_POPULATE_SELECT)
-            .populate("motherId", FAMILY_MEMBER_POPULATE_SELECT)
-            .populate("spouseIds", FAMILY_MEMBER_POPULATE_SELECT)
+            .populate({
+            path: "fatherId",
+            select: FAMILY_MEMBER_POPULATE_SELECT,
+            match: { isDeleted: false },
+        })
+            .populate({
+            path: "motherId",
+            select: FAMILY_MEMBER_POPULATE_SELECT,
+            match: { isDeleted: false },
+        })
+            .populate({
+            path: "spouseIds",
+            select: FAMILY_MEMBER_POPULATE_SELECT,
+            match: { isDeleted: false },
+        })
             .populate("createdBy", "fullName role userReference")
             .populate("updatedBy", "fullName role userReference")
             .lean();
@@ -185,7 +206,7 @@ class FamilyTreeService {
         try {
             const { fullName, relation, gender, dob, lifeStatus = MemberLifeStatus.ALIVE, dateOfDeath, fatherId, motherId, spouseIds = [], nativeVillage, state, district, caste, gotra, designatedPandit, visitors = [], profileImage, notes, } = payload;
             FamilyTreeService.validateParentRelationships(null, fatherId, motherId);
-            FamilyTreeService.validateLifeStatus(lifeStatus, dateOfDeath);
+            FamilyTreeService.validateLifeStatus(lifeStatus, dateOfDeath, dob);
             const uniqueSpouseIds = FamilyTreeService.getUniqueIds(spouseIds);
             await FamilyTreeService.verifyFamilyMemberIds(context.ownerId, [
                 fatherId,
@@ -484,8 +505,12 @@ class FamilyTreeService {
             throw new Error("Invalid family tree owner ID");
         }
         const { search, relation, gender, lifeStatus, page = 1, limit = 20, } = query;
-        const pageNumber = Math.max(1, page);
-        const limitNumber = Math.min(100, Math.max(1, limit));
+        const pageNumber = Number.isInteger(page) && page > 0
+            ? page
+            : 1;
+        const limitNumber = Number.isInteger(limit) && limit > 0
+            ? Math.min(100, limit)
+            : 20;
         const skip = (pageNumber - 1) *
             limitNumber;
         const filter = {
@@ -674,7 +699,10 @@ class FamilyTreeService {
                 finalDateOfDeath =
                     existingMember.dateOfDeath;
             }
-            FamilyTreeService.validateLifeStatus(finalLifeStatus, finalDateOfDeath);
+            const finalDob = payload.dob !== undefined
+                ? payload.dob
+                : existingMember.dob;
+            FamilyTreeService.validateLifeStatus(finalLifeStatus, finalDateOfDeath, finalDob);
             const updateData = {};
             const normalFields = [
                 "fullName",
@@ -839,48 +867,10 @@ class FamilyTreeService {
                 throw new Error("Family member not found");
             }
             /*
-             * Keep the family member record for audit,
-             * but remove its active relationship links
-             * from the other non-deleted members.
+             * This is a soft delete. Keep relationship references
+             * intact so restoration can fully recover the tree.
+             * Read queries hide deleted related members.
              */
-            await FamilyMember.updateMany({
-                ownerId: new Types.ObjectId(context.ownerId),
-                isDeleted: false,
-                spouseIds: familyMember._id,
-            }, {
-                $pull: {
-                    spouseIds: familyMember._id,
-                },
-                $set: {
-                    updatedBy: new Types.ObjectId(context.actorId),
-                },
-            }, {
-                session,
-            });
-            await FamilyMember.updateMany({
-                ownerId: new Types.ObjectId(context.ownerId),
-                isDeleted: false,
-                fatherId: familyMember._id,
-            }, {
-                $set: {
-                    fatherId: null,
-                    updatedBy: new Types.ObjectId(context.actorId),
-                },
-            }, {
-                session,
-            });
-            await FamilyMember.updateMany({
-                ownerId: new Types.ObjectId(context.ownerId),
-                isDeleted: false,
-                motherId: familyMember._id,
-            }, {
-                $set: {
-                    motherId: null,
-                    updatedBy: new Types.ObjectId(context.actorId),
-                },
-            }, {
-                session,
-            });
             familyMember.isDeleted =
                 true;
             familyMember.deletedAt =
@@ -929,8 +919,12 @@ class FamilyTreeService {
             throw new Error("Invalid family tree owner ID");
         }
         const { action, familyMemberId, performedBy, bookingId, page = 1, limit = 20, } = query;
-        const pageNumber = Math.max(1, page);
-        const limitNumber = Math.min(100, Math.max(1, limit));
+        const pageNumber = Number.isInteger(page) && page > 0
+            ? page
+            : 1;
+        const limitNumber = Number.isInteger(limit) && limit > 0
+            ? Math.min(100, limit)
+            : 20;
         const skip = (pageNumber - 1) *
             limitNumber;
         const filter = {
@@ -996,8 +990,12 @@ class FamilyTreeService {
             throw new Error("Invalid family member ID");
         }
         const { page = 1, limit = 20, } = query;
-        const pageNumber = Math.max(1, page);
-        const limitNumber = Math.min(100, Math.max(1, limit));
+        const pageNumber = Number.isInteger(page) && page > 0
+            ? page
+            : 1;
+        const limitNumber = Number.isInteger(limit) && limit > 0
+            ? Math.min(100, limit)
+            : 20;
         const skip = (pageNumber - 1) *
             limitNumber;
         /*
@@ -1094,35 +1092,6 @@ class FamilyTreeService {
                 await member.save({
                     session,
                 });
-                /*
-                 * Restore spouse links only when the related
-                 * spouse is active and belongs to the same tree.
-                 *
-                 * This prevents reconnecting the restored member
-                 * to deleted or foreign records.
-                 */
-                const activeSpouses = await FamilyMember.find({
-                    _id: {
-                        $in: member.spouseIds ??
-                            [],
-                    },
-                    ownerId: new Types.ObjectId(ownerId),
-                    isDeleted: false,
-                })
-                    .select("_id spouseIds")
-                    .session(session);
-                for (const spouse of activeSpouses) {
-                    const alreadyLinked = spouse.spouseIds.some((spouseId) => spouseId.toString() ===
-                        member._id.toString());
-                    if (!alreadyLinked) {
-                        spouse.spouseIds.push(member._id);
-                        spouse.updatedBy =
-                            new Types.ObjectId(actorId);
-                        await spouse.save({
-                            session,
-                        });
-                    }
-                }
                 await FamilyTreeService.createActivity(context, member._id, "MEMBER_RESTORED", [
                     {
                         field: "isDeleted",
@@ -1155,9 +1124,27 @@ class FamilyTreeService {
                     await FamilyMember.findById(member._id)
                         .populate("createdBy", "fullName role profileImage")
                         .populate("updatedBy", "fullName role profileImage")
-                        .populate("fatherId", "fullName relation gender lifeStatus profileImage")
-                        .populate("motherId", "fullName relation gender lifeStatus profileImage")
-                        .populate("spouseIds", "fullName relation gender lifeStatus profileImage")
+                        .populate({
+                        path: "fatherId",
+                        select: "fullName relation gender lifeStatus profileImage",
+                        match: {
+                            isDeleted: false,
+                        },
+                    })
+                        .populate({
+                        path: "motherId",
+                        select: "fullName relation gender lifeStatus profileImage",
+                        match: {
+                            isDeleted: false,
+                        },
+                    })
+                        .populate({
+                        path: "spouseIds",
+                        select: "fullName relation gender lifeStatus profileImage",
+                        match: {
+                            isDeleted: false,
+                        },
+                    })
                         .session(session);
             });
             if (!restoredMember) {

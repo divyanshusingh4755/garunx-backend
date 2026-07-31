@@ -1,6 +1,7 @@
 import type { Request } from "express";
-export declare const getClientIp: (req: Request) => {
+export interface ClientInfo {
     userAgent: string;
-    ip: string | undefined;
-};
+    ip: string;
+}
+export declare const getClientIp: (req: Request) => ClientInfo;
 //# sourceMappingURL=clientIp.d.ts.map

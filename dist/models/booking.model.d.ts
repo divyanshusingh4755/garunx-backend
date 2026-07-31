@@ -1,7 +1,7 @@
 import { Types, Document, Model } from "mongoose";
 import type { ICart } from "./cart.model.js";
 import type { ILineTax, ITaxSummary } from "../types/tax.types.js";
-export type RescheduledByRole = "CUSTOMER" | "ADMIN" | "SUBADMIN";
+export type RescheduledByRole = "USER" | "ADMIN" | "SUBADMIN";
 export type BookingStatus = "PENDING_PAYMENT" | "CONFIRMED" | "ASSIGNMENT_PENDING" | "ASSIGNED" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED" | "EXPIRED";
 export type BookingFor = "MYSELF" | "OTHER";
 export type PaymentStatus = "PENDING" | "PROCESSING" | "PAID" | "FAILED" | "PARTIAL_REFUND" | "REFUNDED";
@@ -10,7 +10,7 @@ export type BookingCategory = "UPCOMING" | "ONGOING" | "COMPLETED" | "CANCELLED"
 export type BookingExecutionStage = "NOT_STARTED" | "COORDINATOR_ARRIVED" | "CUSTOMER_VERIFICATION_PENDING" | "SERVICE_EXECUTION" | "FINALIZATION" | "FINISHED";
 export type BookingMilestone = "COORDINATOR_ARRIVED" | "OTP_VERIFIED" | "SERVICE_STARTED" | "CUSTOMER_DETAILS_VERIFIED" | "DOCUMENTS_COLLECTED" | "FAMILY_TREE_STARTED" | "FAMILY_TREE_COMPLETED" | "ALL_SERVICES_COMPLETED" | "FINAL_REPORT_GENERATED";
 export type AssignmentRequestStatus = "PENDING" | "ACCEPTED" | "REJECTED" | "EXPIRED" | "CANCELLED";
-export type ReassignmentRequestedByRole = "CUSTOMER" | "ADMIN" | "COORDINATOR" | "SYSTEM";
+export type ReassignmentRequestedByRole = "USER" | "ADMIN" | "COORDINATOR" | "SYSTEM";
 export interface IAssignmentRequest {
     coordinatorId: Types.ObjectId;
     status: AssignmentRequestStatus;
@@ -22,7 +22,7 @@ export interface IAssignmentRequest {
     respondedAt?: Date;
     rejectionReason?: string;
 }
-export type BookedBy = "CUSTOMER" | "ADMIN" | "SUBADMIN";
+export type BookedBy = "USER" | "ADMIN" | "SUBADMIN";
 export type EntryType = "SERVICE" | "PACKAGE";
 export type ComponentType = "DEFAULT" | "ADDON";
 export type ServiceRole = "PRIMARY" | "INCLUDED" | "ADDON";
@@ -212,7 +212,7 @@ export interface IBooking extends Document {
     cancellation?: {
         reason?: string;
         cancelledBy?: Types.ObjectId;
-        cancelledByRole?: "CUSTOMER" | "ADMIN" | "SUBADMIN" | "SYSTEM";
+        cancelledByRole?: "USER" | "ADMIN" | "SUBADMIN" | "SYSTEM";
         cancelledAt?: Date;
         refundPercentage?: number;
         refundAmount?: number;

@@ -69,7 +69,11 @@ const serviceExecutionSchema = new Schema({
         default: "PENDING",
     },
     startedAt: Date,
-    completedAt: Date,
+    completedAt: {
+        type: Date,
+        default: Date.now,
+        required: true,
+    },
     completedBy: {
         type: Schema.Types.ObjectId,
         ref: "User",
@@ -395,7 +399,7 @@ const bookingRescheduleSchema = new Schema({
     rescheduledByRole: {
         type: String,
         enum: [
-            "CUSTOMER",
+            "USER",
             "ADMIN",
             "SUBADMIN",
         ],
@@ -423,8 +427,8 @@ const bookingSchema = new Schema({
     },
     bookedBy: {
         type: String,
-        enum: ["CUSTOMER", "ADMIN", "SUBADMIN"],
-        default: "CUSTOMER",
+        enum: ["USER", "ADMIN", "SUBADMIN"],
+        default: "USER",
     },
     entries: {
         type: [bookingEntrySchema],
@@ -561,7 +565,7 @@ const bookingSchema = new Schema({
         cancelledBy: { type: Schema.Types.ObjectId, ref: "User" },
         cancelledByRole: {
             type: String,
-            enum: ["CUSTOMER", "ADMIN", "SUBADMIN", "SYSTEM"],
+            enum: ["USER", "ADMIN", "SUBADMIN", "SYSTEM"],
         },
         cancelledAt: Date,
         refundPercentage: Number,
@@ -610,12 +614,12 @@ const bookingSchema = new Schema({
             requestedByRole: {
                 type: String,
                 enum: [
-                    "CUSTOMER",
+                    "USER",
                     "COORDINATOR",
                     "ADMIN",
                     "SYSTEM",
                 ],
-                default: "CUSTOMER",
+                default: "USER",
             },
             reason: String,
             requestedAt: Date,
@@ -725,11 +729,19 @@ bookingSchema.pre("save", async function () {
     this.bookingReference = `BK-${counter.seq.toString().padStart(6, "0")}`;
 });
 bookingEntrySchema.pre("validate", function () {
-    if (this.entryType === "SERVICE" && !this.serviceConfiguration) {
-        throw new Error("SERVICE entry requires serviceConfiguration");
+    const hasServiceConfiguration = Boolean(this.serviceConfiguration);
+    const hasPackageConfiguration = Boolean(this.packageConfiguration);
+    if (this.entryType === "SERVICE") {
+        if (!hasServiceConfiguration ||
+            hasPackageConfiguration) {
+            throw new Error("SERVICE entry must contain only serviceConfiguration");
+        }
     }
-    if (this.entryType === "PACKAGE" && !this.packageConfiguration) {
-        throw new Error("PACKAGE entry requires packageConfiguration");
+    if (this.entryType === "PACKAGE") {
+        if (!hasPackageConfiguration ||
+            hasServiceConfiguration) {
+            throw new Error("PACKAGE entry must contain only packageConfiguration");
+        }
     }
 });
 bookingSchema.pre("validate", function () {
@@ -757,6 +769,9 @@ bookingSchema.index({ cartId: 1 }, {
 });
 bookingSchema.index({
     "payment.refunds.refundId": 1,
+}, {
+    unique: true,
+    sparse: true,
 });
 // Index for searching by main customer details email
 bookingSchema.index({ userId: 1, isDeleted: 1, "customerDetails.email": 1 });

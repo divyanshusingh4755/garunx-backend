@@ -12,7 +12,7 @@ import {
 } from "./tax.schema.js";
 
 export type RescheduledByRole =
-  | "CUSTOMER"
+  | "USER"
   | "ADMIN"
   | "SUBADMIN";
 
@@ -79,7 +79,7 @@ export type AssignmentRequestStatus =
   | "CANCELLED";
 
 export type ReassignmentRequestedByRole =
-  | "CUSTOMER"
+  | "USER"
   | "ADMIN"
   | "COORDINATOR"
   | "SYSTEM";
@@ -100,7 +100,7 @@ export interface IAssignmentRequest {
   rejectionReason?: string;
 }
 
-export type BookedBy = "CUSTOMER" | "ADMIN" | "SUBADMIN";
+export type BookedBy = "USER" | "ADMIN" | "SUBADMIN";
 export type EntryType = "SERVICE" | "PACKAGE";
 export type ComponentType = "DEFAULT" | "ADDON";
 export type ServiceRole = "PRIMARY" | "INCLUDED" | "ADDON";
@@ -249,7 +249,11 @@ const serviceExecutionSchema = new Schema<IServiceExecution>(
     },
 
     startedAt: Date,
-    completedAt: Date,
+    completedAt: {
+      type: Date,
+      default: Date.now,
+      required: true,
+    },
 
     completedBy: {
       type: Schema.Types.ObjectId,
@@ -755,7 +759,7 @@ const bookingRescheduleSchema =
       rescheduledByRole: {
         type: String,
         enum: [
-          "CUSTOMER",
+          "USER",
           "ADMIN",
           "SUBADMIN",
         ],
@@ -853,7 +857,7 @@ export interface IBooking extends Document {
   cancellation?: {
     reason?: string;
     cancelledBy?: Types.ObjectId;
-    cancelledByRole?: "CUSTOMER" | "ADMIN" | "SUBADMIN" | "SYSTEM";
+    cancelledByRole?: "USER" | "ADMIN" | "SUBADMIN" | "SYSTEM";
     cancelledAt?: Date;
     refundPercentage?: number;
     refundAmount?: number;
@@ -908,8 +912,8 @@ const bookingSchema = new Schema<IBooking>(
 
     bookedBy: {
       type: String,
-      enum: ["CUSTOMER", "ADMIN", "SUBADMIN"],
-      default: "CUSTOMER",
+      enum: ["USER", "ADMIN", "SUBADMIN"],
+      default: "USER",
     },
 
     entries: {
@@ -1061,7 +1065,7 @@ const bookingSchema = new Schema<IBooking>(
       cancelledBy: { type: Schema.Types.ObjectId, ref: "User" },
       cancelledByRole: {
         type: String,
-        enum: ["CUSTOMER", "ADMIN", "SUBADMIN", "SYSTEM"],
+        enum: ["USER", "ADMIN", "SUBADMIN", "SYSTEM"],
       },
       cancelledAt: Date,
       refundPercentage: Number,
@@ -1120,12 +1124,12 @@ const bookingSchema = new Schema<IBooking>(
         requestedByRole: {
           type: String,
           enum: [
-            "CUSTOMER",
+            "USER",
             "COORDINATOR",
             "ADMIN",
             "SYSTEM",
           ] as ReassignmentRequestedByRole[],
-          default: "CUSTOMER",
+          default: "USER",
         },
         reason: String,
         requestedAt: Date,
@@ -1264,12 +1268,32 @@ bookingSchema.pre("save", async function () {
 });
 
 bookingEntrySchema.pre("validate", function () {
-  if (this.entryType === "SERVICE" && !this.serviceConfiguration) {
-    throw new Error("SERVICE entry requires serviceConfiguration");
+  const hasServiceConfiguration =
+    Boolean(this.serviceConfiguration);
+
+  const hasPackageConfiguration =
+    Boolean(this.packageConfiguration);
+
+  if (this.entryType === "SERVICE") {
+    if (
+      !hasServiceConfiguration ||
+      hasPackageConfiguration
+    ) {
+      throw new Error(
+        "SERVICE entry must contain only serviceConfiguration",
+      );
+    }
   }
 
-  if (this.entryType === "PACKAGE" && !this.packageConfiguration) {
-    throw new Error("PACKAGE entry requires packageConfiguration");
+  if (this.entryType === "PACKAGE") {
+    if (
+      !hasPackageConfiguration ||
+      hasServiceConfiguration
+    ) {
+      throw new Error(
+        "PACKAGE entry must contain only packageConfiguration",
+      );
+    }
   }
 });
 
@@ -1306,9 +1330,15 @@ bookingSchema.index(
   },
 );
 
-bookingSchema.index({
-  "payment.refunds.refundId": 1,
-});
+bookingSchema.index(
+  {
+    "payment.refunds.refundId": 1,
+  },
+  {
+    unique: true,
+    sparse: true,
+  },
+);
 
 // Index for searching by main customer details email
 bookingSchema.index({ userId: 1, isDeleted: 1, "customerDetails.email": 1 });

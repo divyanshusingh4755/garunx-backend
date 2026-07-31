@@ -1,5 +1,10 @@
-import { Package } from "../models/package.model.js";
-import { Service } from "../models/service.model.js";
+import {
+  Package,
+} from "../models/package.model.js";
+
+import {
+  Service,
+} from "../models/service.model.js";
 
 import type {
   IBookingEntry,
@@ -14,10 +19,26 @@ import type {
   ISelectedComponent,
 } from "../models/cart.model.js";
 
-import type { Types } from "mongoose";
+import type {
+  Types,
+} from "mongoose";
 
-import { Component } from "../models/component.model.js";
-import { ServiceComponent } from "../models/servicecomponent.model.js";
+import {
+  Component,
+} from "../models/component.model.js";
+
+import {
+  ServiceComponent,
+} from "../models/servicecomponent.model.js";
+
+
+interface PackageCartServiceLine {
+  serviceId: Types.ObjectId;
+  priceBeforeDiscount: number;
+  discountAmount: number;
+  price: number;
+  tax?: ISelectedComponent["tax"];
+}
 
 interface BookingBuildResult {
   entries: IBookingEntry[];
@@ -25,50 +46,98 @@ interface BookingBuildResult {
     baseAmount: number;
     addonAmount: number;
     subtotal: number;
-
     couponId?: Types.ObjectId;
     couponCode?: string;
-
     discountAmount: number;
-
-    taxSummary: IBookingTaxSummary;
-
+    taxSummary:
+      IBookingTaxSummary;
     grandTotal: number;
   };
 }
 
+type CartWithOptionalToObject =
+  ICart & {
+    toObject?: () => ICart;
+  };
+
 export class BookingBuilder {
+  private static toPlainCart(
+    cart: ICart,
+  ): ICart {
+    const possibleDocument =
+      cart as
+        CartWithOptionalToObject;
+
+    if (
+      typeof possibleDocument
+        .toObject === "function"
+    ) {
+      return possibleDocument
+        .toObject();
+    }
+
+    return cart;
+  }
+
+  private static validateCartType(
+    cart: ICart,
+  ): "SERVICE" | "PACKAGE" {
+    const hasService =
+      Boolean(cart.serviceId);
+
+    const hasPackage =
+      Boolean(cart.packageId);
+
+    if (
+      hasService === hasPackage
+    ) {
+      throw new Error(
+        hasService
+          ? "Cart cannot contain both serviceId and packageId"
+          : "Cart must contain either serviceId or packageId",
+      );
+    }
+
+    return hasService
+      ? "SERVICE"
+      : "PACKAGE";
+  }
+
   private static buildTaxSummary(
-    taxSummary: ICart["taxSummary"],
+    taxSummary:
+      ICart["taxSummary"],
   ): IBookingTaxSummary {
     return {
       taxableAmount:
-        taxSummary?.taxableAmount ?? 0,
-
+        taxSummary?.taxableAmount ??
+        0,
       cgstAmount:
-        taxSummary?.cgstAmount ?? 0,
-
+        taxSummary?.cgstAmount ??
+        0,
       sgstAmount:
-        taxSummary?.sgstAmount ?? 0,
-
+        taxSummary?.sgstAmount ??
+        0,
       igstAmount:
-        taxSummary?.igstAmount ?? 0,
-
+        taxSummary?.igstAmount ??
+        0,
       totalTax:
-        taxSummary?.totalTax ?? 0,
-
-      ...(taxSummary?.supplierStateCode
+        taxSummary?.totalTax ??
+        0,
+      ...(taxSummary
+        ?.supplierStateCode
         ? {
-          supplierStateCode:
-            taxSummary.supplierStateCode,
-        }
+            supplierStateCode:
+              taxSummary
+                .supplierStateCode,
+          }
         : {}),
-
-      ...(taxSummary?.placeOfSupplyStateCode
+      ...(taxSummary
+        ?.placeOfSupplyStateCode
         ? {
-          placeOfSupplyStateCode:
-            taxSummary.placeOfSupplyStateCode,
-        }
+            placeOfSupplyStateCode:
+              taxSummary
+                .placeOfSupplyStateCode,
+          }
         : {}),
     };
   }
@@ -77,23 +146,27 @@ export class BookingBuilder {
     cart: ICart,
   ): BookingBuildResult["pricing"] {
     return {
-      baseAmount: cart.basePrice,
-      addonAmount: cart.addonPrice,
-      subtotal: cart.subtotal,
-
-      ...(cart.couponId && cart.couponCode
+      baseAmount:
+        cart.basePrice,
+      addonAmount:
+        cart.addonPrice,
+      subtotal:
+        cart.subtotal,
+      ...(cart.couponId &&
+      cart.couponCode
         ? {
-          couponId: cart.couponId,
-          couponCode: cart.couponCode,
-        }
+            couponId:
+              cart.couponId,
+            couponCode:
+              cart.couponCode,
+          }
         : {}),
-
       discountAmount:
         cart.discountAmount,
-
       taxSummary:
-        this.buildTaxSummary(cart.taxSummary),
-
+        this.buildTaxSummary(
+          cart.taxSummary,
+        ),
       grandTotal:
         cart.totalAmount,
     };
@@ -102,15 +175,16 @@ export class BookingBuilder {
   static async buildFromCart(
     cart: ICart,
   ): Promise<BookingBuildResult> {
-    if (cart.serviceId) {
-      return this.buildServiceBooking(cart);
-    }
+    const cartType =
+      this.validateCartType(cart);
 
-    if (cart.packageId) {
-      return this.buildPackageBooking(cart);
-    }
-
-    throw new Error("Invalid cart type");
+    return cartType === "SERVICE"
+      ? this.buildServiceBooking(
+          cart,
+        )
+      : this.buildPackageBooking(
+          cart,
+        );
   }
 
   static async buildServiceBooking(
@@ -122,97 +196,104 @@ export class BookingBuilder {
       );
     }
 
-    const service = await Service.findById(
-      cart.serviceId,
-    ).lean();
+    if (cart.packageId) {
+      throw new Error(
+        "Service booking cart cannot contain packageId",
+      );
+    }
+
+    const service =
+      await Service.findById(
+        cart.serviceId,
+      ).lean();
 
     if (!service) {
-      throw new Error("Service not found");
+      throw new Error(
+        "Service not found",
+      );
     }
 
     const plainCart =
-      cart.toObject() as ICart;
+      this.toPlainCart(cart);
 
     const selectedComponents = [
-      ...(plainCart.selectedComponents ?? []).map(
-        (component) => ({
-          ...component,
-          componentType:
-            "DEFAULT" as const,
-        }),
-      ),
-
-      ...(plainCart.addonComponents ?? []).map(
-        (component) => ({
-          ...component,
-          componentType:
-            "ADDON" as const,
-        }),
-      ),
+      ...(
+        plainCart
+          .selectedComponents ?? []
+      ).map((component) => ({
+        ...component,
+        componentType:
+          "DEFAULT" as const,
+      })),
+      ...(
+        plainCart
+          .addonComponents ?? []
+      ).map((component) => ({
+        ...component,
+        componentType:
+          "ADDON" as const,
+      })),
     ];
 
     const components =
-      await this.buildComponentSnapshots(
-        selectedComponents,
-        service._id,
-        cart.tierId,
-      );
+      await this
+        .buildComponentSnapshots(
+          selectedComponents,
+          service._id,
+          cart.tierId,
+        );
 
-    const entry: IBookingEntry = {
+    const entry:
+      IBookingEntry = {
       entryType: "SERVICE",
-
       serviceConfiguration: {
         serviceId: service._id,
-
         serviceSnapshot: {
           name: service.name,
-
-          ...(service.shortDescription
+          ...(service
+            .shortDescription
             ? {
-              shortDescription:
-                service.shortDescription,
-            }
+                shortDescription:
+                  service
+                    .shortDescription,
+              }
             : {}),
-
-          ...(service.thumbnailImage
+          ...(service
+            .thumbnailImage
             ? {
-              thumbnailImage:
-                service.thumbnailImage,
-            }
+                thumbnailImage:
+                  service
+                    .thumbnailImage,
+              }
             : {}),
-
-          ...(service.serviceReference
+          ...(service
+            .serviceReference
             ? {
-              serviceReference:
-                service.serviceReference,
-            }
+                serviceReference:
+                  service
+                    .serviceReference,
+              }
             : {}),
         },
-
         serviceRole: "PRIMARY",
-
         tier: {
           tierId: cart.tierId,
           name: cart.tierName,
         },
-
         location: {
-          locationId: cart.locationId,
-          name: cart.locationName,
+          locationId:
+            cart.locationId,
+          name:
+            cart.locationName,
         },
-
         components,
-
         pricing: {
           priceBeforeDiscount:
             cart.subtotal,
-
           discountAmount:
             cart.discountAmount,
-
           finalAmount:
             cart.totalAmount,
-
           taxSummary:
             this.buildTaxSummary(
               cart.taxSummary,
@@ -223,7 +304,10 @@ export class BookingBuilder {
 
     return {
       entries: [entry],
-      pricing: this.buildMainPricing(cart),
+      pricing:
+        this.buildMainPricing(
+          cart,
+        ),
     };
   }
 
@@ -236,47 +320,73 @@ export class BookingBuilder {
       );
     }
 
-    const pkg = await Package.findById(
-      cart.packageId,
-    ).lean();
-
-    if (!pkg) {
-      throw new Error("Package not found");
+    if (cart.serviceId) {
+      throw new Error(
+        "Package booking cart cannot contain serviceId",
+      );
     }
 
-    const allServiceIds = [
-      ...(cart.selectedServices ?? []).map(
-        (service) => service.serviceId,
-      ),
+    const packageDocument =
+      await Package.findById(
+        cart.packageId,
+      ).lean();
 
-      ...(cart.addonServices ?? []).map(
-        (service) => service.serviceId,
+    if (!packageDocument) {
+      throw new Error(
+        "Package not found",
+      );
+    }
+
+    const selectedCartServices =
+      cart.selectedServices ?? [];
+
+    const addonCartServices =
+      cart.addonServices ?? [];
+
+    const allServiceIds = [
+      ...selectedCartServices.map(
+        (service) =>
+          service.serviceId,
+      ),
+      ...addonCartServices.map(
+        (service) =>
+          service.serviceId,
       ),
     ];
 
-    const services = await Service.find({
-      _id: {
-        $in: allServiceIds,
-      },
-    }).lean();
+    const services =
+      allServiceIds.length > 0
+        ? await Service.find({
+            _id: {
+              $in: allServiceIds,
+            },
+          }).lean()
+        : [];
 
-    const serviceMap = new Map(
-      services.map((service) => [
-        service._id.toString(),
-        service,
-      ]),
-    );
+    const serviceMap =
+      new Map(
+        services.map(
+          (service) => [
+            service._id.toString(),
+            service,
+          ],
+        ),
+      );
 
     const selectedServices:
-      IBookingServiceConfiguration[] = [];
+      IBookingServiceConfiguration[] =
+      [];
 
     for (
       const selectedService of
-      cart.selectedServices ?? []
+      selectedCartServices
     ) {
-      const service = serviceMap.get(
-        selectedService.serviceId.toString(),
-      );
+      const service =
+        serviceMap.get(
+          selectedService
+            .serviceId
+            .toString(),
+        );
 
       if (!service) {
         throw new Error(
@@ -284,87 +394,30 @@ export class BookingBuilder {
         );
       }
 
-      const taxSummary =
-        this.buildTaxSummaryFromLine(
-          selectedService.tax,
-        );
-
-      const configuration:
-        IBookingServiceConfiguration = {
-        serviceId: service._id,
-
-        serviceSnapshot: {
-          name: service.name,
-
-          ...(service.shortDescription
-            ? {
-              shortDescription:
-                service.shortDescription,
-            }
-            : {}),
-
-          ...(service.thumbnailImage
-            ? {
-              thumbnailImage:
-                service.thumbnailImage,
-            }
-            : {}),
-
-          ...(service.serviceReference
-            ? {
-              serviceReference:
-                service.serviceReference,
-            }
-            : {}),
-        },
-
-        serviceRole: "INCLUDED",
-
-        tier: {
-          tierId: cart.tierId,
-          name: cart.tierName,
-        },
-
-        location: {
-          locationId: cart.locationId,
-          name: cart.locationName,
-        },
-
-        components: [],
-
-        pricing: {
-          priceBeforeDiscount:
-            selectedService.priceBeforeDiscount,
-
-          discountAmount:
-            selectedService.discountAmount,
-
-          finalAmount:
-            selectedService.price,
-
-          ...(selectedService.tax
-            ? {
-              tax: selectedService.tax,
-            }
-            : {}),
-
-          taxSummary,
-        },
-      };
-
-      selectedServices.push(configuration);
+      selectedServices.push(
+        this.buildPackageServiceConfiguration(
+          cart,
+          service,
+          selectedService,
+          "INCLUDED",
+        ),
+      );
     }
 
     const addonServices:
-      IBookingServiceConfiguration[] = [];
+      IBookingServiceConfiguration[] =
+      [];
 
     for (
       const addonService of
-      cart.addonServices ?? []
+      addonCartServices
     ) {
-      const service = serviceMap.get(
-        addonService.serviceId.toString(),
-      );
+      const service =
+        serviceMap.get(
+          addonService
+            .serviceId
+            .toString(),
+        );
 
       if (!service) {
         throw new Error(
@@ -372,129 +425,65 @@ export class BookingBuilder {
         );
       }
 
-      const taxSummary =
-        this.buildTaxSummaryFromLine(
-          addonService.tax,
-        );
-
-      const configuration:
-        IBookingServiceConfiguration = {
-        serviceId: service._id,
-
-        serviceSnapshot: {
-          name: service.name,
-
-          ...(service.shortDescription
-            ? {
-              shortDescription:
-                service.shortDescription,
-            }
-            : {}),
-
-          ...(service.thumbnailImage
-            ? {
-              thumbnailImage:
-                service.thumbnailImage,
-            }
-            : {}),
-
-          ...(service.serviceReference
-            ? {
-              serviceReference:
-                service.serviceReference,
-            }
-            : {}),
-        },
-
-        serviceRole: "ADDON",
-
-        tier: {
-          tierId: cart.tierId,
-          name: cart.tierName,
-        },
-
-        location: {
-          locationId: cart.locationId,
-          name: cart.locationName,
-        },
-
-        components: [],
-
-        pricing: {
-          priceBeforeDiscount:
-            addonService.priceBeforeDiscount,
-
-          discountAmount:
-            addonService.discountAmount,
-
-          finalAmount:
-            addonService.price,
-
-          ...(addonService.tax
-            ? {
-              tax: addonService.tax,
-            }
-            : {}),
-
-          taxSummary,
-        },
-      };
-
-      addonServices.push(configuration);
+      addonServices.push(
+        this.buildPackageServiceConfiguration(
+          cart,
+          service,
+          addonService,
+          "ADDON",
+        ),
+      );
     }
 
-    const entry: IBookingEntry = {
+    const entry:
+      IBookingEntry = {
       entryType: "PACKAGE",
-
       packageConfiguration: {
-        packageId: pkg._id,
-
+        packageId:
+          packageDocument._id,
         packageSnapshot: {
-          name: pkg.name,
-
-          ...(pkg.shortDescription
+          name:
+            packageDocument.name,
+          ...(packageDocument
+            .shortDescription
             ? {
-              shortDescription:
-                pkg.shortDescription,
-            }
+                shortDescription:
+                  packageDocument
+                    .shortDescription,
+              }
             : {}),
-
-          ...(pkg.thumbnailImage
+          ...(packageDocument
+            .thumbnailImage
             ? {
-              thumbnailImage:
-                pkg.thumbnailImage,
-            }
+                thumbnailImage:
+                  packageDocument
+                    .thumbnailImage,
+              }
             : {}),
-
-          ...(pkg.packageReference
+          ...(packageDocument
+            .packageReference
             ? {
-              packageReference:
-                pkg.packageReference,
-            }
+                packageReference:
+                  packageDocument
+                    .packageReference,
+              }
             : {}),
         },
-
         selectedServices,
         addonServices,
-
         pricing: {
           baseAmount:
             cart.basePrice,
-
           addonAmount:
             cart.addonPrice,
-
           subtotal:
             cart.subtotal,
-
           discountAmount:
             cart.discountAmount,
-
           taxSummary:
             this.buildTaxSummary(
               cart.taxSummary,
             ),
-
           grandTotal:
             cart.totalAmount,
         },
@@ -503,12 +492,92 @@ export class BookingBuilder {
 
     return {
       entries: [entry],
-      pricing: this.buildMainPricing(cart),
+      pricing:
+        this.buildMainPricing(
+          cart,
+        ),
+    };
+  }
+
+  private static buildPackageServiceConfiguration(
+    cart: ICart,
+    service: {
+      _id: Types.ObjectId;
+      name: string;
+      shortDescription?: string;
+      thumbnailImage?: string;
+      serviceReference?: string;
+    },
+    selectedService:
+      PackageCartServiceLine,
+    serviceRole:
+      "INCLUDED" | "ADDON",
+  ): IBookingServiceConfiguration {
+    return {
+      serviceId: service._id,
+      serviceSnapshot: {
+        name: service.name,
+        ...(service.shortDescription
+          ? {
+              shortDescription:
+                service
+                  .shortDescription,
+            }
+          : {}),
+        ...(service.thumbnailImage
+          ? {
+              thumbnailImage:
+                service
+                  .thumbnailImage,
+            }
+          : {}),
+        ...(service.serviceReference
+          ? {
+              serviceReference:
+                service
+                  .serviceReference,
+            }
+          : {}),
+      },
+      serviceRole,
+      tier: {
+        tierId: cart.tierId,
+        name: cart.tierName,
+      },
+      location: {
+        locationId:
+          cart.locationId,
+        name:
+          cart.locationName,
+      },
+      components: [],
+      pricing: {
+        priceBeforeDiscount:
+          selectedService
+            .priceBeforeDiscount,
+        discountAmount:
+          selectedService
+            .discountAmount,
+        finalAmount:
+          selectedService.price,
+        ...(selectedService.tax
+          ? {
+              tax:
+                selectedService.tax,
+            }
+          : {}),
+        taxSummary:
+          this.buildTaxSummaryFromLine(
+            selectedService.tax,
+          ),
+      },
     };
   }
 
   private static buildTaxSummaryFromLine(
-    tax: ISelectedComponent["tax"] | undefined,
+    tax:
+      | ISelectedComponent["tax"]
+      | undefined,
   ): IBookingTaxSummary {
     if (!tax) {
       return {
@@ -521,31 +590,42 @@ export class BookingBuilder {
     }
 
     return {
-      taxableAmount: tax.taxableAmount,
-      cgstAmount: tax.cgstAmount,
-      sgstAmount: tax.sgstAmount,
-      igstAmount: tax.igstAmount,
-      totalTax: tax.totalTax,
+      taxableAmount:
+        tax.taxableAmount,
+      cgstAmount:
+        tax.cgstAmount,
+      sgstAmount:
+        tax.sgstAmount,
+      igstAmount:
+        tax.igstAmount,
+      totalTax:
+        tax.totalTax,
     };
   }
 
   private static async buildComponentSnapshots(
     components: Array<
       ISelectedComponent & {
-        componentType: ComponentType;
+        componentType:
+          ComponentType;
       }
     >,
     serviceId: Types.ObjectId,
     tierId: Types.ObjectId,
-  ): Promise<IBookingComponent[]> {
-    if (components.length === 0) {
+  ): Promise<
+    IBookingComponent[]
+  > {
+    if (
+      components.length === 0
+    ) {
       return [];
     }
 
-    const componentIds = components.map(
-      (component) =>
-        component.componentId,
-    );
+    const componentIds =
+      components.map(
+        (component) =>
+          component.componentId,
+      );
 
     const [
       componentDocs,
@@ -566,93 +646,115 @@ export class BookingBuilder {
       }).lean(),
     ]);
 
-    const componentMap = new Map(
-      componentDocs.map((component) => [
-        component._id.toString(),
-        component,
-      ]),
-    );
+    const componentMap =
+      new Map(
+        componentDocs.map(
+          (component) => [
+            component._id.toString(),
+            component,
+          ],
+        ),
+      );
 
-    const serviceComponentMap = new Map(
-      serviceComponents.map(
-        (serviceComponent) => [
-          serviceComponent.componentId.toString(),
-          serviceComponent,
-        ],
-      ),
-    );
+    const serviceComponentMap =
+      new Map(
+        serviceComponents.map(
+          (serviceComponent) => [
+            serviceComponent
+              .componentId
+              .toString(),
+            serviceComponent,
+          ],
+        ),
+      );
 
     return components.map(
-      (component): IBookingComponent => {
+      (
+        component,
+      ): IBookingComponent => {
         const componentId =
-          component.componentId.toString();
+          component
+            .componentId
+            .toString();
 
-        const componentDoc =
-          componentMap.get(componentId);
+        const componentDocument =
+          componentMap.get(
+            componentId,
+          );
 
         const serviceComponent =
-          serviceComponentMap.get(componentId);
+          serviceComponentMap.get(
+            componentId,
+          );
 
         const bookingComponent:
           IBookingComponent = {
           componentType:
-            component.componentType,
-
+            component
+              .componentType,
           componentId:
-            component.componentId,
-
+            component
+              .componentId,
           name:
-            componentDoc?.name ??
+            componentDocument
+              ?.name ??
             component.name,
-
           isRequired:
-            serviceComponent?.isRequired ??
+            serviceComponent
+              ?.isRequired ??
             false,
-
           isRemovable:
-            componentDoc?.isRemovable ??
+            componentDocument
+              ?.isRemovable ??
             false,
-
           isBundled:
-            componentDoc?.isBundled ??
+            componentDocument
+              ?.isBundled ??
             false,
-
           selected: true,
-
           selectedItems:
-            (component.items ?? []).map(
-              (item) => ({
-                itemId: item.itemId,
-                name: item.name,
-              }),
-            ),
-
+            (
+              component.items ?? []
+            ).map((item) => ({
+              itemId:
+                item.itemId,
+              name: item.name,
+            })),
           pricing: {
             priceBeforeDiscount:
-              component.priceBeforeDiscount,
-
+              component
+                .priceBeforeDiscount,
             discountAmount:
-              component.discountAmount,
-
+              component
+                .discountAmount,
             finalAmount:
-              component.totalPrice,
-
+              component
+                .totalPrice,
             ...(component.tax
               ? {
-                tax: component.tax,
-              }
+                  tax:
+                    component.tax,
+                }
               : {}),
           },
         };
 
-        if (serviceComponent?._id) {
-          bookingComponent.serviceComponentId =
+        if (
+          serviceComponent?._id
+        ) {
+          bookingComponent
+            .serviceComponentId =
             serviceComponent._id;
         }
 
-        if (componentDoc?.description) {
-          bookingComponent.description =
-            componentDoc.description;
+        if (
+          componentDocument
+            ?.description
+        ) {
+          bookingComponent
+            .description =
+            componentDocument
+              .description;
         }
 
         return bookingComponent;

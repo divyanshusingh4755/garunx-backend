@@ -9,86 +9,87 @@ export interface IPackageTierPricing extends Document {
   serviceId: Types.ObjectId;
 
   basePrice: number;
-  fixedPrice?: number;
-  discountPercent?: number;
+  fixedPrice?: number | null;
+  discountPercent?: number | null;
   finalPrice: number;
 
-  taxProfileId?: Types.ObjectId;
+  taxProfileId: Types.ObjectId;
   taxPriceMode: TaxPriceMode;
 }
 
-const packageTierPricingSchema =
-  new Schema<IPackageTierPricing>(
-    {
-      packageId: {
-        type: Schema.Types.ObjectId,
-        ref: "Package",
-        required: true,
-        index: true,
-      },
-
-      tierId: {
-        type: Schema.Types.ObjectId,
-        ref: "Tier",
-        required: true,
-        index: true,
-      },
-
-      locationId: {
-        type: Schema.Types.ObjectId,
-        ref: "Location",
-        required: true,
-        index: true,
-      },
-
-      serviceId: {
-        type: Schema.Types.ObjectId,
-        ref: "Service",
-        required: true,
-        index: true,
-      },
-
-      basePrice: {
-        type: Number,
-        required: true,
-        min: 0,
-      },
-
-      fixedPrice: {
-        type: Number,
-        min: 0,
-      },
-
-      discountPercent: {
-        type: Number,
-        min: 0,
-        max: 100,
-      },
-
-      finalPrice: {
-        type: Number,
-        required: true,
-        min: 0,
-      },
-
-      taxProfileId: {
-        type: Schema.Types.ObjectId,
-        ref: "TaxProfile",
-        default: null,
-        index: true,
-      },
-
-      taxPriceMode: {
-        type: String,
-        enum: ["EXCLUSIVE", "INCLUSIVE"],
-        default: "EXCLUSIVE",
-        required: true,
-      },
+const packageTierPricingSchema = new Schema<IPackageTierPricing>(
+  {
+    packageId: {
+      type: Schema.Types.ObjectId,
+      ref: "Package",
+      required: true,
+      index: true,
     },
-    {
-      timestamps: true,
+
+    tierId: {
+      type: Schema.Types.ObjectId,
+      ref: "Tier",
+      required: true,
+      index: true,
     },
-  );
+
+    locationId: {
+      type: Schema.Types.ObjectId,
+      ref: "Location",
+      required: true,
+      index: true,
+    },
+
+    serviceId: {
+      type: Schema.Types.ObjectId,
+      ref: "Service",
+      required: true,
+      index: true,
+    },
+
+    basePrice: {
+      type: Number,
+      required: true,
+      min: 0,
+    },
+
+    fixedPrice: {
+      type: Number,
+      min: 0,
+      default: null,
+    },
+
+    discountPercent: {
+      type: Number,
+      min: 0,
+      max: 100,
+      default: null,
+    },
+
+    finalPrice: {
+      type: Number,
+      required: true,
+      min: 0,
+    },
+
+    taxProfileId: {
+      type: Schema.Types.ObjectId,
+      ref: "TaxProfile",
+      required: true,
+      index: true,
+    },
+
+    taxPriceMode: {
+      type: String,
+      enum: ["EXCLUSIVE", "INCLUSIVE"],
+      default: "EXCLUSIVE",
+      required: true,
+    },
+  },
+  {
+    timestamps: true,
+  },
+);
 
 packageTierPricingSchema.index(
   {
@@ -107,8 +108,7 @@ packageTierPricingSchema.index({
   tierId: 1,
 });
 
-export const PackageTierPricing =
-  model<IPackageTierPricing>(
-    "PackageTierPricing",
-    packageTierPricingSchema,
-  );
+export const PackageTierPricing = model<IPackageTierPricing>(
+  "PackageTierPricing",
+  packageTierPricingSchema,
+);

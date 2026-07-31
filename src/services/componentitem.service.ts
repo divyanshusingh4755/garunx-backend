@@ -1,76 +1,151 @@
-import mongoose from "mongoose";
+import {
+  Types,
+  type QueryFilter,
+  type SortOrder,
+} from "mongoose";
 import {
   ComponentItem,
   type IComponentItem,
 } from "../models/componentitem.model.js";
-import { Types } from "mongoose";
 import { ServiceComponent } from "../models/servicecomponent.model.js";
 import { escapeRegex } from "../utils/escapeRegex.js";
 
+type CreateComponentItemInput = {
+  name: string;
+  price?: number;
+  isActive?: boolean;
+};
+
+type ComponentItemUpdate = Partial<
+  Pick<
+    IComponentItem,
+    "name" | "price" | "isActive"
+  >
+>;
+
+const createHttpError = (
+  message: string,
+  statusCode: number,
+) => {
+  const error = new Error(message) as Error & {
+    statusCode: number;
+  };
+
+  error.statusCode = statusCode;
+  return error;
+};
+
 export class ComponentItemService {
-  static async createComponentItem(payload: Partial<IComponentItem>) {
+  static async createComponentItem(
+    payload: CreateComponentItemInput,
+  ) {
     try {
-      if (!payload.name) throw new Error("Component item name is required");
-      const componentitem = await ComponentItem.create(payload);
-      return componentitem;
+      return await ComponentItem.create(payload);
     } catch (error: any) {
-      if (error.code === 11000) {
-        throw new Error("Component Item already exists");
+      if (error?.code === 11000) {
+        throw createHttpError(
+          "Component item already exists",
+          409,
+        );
       }
-      throw new Error(error.message || "Failed to component item");
+
+      throw error;
     }
   }
 
   static async updateComponentItem(
     componentItemId: string,
-    updateData: Partial<IComponentItem>,
+    updateData: ComponentItemUpdate,
   ) {
     try {
-      const componentItem = await ComponentItem.findByIdAndUpdate(
+      const componentItem =
+        await ComponentItem.findByIdAndUpdate(
+          componentItemId,
+          {
+            $set: updateData,
+          },
+          {
+            new: true,
+            runValidators: true,
+          },
+        ).lean();
+
+      if (!componentItem) {
+        throw createHttpError(
+          "Component item not found",
+          404,
+        );
+      }
+
+      return componentItem;
+    } catch (error: any) {
+      if (error?.code === 11000) {
+        throw createHttpError(
+          "Component item already exists",
+          409,
+        );
+      }
+
+      throw error;
+    }
+  }
+
+  static async getComponentItemById(
+    componentItemId: string,
+  ) {
+    const componentItem =
+      await ComponentItem.findById(
         componentItemId,
-        {
-          $set: updateData,
-        },
-        { new: true, runValidators: true },
+      ).lean();
+
+    if (!componentItem) {
+      throw createHttpError(
+        "Component item not found",
+        404,
       );
-
-      if (!componentItem) throw new Error("Component Item not found");
-      return componentItem;
-    } catch (error: any) {
-      throw new Error(error.message || "Failed to update component item");
     }
+
+    return componentItem;
   }
 
-  static async getComponentItemById(componentItemId: string) {
-    try {
-      const componentItem = await ComponentItem.findById(componentItemId);
+  static async getAllComponentItems(params: {
+    searchTerm?: string;
+    limit?: number;
+    page?: number;
+    isActive?: boolean;
+    sortBy?: string;
+    sortOrder?: "asc" | "desc";
+  }) {
+    const {
+      searchTerm,
+      limit = 20,
+      page = 1,
+      isActive,
+      sortBy = "createdAt",
+      sortOrder = "desc",
+    } = params;
 
-      if (!componentItem) throw new Error("Component item not found");
-      return componentItem;
-    } catch (error: any) {
-      throw new Error(error.message || "Failed to get component item by id");
+    const safeLimit = Math.min(
+      Math.max(limit, 1),
+      100,
+    );
+
+    const safePage = Math.max(page, 1);
+    const skip = (safePage - 1) * safeLimit;
+
+    const query: QueryFilter<IComponentItem> = {};
+
+    if (typeof isActive === "boolean") {
+      query.isActive = isActive;
     }
-  }
 
-  static async getAllComponentItems(
-    searchTerm?: string,
-    limit: number = 20,
-    page: number = 1,
-    isActive?: boolean,
-    sortBy: string = "createdAt",
-    sortOrder: "asc" | "desc" = "desc",
-  ) {
-    const skip = (page - 1) * limit;
-    const query: any = {};
+    const term = searchTerm?.trim();
 
-    if (typeof isActive === "boolean") query.isActive = isActive;
+    const isTextSearch = Boolean(
+      term && term.length > 4,
+    );
 
-    const isTextSearch =
-      !!searchTerm?.trim() && searchTerm.trim().length > 4;
-
-    if (searchTerm?.trim()) {
-      const term = searchTerm.trim();
-
+    if (term) {
       if (isTextSearch) {
         query.$text = {
           $search: term,
@@ -83,10 +158,19 @@ export class ComponentItemService {
       }
     }
 
-    let sortCriteria: any = {};
-    let projection: any = {};
+    let projection:
+      | Record<string, unknown>
+      | undefined;
 
-    if (isTextSearch && sortBy === "relevance") {
+    let sortCriteria: Record<
+      string,
+      SortOrder | { $meta: "textScore" }
+    >;
+
+    if (
+      isTextSearch &&
+      sortBy === "relevance"
+    ) {
       projection = {
         score: {
           $meta: "textScore",
@@ -99,44 +183,77 @@ export class ComponentItemService {
         },
       };
     } else {
-      sortCriteria[sortBy] = sortOrder === "desc" ? -1 : 1;
+      const allowedSortFields = new Set([
+        "name",
+        "price",
+        "isActive",
+        "createdAt",
+        "updatedAt",
+      ]);
+
+      const safeSortBy =
+        allowedSortFields.has(sortBy)
+          ? sortBy
+          : "createdAt";
+
+      sortCriteria = {
+        [safeSortBy]:
+          sortOrder === "asc" ? 1 : -1,
+      };
+
+      if (safeSortBy !== "createdAt") {
+        sortCriteria.createdAt = -1;
+      }
     }
 
-    try {
-      const [componentItem, total] = await Promise.all([
+    const [componentItems, total] =
+      await Promise.all([
         ComponentItem.find(query, projection)
           .sort(sortCriteria)
           .skip(skip)
-          .limit(limit)
+          .limit(safeLimit)
           .lean(),
+
         ComponentItem.countDocuments(query),
       ]);
-      return {
-        data: componentItem,
-        total,
-        page,
-        totalPages: Math.ceil(total / limit),
-      };
-    } catch (error: any) {
-      throw new Error(error.message || "Failed to get component Item");
-    }
-  }
-
-  static async getDeactivationImpact(componentItemId: string) {
-    const affected = await ServiceComponent.find(
-      {
-        "items.itemId": componentItemId,
-      },
-      {
-        _id: 1,
-        serviceId: 1,
-        componentId: 1,
-        items: 1,
-      },
-    ).lean();
 
     return {
-      affectedServiceComponentsCount: affected.length,
+      data: componentItems,
+      total,
+      page: safePage,
+      totalPages: Math.ceil(
+        total / safeLimit,
+      ),
+    };
+  }
+
+  static async getDeactivationImpact(
+    componentItemId: string,
+  ) {
+    const itemId = new Types.ObjectId(
+      componentItemId,
+    );
+
+    const affected =
+      await ServiceComponent.find(
+        {
+          items: {
+            $elemMatch: {
+              itemId,
+            },
+          },
+        },
+        {
+          _id: 1,
+          serviceId: 1,
+          componentId: 1,
+          items: 1,
+        },
+      ).lean();
+
+    return {
+      affectedServiceComponentsCount:
+        affected.length,
       affected,
     };
   }
@@ -146,64 +263,69 @@ export class ComponentItemService {
     isActive: boolean,
     confirmed = false,
   ) {
-    if (!Types.ObjectId.isValid(componentItemId)) {
-      throw new Error("Invalid componentItemId");
-    }
-
-    const componentItem = await ComponentItem.findById(componentItemId);
+    const componentItem =
+      await ComponentItem.findById(
+        componentItemId,
+      )
+        .select("_id isActive")
+        .lean();
 
     if (!componentItem) {
-      throw new Error("Component Item not found");
+      throw createHttpError(
+        "Component item not found",
+        404,
+      );
     }
 
-    // Confirmation only when deactivating
-    if (!isActive && !confirmed) {
-      const impact = await this.getDeactivationImpact(componentItemId);
-
-      return {
-        requiresConfirmation: true,
-        impact,
-      };
-    }
-
-    const session = await mongoose.startSession();
-
-    try {
-      await session.withTransaction(async () => {
-        // Always update the ComponentItem
-        await ComponentItem.findByIdAndUpdate(
-          componentItemId,
-          { isActive },
-          { session },
-        );
-
-        // Only remove references when deactivating
-        if (!isActive) {
-          await ServiceComponent.updateMany(
-            {
-              "items.itemId": new mongoose.Types.ObjectId(componentItemId),
-            },
-            {
-              $pull: {
-                items: {
-                  itemId: new mongoose.Types.ObjectId(componentItemId),
-                },
-              },
-            },
-            { session },
-          );
-        }
-      });
-
+    if (componentItem.isActive === isActive) {
       return {
         success: true,
-        message: `Component item ${isActive ? "activated" : "deactivated"} successfully`,
+        unchanged: true,
+        componentItem,
       };
-    } catch (err) {
-      throw err;
-    } finally {
-      await session.endSession();
     }
+
+    if (!isActive && !confirmed) {
+      const impact =
+        await this.getDeactivationImpact(
+          componentItemId,
+        );
+
+      if (
+        impact.affectedServiceComponentsCount > 0
+      ) {
+        return {
+          requiresConfirmation: true,
+          impact,
+        };
+      }
+    }
+
+    const updatedComponentItem =
+      await ComponentItem.findByIdAndUpdate(
+        componentItemId,
+        {
+          $set: {
+            isActive,
+          },
+        },
+        {
+          new: true,
+          runValidators: true,
+        },
+      ).lean();
+
+    if (!updatedComponentItem) {
+      throw createHttpError(
+        "Component item not found",
+        404,
+      );
+    }
+
+    return {
+      success: true,
+      componentItem: updatedComponentItem,
+    };
   }
 }
 

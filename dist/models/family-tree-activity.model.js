@@ -3,6 +3,7 @@ const familyTreeChangeSchema = new Schema({
     field: {
         type: String,
         required: true,
+        trim: true,
     },
     oldValue: {
         type: Schema.Types.Mixed,
@@ -47,6 +48,7 @@ const familyTreeActivitySchema = new Schema({
     performedByRole: {
         type: String,
         required: true,
+        trim: true,
     },
     source: {
         type: String,
@@ -67,7 +69,9 @@ const familyTreeActivitySchema = new Schema({
         trim: true,
     },
     changes: {
-        type: [familyTreeChangeSchema],
+        type: [
+            familyTreeChangeSchema,
+        ],
         default: [],
     },
     reason: {
@@ -83,6 +87,27 @@ const familyTreeActivitySchema = new Schema({
         createdAt: true,
         updatedAt: false,
     },
+});
+familyTreeActivitySchema.pre("validate", function () {
+    if (this.source ===
+        "COORDINATOR_BOOKING" &&
+        !this.bookingId) {
+        throw new Error("bookingId is required for coordinator booking activity");
+    }
+    if (this.source !==
+        "COORDINATOR_BOOKING" &&
+        this.bookingId) {
+        throw new Error("bookingId can only be provided for coordinator booking activity");
+    }
+    if ((this.action ===
+        "MEMBER_UPDATED" ||
+        this.action ===
+            "RELATIONSHIP_LINKED" ||
+        this.action ===
+            "RELATIONSHIP_UNLINKED") &&
+        this.changes.length === 0) {
+        throw new Error("Changes are required for update and relationship activities");
+    }
 });
 familyTreeActivitySchema.index({
     ownerId: 1,

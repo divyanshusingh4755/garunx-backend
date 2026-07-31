@@ -1,4 +1,4 @@
-import { Types, Document, Model } from "mongoose";
+import { Types, type Document, type Model } from "mongoose";
 export type ReviewDirection = "CUSTOMER_TO_COORDINATOR" | "COORDINATOR_TO_CUSTOMER";
 export type ReviewVisibility = "PUBLISHED" | "HIDDEN" | "UNPUBLISHED";
 export type ReviewModerationStatus = "CLEAN" | "FLAGGED";
@@ -8,8 +8,8 @@ export interface IReview extends Document {
     revieweeId: Types.ObjectId;
     direction: ReviewDirection;
     rating: number;
-    review?: string;
-    imageUrl?: string | null;
+    review: string | null;
+    imageUrl: string | null;
     editedAt?: Date;
     editCount: number;
     visibility: ReviewVisibility;

@@ -1,34 +1,42 @@
-import { Schema, Types, model, Document } from "mongoose";
-import { Role } from "../types/rbac.js";
-import { Counter } from "./counter.model.js";
-import { ApprovalStatus, AvailabilityStatus, Caste, Gender, Gotra, VerificationStatus } from "../types/enums.js";
+import { Schema, Types, model, } from "mongoose";
+import { Role, } from "../types/rbac.js";
+import { Counter, } from "./counter.model.js";
+import { ApprovalStatus, AvailabilityStatus, Caste, Gender, Gotra, VerificationStatus, } from "../types/enums.js";
 const ratingSummarySchema = new Schema({
     averageRating: {
         type: Number,
         default: 0,
         min: 0,
         max: 5,
+        required: true,
     },
     totalRatings: {
         type: Number,
         default: 0,
         min: 0,
+        required: true,
     },
     ratingSum: {
         type: Number,
         default: 0,
         min: 0,
+        required: true,
     },
 }, {
     _id: false,
 });
 const documentVerificationSchema = new Schema({
-    aadharCard: String,
-    panCard: String,
+    aadharCard: {
+        type: String,
+    },
+    panCard: {
+        type: String,
+    },
     status: {
         type: String,
         enum: Object.values(VerificationStatus),
         default: VerificationStatus.PENDING,
+        required: true,
     },
     rejectionReason: {
         type: String,
@@ -38,15 +46,26 @@ const documentVerificationSchema = new Schema({
     _id: false,
 });
 const bankVerificationSchema = new Schema({
-    bankPassbook: String,
-    accountNumber: String,
-    accountName: String,
-    bankName: String,
-    ifscCode: String,
+    bankPassbook: {
+        type: String,
+    },
+    accountNumber: {
+        type: String,
+    },
+    accountName: {
+        type: String,
+    },
+    bankName: {
+        type: String,
+    },
+    ifscCode: {
+        type: String,
+    },
     status: {
         type: String,
         enum: Object.values(VerificationStatus),
         default: VerificationStatus.PENDING,
+        required: true,
     },
     rejectionReason: {
         type: String,
@@ -61,18 +80,24 @@ const serviceableLocationSchema = new Schema({
         ref: "Location",
         required: true,
     },
-    caste: [
-        {
-            type: String,
-            enum: Object.values(Caste),
-        },
-    ],
-    gotra: [
-        {
-            type: String,
-            enum: Object.values(Gotra),
-        },
-    ],
+    caste: {
+        type: [
+            {
+                type: String,
+                enum: Object.values(Caste),
+            },
+        ],
+        default: [],
+    },
+    gotra: {
+        type: [
+            {
+                type: String,
+                enum: Object.values(Gotra),
+            },
+        ],
+        default: [],
+    },
 }, {
     _id: false,
 });
@@ -81,38 +106,51 @@ const coordinatorProfileSchema = new Schema({
         type: Number,
         default: 0,
         min: 0,
+        max: 5,
+        required: true,
     },
     totalRatings: {
         type: Number,
         default: 0,
         min: 0,
+        required: true,
     },
     ratingSum: {
         type: Number,
         default: 0,
         min: 0,
+        required: true,
     },
     totalCompletedBookings: {
         type: Number,
         default: 0,
+        min: 0,
+        required: true,
     },
     totalAssignedBookings: {
         type: Number,
         default: 0,
+        min: 0,
+        required: true,
     },
     acceptanceRate: {
         type: Number,
         default: 0,
+        min: 0,
+        max: 100,
+        required: true,
     },
     approvalStatus: {
         type: String,
         enum: Object.values(ApprovalStatus),
         default: ApprovalStatus.PENDING,
+        required: true,
     },
     availabilityStatus: {
         type: String,
         enum: Object.values(AvailabilityStatus),
         default: AvailabilityStatus.AVAILABLE,
+        required: true,
     },
     approvalRejectionReason: {
         type: String,
@@ -123,51 +161,131 @@ const coordinatorProfileSchema = new Schema({
         type: Number,
         default: 5,
         min: 1,
+        required: true,
     },
     autoAssignmentEnabled: {
         type: Boolean,
         default: true,
+        required: true,
     },
-    lastAvailabilityChangedAt: Date,
+    lastAvailabilityChangedAt: {
+        type: Date,
+    },
     serviceableLocations: {
-        type: [serviceableLocationSchema],
+        type: [
+            serviceableLocationSchema,
+        ],
         default: [],
+        validate: {
+            validator: (locations) => {
+                const ids = locations.map((location) => location.locationId
+                    .toString());
+                return (new Set(ids).size ===
+                    ids.length);
+            },
+            message: "Duplicate serviceable locations are not allowed",
+        },
     },
 }, {
     _id: false,
 });
 const userSchema = new Schema({
-    phoneNumber: { type: String, trim: true },
-    email: { type: String, lowercase: true, trim: true },
-    password: { type: String },
+    phoneNumber: {
+        type: String,
+        trim: true,
+    },
+    email: {
+        type: String,
+        lowercase: true,
+        trim: true,
+    },
+    password: {
+        type: String,
+    },
     role: {
         type: String,
         enum: Object.values(Role),
         required: true,
         default: Role.USER,
     },
-    otp: { type: String, default: null },
-    otpExpiresAt: { type: Date, default: null },
-    isOtpVerified: { type: Boolean, default: false },
-    isActive: { type: Boolean, default: true },
-    fullName: { type: String, trim: true },
-    dob: { type: Date },
-    gender: { type: String, enum: Object.values(Gender) },
-    profileImage: { type: String, default: null },
-    isComplete: { type: Boolean, default: false },
-    isResetVerified: { type: Boolean, default: false },
-    referralCode: { type: String },
-    referredBy: { type: Schema.Types.ObjectId, ref: "User", default: null },
-    resetPasswordToken: { type: String, default: null },
-    resetPasswordExpires: { type: Date, default: null },
-    savedLocations: [{ type: String }],
+    otp: {
+        type: String,
+        default: null,
+    },
+    otpExpiresAt: {
+        type: Date,
+        default: null,
+    },
+    isOtpVerified: {
+        type: Boolean,
+        default: false,
+        required: true,
+    },
+    isActive: {
+        type: Boolean,
+        default: true,
+        required: true,
+    },
+    fullName: {
+        type: String,
+        trim: true,
+    },
+    dob: {
+        type: Date,
+    },
+    gender: {
+        type: String,
+        enum: Object.values(Gender),
+    },
+    profileImage: {
+        type: String,
+        default: null,
+    },
+    isComplete: {
+        type: Boolean,
+        default: false,
+        required: true,
+    },
+    isResetVerified: {
+        type: Boolean,
+        default: false,
+        required: true,
+    },
+    referralCode: {
+        type: String,
+        trim: true,
+    },
+    referredBy: {
+        type: Schema.Types.ObjectId,
+        ref: "User",
+        default: null,
+    },
+    resetPasswordToken: {
+        type: String,
+        default: null,
+    },
+    resetPasswordExpires: {
+        type: Date,
+        default: null,
+    },
+    savedLocations: {
+        type: [
+            {
+                type: String,
+                trim: true,
+            },
+        ],
+        default: [],
+    },
     documentVerification: {
         type: documentVerificationSchema,
         default: {},
+        required: true,
     },
     bankDocumentVerification: {
         type: bankVerificationSchema,
         default: {},
+        required: true,
     },
     caste: {
         index: true,
@@ -179,10 +297,19 @@ const userSchema = new Schema({
         type: String,
         enum: Object.values(Gotra),
     },
-    isDocumentVerified: { type: Boolean, default: false },
-    isBankDocumentVerified: { type: Boolean, default: false },
+    isDocumentVerified: {
+        type: Boolean,
+        default: false,
+        required: true,
+    },
+    isBankDocumentVerified: {
+        type: Boolean,
+        default: false,
+        required: true,
+    },
     userReference: {
         type: String,
+        required: true,
         unique: true,
         index: true,
     },
@@ -194,40 +321,98 @@ const userSchema = new Schema({
         type: coordinatorProfileSchema,
         default: undefined,
     },
-}, { timestamps: true });
+}, {
+    timestamps: true,
+});
+userSchema.pre("validate", function () {
+    if (!this.phoneNumber &&
+        !this.email) {
+        throw new Error("Either phoneNumber or email is required");
+    }
+    if (this.resetPasswordToken &&
+        !this.resetPasswordExpires) {
+        throw new Error("resetPasswordExpires is required when resetPasswordToken is set");
+    }
+    if (!this.resetPasswordToken &&
+        this.resetPasswordExpires) {
+        throw new Error("resetPasswordToken is required when resetPasswordExpires is set");
+    }
+    if (this.role !==
+        Role.COORDINATOR &&
+        this.coordinatorProfile) {
+        throw new Error("coordinatorProfile can only be set for coordinator users");
+    }
+});
 userSchema.pre("save", async function () {
-    if (!this.isNew)
+    if (!this.isNew ||
+        this.userReference) {
         return;
-    try {
-        const counter = await Counter.findOneAndUpdate({ id: "userId" }, { $inc: { seq: 1 } }, { new: true, upsert: true });
-        if (counter) {
-            const seqString = counter.seq.toString().padStart(4, "0");
-            this.userReference = `GX-${seqString}`;
-        }
     }
-    catch (error) {
-        throw error;
+    const counter = await Counter
+        .findOneAndUpdate({
+        id: "userId",
+    }, {
+        $inc: {
+            seq: 1,
+        },
+    }, {
+        new: true,
+        upsert: true,
+        setDefaultsOnInsert: true,
+    })
+        .lean();
+    if (!counter) {
+        throw new Error("Unable to generate user reference");
     }
+    const seqString = counter.seq
+        .toString()
+        .padStart(4, "0");
+    this.userReference =
+        `GX-${seqString}`;
 });
-// Allow same phone/email across DIFFERENT roles
-userSchema.index({ email: 1, role: 1 }, {
+userSchema.index({
+    email: 1,
+    role: 1,
+}, {
     unique: true,
-    partialFilterExpression: { email: { $type: "string" } },
+    partialFilterExpression: {
+        email: {
+            $type: "string",
+        },
+    },
 });
-userSchema.index({ phoneNumber: 1, role: 1 }, {
+userSchema.index({
+    phoneNumber: 1,
+    role: 1,
+}, {
     unique: true,
-    partialFilterExpression: { phoneNumber: { $type: "string" } },
+    partialFilterExpression: {
+        phoneNumber: {
+            $type: "string",
+        },
+    },
 });
-userSchema.index({ referralCode: 1 }, { unique: true, sparse: true });
-// Cleanup unverified users after 24 hours
-userSchema.index({ createdAt: 1 }, {
+userSchema.index({
+    referralCode: 1,
+}, {
+    unique: true,
+    sparse: true,
+});
+userSchema.index({
+    createdAt: 1,
+}, {
     expireAfterSeconds: 86400,
-    partialFilterExpression: { isOtpVerified: false },
+    partialFilterExpression: {
+        isOtpVerified: false,
+    },
 });
-userSchema.index({ fullName: 1 });
-userSchema.index({ email: 1 });
-userSchema.index({ phoneNumber: 1 });
-userSchema.index({ role: 1, createdAt: -1 });
+userSchema.index({
+    fullName: 1,
+});
+userSchema.index({
+    role: 1,
+    createdAt: -1,
+});
 userSchema.index({
     role: 1,
     isActive: 1,
@@ -242,7 +427,7 @@ userSchema.index({
 });
 userSchema.index({
     role: 1,
-    "coordinatorProfile.serviceableLocations.locationId": 1
+    "coordinatorProfile.serviceableLocations.locationId": 1,
 });
 userSchema.index({
     fullName: "text",

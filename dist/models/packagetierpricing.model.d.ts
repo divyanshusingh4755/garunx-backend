@@ -6,10 +6,10 @@ export interface IPackageTierPricing extends Document {
     locationId: Types.ObjectId;
     serviceId: Types.ObjectId;
     basePrice: number;
-    fixedPrice?: number;
-    discountPercent?: number;
+    fixedPrice?: number | null;
+    discountPercent?: number | null;
     finalPrice: number;
-    taxProfileId?: Types.ObjectId;
+    taxProfileId: Types.ObjectId;
     taxPriceMode: TaxPriceMode;
 }
 export declare const PackageTierPricing: import("mongoose").Model<IPackageTierPricing, {}, {}, {}, Document<unknown, {}, IPackageTierPricing, {}, import("mongoose").DefaultSchemaOptions> & IPackageTierPricing & Required<{

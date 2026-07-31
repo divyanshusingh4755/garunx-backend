@@ -1,4 +1,4 @@
-import mongoose from "mongoose";
+import mongoose, { Types } from "mongoose";
 import { PackageTierMap } from "../models/packagetiermap.model.js";
 import { PackageTierPricing } from "../models/packagetierpricing.model.js";
 import { ServiceComponent } from "../models/servicecomponent.model.js";
@@ -9,32 +9,80 @@ import { escapeRegex } from "../utils/escapeRegex.js";
 export class TierService {
   static async createTier(tierData: ITier) {
     const existingTier = await Tier.findOne({
-      name: tierData.name,
+      $or: [
+        { name: tierData.name },
+        ...(tierData.tierReference
+          ? [{ tierReference: tierData.tierReference }]
+          : []),
+      ],
     });
 
     if (existingTier) {
-      throw new Error(`Tier with name '${tierData.name}' already exists`);
+      if (existingTier.name === tierData.name) {
+        throw new Error(
+          `Tier with name '${tierData.name}' already exists`,
+        );
+      }
+
+      throw new Error(
+        `Tier with reference '${tierData.tierReference}' already exists`,
+      );
     }
 
     const tier = new Tier(tierData);
-    return await tier.save();
+
+    return tier.save();
   }
 
-  static async updateTier(id: string, tierData: Partial<ITier>) {
+  static async updateTier(
+    id: string,
+    tierData: Partial<ITier>,
+  ) {
+    if (!Types.ObjectId.isValid(id)) {
+      throw new Error("Invalid tier id");
+    }
+
+    const duplicateConditions: Record<string, any>[] = [];
+
     if (tierData.name) {
-      const existing = await Tier.findOne({
-        name: tierData.name,
-        _id: { $ne: id },
+      duplicateConditions.push({ name: tierData.name });
+    }
+
+    if (tierData.tierReference) {
+      duplicateConditions.push({
+        tierReference: tierData.tierReference,
       });
+    }
+
+    if (duplicateConditions.length > 0) {
+      const existing = await Tier.findOne({
+        _id: { $ne: id },
+        $or: duplicateConditions,
+      });
+
       if (existing) {
-        throw new Error(`Tier with value '${tierData.name}' already exists`);
+        if (
+          tierData.name &&
+          existing.name === tierData.name
+        ) {
+          throw new Error(
+            `Tier with name '${tierData.name}' already exists`,
+          );
+        }
+
+        throw new Error(
+          `Tier with reference '${tierData.tierReference}' already exists`,
+        );
       }
     }
 
     const tier = await Tier.findByIdAndUpdate(
       id,
       { $set: tierData },
-      { new: true, runValidators: true },
+      {
+        new: true,
+        runValidators: true,
+      },
     );
 
     if (!tier) {
@@ -45,7 +93,12 @@ export class TierService {
   }
 
   static async getTierById(id: string) {
-    const tier = await Tier.findById(id);
+    if (!Types.ObjectId.isValid(id)) {
+      throw new Error("Invalid tier id");
+    }
+
+    const tier = await Tier.findById(id).lean();
+
     if (!tier) {
       throw new Error("Tier not found");
     }
@@ -54,50 +107,53 @@ export class TierService {
   }
 
   static async getDeactivationImpact(tierId: string) {
-    const [serviceComponents, servicePricing, packageMappings, packagePricing] =
-      await Promise.all([
-        ServiceComponent.find(
-          { tierId },
-          {
-            _id: 1,
-            serviceId: 1,
-            componentId: 1,
-          },
-        ).lean(),
+    const [
+      serviceComponents,
+      servicePricing,
+      packageMappings,
+      packagePricing,
+    ] = await Promise.all([
+      ServiceComponent.find(
+        { tierId },
+        {
+          _id: 1,
+          serviceId: 1,
+          componentId: 1,
+        },
+      ).lean(),
 
-        ServicePricing.find(
-          { tierId },
-          {
-            _id: 1,
-            serviceId: 1,
-            componentId: 1,
-          },
-        ).lean(),
+      ServicePricing.find(
+        { tierId },
+        {
+          _id: 1,
+          serviceId: 1,
+          componentId: 1,
+        },
+      ).lean(),
 
-        PackageTierMap.find(
-          { tierId },
-          {
-            _id: 1,
-            packageId: 1,
-          },
-        ).lean(),
+      PackageTierMap.find(
+        { tierId },
+        {
+          _id: 1,
+          packageId: 1,
+        },
+      ).lean(),
 
-        PackageTierPricing.find(
-          { tierId },
-          {
-            _id: 1,
-            packageId: 1,
-            serviceId: 1,
-          },
-        ).lean(),
-      ]);
+      PackageTierPricing.find(
+        { tierId },
+        {
+          _id: 1,
+          packageId: 1,
+          serviceId: 1,
+        },
+      ).lean(),
+    ]);
 
     return {
       serviceComponentCount: serviceComponents.length,
       servicePricingCount: servicePricing.length,
       packageMappingCount: packageMappings.length,
       packagePricingCount: packagePricing.length,
-
       serviceComponents,
       servicePricing,
       packageMappings,
@@ -110,6 +166,14 @@ export class TierService {
     isActive: boolean,
     confirmed = false,
   ) {
+    if (!Types.ObjectId.isValid(id)) {
+      throw new Error("Invalid tier id");
+    }
+
+    if (typeof isActive !== "boolean") {
+      throw new Error("isActive must be boolean");
+    }
+
     const tier = await Tier.findById(id);
 
     if (!tier) {
@@ -119,104 +183,151 @@ export class TierService {
     if (tier.isActive === isActive) {
       return {
         success: true,
-        message: `Tier already ${isActive ? "active" : "inactive"}`,
+        requiresConfirmation: false as const,
+        isActive: tier.isActive,
+        message: `Tier already ${
+          isActive ? "active" : "inactive"
+        }`,
       };
     }
 
-    // Confirmation only when deactivating
     if (!isActive && !confirmed) {
-      const impact = await TierService.getDeactivationImpact(id);
+      const impact = await this.getDeactivationImpact(id);
 
-      return {
-        requiresConfirmation: true,
-        message: "Tier is used in services and packages. Are you sure?",
-        impact,
-      };
+      const hasImpact =
+        impact.serviceComponentCount > 0 ||
+        impact.servicePricingCount > 0 ||
+        impact.packageMappingCount > 0 ||
+        impact.packagePricingCount > 0;
+
+      if (hasImpact) {
+        return {
+          success: true,
+          requiresConfirmation: true as const,
+          message:
+            "Tier is used in services and packages. Are you sure?",
+          impact,
+        };
+      }
     }
 
     const session = await mongoose.startSession();
 
     try {
       await session.withTransaction(async () => {
-        // Always update tier status
-        await Tier.findByIdAndUpdate(
+        const updatedTier = await Tier.findByIdAndUpdate(
           id,
           { isActive },
-          { session },
+          {
+            session,
+            new: true,
+            runValidators: true,
+          },
         );
 
-        // Only remove mappings when deactivating
+        if (!updatedTier) {
+          throw new Error("Tier not found");
+        }
+
         if (!isActive) {
-          await ServiceComponent.deleteMany(
-            { tierId: id },
-            { session },
-          );
+          await Promise.all([
+            ServiceComponent.deleteMany(
+              { tierId: id },
+              { session },
+            ),
 
-          await ServicePricing.deleteMany(
-            { tierId: id },
-            { session },
-          );
+            ServicePricing.deleteMany(
+              { tierId: id },
+              { session },
+            ),
 
-          await PackageTierMap.deleteMany(
-            { tierId: id },
-            { session },
-          );
+            PackageTierMap.deleteMany(
+              { tierId: id },
+              { session },
+            ),
 
-          await PackageTierPricing.deleteMany(
-            { tierId: id },
-            { session },
-          );
+            PackageTierPricing.deleteMany(
+              { tierId: id },
+              { session },
+            ),
+          ]);
         }
       });
 
       return {
         success: true,
-        message: `Tier ${isActive ? "activated" : "deactivated"} successfully`,
+        requiresConfirmation: false as const,
+        isActive,
+        message: `Tier ${
+          isActive ? "activated" : "deactivated"
+        } successfully`,
       };
-    } catch (err) {
-      throw err;
     } finally {
       await session.endSession();
     }
   }
 
-  static async FindTiers(
+  static async findTiers(
     limit: number = 40,
     page: number = 1,
-    sortBy: string,
+    sortBy: string = "createdAt",
     sortOrder: "asc" | "desc" = "asc",
     searchTerm?: string,
     isActive?: boolean,
   ) {
-    const skip = limit * (page - 1);
-    const query: any = {};
+    const safeLimit =
+      Number.isInteger(limit) && limit > 0
+        ? Math.min(limit, 100)
+        : 40;
 
-    if (typeof isActive == "boolean") {
+    const safePage =
+      Number.isInteger(page) && page > 0 ? page : 1;
+
+    const skip = safeLimit * (safePage - 1);
+    const query: Record<string, any> = {};
+
+    if (typeof isActive === "boolean") {
       query.isActive = isActive;
     }
 
+    const trimmedSearchTerm = searchTerm?.trim();
     const isTextSearch =
-      !!searchTerm?.trim() && searchTerm.trim().length > 4;
+      Boolean(trimmedSearchTerm) &&
+      trimmedSearchTerm!.length > 4;
 
-    if (searchTerm?.trim()) {
-      const term = searchTerm.trim();
-
+    if (trimmedSearchTerm) {
       if (isTextSearch) {
         query.$text = {
-          $search: term,
+          $search: trimmedSearchTerm,
         };
       } else {
         query.name = {
-          $regex: `^${escapeRegex(term)}`,
+          $regex: `^${escapeRegex(trimmedSearchTerm)}`,
           $options: "i",
         };
       }
     }
 
-    let sortCriteria: any = {};
-    let projection: any = {};
+    const allowedSortFields = new Set([
+      "name",
+      "tierReference",
+      "isActive",
+      "createdAt",
+      "updatedAt",
+      "relevance",
+    ]);
 
-    if (isTextSearch && sortBy === "relevance") {
+    const safeSortBy = allowedSortFields.has(sortBy)
+      ? sortBy
+      : "createdAt";
+
+    let sortCriteria: Record<string, any> = {};
+    let projection: Record<string, any> = {};
+
+    if (
+      isTextSearch &&
+      safeSortBy === "relevance"
+    ) {
       projection = {
         score: {
           $meta: "textScore",
@@ -229,9 +340,15 @@ export class TierService {
         },
       };
     } else {
-      sortCriteria[sortBy] = sortOrder === "desc" ? -1 : 1;
+      const field =
+        safeSortBy === "relevance"
+          ? "createdAt"
+          : safeSortBy;
 
-      if (sortBy !== "createdAt") {
+      sortCriteria[field] =
+        sortOrder === "desc" ? -1 : 1;
+
+      if (field !== "createdAt") {
         sortCriteria.createdAt = -1;
       }
     }
@@ -241,14 +358,22 @@ export class TierService {
         Tier.find(query, projection)
           .sort(sortCriteria)
           .skip(skip)
-          .limit(limit)
+          .limit(safeLimit)
           .lean(),
+
         Tier.countDocuments(query),
       ]);
 
-      return { data, total, page, totalPages: Math.ceil(total / limit) };
+      return {
+        data,
+        total,
+        page: safePage,
+        totalPages: Math.ceil(total / safeLimit),
+      };
     } catch (error: any) {
-      throw new Error(`Tier Fetch Failed: ${error.message}`);
+      throw new Error(
+        `Tier fetch failed: ${error.message}`,
+      );
     }
   }
 }

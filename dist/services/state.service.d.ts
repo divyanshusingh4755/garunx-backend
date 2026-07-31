@@ -1,40 +1,55 @@
-import { type IState } from "../models/state.model.js";
+import { type IState, type IGeoPoint } from "../models/state.model.js";
+type StateUpdate = Partial<Pick<IState, "country" | "name" | "gstCode" | "image" | "description" | "isActive" | "location">>;
 export declare class StateService {
     private static applyFilter;
-    static createState(name: string, country: string, gstCode: string, image?: string, description?: string, location?: {
-        type: "Point";
-        coordinates: [number, number];
-    }): Promise<import("mongoose").Document<unknown, {}, IState, {}, import("mongoose").DefaultSchemaOptions> & IState & Required<{
+    static createState(params: {
+        name: string;
+        country: string;
+        gstCode: string;
+        image?: string;
+        description?: string;
+        location?: IGeoPoint;
+    }): Promise<import("mongoose").Document<unknown, {}, IState, {}, import("mongoose").DefaultSchemaOptions> & IState & {
         _id: import("mongoose").Types.ObjectId;
-    }> & {
+    } & {
         __v: number;
     } & {
         id: string;
     }>;
-    static FindState(searchTerm?: string, countryFilter?: string, stateFilter?: string, limit?: number, page?: number, isActive?: boolean, sortBy?: string, sortOrder?: "asc" | "desc"): Promise<{
-        data: (IState & Required<{
+    static findState(params: {
+        searchTerm?: string;
+        countryFilter?: string;
+        stateFilter?: string;
+        limit?: number;
+        page?: number;
+        isActive?: boolean;
+        sortBy?: string;
+        sortOrder?: "asc" | "desc";
+    }): Promise<{
+        data: (IState & {
             _id: import("mongoose").Types.ObjectId;
-        }> & {
+        } & {
             __v: number;
         })[];
         total: number;
         page: number;
         totalPages: number;
     }>;
-    static updateState(stateId: string, updateData: Partial<IState>): Promise<IState & Required<{
+    static updateState(stateId: string, updateData: StateUpdate): Promise<IState & {
         _id: import("mongoose").Types.ObjectId;
-    }> & {
+    } & {
         __v: number;
     }>;
-    static softDeleteState(stateId: string, status: boolean): Promise<IState & Required<{
+    static softDeleteState(stateId: string, status: boolean): Promise<IState & {
         _id: import("mongoose").Types.ObjectId;
-    }> & {
+    } & {
         __v: number;
     }>;
-    static getStateById(stateId: string): Promise<IState & Required<{
+    static getStateById(stateId: string): Promise<IState & {
         _id: import("mongoose").Types.ObjectId;
-    }> & {
+    } & {
         __v: number;
     }>;
 }
+export {};
 //# sourceMappingURL=state.service.d.ts.map

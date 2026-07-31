@@ -1,4 +1,4 @@
-import { model, Schema, Types, } from "mongoose";
+import { model, Schema, } from "mongoose";
 const servicePricingSchema = new Schema({
     serviceId: {
         type: Schema.Types.ObjectId,
@@ -37,9 +37,18 @@ const servicePricingSchema = new Schema({
     },
     taxPriceMode: {
         type: String,
-        enum: ["EXCLUSIVE", "INCLUSIVE"],
+        enum: [
+            "EXCLUSIVE",
+            "INCLUSIVE",
+        ],
         default: "EXCLUSIVE",
         required: true,
+    },
+    isActive: {
+        type: Boolean,
+        required: true,
+        default: true,
+        index: true,
     },
 }, {
     timestamps: true,
@@ -47,7 +56,8 @@ const servicePricingSchema = new Schema({
 servicePricingSchema.pre("validate", function () {
     if (!this.taxProfileId) {
         this.taxProfileId = null;
-        this.taxPriceMode = "EXCLUSIVE";
+        this.taxPriceMode =
+            "EXCLUSIVE";
     }
 });
 servicePricingSchema.index({
@@ -62,6 +72,7 @@ servicePricingSchema.index({
     serviceId: 1,
     tierId: 1,
     locationId: 1,
+    isActive: 1,
 });
 export const ServicePricing = model("ServicePricing", servicePricingSchema);
 //# sourceMappingURL=servicepricing.model.js.map

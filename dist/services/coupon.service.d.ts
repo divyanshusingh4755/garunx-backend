@@ -1,41 +1,46 @@
+import { Types } from "mongoose";
 import { type ICoupon } from "../models/coupon.model.js";
+type CouponUpdateData = Partial<Pick<ICoupon, "name" | "couponCode" | "applicableOn" | "services" | "packages" | "assignedUserId" | "discount" | "discountType" | "usageLimit" | "validFrom" | "validTill" | "minOrderAmount" | "maxDiscountAmount" | "isFirstOrderOnly" | "isActive">>;
 interface ValidateCouponInput {
     couponCode: string;
-    serviceId?: string | undefined;
-    packageId?: string | undefined;
+    serviceId?: string;
+    packageId?: string;
     orderAmount: number;
     userId?: string;
     isFirstOrder?: boolean;
 }
 export declare class CouponService {
-    static createCoupon(couponData: Partial<ICoupon>): Promise<import("mongoose").Document<unknown, {}, ICoupon, {}, import("mongoose").DefaultSchemaOptions> & ICoupon & Required<{
-        _id: import("mongoose").Types.ObjectId;
+    private static ensureValidId;
+    static createCoupon(couponData: CouponUpdateData): Promise<import("mongoose").Document<unknown, {}, ICoupon, {}, import("mongoose").DefaultSchemaOptions> & ICoupon & Required<{
+        _id: Types.ObjectId;
     }> & {
         __v: number;
     } & {
         id: string;
     }>;
-    static updateCoupon(id: string, updateData: Partial<ICoupon>): Promise<(import("mongoose").Document<unknown, {}, ICoupon, {}, import("mongoose").DefaultSchemaOptions> & ICoupon & Required<{
-        _id: import("mongoose").Types.ObjectId;
+    static updateCoupon(id: string, updateData: CouponUpdateData): Promise<import("mongoose").Document<unknown, {}, ICoupon, {}, import("mongoose").DefaultSchemaOptions> & ICoupon & Required<{
+        _id: Types.ObjectId;
     }> & {
         __v: number;
     } & {
         id: string;
-    }) | null>;
-    static getCouponById(id: string): Promise<ICoupon & Required<{
-        _id: import("mongoose").Types.ObjectId;
-    }> & {
-        __v: number;
     }>;
-    static deleteCoupon(id: string): Promise<(import("mongoose").Document<unknown, {}, ICoupon, {}, import("mongoose").DefaultSchemaOptions> & ICoupon & Required<{
-        _id: import("mongoose").Types.ObjectId;
+    static getCouponById(id: string): Promise<import("mongoose").Document<unknown, {}, ICoupon, {}, import("mongoose").DefaultSchemaOptions> & ICoupon & Required<{
+        _id: Types.ObjectId;
     }> & {
         __v: number;
     } & {
         id: string;
-    }) | null>;
+    }>;
+    static deleteCoupon(id: string): Promise<import("mongoose").Document<unknown, {}, ICoupon, {}, import("mongoose").DefaultSchemaOptions> & ICoupon & Required<{
+        _id: Types.ObjectId;
+    }> & {
+        __v: number;
+    } & {
+        id: string;
+    }>;
     static toggleCouponStatus(id: string): Promise<import("mongoose").Document<unknown, {}, ICoupon, {}, import("mongoose").DefaultSchemaOptions> & ICoupon & Required<{
-        _id: import("mongoose").Types.ObjectId;
+        _id: Types.ObjectId;
     }> & {
         __v: number;
     } & {
@@ -43,19 +48,20 @@ export declare class CouponService {
     }>;
     static findCoupons(searchTerm?: string, limit?: number, page?: number, isActive?: boolean, assignedUserId?: string, applicableOn?: string | string[], sortBy?: string, sortOrder?: "asc" | "desc"): Promise<{
         data: (ICoupon & Required<{
-            _id: import("mongoose").Types.ObjectId;
+            _id: Types.ObjectId;
         }> & {
             __v: number;
         })[];
         total: number;
         page: number;
+        limit: number;
         totalPages: number;
     }>;
     static validateCoupon({ couponCode, serviceId, packageId, orderAmount, userId, isFirstOrder, }: ValidateCouponInput): Promise<{
-        couponId: import("mongoose").Types.ObjectId;
+        couponId: Types.ObjectId;
         couponCode: string;
-        applicableOn: "SERVICE" | "PACKAGE" | "ALL" | "REFERRAL";
-        discountType: "PERCENTAGE" | "FIXED";
+        applicableOn: import("../models/coupon.model.js").CouponApplicableOn;
+        discountType: import("../models/coupon.model.js").CouponDiscountType;
         discount: number;
         discountAmount: number;
         finalAmount: number;

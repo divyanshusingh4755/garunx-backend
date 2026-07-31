@@ -1,98 +1,171 @@
 import type { Request, Response } from "express";
 import { ComponentService } from "../services/component.service.js";
 
-export const createComponent = async (req: Request, res: Response) => {
-  try {
-    const component = await ComponentService.createComponent(req.body);
-
-    res.status(201).json({
-      success: true,
-      data: component,
-    });
-  } catch (error: any) {
-    res.status(400).json({
-      success: false,
-      message: error.message || "Failed to create component",
-    });
+const getStatusCode = (error: any): number => {
+  if (typeof error?.statusCode === "number") {
+    return error.statusCode;
   }
+
+  if (error?.name === "ValidationError") {
+    return 400;
+  }
+
+  if (error?.code === 11000) {
+    return 409;
+  }
+
+  return 500;
 };
 
-export const updateComponent = async (req: Request, res: Response) => {
+export const createComponent = async (
+  req: Request,
+  res: Response,
+) => {
   try {
-    const { componentId } = req.params;
-
-    const component = await ComponentService.updateComponent(
-      componentId as string,
-      req.body,
-    );
-
-    res.status(200).json({
-      success: true,
-      data: component,
-    });
-  } catch (error: any) {
-    res.status(400).json({
-      success: false,
-      message: error.message || "Failed to update component",
-    });
-  }
-};
-
-export const toggleComponentStatus = async (req: Request, res: Response) => {
-  try {
-    const { componentId } = req.params;
-    const { isActive, confirmed } = req.body;
-
-    const result = await ComponentService.toggleComponentStatus(
-      componentId as string,
+    const {
+      name,
+      categoryId,
+      description,
+      imageUrl,
+      isRemovable,
+      isBundled,
       isActive,
-      confirmed,
-    );
+    } = req.body;
 
-    if ((result as any)?.requiresConfirmation) {
+    const component =
+      await ComponentService.createComponent({
+        name,
+        categoryId,
+        description,
+
+        ...(imageUrl !== undefined && {
+          imageUrl,
+        }),
+
+        ...(isRemovable !== undefined && {
+          isRemovable,
+        }),
+
+        ...(isBundled !== undefined && {
+          isBundled,
+        }),
+
+        ...(isActive !== undefined && {
+          isActive,
+        }),
+      });
+
+    return res.status(201).json({
+      success: true,
+      data: component,
+    });
+  } catch (error: any) {
+    return res.status(getStatusCode(error)).json({
+      success: false,
+      message:
+        error.message || "Failed to create component",
+    });
+  }
+};
+
+export const updateComponent = async (
+  req: Request,
+  res: Response,
+) => {
+  try {
+    const component =
+      await ComponentService.updateComponent(
+        req.params.componentId as string,
+        req.body,
+      );
+
+    return res.status(200).json({
+      success: true,
+      data: component,
+    });
+  } catch (error: any) {
+    return res.status(getStatusCode(error)).json({
+      success: false,
+      message:
+        error.message || "Failed to update component",
+    });
+  }
+};
+
+export const toggleComponentStatus = async (
+  req: Request,
+  res: Response,
+) => {
+  try {
+    const {
+      isActive,
+      confirmed = false,
+    } = req.body;
+
+    const result =
+      await ComponentService.toggleComponentStatus(
+        req.params.componentId as string,
+        isActive,
+        confirmed,
+      );
+
+    if (result.requiresConfirmation) {
       return res.status(200).json({
         success: true,
         requiresConfirmation: true,
-        message: "This component is used in services and pricing records.",
+        message:
+          "This component is used in services and pricing records.",
         data: result,
       });
     }
 
-    return res.status(200).json(result);
+    return res.status(200).json({
+      success: true,
+      message: `Component ${isActive ? "activated" : "deactivated"
+        } successfully`,
+      data: result,
+    });
   } catch (error: any) {
-    res.status(400).json({
+    return res.status(getStatusCode(error)).json({
       success: false,
-      message: error.message || "Failed to update component status",
+      message:
+        error.message ||
+        "Failed to update component status",
     });
   }
 };
 
-export const getComponentById = async (req: Request, res: Response) => {
+export const getComponentById = async (
+  req: Request,
+  res: Response,
+) => {
   try {
-    const { componentId } = req.params;
+    const component =
+      await ComponentService.getComponentById(
+        req.params.componentId as string,
+      );
 
-    const component = await ComponentService.getComponentById(
-      componentId as string,
-    );
-
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       data: component,
     });
   } catch (error: any) {
-    res.status(404).json({
+    return res.status(getStatusCode(error)).json({
       success: false,
-      message: error.message || "Component not found",
+      message:
+        error.message || "Component not found",
     });
   }
 };
 
-export const getAllComponents = async (req: Request, res: Response) => {
+export const getAllComponents = async (
+  req: Request,
+  res: Response,
+) => {
   try {
     const {
       searchTerm,
       categoryId,
-      tier,
       limit,
       page,
       isRemovable,
@@ -102,37 +175,74 @@ export const getAllComponents = async (req: Request, res: Response) => {
       sortOrder,
     } = req.query;
 
-    const parseBool = (val: any) =>
-      val === "true" ? true : val === "false" ? false : undefined;
+    const parseBoolean = (
+      value: unknown,
+    ): boolean | undefined => {
+      if (value === "true") return true;
+      if (value === "false") return false;
 
-    const {
-      data,
-      total,
-      page: CurrentPage,
-      totalPages,
-    } = await ComponentService.FindComponents(
-      searchTerm as string,
-      categoryId as string,
-      Number(limit) || 20,
-      Number(page) || 1,
-      parseBool(isRemovable),
-      parseBool(isActive),
-      parseBool(isBundled),
-      (sortBy as string) || "name",
-      (sortOrder as "asc" | "desc") || "asc",
-    );
+      return undefined;
+    };
 
-    res.status(200).json({
+    const removableStatus =
+      parseBoolean(isRemovable);
+
+    const activeStatus =
+      parseBoolean(isActive);
+
+    const bundledStatus =
+      parseBoolean(isBundled);
+
+    const result =
+      await ComponentService.findComponents({
+        limit: limit ? Number(limit) : 20,
+        page: page ? Number(page) : 1,
+
+        sortBy:
+          typeof sortBy === "string"
+            ? sortBy
+            : "name",
+
+        sortOrder:
+          sortOrder === "asc" ||
+            sortOrder === "desc"
+            ? sortOrder
+            : "asc",
+
+        ...(typeof searchTerm === "string" && {
+          searchTerm,
+        }),
+
+        ...(typeof categoryId === "string" && {
+          categoryId,
+        }),
+
+        ...(removableStatus !== undefined && {
+          isRemovable: removableStatus,
+        }),
+
+        ...(activeStatus !== undefined && {
+          isActive: activeStatus,
+        }),
+
+        ...(bundledStatus !== undefined && {
+          isBundled: bundledStatus,
+        }),
+      });
+
+    return res.status(200).json({
       success: true,
-      data,
-      total,
-      CurrentPage,
-      totalPages,
+      data: result.data,
+      total: result.total,
+      currentPage: result.page,
+      totalPages: result.totalPages,
     });
   } catch (error: any) {
-    res.status(400).json({
+    return res.status(getStatusCode(error)).json({
       success: false,
-      message: error.message || "Failed to fetch products",
+      message:
+        error.message ||
+        "Failed to fetch components",
     });
   }
 };

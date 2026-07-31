@@ -1,4 +1,4 @@
-import { Document, Model, Types } from "mongoose";
+import { type Document, type Model, Types } from "mongoose";
 import type { ILineTax, ITaxSummary } from "../types/tax.types.js";
 export type CartStatus = "ACTIVE" | "SCHEDULED" | "CHECKOUT_PENDING" | "CHECKED_OUT" | "EXPIRED" | "CANCELLED" | "DELETED";
 export type BookingFor = "MYSELF" | "OTHER";
@@ -27,13 +27,7 @@ export interface ISelectedService {
     price: number;
     tax?: ILineTax;
 }
-export interface IAddonService {
-    serviceId: Types.ObjectId;
-    name: string;
-    priceBeforeDiscount: number;
-    discountAmount: number;
-    price: number;
-    tax?: ILineTax;
+export interface IAddonService extends ISelectedService {
 }
 export interface ICart extends Document {
     _id: Types.ObjectId;
@@ -41,8 +35,8 @@ export interface ICart extends Document {
     guestId?: string;
     serviceId?: Types.ObjectId;
     packageId?: Types.ObjectId;
-    couponId?: Types.ObjectId | undefined;
-    couponCode?: string | undefined;
+    couponId?: Types.ObjectId;
+    couponCode?: string;
     name: string;
     thumbnailImage?: string;
     categoryId: Types.ObjectId;
@@ -59,10 +53,10 @@ export interface ICart extends Document {
         caste?: string;
         gotra?: string;
     };
-    selectedComponents?: ISelectedComponent[];
-    addonComponents?: ISelectedComponent[];
-    selectedServices?: ISelectedService[];
-    addonServices?: IAddonService[];
+    selectedComponents: ISelectedComponent[];
+    addonComponents: ISelectedComponent[];
+    selectedServices: ISelectedService[];
+    addonServices: IAddonService[];
     scheduledDate?: Date;
     scheduledTime?: string;
     notes?: string;

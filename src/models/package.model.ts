@@ -14,15 +14,16 @@ export interface IPackageTier {
 export interface IPackage extends Document {
   name: string;
   shortDescription: string;
-  fullDescription?: string;
+  fullDescription: string;
   categoryId: Types.ObjectId;
-  thumbnailImage?: string;
+  thumbnailImage: string;
   bannerImage?: string;
   isActive: boolean;
   packageReference: string;
   locations: IPackageLocation[];
   tiers: IPackageTier[];
   isComplete: boolean;
+  startingPrice: number;
 }
 
 const packageLocationSchema = new Schema<IPackageLocation>(
@@ -120,6 +121,12 @@ const packageSchema = new Schema<IPackage>(
       type: Boolean,
       default: false,
       index: true,
+    },
+
+    startingPrice: {
+      type: Number,
+      default: 0,
+      min: 0,
     },
   },
   {

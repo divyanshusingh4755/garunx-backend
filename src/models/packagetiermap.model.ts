@@ -18,12 +18,14 @@ const packageTierServiceSchema = new Schema<IPackageTierService>(
     name: {
       type: String,
       required: true,
+      trim: true,
     },
 
     isRequired: {
       type: Boolean,
       default: false,
     },
+
     isRelated: {
       type: Boolean,
       default: false,
@@ -35,12 +37,7 @@ const packageTierServiceSchema = new Schema<IPackageTierService>(
 export interface IPackageTierMap extends Document {
   packageId: Types.ObjectId;
   tierId: Types.ObjectId;
-  services: {
-    serviceId: Types.ObjectId;
-    name: string;
-    isRequired: boolean;
-    isRelated: boolean;
-  }[];
+  services: IPackageTierService[];
 }
 
 const packageTierMapSchema = new Schema<IPackageTierMap>(
@@ -59,7 +56,10 @@ const packageTierMapSchema = new Schema<IPackageTierMap>(
       index: true,
     },
 
-    services: [packageTierServiceSchema],
+    services: {
+      type: [packageTierServiceSchema],
+      default: [],
+    },
   },
   {
     timestamps: true,

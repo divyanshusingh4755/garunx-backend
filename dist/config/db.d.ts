@@ -1,2 +1,2 @@
-export declare const ConnectDB: () => Promise<void>;
+export declare const connectDB: () => Promise<void>;
 //# sourceMappingURL=db.d.ts.map

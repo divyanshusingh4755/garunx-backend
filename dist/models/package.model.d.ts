@@ -11,15 +11,16 @@ export interface IPackageTier {
 export interface IPackage extends Document {
     name: string;
     shortDescription: string;
-    fullDescription?: string;
+    fullDescription: string;
     categoryId: Types.ObjectId;
-    thumbnailImage?: string;
+    thumbnailImage: string;
     bannerImage?: string;
     isActive: boolean;
     packageReference: string;
     locations: IPackageLocation[];
     tiers: IPackageTier[];
     isComplete: boolean;
+    startingPrice: number;
 }
 export declare const Package: import("mongoose").Model<IPackage, {}, {}, {}, Document<unknown, {}, IPackage, {}, import("mongoose").DefaultSchemaOptions> & IPackage & Required<{
     _id: Types.ObjectId;

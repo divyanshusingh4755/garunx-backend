@@ -1,9 +1,11 @@
-import { Document, model, Schema, Types, } from "mongoose";
+import { model, Schema, Types, } from "mongoose";
+import { TaxTreatment } from "../types/tax.types.js";
 const taxProfileSchema = new Schema({
     name: {
         type: String,
         required: true,
         trim: true,
+        minlength: 2,
         maxlength: 100,
     },
     code: {
@@ -12,17 +14,15 @@ const taxProfileSchema = new Schema({
         trim: true,
         uppercase: true,
         unique: true,
+        minlength: 2,
         maxlength: 50,
+        match: /^[A-Z0-9_]+$/,
     },
     treatment: {
         type: String,
-        enum: [
-            "TAXABLE",
-            "EXEMPT",
-            "NIL_RATED",
-            "NON_GST",
-        ],
+        enum: Object.values(TaxTreatment),
         required: true,
+        index: true,
     },
     totalRate: {
         type: Number,
@@ -38,6 +38,7 @@ const taxProfileSchema = new Schema({
     isActive: {
         type: Boolean,
         default: true,
+        required: true,
         index: true,
     },
     createdBy: {
@@ -56,11 +57,10 @@ taxProfileSchema.pre("validate", function () {
         this.totalRate <= 0) {
         throw new Error("Taxable tax profile must have a rate greater than zero");
     }
-});
-taxProfileSchema.index({
-    isActive: 1,
-    effectiveFrom: 1,
-    effectiveTo: 1,
+    if (this.treatment !== "TAXABLE" &&
+        this.totalRate !== 0) {
+        throw new Error("Non-taxable tax profiles must have a rate equal to zero");
+    }
 });
 taxProfileSchema.index({
     treatment: 1,
@@ -69,7 +69,6 @@ taxProfileSchema.index({
 taxProfileSchema.index({
     name: "text",
     code: "text",
-    sacCode: "text",
 }, {
     name: "TaxProfileTextSearchIndex",
 });

@@ -1,4 +1,5 @@
-import { Document, Types } from "mongoose";
+import { type Document, Types } from "mongoose";
+export type ReferralRewardStatus = "PENDING" | "AWARDED" | "FAILED";
 export interface IReferralReward extends Document {
     referrerUserId: Types.ObjectId;
     referredUserId: Types.ObjectId;
@@ -7,7 +8,9 @@ export interface IReferralReward extends Document {
     referredCouponId?: Types.ObjectId;
     referrerRewardAmount: number;
     referredRewardAmount: number;
-    status: "PENDING" | "AWARDED" | "FAILED";
+    status: ReferralRewardStatus;
+    createdAt: Date;
+    updatedAt: Date;
 }
 export declare const ReferralReward: import("mongoose").Model<IReferralReward, {}, {}, {}, Document<unknown, {}, IReferralReward, {}, import("mongoose").DefaultSchemaOptions> & IReferralReward & Required<{
     _id: Types.ObjectId;

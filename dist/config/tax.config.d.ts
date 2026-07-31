@@ -1,7 +1,7 @@
 export declare const taxConfig: {
-    enabled: boolean;
-    supplierStateCode: string;
-    gstin: string | undefined;
-    currency: string;
+    readonly gstin?: string;
+    readonly enabled: boolean;
+    readonly supplierStateCode: string;
+    readonly currency: string;
 };
 //# sourceMappingURL=tax.config.d.ts.map

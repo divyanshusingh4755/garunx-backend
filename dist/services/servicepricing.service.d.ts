@@ -27,7 +27,7 @@ export declare class ServicePricingService {
             name: string;
             shortDescription: string;
             fullDescription: string;
-            thumbnailImage: string | undefined;
+            thumbnailImage: string;
             bannerImage: string | undefined;
             serviceReference: string;
         };
@@ -40,26 +40,23 @@ export declare class ServicePricingService {
             name: string;
         };
         components: {
-            componentId: any;
-            name: any;
-            description: any;
-            imageUrl: any;
+            componentId: Types.ObjectId;
+            name: string;
+            description: string;
+            imageUrl: string | null;
             isRequired: boolean;
             price: number | null;
             isPriceConfigured: boolean;
             tax: {
-                taxProfileId: any;
-                profileName: any;
-                profileCode: any;
-                treatment: any;
-                totalRate: any;
+                taxProfileId: Types.ObjectId | null;
+                profileName: string | null;
+                profileCode: string | null;
+                treatment: string | null;
+                totalRate: number;
                 priceMode: import("../models/servicepricing.model.js").TaxPriceMode;
                 isTaxConfigured: boolean;
             } | null;
-            items: {
-                itemId: Types.ObjectId;
-                name: string;
-            }[];
+            items: import("../models/servicecomponent.model.js").IServiceComponentItem[];
         }[];
         summary: {
             totalComponents: number;

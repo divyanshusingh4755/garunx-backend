@@ -1,328 +1,361 @@
 import {
-    Schema,
-    Types,
-    model,
-    Document,
-    Model,
+  Schema,
+  Types,
+  model,
+  type Document,
+  type Model,
 } from "mongoose";
 
 export type UserQueryStatus =
-    | "PENDING"
-    | "ONGOING"
-    | "RESOLVED"
-    | "REJECTED";
+  | "PENDING"
+  | "ONGOING"
+  | "RESOLVED"
+  | "REJECTED";
 
 export type UserQueryCategory =
-    | "BOOKING"
-    | "PAYMENT"
-    | "REFUND"
-    | "SERVICE"
-    | "PACKAGE"
-    | "ACCOUNT"
-    | "TECHNICAL"
-    | "OTHER";
+  | "BOOKING"
+  | "PAYMENT"
+  | "REFUND"
+  | "SERVICE"
+  | "PACKAGE"
+  | "ACCOUNT"
+  | "TECHNICAL"
+  | "OTHER";
 
 export type UserQueryPriority =
-    | "LOW"
-    | "NORMAL"
-    | "HIGH"
-    | "URGENT";
+  | "LOW"
+  | "NORMAL"
+  | "HIGH"
+  | "URGENT";
 
 export type UserQueryRequesterType =
-    | "USER"
-    | "COORDINATOR";
+  | "USER"
+  | "COORDINATOR";
 
 export type UserQueryLastAction =
-    | "QUERY_CREATED"
-    | "REQUESTER_REPLIED"
-    | "ADMIN_REPLIED"
-    | "STATUS_CHANGED"
-    | "ASSIGNED"
-    | "PRIORITY_CHANGED"
-    | "CATEGORY_CHANGED";
+  | "QUERY_CREATED"
+  | "REQUESTER_REPLIED"
+  | "ADMIN_REPLIED"
+  | "STATUS_CHANGED"
+  | "ASSIGNED"
+  | "PRIORITY_CHANGED"
+  | "CATEGORY_CHANGED"
+  | "QUERY_DELETED";
 
-export interface IUserQuery extends Document {
-    requesterId: Types.ObjectId;
+export interface IUserQuery
+  extends Document {
+  requesterId: Types.ObjectId;
+  requesterType:
+    UserQueryRequesterType;
 
-    requesterType: UserQueryRequesterType;
+  queryReference: string;
+  subject: string;
+  category: UserQueryCategory;
+  priority: UserQueryPriority;
+  status: UserQueryStatus;
 
-    queryReference: string;
+  assignedAdminId?: Types.ObjectId;
 
-    subject: string;
+  latestMessage?: string;
+  latestMessageAt?: Date;
 
-    category: UserQueryCategory;
+  lastAction: UserQueryLastAction;
+  lastActionAt: Date;
+  lastActionBy: Types.ObjectId;
 
-    priority: UserQueryPriority;
+  requesterUnreadCount: number;
+  adminUnreadCount: number;
 
-    status: UserQueryStatus;
+  resolvedAt?: Date;
+  resolvedBy?: Types.ObjectId;
 
-    assignedAdminId?: Types.ObjectId;
+  rejectedAt?: Date;
+  rejectedBy?: Types.ObjectId;
+  rejectionReason?: string;
 
-    // Admin listing optimization
-    latestMessage?: string;
-    latestMessageAt?: Date;
+  isDeleted: boolean;
+  deletedAt?: Date;
+  deletedBy?: Types.ObjectId;
+  deletionReason?: string;
 
-    lastAction: UserQueryLastAction;
-    lastActionAt: Date;
-    lastActionBy: Types.ObjectId;
-
-    // Unread
-    requesterUnreadCount: number;
-    adminUnreadCount: number;
-
-    // Resolution
-    resolvedAt?: Date;
-    resolvedBy?: Types.ObjectId;
-
-    // Rejection
-    rejectedAt?: Date;
-    rejectedBy?: Types.ObjectId;
-    rejectionReason?: string;
-
-    // Soft delete
-    isDeleted: boolean;
-    deletedAt?: Date;
-    deletedBy?: Types.ObjectId;
-    deletionReason?: string;
-
-    createdAt: Date;
-    updatedAt: Date;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 const userQuerySchema =
-    new Schema<IUserQuery>(
-        {
-            requesterId: {
-                type: Schema.Types.ObjectId,
-                ref: "User",
-                required: true,
-                index: true,
-            },
+  new Schema<IUserQuery>(
+    {
+      requesterId: {
+        type: Schema.Types.ObjectId,
+        ref: "User",
+        required: true,
+        index: true,
+      },
 
-            requesterType: {
-                type: String,
-                enum: [
-                    "USER",
-                    "COORDINATOR",
-                ] satisfies UserQueryRequesterType[],
-                required: true,
-                index: true,
-            },
+      requesterType: {
+        type: String,
+        enum: [
+          "USER",
+          "COORDINATOR",
+        ] satisfies UserQueryRequesterType[],
+        required: true,
+        index: true,
+      },
 
-            queryReference: {
-                type: String,
-                required: true,
-                unique: true,
-                trim: true,
-                index: true,
-            },
+      queryReference: {
+        type: String,
+        required: true,
+        unique: true,
+        trim: true,
+        uppercase: true,
+        index: true,
+      },
 
-            subject: {
-                type: String,
-                required: true,
-                trim: true,
-                maxlength: 200,
-            },
+      subject: {
+        type: String,
+        required: true,
+        trim: true,
+        minlength: 3,
+        maxlength: 200,
+      },
 
-            category: {
-                type: String,
-                enum: [
-                    "BOOKING",
-                    "PAYMENT",
-                    "REFUND",
-                    "SERVICE",
-                    "PACKAGE",
-                    "ACCOUNT",
-                    "TECHNICAL",
-                    "OTHER",
-                ] satisfies UserQueryCategory[],
-                required: true,
-                index: true,
-            },
+      category: {
+        type: String,
+        enum: [
+          "BOOKING",
+          "PAYMENT",
+          "REFUND",
+          "SERVICE",
+          "PACKAGE",
+          "ACCOUNT",
+          "TECHNICAL",
+          "OTHER",
+        ] satisfies UserQueryCategory[],
+        required: true,
+        index: true,
+      },
 
-            priority: {
-                type: String,
-                enum: [
-                    "LOW",
-                    "NORMAL",
-                    "HIGH",
-                    "URGENT",
-                ] satisfies UserQueryPriority[],
-                default: "NORMAL",
-                index: true,
-            },
+      priority: {
+        type: String,
+        enum: [
+          "LOW",
+          "NORMAL",
+          "HIGH",
+          "URGENT",
+        ] satisfies UserQueryPriority[],
+        default: "NORMAL",
+        required: true,
+        index: true,
+      },
 
-            status: {
-                type: String,
-                enum: [
-                    "PENDING",
-                    "ONGOING",
-                    "RESOLVED",
-                    "REJECTED",
-                ] satisfies UserQueryStatus[],
-                default: "PENDING",
-                index: true,
-            },
+      status: {
+        type: String,
+        enum: [
+          "PENDING",
+          "ONGOING",
+          "RESOLVED",
+          "REJECTED",
+        ] satisfies UserQueryStatus[],
+        default: "PENDING",
+        required: true,
+        index: true,
+      },
 
-            assignedAdminId: {
-                type: Schema.Types.ObjectId,
-                ref: "User",
-                index: true,
-            },
+      assignedAdminId: {
+        type: Schema.Types.ObjectId,
+        ref: "User",
+        index: true,
+      },
 
-            latestMessage: {
-                type: String,
-                trim: true,
-                maxlength: 2000,
-            },
+      latestMessage: {
+        type: String,
+        trim: true,
+        maxlength: 2000,
+      },
 
-            latestMessageAt: {
-                type: Date,
-                index: true,
-            },
+      latestMessageAt: {
+        type: Date,
+        index: true,
+      },
 
-            lastAction: {
-                type: String,
-                enum: [
-                    "QUERY_CREATED",
-                    "REQUESTER_REPLIED",
-                    "ADMIN_REPLIED",
-                    "STATUS_CHANGED",
-                    "ASSIGNED",
-                    "PRIORITY_CHANGED",
-                    "CATEGORY_CHANGED",
-                ] satisfies UserQueryLastAction[],
-                default: "QUERY_CREATED",
-            },
+      lastAction: {
+        type: String,
+        enum: [
+          "QUERY_CREATED",
+          "REQUESTER_REPLIED",
+          "ADMIN_REPLIED",
+          "STATUS_CHANGED",
+          "ASSIGNED",
+          "PRIORITY_CHANGED",
+          "CATEGORY_CHANGED",
+          "QUERY_DELETED",
+        ] satisfies UserQueryLastAction[],
+        default: "QUERY_CREATED",
+        required: true,
+      },
 
-            lastActionAt: {
-                type: Date,
-                default: Date.now,
-                required: true,
-            },
+      lastActionAt: {
+        type: Date,
+        default: Date.now,
+        required: true,
+      },
 
-            lastActionBy: {
-                type: Schema.Types.ObjectId,
-                ref: "User",
-                required: true,
-            },
+      lastActionBy: {
+        type: Schema.Types.ObjectId,
+        ref: "User",
+        required: true,
+      },
 
-            requesterUnreadCount: {
-                type: Number,
-                default: 0,
-                min: 0,
-            },
+      requesterUnreadCount: {
+        type: Number,
+        default: 0,
+        min: 0,
+      },
 
-            adminUnreadCount: {
-                type: Number,
-                default: 0,
-                min: 0,
-            },
+      adminUnreadCount: {
+        type: Number,
+        default: 0,
+        min: 0,
+      },
 
-            resolvedAt: {
-                type: Date,
-            },
+      resolvedAt: {
+        type: Date,
+      },
 
-            resolvedBy: {
-                type: Schema.Types.ObjectId,
-                ref: "User",
-            },
+      resolvedBy: {
+        type: Schema.Types.ObjectId,
+        ref: "User",
+      },
 
-            rejectedAt: {
-                type: Date,
-            },
+      rejectedAt: {
+        type: Date,
+      },
 
-            rejectedBy: {
-                type: Schema.Types.ObjectId,
-                ref: "User",
-            },
+      rejectedBy: {
+        type: Schema.Types.ObjectId,
+        ref: "User",
+      },
 
-            rejectionReason: {
-                type: String,
-                trim: true,
-                maxlength: 1000,
-            },
+      rejectionReason: {
+        type: String,
+        trim: true,
+        maxlength: 1000,
+      },
 
-            isDeleted: {
-                type: Boolean,
-                default: false,
-                index: true,
-            },
+      isDeleted: {
+        type: Boolean,
+        default: false,
+        index: true,
+      },
 
-            deletedAt: {
-                type: Date,
-            },
+      deletedAt: {
+        type: Date,
+      },
 
-            deletedBy: {
-                type: Schema.Types.ObjectId,
-                ref: "User",
-            },
+      deletedBy: {
+        type: Schema.Types.ObjectId,
+        ref: "User",
+      },
 
-            deletionReason: {
-                type: String,
-                trim: true,
-                maxlength: 1000,
-            },
-        },
-        {
-            timestamps: true,
-        },
-    );
+      deletionReason: {
+        type: String,
+        trim: true,
+        maxlength: 1000,
+      },
+    },
+    {
+      timestamps: true,
+    },
+  );
 
+userQuerySchema.pre(
+  "validate",
+  function () {
+    if (
+      this.status === "RESOLVED" &&
+      (!this.resolvedAt ||
+        !this.resolvedBy)
+    ) {
+      throw new Error(
+        "Resolved query requires resolvedAt and resolvedBy",
+      );
+    }
 
-// Requester's own queries
+    if (
+      this.status === "REJECTED" &&
+      (
+        !this.rejectedAt ||
+        !this.rejectedBy ||
+        !this.rejectionReason?.trim()
+      )
+    ) {
+      throw new Error(
+        "Rejected query requires rejection details",
+      );
+    }
+
+    if (
+      this.isDeleted &&
+      (
+        !this.deletedAt ||
+        !this.deletedBy ||
+        !this.deletionReason?.trim()
+      )
+    ) {
+      throw new Error(
+        "Deleted query requires deletion details",
+      );
+    }
+  },
+);
+
 userQuerySchema.index({
-    requesterId: 1,
-    isDeleted: 1,
-    createdAt: -1,
+  requesterId: 1,
+  isDeleted: 1,
+  createdAt: -1,
 });
 
-// Customer / coordinator filtering
 userQuerySchema.index({
-    requesterType: 1,
-    isDeleted: 1,
-    createdAt: -1,
+  requesterType: 1,
+  isDeleted: 1,
+  createdAt: -1,
 });
 
-// Admin status tabs
 userQuerySchema.index({
-    status: 1,
-    isDeleted: 1,
-    createdAt: -1,
+  status: 1,
+  isDeleted: 1,
+  createdAt: -1,
 });
 
-// Category filtering
 userQuerySchema.index({
-    category: 1,
-    status: 1,
-    isDeleted: 1,
-    createdAt: -1,
+  category: 1,
+  status: 1,
+  isDeleted: 1,
+  createdAt: -1,
 });
 
-// Priority filtering
 userQuerySchema.index({
-    priority: 1,
-    status: 1,
-    isDeleted: 1,
-    createdAt: -1,
+  priority: 1,
+  status: 1,
+  isDeleted: 1,
+  createdAt: -1,
 });
 
-// Assigned admin listing
 userQuerySchema.index({
-    assignedAdminId: 1,
-    status: 1,
-    isDeleted: 1,
-    createdAt: -1,
+  assignedAdminId: 1,
+  status: 1,
+  isDeleted: 1,
+  createdAt: -1,
 });
 
-// Latest activity sorting
 userQuerySchema.index({
-    isDeleted: 1,
-    lastActionAt: -1,
+  isDeleted: 1,
+  lastActionAt: -1,
 });
 
-export const UserQuery: Model<IUserQuery> =
+export const UserQuery:
+  Model<IUserQuery> =
     model<IUserQuery>(
-        "UserQuery",
-        userQuerySchema,
+      "UserQuery",
+      userQuerySchema,
     );

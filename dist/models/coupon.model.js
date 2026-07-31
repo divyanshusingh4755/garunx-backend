@@ -1,8 +1,9 @@
-import { model, Schema, Document, Types } from "mongoose";
+import { model, Schema, Types, } from "mongoose";
 const couponSchema = new Schema({
     version: {
         type: Number,
         default: 1,
+        min: 1,
     },
     name: {
         type: String,
@@ -23,7 +24,12 @@ const couponSchema = new Schema({
     },
     applicableOn: {
         type: String,
-        enum: ["ALL", "SERVICE", "PACKAGE", "REFERRAL"],
+        enum: [
+            "ALL",
+            "SERVICE",
+            "PACKAGE",
+            "REFERRAL",
+        ],
         default: "ALL",
         required: true,
     },
@@ -46,12 +52,16 @@ const couponSchema = new Schema({
     },
     discountType: {
         type: String,
-        enum: ["PERCENTAGE", "FIXED"],
+        enum: [
+            "PERCENTAGE",
+            "FIXED",
+        ],
         default: "PERCENTAGE",
+        required: true,
     },
     usageLimit: {
         type: Number,
-        default: 0, // 0 = unlimited
+        default: 0,
         min: 0,
     },
     usedCount: {
@@ -85,29 +95,52 @@ const couponSchema = new Schema({
 }, {
     timestamps: true,
 });
-couponSchema.pre("save", function () {
-    if (this.validFrom && this.validTill && this.validTill < this.validFrom) {
-        throw new Error("validTill must be greater than validFrom");
-    }
-    return;
-});
 couponSchema.pre("validate", function () {
-    const services = this.services || [];
-    const packages = this.packages || [];
-    if (this.applicableOn === "SERVICE" && packages.length > 0) {
-        throw new Error("Package selection is not allowed for SERVICE coupons");
+    const services = this.services ?? [];
+    const packages = this.packages ?? [];
+    if (this.discountType === "PERCENTAGE" &&
+        (this.discount <= 0 ||
+            this.discount > 100)) {
+        throw new Error("Percentage discount must be between 1 and 100");
     }
-    if (this.applicableOn === "PACKAGE" && services.length > 0) {
-        throw new Error("Service selection is not allowed for PACKAGE coupons");
+    if (this.discountType === "FIXED" &&
+        this.maxDiscountAmount !== undefined) {
+        this.set("maxDiscountAmount", undefined);
     }
-});
-couponSchema.pre("validate", function () {
-    if (this.applicableOn === "ALL") {
+    if (this.validFrom &&
+        this.validTill &&
+        this.validTill < this.validFrom) {
+        throw new Error("validTill must be greater than or equal to validFrom");
+    }
+    if (this.applicableOn === "SERVICE") {
+        if (services.length === 0) {
+            throw new Error("At least one service is required for SERVICE coupons");
+        }
+        if (packages.length > 0) {
+            throw new Error("Packages are not allowed for SERVICE coupons");
+        }
+    }
+    if (this.applicableOn === "PACKAGE") {
+        if (packages.length === 0) {
+            throw new Error("At least one package is required for PACKAGE coupons");
+        }
+        if (services.length > 0) {
+            throw new Error("Services are not allowed for PACKAGE coupons");
+        }
+    }
+    if (this.applicableOn === "ALL" ||
+        this.applicableOn === "REFERRAL") {
         this.services = [];
         this.packages = [];
     }
+    if (this.applicableOn === "REFERRAL" &&
+        !this.assignedUserId) {
+        throw new Error("assignedUserId is required for REFERRAL coupons");
+    }
 });
-couponSchema.index({ name: 1 });
+couponSchema.index({
+    name: 1,
+});
 couponSchema.index({
     isActive: 1,
     applicableOn: 1,

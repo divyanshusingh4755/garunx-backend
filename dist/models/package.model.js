@@ -73,6 +73,11 @@ const packageSchema = new Schema({
         default: false,
         index: true,
     },
+    startingPrice: {
+        type: Number,
+        default: 0,
+        min: 0,
+    },
 }, {
     timestamps: true,
     toJSON: {

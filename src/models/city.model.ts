@@ -1,16 +1,24 @@
-import { Schema, model, type Document, Types } from "mongoose";
+import {
+  Schema,
+  model,
+  type Types,
+} from "mongoose";
 
-export interface ICity extends Document {
+export interface IGeoPoint {
+  type: "Point";
+  coordinates: [number, number];
+}
+
+export interface ICity {
   name: string;
   country: string;
   stateId: Types.ObjectId;
   image?: string;
   description?: string;
   isActive: boolean;
-  location?: {
-    type: "Point";
-    coordinates: [number, number];
-  };
+  location?: IGeoPoint;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 const citySchema = new Schema<ICity>(
@@ -25,6 +33,7 @@ const citySchema = new Schema<ICity>(
     country: {
       type: String,
       required: true,
+      trim: true,
       index: true,
     },
 
@@ -37,14 +46,17 @@ const citySchema = new Schema<ICity>(
 
     image: {
       type: String,
+      trim: true,
     },
 
     description: {
       type: String,
+      trim: true,
     },
 
     isActive: {
       type: Boolean,
+      required: true,
       default: true,
       index: true,
     },
@@ -53,17 +65,37 @@ const citySchema = new Schema<ICity>(
       type: {
         type: String,
         enum: ["Point"],
+        required: true,
       },
 
       coordinates: {
-        type: [Number], // [longitude, latitude]
+        type: [Number],
+        required: true,
+        validate: {
+          validator: (
+            coordinates: number[],
+          ): boolean =>
+            coordinates.length === 2 &&
+            coordinates.every(Number.isFinite) &&
+            coordinates[0]! >= -180 &&
+            coordinates[0]! <= 180 &&
+            coordinates[1]! >= -90 &&
+            coordinates[1]! <= 90,
+
+          message:
+            "Coordinates must be valid [longitude, latitude]",
+        },
       },
     },
   },
-  { timestamps: true },
+  {
+    timestamps: true,
+  },
 );
 
-citySchema.index({ location: "2dsphere" });
+citySchema.index({
+  location: "2dsphere",
+});
 
 citySchema.index({
   country: 1,
@@ -80,7 +112,12 @@ citySchema.index(
   {
     name: "text",
   },
-  { name: "CityTextSearchIndex" },
+  {
+    name: "CityTextSearchIndex",
+  },
 );
 
-export const City = model<ICity>("City", citySchema);
+export const City = model<ICity>(
+  "City",
+  citySchema,
+);

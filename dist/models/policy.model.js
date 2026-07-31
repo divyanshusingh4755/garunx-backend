@@ -1,10 +1,28 @@
-import { Document, model, Schema } from "mongoose";
+import { model, Schema, } from "mongoose";
 const contentSchema = new Schema({
     type: {
         type: String,
-        enum: ["TERMS", "PRIVACY", "REFUND"],
+        enum: [
+            "TERMS",
+            "PRIVACY",
+            "REFUND",
+        ],
         required: true,
         index: true,
+    },
+    userType: {
+        type: String,
+        enum: [
+            "User",
+            "Coordinator",
+        ],
+        default: "User",
+        required: true,
+    },
+    version: {
+        type: Number,
+        required: true,
+        min: 1,
     },
     title: {
         type: String,
@@ -14,18 +32,32 @@ const contentSchema = new Schema({
     content: {
         type: String,
         required: true,
+        trim: true,
     },
     isActive: {
         type: Boolean,
-        default: true,
+        default: false,
         index: true,
     },
-    userType: { type: String, enum: ["User", "Coordinator"], default: "User" },
     publishedAt: {
         type: Date,
     },
 }, {
     timestamps: true,
+});
+contentSchema.pre("validate", function () {
+    if (this.isActive &&
+        !this.publishedAt) {
+        this.publishedAt = new Date();
+    }
+});
+contentSchema.index({
+    type: 1,
+    userType: 1,
+    version: 1,
+}, {
+    unique: true,
+    name: "UniquePolicyVersionPerAudience",
 });
 contentSchema.index({
     type: 1,
@@ -36,6 +68,7 @@ contentSchema.index({
     partialFilterExpression: {
         isActive: true,
     },
+    name: "UniqueActivePolicyPerAudience",
 });
 contentSchema.index({
     type: 1,
