@@ -372,7 +372,15 @@ export class PackageService {
             }).lean(),
             PackageTierPricing.find({
                 packageId,
-            }).lean(),
+            })
+                .populate({
+                path: "taxProfileId",
+                match: {
+                    isActive: true,
+                },
+                select: "name code treatment totalRate isActive",
+            })
+                .lean(),
         ]);
         if (!pkg) {
             throw new Error("Package not found");
@@ -417,12 +425,25 @@ export class PackageService {
             if (!pricingMap.has(key)) {
                 pricingMap.set(key, []);
             }
+            const taxProfile = p.taxProfileId;
             pricingMap.get(key).push({
                 locationId: p.locationId,
                 basePrice: p.basePrice,
                 fixedPrice: p.fixedPrice,
                 discountPercent: p.discountPercent,
                 finalPrice: p.finalPrice,
+                tax: {
+                    taxProfileId: taxProfile?._id ?? null,
+                    profileName: taxProfile?.name ?? null,
+                    profileCode: taxProfile?.code ?? null,
+                    treatment: taxProfile?.treatment ?? null,
+                    totalRate: taxProfile?.totalRate ?? 0,
+                    priceMode: taxProfile
+                        ? p.taxPriceMode ??
+                            "EXCLUSIVE"
+                        : "EXCLUSIVE",
+                    isTaxConfigured: Boolean(taxProfile),
+                },
             });
         }
         // Group services by tier

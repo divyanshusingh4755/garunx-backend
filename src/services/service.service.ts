@@ -879,7 +879,7 @@ export class ServiceService {
 
     const isSame =
       currentIds.length ===
-        newIds.length &&
+      newIds.length &&
       currentIds.every((id) =>
         newIds.includes(id),
       );
@@ -1006,7 +1006,27 @@ export class ServiceService {
 
       ServicePricing.find({
         serviceId,
-      }).lean(),
+      })
+        .select(
+          [
+            "tierId",
+            "componentId",
+            "locationId",
+            "price",
+            "taxProfileId",
+            "taxPriceMode",
+            "isActive",
+          ].join(" "),
+        )
+        .populate({
+          path: "taxProfileId",
+          match: {
+            isActive: true,
+          },
+          select:
+            "name code treatment totalRate isActive",
+        })
+        .lean(),
 
       Category.findById(
         service.categoryId,
@@ -1066,15 +1086,59 @@ export class ServiceService {
 
     for (const price of pricing) {
       const key =
-        `${price.tierId}_${price.componentId}`;
+        `${price.tierId.toString()}_${price.componentId.toString()}`;
 
       const existing =
         pricingMap.get(key) ?? [];
 
+      const taxProfile =
+        price.taxProfileId as
+        | {
+          _id: Types.ObjectId;
+          name?: string;
+          code?: string;
+          treatment?: string;
+          totalRate?: number;
+          isActive?: boolean;
+        }
+        | null
+        | undefined;
+
       existing.push({
         locationId:
           price.locationId,
-        price: price.price,
+
+        price:
+          price.price,
+
+        isActive:
+          price.isActive,
+
+        tax: {
+          taxProfileId:
+            taxProfile?._id ?? null,
+
+          profileName:
+            taxProfile?.name ?? null,
+
+          profileCode:
+            taxProfile?.code ?? null,
+
+          treatment:
+            taxProfile?.treatment ?? null,
+
+          totalRate:
+            taxProfile?.totalRate ?? 0,
+
+          priceMode:
+            taxProfile
+              ? price.taxPriceMode ??
+              "EXCLUSIVE"
+              : "EXCLUSIVE",
+
+          isTaxConfigured:
+            Boolean(taxProfile),
+        },
       });
 
       pricingMap.set(
@@ -1102,7 +1166,7 @@ export class ServiceService {
       }
 
       const pricingKey =
-        `${component.tierId}_${component.componentId}`;
+        `${component.tierId.toString()}_${component.componentId.toString()}`;
 
       const componentDetails =
         componentMap.get(
@@ -1112,32 +1176,41 @@ export class ServiceService {
       grouped[tierId].components.push({
         componentId:
           component.componentId,
-        name: component.name,
+
+        name:
+          component.name,
+
         description:
           component.description,
+
         isRequired:
           component.isRequired,
 
         component:
           componentDetails
             ? {
-                id:
-                  componentDetails._id,
-                image:
-                  componentDetails.imageUrl,
-                isRemovable:
-                  componentDetails.isRemovable,
-                isBundled:
-                  componentDetails.isBundled,
-                isActive:
-                  componentDetails.isActive,
-              }
+              id:
+                componentDetails._id,
+
+              image:
+                componentDetails.imageUrl,
+
+              isRemovable:
+                componentDetails.isRemovable,
+
+              isBundled:
+                componentDetails.isBundled,
+
+              isActive:
+                componentDetails.isActive,
+            }
             : null,
 
         items:
           (component.items ?? []).map(
             (item) => ({
               ...item,
+
               itemDetails:
                 itemMap.get(
                   item.itemId.toString(),
@@ -1154,36 +1227,50 @@ export class ServiceService {
 
     return {
       service: {
-        id: service._id,
-        name: service.name,
+        id:
+          service._id,
+
+        name:
+          service.name,
+
         shortDescription:
           service.shortDescription,
+
         fullDescription:
           service.fullDescription,
+
         thumbnailImage:
           service.thumbnailImage,
+
         bannerImage:
           service.bannerImage,
+
         startingPrice:
           service.startingPrice,
 
-        category: serviceCategory
-          ? {
+        category:
+          serviceCategory
+            ? {
               id:
                 serviceCategory._id,
+
               label:
                 serviceCategory.label,
+
               value:
                 serviceCategory.value,
+
               image:
                 serviceCategory.image,
             }
-          : null,
+            : null,
 
         isActive:
           service.isActive,
+
         isComplete:
           service.isComplete,
+
         serviceReference:
           service.serviceReference,
       },
@@ -1199,11 +1286,14 @@ export class ServiceService {
           (tier) => ({
             tierId:
               tier.tierId,
-            name: tier.name,
+
+            name:
+              tier.name,
           }),
         ),
 
-      components: grouped,
+      components:
+        grouped,
     };
   }
 
@@ -1414,7 +1504,7 @@ export class ServiceService {
       service.tiers.filter(
         (tier) =>
           grouped[
-            tier.tierId.toString()
+          tier.tierId.toString()
           ],
       );
 

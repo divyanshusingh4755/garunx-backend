@@ -535,7 +535,16 @@ export class PackageService {
 
       PackageTierPricing.find({
         packageId,
-      }).lean(),
+      })
+        .populate({
+          path: "taxProfileId",
+          match: {
+            isActive: true,
+          },
+          select:
+            "name code treatment totalRate isActive",
+        })
+        .lean(),
     ]);
 
     if (!pkg) {
@@ -599,12 +608,51 @@ export class PackageService {
         pricingMap.set(key, []);
       }
 
+      const taxProfile =
+        p.taxProfileId as
+        | {
+          _id: Types.ObjectId;
+          name?: string;
+          code?: string;
+          treatment?: string;
+          totalRate?: number;
+        }
+        | null
+        | undefined;
+
       pricingMap.get(key)!.push({
         locationId: p.locationId,
         basePrice: p.basePrice,
         fixedPrice: p.fixedPrice,
-        discountPercent: p.discountPercent,
+        discountPercent:
+          p.discountPercent,
         finalPrice: p.finalPrice,
+
+        tax: {
+          taxProfileId:
+            taxProfile?._id ?? null,
+
+          profileName:
+            taxProfile?.name ?? null,
+
+          profileCode:
+            taxProfile?.code ?? null,
+
+          treatment:
+            taxProfile?.treatment ?? null,
+
+          totalRate:
+            taxProfile?.totalRate ?? 0,
+
+          priceMode:
+            taxProfile
+              ? p.taxPriceMode ??
+              "EXCLUSIVE"
+              : "EXCLUSIVE",
+
+          isTaxConfigured:
+            Boolean(taxProfile),
+        },
       });
     }
 

@@ -568,7 +568,24 @@ export class ServiceService {
             }).lean(),
             ServicePricing.find({
                 serviceId,
-            }).lean(),
+            })
+                .select([
+                "tierId",
+                "componentId",
+                "locationId",
+                "price",
+                "taxProfileId",
+                "taxPriceMode",
+                "isActive",
+            ].join(" "))
+                .populate({
+                path: "taxProfileId",
+                match: {
+                    isActive: true,
+                },
+                select: "name code treatment totalRate isActive",
+            })
+                .lean(),
             Category.findById(service.categoryId)
                 .select("label value image")
                 .lean(),
@@ -595,11 +612,25 @@ export class ServiceService {
         ]));
         const pricingMap = new Map();
         for (const price of pricing) {
-            const key = `${price.tierId}_${price.componentId}`;
+            const key = `${price.tierId.toString()}_${price.componentId.toString()}`;
             const existing = pricingMap.get(key) ?? [];
+            const taxProfile = price.taxProfileId;
             existing.push({
                 locationId: price.locationId,
                 price: price.price,
+                isActive: price.isActive,
+                tax: {
+                    taxProfileId: taxProfile?._id ?? null,
+                    profileName: taxProfile?.name ?? null,
+                    profileCode: taxProfile?.code ?? null,
+                    treatment: taxProfile?.treatment ?? null,
+                    totalRate: taxProfile?.totalRate ?? 0,
+                    priceMode: taxProfile
+                        ? price.taxPriceMode ??
+                            "EXCLUSIVE"
+                        : "EXCLUSIVE",
+                    isTaxConfigured: Boolean(taxProfile),
+                },
             });
             pricingMap.set(key, existing);
         }
@@ -612,7 +643,7 @@ export class ServiceService {
                     components: [],
                 };
             }
-            const pricingKey = `${component.tierId}_${component.componentId}`;
+            const pricingKey = `${component.tierId.toString()}_${component.componentId.toString()}`;
             const componentDetails = componentMap.get(component.componentId.toString());
             grouped[tierId].components.push({
                 componentId: component.componentId,
