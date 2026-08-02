@@ -175,6 +175,57 @@ export interface IBookingTaxSummary extends ITaxSummary {
   placeOfSupplyStateCode?: string;
 }
 
+export interface IPendingReschedule {
+  previousScheduledAt?: Date;
+  requestedScheduledAt: Date;
+  reason: string;
+  requestedBy: Types.ObjectId;
+  requestedAt: Date;
+  assignmentRound: number;
+}
+
+const pendingRescheduleSchema =
+  new Schema<IPendingReschedule>(
+    {
+      previousScheduledAt: {
+        type: Date,
+      },
+
+      requestedScheduledAt: {
+        type: Date,
+        required: true,
+      },
+
+      reason: {
+        type: String,
+        required: true,
+        trim: true,
+        maxlength: 500,
+      },
+
+      requestedBy: {
+        type: Schema.Types.ObjectId,
+        ref: "User",
+        required: true,
+      },
+
+      requestedAt: {
+        type: Date,
+        required: true,
+        default: Date.now,
+      },
+
+      assignmentRound: {
+        type: Number,
+        required: true,
+        min: 1,
+      },
+    },
+    {
+      _id: false,
+    },
+  );
+
 const assignmentRequestSchema = new Schema<IAssignmentRequest>(
   {
     coordinatorId: {
@@ -1160,32 +1211,8 @@ const bookingSchema = new Schema<IBooking>(
       },
 
       pendingReschedule: {
-        previousScheduledAt: Date,
-        requestedScheduledAt: {
-          type: Date,
-          required: true,
-        },
-        reason: {
-          type: String,
-          required: true,
-          trim: true,
-          maxlength: 500,
-        },
-        requestedBy: {
-          type: Schema.Types.ObjectId,
-          ref: "User",
-          required: true,
-        },
-        requestedAt: {
-          type: Date,
-          required: true,
-          default: Date.now,
-        },
-        assignmentRound: {
-          type: Number,
-          required: true,
-          min: 1,
-        },
+        type: pendingRescheduleSchema,
+        default: undefined,
       },
 
       reassignment: {

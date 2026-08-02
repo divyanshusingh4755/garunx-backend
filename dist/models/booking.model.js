@@ -1,6 +1,38 @@
 import { model, Schema, Types, Document, Model } from "mongoose";
 import { Counter } from "./counter.model.js";
 import { lineTaxSchema, } from "./tax.schema.js";
+const pendingRescheduleSchema = new Schema({
+    previousScheduledAt: {
+        type: Date,
+    },
+    requestedScheduledAt: {
+        type: Date,
+        required: true,
+    },
+    reason: {
+        type: String,
+        required: true,
+        trim: true,
+        maxlength: 500,
+    },
+    requestedBy: {
+        type: Schema.Types.ObjectId,
+        ref: "User",
+        required: true,
+    },
+    requestedAt: {
+        type: Date,
+        required: true,
+        default: Date.now,
+    },
+    assignmentRound: {
+        type: Number,
+        required: true,
+        min: 1,
+    },
+}, {
+    _id: false,
+});
 const assignmentRequestSchema = new Schema({
     coordinatorId: {
         type: Schema.Types.ObjectId,
@@ -628,32 +660,8 @@ const bookingSchema = new Schema({
             default: [],
         },
         pendingReschedule: {
-            previousScheduledAt: Date,
-            requestedScheduledAt: {
-                type: Date,
-                required: true,
-            },
-            reason: {
-                type: String,
-                required: true,
-                trim: true,
-                maxlength: 500,
-            },
-            requestedBy: {
-                type: Schema.Types.ObjectId,
-                ref: "User",
-                required: true,
-            },
-            requestedAt: {
-                type: Date,
-                required: true,
-                default: Date.now,
-            },
-            assignmentRound: {
-                type: Number,
-                required: true,
-                min: 1,
-            },
+            type: pendingRescheduleSchema,
+            default: undefined,
         },
         reassignment: {
             requestedBy: {

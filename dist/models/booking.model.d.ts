@@ -77,6 +77,14 @@ export interface IBookingTaxSummary extends ITaxSummary {
     supplierStateCode?: string;
     placeOfSupplyStateCode?: string;
 }
+export interface IPendingReschedule {
+    previousScheduledAt?: Date;
+    requestedScheduledAt: Date;
+    reason: string;
+    requestedBy: Types.ObjectId;
+    requestedAt: Date;
+    assignmentRound: number;
+}
 export interface IBookingComponent {
     componentType: ComponentType;
     componentId: Types.ObjectId;
