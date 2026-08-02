@@ -687,13 +687,13 @@ export declare class BookingService {
         bookingId: string;
         coordinatorId: string;
     }): Promise<{
-        otp?: string;
         bookingId: Types.ObjectId;
         bookingReference: string;
         expiresAt: Date | undefined;
         resendAvailableAt: Date;
         resendCount: number | undefined;
         remainingResends: number;
+        otp: string;
     }>;
 }
 export {};

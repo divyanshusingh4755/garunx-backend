@@ -4844,9 +4844,10 @@ export class BookingService {
         MAX_OTP_RESENDS -
         (booking.execution.otpVerification.resendCount ?? 0),
 
-      ...(process.env.NODE_ENV !== "production" && {
-        otp,
-      }),
+        otp
+      // ...(process.env.NODE_ENV !== "production" && {
+      //   otp,
+      // }),
     };
   }
 }
