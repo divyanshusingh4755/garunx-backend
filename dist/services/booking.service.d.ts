@@ -115,7 +115,16 @@ export declare class BookingService {
             coordinatorAcceptedAt?: Date;
             responseDeadlineAt?: Date;
             assignmentExpiresAt?: Date;
+            currentRound: number;
             requests: import("../models/booking.model.js").IAssignmentRequest[];
+            pendingReschedule?: {
+                previousScheduledAt?: Date;
+                requestedScheduledAt: Date;
+                reason: string;
+                requestedBy: Types.ObjectId;
+                requestedAt: Date;
+                assignmentRound: number;
+            };
             reassignment?: {
                 requestedBy: Types.ObjectId;
                 requestedByRole: ReassignmentRequestedByRole;
@@ -301,6 +310,15 @@ export declare class BookingService {
             coordinatorAcceptedAt?: Date;
             responseDeadlineAt?: Date;
             assignmentExpiresAt?: Date;
+            currentRound: number;
+            pendingReschedule?: {
+                previousScheduledAt?: Date;
+                requestedScheduledAt: Date;
+                reason: string;
+                requestedBy: Types.ObjectId;
+                requestedAt: Date;
+                assignmentRound: number;
+            };
             reassignment?: {
                 requestedBy: Types.ObjectId;
                 requestedByRole: ReassignmentRequestedByRole;
@@ -483,10 +501,11 @@ export declare class BookingService {
         bookingReference: any;
         bookingStatus: any;
         assignmentStatus: any;
-        coordinatorId: any;
+        coordinatorId: string;
+        assignmentRound: any;
         isRescheduleSelection: boolean;
         previousScheduledAt: Date | null;
-        scheduledAt: any;
+        scheduledAt: Date;
         responseDeadlineAt: any;
         assignmentExpiresAt: any;
         message: string;
@@ -496,23 +515,7 @@ export declare class BookingService {
         coordinatorId: string;
         action: AssignmentAction;
         reason?: string;
-    }): Promise<{
-        bookingId: Types.ObjectId;
-        bookingStatus: "ASSIGNED";
-        assignmentStatus: "ACCEPTED";
-        coordinatorId: string;
-        acceptedAt: Date;
-        rejectedCoordinatorId?: never;
-        canSelectAnotherCoordinator?: never;
-    } | {
-        bookingId: Types.ObjectId;
-        bookingStatus: "ASSIGNMENT_PENDING";
-        assignmentStatus: "PENDING_SELECTION";
-        rejectedCoordinatorId: string;
-        canSelectAnotherCoordinator: boolean;
-        coordinatorId?: never;
-        acceptedAt?: never;
-    }>;
+    }): Promise<Record<string, any>>;
     static requestReassignment(params: {
         bookingId: string;
         requestedBy: string;
@@ -563,7 +566,7 @@ export declare class BookingService {
     }>;
     static processAssignmentTimeouts(): Promise<{
         processed: number;
-        reassigned: number;
+        expiredRequests: number;
         waitingForSelection: number;
         assignmentExpired: number;
     }>;

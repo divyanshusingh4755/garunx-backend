@@ -14,10 +14,26 @@ const assignmentRequestSchema = new Schema({
             "ACCEPTED",
             "REJECTED",
             "EXPIRED",
+            "SUPERSEDED",
             "CANCELLED",
         ],
         default: "PENDING",
         required: true,
+    },
+    assignmentRound: {
+        type: Number,
+        required: true,
+        min: 1,
+        default: 1,
+    },
+    closureReason: {
+        type: String,
+        enum: [
+            "ANOTHER_COORDINATOR_ACCEPTED",
+            "REASSIGNMENT_STARTED",
+            "USER_CANCELLED",
+            "SYSTEM_CANCELLED",
+        ],
     },
     assignmentType: {
         type: String,
@@ -602,9 +618,42 @@ const bookingSchema = new Schema({
         responseDeadlineAt: Date,
         // final deadline for the complete coordinator-selection process
         assignmentExpiresAt: Date,
+        currentRound: {
+            type: Number,
+            default: 1,
+            min: 1,
+        },
         requests: {
             type: [assignmentRequestSchema],
             default: [],
+        },
+        pendingReschedule: {
+            previousScheduledAt: Date,
+            requestedScheduledAt: {
+                type: Date,
+                required: true,
+            },
+            reason: {
+                type: String,
+                required: true,
+                trim: true,
+                maxlength: 500,
+            },
+            requestedBy: {
+                type: Schema.Types.ObjectId,
+                ref: "User",
+                required: true,
+            },
+            requestedAt: {
+                type: Date,
+                required: true,
+                default: Date.now,
+            },
+            assignmentRound: {
+                type: Number,
+                required: true,
+                min: 1,
+            },
         },
         reassignment: {
             requestedBy: {

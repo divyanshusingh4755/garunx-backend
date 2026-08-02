@@ -188,60 +188,36 @@ export class BookingService {
   private static getRequestedCoordinatorIds(
     booking: any,
     scheduledAt?: Date,
+    assignmentRound?: number,
   ): Types.ObjectId[] {
-    const requests =
-      booking.assignment?.requests ?? [];
-
     if (!scheduledAt) {
       return [];
     }
 
-    const targetDate =
-      new Date(scheduledAt);
+    const requests = booking.assignment?.requests ?? [];
+    const currentRound =
+      assignmentRound ?? booking.assignment?.currentRound ?? 1;
 
-    const startOfDay =
-      new Date(targetDate);
+    const targetDate = new Date(scheduledAt);
+    const startOfDay = new Date(targetDate);
+    startOfDay.setHours(0, 0, 0, 0);
 
-    startOfDay.setHours(
-      0,
-      0,
-      0,
-      0,
-    );
-
-    const endOfDay =
-      new Date(targetDate);
-
-    endOfDay.setHours(
-      23,
-      59,
-      59,
-      999,
-    );
+    const endOfDay = new Date(targetDate);
+    endOfDay.setHours(23, 59, 59, 999);
 
     return requests
       .filter(
         (request: any) =>
+          (request.assignmentRound ?? 1) === currentRound &&
           request.scheduledAt &&
-          request.scheduledAt >=
-          startOfDay &&
-          request.scheduledAt <=
-          endOfDay,
+          request.scheduledAt >= startOfDay &&
+          request.scheduledAt <= endOfDay,
       )
-      .map(
-        (request: any) =>
-          request.coordinatorId,
-      )
+      .map((request: any) => request.coordinatorId)
       .filter(Boolean)
       .map(
-        (
-          coordinatorId:
-            | Types.ObjectId
-            | string,
-        ) =>
-          new Types.ObjectId(
-            coordinatorId.toString(),
-          ),
+        (coordinatorId: Types.ObjectId | string) =>
+          new Types.ObjectId(coordinatorId.toString()),
       );
   }
 
@@ -327,12 +303,14 @@ export class BookingService {
     coordinatorId: string | Types.ObjectId;
     selectedBy?: string | Types.ObjectId;
     assignmentType: "MANUAL" | "AUTO";
+    scheduledAt?: Date;
   }) {
     const {
       booking,
       coordinatorId,
       selectedBy,
       assignmentType,
+      scheduledAt,
     } = params;
 
     const now = new Date();
@@ -340,61 +318,69 @@ export class BookingService {
       now.getTime() + COORDINATOR_RESPONSE_TIME_MS,
     );
 
-    if (!booking.assignment) {
-      booking.assignment = {
-        status: "NOT_STARTED",
-        requests: [],
-      };
-    }
+    booking.assignment ??= {
+      status: "NOT_STARTED",
+      currentRound: 1,
+      requests: [],
+    };
 
     booking.assignment.requests ??= [];
+    booking.assignment.currentRound ??= 1;
 
-    const existingPendingRequest =
-      booking.assignment.requests.find(
-        (request: any) =>
-          request.status === "PENDING",
-      );
+    const targetScheduledAt = scheduledAt ?? booking.scheduledAt;
 
-    if (existingPendingRequest) {
-      existingPendingRequest.status = "CANCELLED";
-      existingPendingRequest.respondedAt = now;
+    if (!targetScheduledAt) {
+      throw new Error("Booking schedule is required");
     }
 
-    booking.assignment.status = "PENDING_RESPONSE";
-    booking.assignment.assignedCoordinatorId =
-      new Types.ObjectId(coordinatorId.toString());
+    const coordinatorObjectId = new Types.ObjectId(
+      coordinatorId.toString(),
+    );
 
+    const duplicateRequest = booking.assignment.requests.find(
+      (request: any) =>
+        request.coordinatorId?.toString() ===
+        coordinatorObjectId.toString() &&
+        (request.assignmentRound ?? 1) ===
+        booking.assignment.currentRound,
+    );
+
+    if (duplicateRequest) {
+      throw new Error(
+        "This coordinator has already received this booking request in the current assignment round",
+      );
+    }
+
+    booking.assignment.requests.push({
+      coordinatorId: coordinatorObjectId,
+      status: "PENDING",
+      assignmentRound: booking.assignment.currentRound,
+      assignmentType,
+      requestedBy: selectedBy
+        ? new Types.ObjectId(selectedBy.toString())
+        : undefined,
+      requestedAt: now,
+      responseDeadlineAt,
+      scheduledAt: targetScheduledAt,
+    });
+
+    booking.assignment.status = "PENDING_RESPONSE";
+    booking.assignment.assignmentType = assignmentType;
     booking.assignment.assignedBy = selectedBy
       ? new Types.ObjectId(selectedBy.toString())
       : undefined;
 
-    booking.assignment.assignedAt = now;
-    booking.assignment.assignmentType = assignmentType;
-    booking.assignment.responseDeadlineAt =
-      responseDeadlineAt;
+    // A coordinator becomes assigned only after accepting.
+    delete booking.assignment.assignedCoordinatorId;
+    delete booking.assignment.assignedAt;
+    delete booking.assignment.coordinatorAcceptedAt;
+    delete booking.assignment.responseDeadlineAt;
 
-    booking.assignment.assignmentExpiresAt ??=
-      new Date(now.getTime() + ASSIGNMENT_WINDOW_MS);
-
-    booking.assignment.requests.push({
-      coordinatorId: new Types.ObjectId(
-        coordinatorId.toString(),
-      ),
-      status: "PENDING",
-      assignmentType,
-      requestedBy: selectedBy
-        ? new Types.ObjectId(
-          selectedBy.toString(),
-        )
-        : undefined,
-      requestedAt: now,
-      responseDeadlineAt,
-      scheduledAt:
-        booking.scheduledAt,
-    });
+    booking.assignment.assignmentExpiresAt ??= new Date(
+      now.getTime() + ASSIGNMENT_WINDOW_MS,
+    );
 
     booking.status = "ASSIGNMENT_PENDING";
-
     await booking.save();
 
     return booking;
@@ -1770,6 +1756,7 @@ export class BookingService {
       if (!booking.assignment) {
         booking.assignment = {
           status: "NOT_STARTED",
+          currentRound: 1,
           requests: [],
         };
       }
@@ -3211,58 +3198,43 @@ export class BookingService {
      * ------------------------------------------------
      */
 
-    let previousScheduledAt:
-      Date | undefined;
+    let previousScheduledAt: Date | undefined;
 
-    if (
-      isRescheduleSelection &&
-      targetScheduledAt
-    ) {
-      previousScheduledAt =
-        booking.scheduledAt;
-
-      booking.scheduledAt =
-        targetScheduledAt;
-
-      booking.rescheduleHistory ??=
-        [];
-
-      const rescheduleEntry:
-        IBookingReschedule = {
-        newScheduledAt:
-          targetScheduledAt,
-
-        reason:
-          rescheduleReason!.trim(),
-
-        rescheduledBy:
-          new Types.ObjectId(
-            selectedBy,
-          ),
-
-        rescheduledByRole:
-          "USER",
-
-        rescheduledAt:
-          new Date(),
+    if (isRescheduleSelection && targetScheduledAt) {
+      booking.assignment ??= {
+        status: "NOT_STARTED",
+        currentRound: 1,
+        requests: [],
       };
 
-      if (
-        previousScheduledAt
-      ) {
-        rescheduleEntry.previousScheduledAt =
-          previousScheduledAt;
+      booking.assignment.currentRound ??= 1;
+
+      const existingPendingReschedule =
+        booking.assignment.pendingReschedule;
+
+      const samePendingSchedule =
+        existingPendingReschedule?.requestedScheduledAt?.getTime() ===
+        targetScheduledAt.getTime();
+
+      if (!samePendingSchedule) {
+        booking.assignment.currentRound += 1;
+        previousScheduledAt = booking.scheduledAt;
+
+        booking.assignment.pendingReschedule = {
+          ...(previousScheduledAt
+            ? { previousScheduledAt }
+            : {}),
+          requestedScheduledAt: targetScheduledAt,
+          reason: rescheduleReason!.trim(),
+          requestedBy: new Types.ObjectId(selectedBy),
+          requestedAt: new Date(),
+          assignmentRound: booking.assignment.currentRound,
+        };
+      } else {
+        previousScheduledAt =
+          existingPendingReschedule.previousScheduledAt;
       }
 
-      booking.rescheduleHistory.push(
-        rescheduleEntry,
-      );
-    }
-
-    if (
-      isRescheduleSelection &&
-      booking.assignment
-    ) {
       delete booking.assignment.assignmentExpiresAt;
     }
 
@@ -3286,6 +3258,7 @@ export class BookingService {
         coordinatorId,
         selectedBy,
         assignmentType,
+        scheduledAt: targetScheduledAt,
       });
 
     return {
@@ -3302,9 +3275,11 @@ export class BookingService {
         updatedBooking.assignment
           ?.status,
 
-      coordinatorId:
+      coordinatorId,
+
+      assignmentRound:
         updatedBooking.assignment
-          ?.assignedCoordinatorId,
+          ?.currentRound,
 
       /*
        * Helpful for frontend.
@@ -3316,7 +3291,7 @@ export class BookingService {
         null,
 
       scheduledAt:
-        updatedBooking.scheduledAt,
+        targetScheduledAt,
 
       responseDeadlineAt:
         updatedBooking.assignment
@@ -3339,124 +3314,203 @@ export class BookingService {
     action: AssignmentAction;
     reason?: string;
   }) {
-    const {
-      bookingId,
-      coordinatorId,
-      action,
-      reason,
-    } = params;
+    const { bookingId, coordinatorId, action, reason } = params;
+    const session = await mongoose.startSession();
 
-    const booking = await Booking.findOne({
-      _id: bookingId,
-      isDeleted: false,
-    });
+    try {
+      let result: Record<string, any> = {};
 
-    if (!booking) {
-      throw new Error("Booking not found");
-    }
+      await session.withTransaction(async () => {
+        const booking = await Booking.findOne({
+          _id: bookingId,
+          isDeleted: false,
+        }).session(session);
 
-    if (
-      booking.assignment?.status !== "PENDING_RESPONSE"
-    ) {
-      throw new Error(
-        "This booking is not waiting for coordinator response",
-      );
-    }
+        if (!booking || !booking.assignment) {
+          throw new Error("Booking assignment not found");
+        }
 
-    if (
-      booking.assignment.assignedCoordinatorId?.toString() !==
-      coordinatorId
-    ) {
-      throw new Error(
-        "This assignment request belongs to another coordinator",
-      );
-    }
+        if (booking.status === "ASSIGNED") {
+          throw new Error(
+            "This booking has already been accepted by another coordinator",
+          );
+        }
 
-    const now = new Date();
+        const now = new Date();
+        const currentRound = booking.assignment.currentRound ?? 1;
 
-    if (
-      booking.assignment.responseDeadlineAt &&
-      booking.assignment.responseDeadlineAt <= now
-    ) {
-      throw new Error(
-        "Coordinator response deadline has expired",
-      );
-    }
+        const currentRequest = booking.assignment.requests
+          ?.slice()
+          .reverse()
+          .find(
+            (request: any) =>
+              request.coordinatorId.toString() === coordinatorId &&
+              request.status === "PENDING" &&
+              (request.assignmentRound ?? 1) === currentRound,
+          );
 
-    const currentRequest =
-      booking.assignment.requests
-        ?.slice()
-        .reverse()
-        .find(
-          (request: any) =>
-            request.coordinatorId.toString() ===
-            coordinatorId &&
-            request.status === "PENDING",
+        if (!currentRequest) {
+          throw new Error("Pending assignment request not found");
+        }
+
+        if (currentRequest.responseDeadlineAt <= now) {
+          currentRequest.status = "EXPIRED";
+          currentRequest.respondedAt = now;
+
+          const hasOtherPending = booking.assignment.requests.some(
+            (request: any) =>
+              request.status === "PENDING" &&
+              (request.assignmentRound ?? 1) === currentRound,
+          );
+
+          booking.assignment.status = hasOtherPending
+            ? "PENDING_RESPONSE"
+            : "PENDING_SELECTION";
+
+          await booking.save({ session });
+          throw new Error("Coordinator response deadline has expired");
+        }
+
+        currentRequest.respondedAt = now;
+
+        if (action === "REJECT") {
+          currentRequest.status = "REJECTED";
+          const trimmedReason = reason?.trim();
+
+          if (trimmedReason) {
+            currentRequest.rejectionReason = trimmedReason;
+          } else {
+            delete currentRequest.rejectionReason;
+          }
+
+          const hasOtherPending = booking.assignment.requests.some(
+            (request: any) =>
+              request.status === "PENDING" &&
+              (request.assignmentRound ?? 1) === currentRound,
+          );
+
+          booking.assignment.status = hasOtherPending
+            ? "PENDING_RESPONSE"
+            : "PENDING_SELECTION";
+          booking.status = "ASSIGNMENT_PENDING";
+
+          await booking.save({ session });
+
+          result = {
+            bookingId: booking._id,
+            bookingStatus: booking.status,
+            assignmentStatus: booking.assignment.status,
+            rejectedCoordinatorId: coordinatorId,
+            hasOtherPendingRequests: hasOtherPending,
+          };
+          return;
+        }
+
+        // Atomically claim the booking. Only one coordinator can win.
+        const claimed = await Booking.updateOne(
+          {
+            _id: booking._id,
+            status: "ASSIGNMENT_PENDING",
+            $or: [
+              { "assignment.assignedCoordinatorId": { $exists: false } },
+              { "assignment.assignedCoordinatorId": null },
+            ],
+          },
+          {
+            $set: {
+              status: "ASSIGNED",
+              "assignment.status": "ACCEPTED",
+              "assignment.assignedCoordinatorId":
+                new Types.ObjectId(coordinatorId),
+              "assignment.assignedAt": now,
+              "assignment.coordinatorAcceptedAt": now,
+            },
+          },
+          { session },
         );
 
-    if (!currentRequest) {
-      throw new Error(
-        "Pending assignment request not found",
-      );
-    }
+        if (claimed.modifiedCount === 0) {
+          throw new Error(
+            "This booking has already been accepted by another coordinator",
+          );
+        }
 
-    currentRequest.respondedAt = now;
+        currentRequest.status = "ACCEPTED";
 
-    if (action === "ACCEPT") {
-      currentRequest.status = "ACCEPTED";
+        for (const request of booking.assignment.requests) {
+          if (
+            request._id?.toString() !== currentRequest._id?.toString() &&
+            request.status === "PENDING" &&
+            (request.assignmentRound ?? 1) === currentRound
+          ) {
+            request.status = "SUPERSEDED";
+            request.closureReason = "ANOTHER_COORDINATOR_ACCEPTED";
+            request.respondedAt = now;
+          }
+        }
 
-      booking.assignment.status = "ACCEPTED";
-      booking.assignment.coordinatorAcceptedAt = now;
-      booking.status = "ASSIGNED";
+        const pendingReschedule = booking.assignment.pendingReschedule;
 
-      await booking.save();
+        if (
+          pendingReschedule &&
+          pendingReschedule.assignmentRound === currentRound
+        ) {
+          booking.rescheduleHistory ??= [];
+          booking.rescheduleHistory.push({
+            ...(pendingReschedule.previousScheduledAt
+              ? {
+                previousScheduledAt:
+                  pendingReschedule.previousScheduledAt,
+              }
+              : {}),
+            newScheduledAt:
+              pendingReschedule.requestedScheduledAt,
+            reason: pendingReschedule.reason,
+            rescheduledBy: pendingReschedule.requestedBy,
+            rescheduledByRole: "USER",
+            rescheduledAt: now,
+          });
 
-      await User.updateOne(
-        { _id: coordinatorId },
-        {
-          $inc: {
-            "coordinatorProfile.totalAssignedBookings": 1,
+          booking.scheduledAt =
+            pendingReschedule.requestedScheduledAt;
+          delete booking.assignment.pendingReschedule;
+        }
+
+        booking.status = "ASSIGNED";
+        booking.assignment.status = "ACCEPTED";
+        booking.assignment.assignedCoordinatorId =
+          new Types.ObjectId(coordinatorId);
+        booking.assignment.assignedAt = now;
+        booking.assignment.coordinatorAcceptedAt = now;
+        delete booking.assignment.responseDeadlineAt;
+        delete booking.assignment.assignmentExpiresAt;
+
+        await booking.save({ session });
+
+        await User.updateOne(
+          { _id: coordinatorId },
+          {
+            $inc: {
+              "coordinatorProfile.totalAssignedBookings": 1,
+            },
           },
-        },
-      );
+          { session },
+        );
 
-      return {
-        bookingId: booking._id,
-        bookingStatus: booking.status,
-        assignmentStatus: booking.assignment.status,
-        coordinatorId,
-        acceptedAt:
-          booking.assignment.coordinatorAcceptedAt,
-      };
+        result = {
+          bookingId: booking._id,
+          bookingStatus: booking.status,
+          assignmentStatus: booking.assignment.status,
+          coordinatorId,
+          acceptedAt: now,
+          scheduledAt: booking.scheduledAt,
+        };
+      });
+
+      return result;
+    } finally {
+      await session.endSession();
     }
-
-    currentRequest.status = "REJECTED";
-
-    const trimmedReason = reason?.trim();
-
-    if (trimmedReason) {
-      currentRequest.rejectionReason = trimmedReason;
-    } else {
-      delete currentRequest.rejectionReason;
-    }
-
-    booking.assignment.status = "PENDING_SELECTION";
-    booking.status = "ASSIGNMENT_PENDING";
-
-    delete booking.assignment.assignedCoordinatorId;
-    delete booking.assignment.responseDeadlineAt;
-
-    await booking.save();
-
-    return {
-      bookingId: booking._id,
-      bookingStatus: booking.status,
-      assignmentStatus: booking.assignment.status,
-      rejectedCoordinatorId: coordinatorId,
-      canSelectAnotherCoordinator:
-        !booking.assignment.assignmentExpiresAt ||
-        booking.assignment.assignmentExpiresAt > now,
-    };
   }
 
   static async requestReassignment(params: {
@@ -3548,20 +3602,21 @@ export class BookingService {
       );
     }
 
-    const pendingRequest =
-      booking.assignment.requests
-        ?.slice()
-        .reverse()
-        .find(
-          (request: any) =>
-            request.status === "PENDING",
-        );
+    const currentRound =
+      booking.assignment.currentRound ?? 1;
 
-    if (pendingRequest) {
-      pendingRequest.status = "CANCELLED";
-      pendingRequest.respondedAt = now;
+    for (const request of booking.assignment.requests ?? []) {
+      if (
+        request.status === "PENDING" &&
+        (request.assignmentRound ?? 1) === currentRound
+      ) {
+        request.status = "CANCELLED";
+        request.closureReason = "REASSIGNMENT_STARTED";
+        request.respondedAt = now;
+      }
     }
 
+    booking.assignment.currentRound = currentRound + 1;
     booking.assignment.status =
       "REASSIGNMENT_REQUESTED";
 
@@ -3575,6 +3630,7 @@ export class BookingService {
     delete booking.assignment.assignedCoordinatorId;
     delete booking.assignment.coordinatorAcceptedAt;
     delete booking.assignment.responseDeadlineAt;
+    delete booking.assignment.pendingReschedule;
 
     booking.status = "ASSIGNMENT_PENDING";
 
@@ -3609,10 +3665,12 @@ export class BookingService {
       isDeleted: false,
       status: "ASSIGNMENT_PENDING",
       "assignment.status": "PENDING_RESPONSE",
-      "assignment.assignedCoordinatorId":
-        new Types.ObjectId(coordinatorId),
-      "assignment.responseDeadlineAt": {
-        $gt: new Date(),
+      "assignment.requests": {
+        $elemMatch: {
+          coordinatorId: new Types.ObjectId(coordinatorId),
+          status: "PENDING",
+          responseDeadlineAt: { $gt: new Date() },
+        },
       },
     };
 
@@ -3628,7 +3686,7 @@ export class BookingService {
           createdAt: 1,
         })
         .sort({
-          "assignment.assignedAt":
+          "assignment.requests.requestedAt":
             sortOrder === "desc" ? -1 : 1,
         })
         .skip(skip)
@@ -3722,92 +3780,73 @@ export class BookingService {
   static async processAssignmentTimeouts() {
     const now = new Date();
 
-    const expiredPendingBookings = await Booking.find({
+    const bookings = await Booking.find({
       isDeleted: false,
       status: "ASSIGNMENT_PENDING",
       "assignment.status": "PENDING_RESPONSE",
-      "assignment.responseDeadlineAt": {
-        $lte: now,
+      "assignment.requests": {
+        $elemMatch: {
+          status: "PENDING",
+          responseDeadlineAt: { $lte: now },
+        },
       },
     });
 
     const result = {
       processed: 0,
-      reassigned: 0,
+      expiredRequests: 0,
       waitingForSelection: 0,
       assignmentExpired: 0,
     };
 
-    for (const booking of expiredPendingBookings) {
+    for (const booking of bookings) {
+      if (!booking.assignment) continue;
+
+      const currentRound = booking.assignment.currentRound ?? 1;
+      let changed = false;
+
+      for (const request of booking.assignment.requests ?? []) {
+        if (
+          request.status === "PENDING" &&
+          (request.assignmentRound ?? 1) === currentRound &&
+          request.responseDeadlineAt <= now
+        ) {
+          request.status = "EXPIRED";
+          request.respondedAt = now;
+          result.expiredRequests += 1;
+          changed = true;
+        }
+      }
+
+      if (!changed) continue;
       result.processed += 1;
 
-      if (!booking.assignment) {
+      const hasPending = booking.assignment.requests.some(
+        (request: any) =>
+          request.status === "PENDING" &&
+          (request.assignmentRound ?? 1) === currentRound,
+      );
+
+      if (hasPending) {
+        booking.assignment.status = "PENDING_RESPONSE";
+        await booking.save();
         continue;
       }
 
-      const currentRequest =
-        booking.assignment.requests
-          ?.slice()
-          .reverse()
-          .find(
-            (request: any) =>
-              request.status === "PENDING",
-          );
-
-      if (currentRequest) {
-        currentRequest.status = "EXPIRED";
-        currentRequest.respondedAt = now;
-      }
-
-      delete booking.assignment.assignedCoordinatorId;
-      delete booking.assignment.responseDeadlineAt;
+      booking.assignment.status = "PENDING_SELECTION";
 
       if (
         booking.assignment.assignmentExpiresAt &&
         booking.assignment.assignmentExpiresAt <= now
       ) {
-        booking.assignment.status =
-          "PENDING_SELECTION";
-
         booking.status = "CONFIRMED";
-
-        await booking.save();
-
         result.assignmentExpired += 1;
-        continue;
-      }
-
-      const excludedCoordinatorIds =
-        this.getRequestedCoordinatorIds(
-          booking,
-          booking.scheduledAt,
-        );
-
-      const nextCoordinator =
-        await this.findNextAvailableCoordinator(
-          booking,
-          excludedCoordinatorIds,
-        );
-
-      if (!nextCoordinator) {
-        booking.assignment.status =
-          "PENDING_SELECTION";
-
+      } else {
         booking.status = "ASSIGNMENT_PENDING";
-
-        await booking.save();
-
         result.waitingForSelection += 1;
-        continue;
       }
 
-      await this.assignCoordinatorRequest({
-        booking,
-        coordinatorId: nextCoordinator._id,
-        assignmentType: "AUTO",
-      });
-
-      result.reassigned += 1;
+      await booking.save();
     }
 
     return result;

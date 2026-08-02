@@ -76,7 +76,14 @@ export type AssignmentRequestStatus =
   | "ACCEPTED"
   | "REJECTED"
   | "EXPIRED"
+  | "SUPERSEDED"
   | "CANCELLED";
+
+export type AssignmentRequestClosureReason =
+  | "ANOTHER_COORDINATOR_ACCEPTED"
+  | "REASSIGNMENT_STARTED"
+  | "USER_CANCELLED"
+  | "SYSTEM_CANCELLED";
 
 export type ReassignmentRequestedByRole =
   | "USER"
@@ -85,8 +92,11 @@ export type ReassignmentRequestedByRole =
   | "SYSTEM";
 
 export interface IAssignmentRequest {
+  _id?: Types.ObjectId;
   coordinatorId: Types.ObjectId;
   status: AssignmentRequestStatus;
+  assignmentRound: number;
+  closureReason?: AssignmentRequestClosureReason;
 
   assignmentType: "MANUAL" | "AUTO";
 
@@ -180,10 +190,28 @@ const assignmentRequestSchema = new Schema<IAssignmentRequest>(
         "ACCEPTED",
         "REJECTED",
         "EXPIRED",
+        "SUPERSEDED",
         "CANCELLED",
       ] satisfies AssignmentRequestStatus[],
       default: "PENDING",
       required: true,
+    },
+
+    assignmentRound: {
+      type: Number,
+      required: true,
+      min: 1,
+      default: 1,
+    },
+
+    closureReason: {
+      type: String,
+      enum: [
+        "ANOTHER_COORDINATOR_ACCEPTED",
+        "REASSIGNMENT_STARTED",
+        "USER_CANCELLED",
+        "SYSTEM_CANCELLED",
+      ],
     },
 
     assignmentType: {
@@ -872,7 +900,16 @@ export interface IBooking extends Document {
     coordinatorAcceptedAt?: Date;
     responseDeadlineAt?: Date;
     assignmentExpiresAt?: Date;
+    currentRound: number;
     requests: IAssignmentRequest[];
+    pendingReschedule?: {
+      previousScheduledAt?: Date;
+      requestedScheduledAt: Date;
+      reason: string;
+      requestedBy: Types.ObjectId;
+      requestedAt: Date;
+      assignmentRound: number;
+    };
     reassignment?: {
       requestedBy: Types.ObjectId;
       requestedByRole: ReassignmentRequestedByRole;
@@ -1111,9 +1148,44 @@ const bookingSchema = new Schema<IBooking>(
       // final deadline for the complete coordinator-selection process
       assignmentExpiresAt: Date,
 
+      currentRound: {
+        type: Number,
+        default: 1,
+        min: 1,
+      },
+
       requests: {
         type: [assignmentRequestSchema],
         default: [],
+      },
+
+      pendingReschedule: {
+        previousScheduledAt: Date,
+        requestedScheduledAt: {
+          type: Date,
+          required: true,
+        },
+        reason: {
+          type: String,
+          required: true,
+          trim: true,
+          maxlength: 500,
+        },
+        requestedBy: {
+          type: Schema.Types.ObjectId,
+          ref: "User",
+          required: true,
+        },
+        requestedAt: {
+          type: Date,
+          required: true,
+          default: Date.now,
+        },
+        assignmentRound: {
+          type: Number,
+          required: true,
+          min: 1,
+        },
       },
 
       reassignment: {

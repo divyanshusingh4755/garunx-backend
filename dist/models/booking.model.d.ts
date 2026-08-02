@@ -9,11 +9,15 @@ export type AssignmentStatus = "NOT_STARTED" | "PENDING_SELECTION" | "PENDING_RE
 export type BookingCategory = "UPCOMING" | "ONGOING" | "COMPLETED" | "CANCELLED" | "PAYMENT_PENDING" | "EXPIRED";
 export type BookingExecutionStage = "NOT_STARTED" | "COORDINATOR_ARRIVED" | "CUSTOMER_VERIFICATION_PENDING" | "SERVICE_EXECUTION" | "FINALIZATION" | "FINISHED";
 export type BookingMilestone = "COORDINATOR_ARRIVED" | "OTP_VERIFIED" | "SERVICE_STARTED" | "CUSTOMER_DETAILS_VERIFIED" | "DOCUMENTS_COLLECTED" | "FAMILY_TREE_STARTED" | "FAMILY_TREE_COMPLETED" | "ALL_SERVICES_COMPLETED" | "FINAL_REPORT_GENERATED";
-export type AssignmentRequestStatus = "PENDING" | "ACCEPTED" | "REJECTED" | "EXPIRED" | "CANCELLED";
+export type AssignmentRequestStatus = "PENDING" | "ACCEPTED" | "REJECTED" | "EXPIRED" | "SUPERSEDED" | "CANCELLED";
+export type AssignmentRequestClosureReason = "ANOTHER_COORDINATOR_ACCEPTED" | "REASSIGNMENT_STARTED" | "USER_CANCELLED" | "SYSTEM_CANCELLED";
 export type ReassignmentRequestedByRole = "USER" | "ADMIN" | "COORDINATOR" | "SYSTEM";
 export interface IAssignmentRequest {
+    _id?: Types.ObjectId;
     coordinatorId: Types.ObjectId;
     status: AssignmentRequestStatus;
+    assignmentRound: number;
+    closureReason?: AssignmentRequestClosureReason;
     assignmentType: "MANUAL" | "AUTO";
     requestedBy?: Types.ObjectId;
     requestedAt: Date;
@@ -226,7 +230,16 @@ export interface IBooking extends Document {
         coordinatorAcceptedAt?: Date;
         responseDeadlineAt?: Date;
         assignmentExpiresAt?: Date;
+        currentRound: number;
         requests: IAssignmentRequest[];
+        pendingReschedule?: {
+            previousScheduledAt?: Date;
+            requestedScheduledAt: Date;
+            reason: string;
+            requestedBy: Types.ObjectId;
+            requestedAt: Date;
+            assignmentRound: number;
+        };
         reassignment?: {
             requestedBy: Types.ObjectId;
             requestedByRole: ReassignmentRequestedByRole;

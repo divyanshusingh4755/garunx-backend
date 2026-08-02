@@ -544,6 +544,7 @@ export const respondToAssignment = async (req, res) => {
         const { bookingId } = req.params;
         const { action, reason } = req.body;
         const coordinatorId = req.user?.userId;
+        const normalizedAction = action;
         if (!coordinatorId) {
             return res.status(401).json({
                 success: false,
@@ -571,8 +572,13 @@ export const respondToAssignment = async (req, res) => {
         const result = await BookingService.respondToAssignment({
             bookingId,
             coordinatorId,
-            action,
-            reason,
+            action: normalizedAction,
+            ...(typeof reason === "string" &&
+                reason.trim()
+                ? {
+                    reason: reason.trim(),
+                }
+                : {}),
         });
         return res.status(200).json({
             success: true,
