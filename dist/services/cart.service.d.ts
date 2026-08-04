@@ -357,12 +357,16 @@ declare class CartService {
         bookingReference: string;
         totalAmount: number;
         paymentCompleted: boolean;
+        providerOrderId?: never;
         paymentSessionId?: never;
+        reusedPaymentSession?: never;
     } | {
         bookingId: Types.ObjectId;
         bookingReference: string;
         totalAmount: number;
+        providerOrderId: any;
         paymentSessionId: any;
+        reusedPaymentSession: boolean;
         paymentCompleted?: never;
     }>;
     static deleteCart(owner: CartOwner, cartId: string): Promise<boolean>;

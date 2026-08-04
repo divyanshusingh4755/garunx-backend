@@ -1278,18 +1278,29 @@ class CartService {
                     _id: cartId,
                     userId,
                     status: {
-                        $in: ["ACTIVE", "SCHEDULED", "CHECKOUT_PENDING"],
+                        $in: [
+                            "ACTIVE",
+                            "SCHEDULED",
+                            "CHECKOUT_PENDING",
+                        ],
                     },
                 }, null, { session });
                 if (!cart) {
                     throw new Error("Cart not found");
                 }
                 /**
-                 * Reuse existing booking if checkout already started
+                 * Reuse checkout booking.
                  */
                 if (cart.activeBookingId) {
-                    const existingBooking = await Booking.findById(cart.activeBookingId).session(session);
-                    if (existingBooking && existingBooking.payment.status !== "PAID") {
+                    const existingBooking = await Booking.findOne({
+                        _id: cart.activeBookingId,
+                        userId,
+                        cartId: cart._id,
+                        isDeleted: false,
+                    }).session(session);
+                    if (existingBooking &&
+                        existingBooking.payment
+                            .status !== "PAID") {
                         return existingBooking;
                     }
                 }
@@ -1300,16 +1311,21 @@ class CartService {
                 if (!validation.isValid) {
                     throw new Error(validation.errors.join(", "));
                 }
-                const expiry = new Date(Date.now() + 30 * 60 * 1000);
-                const checkoutExpiry = expiry;
-                const paymentExpiry = expiry;
+                const expiry = new Date(Date.now() +
+                    30 * 60 * 1000);
                 const lockedCart = await Cart.findOneAndUpdate({
                     _id: cartId,
-                    status: { $in: ["ACTIVE", "SCHEDULED"] },
+                    userId,
+                    status: {
+                        $in: [
+                            "ACTIVE",
+                            "SCHEDULED",
+                        ],
+                    },
                 }, {
                     $set: {
                         status: "CHECKOUT_PENDING",
-                        checkoutExpiresAt: checkoutExpiry,
+                        checkoutExpiresAt: expiry,
                     },
                 }, {
                     new: true,
@@ -1318,7 +1334,8 @@ class CartService {
                 if (!lockedCart) {
                     throw new Error("Checkout already initiated");
                 }
-                const bookingData = await BookingBuilder.buildFromCart(lockedCart);
+                const bookingData = await BookingBuilder
+                    .buildFromCart(lockedCart);
                 const bookingPayload = {
                     userId: new mongoose.Types.ObjectId(userId),
                     cartId: lockedCart._id,
@@ -1330,50 +1347,88 @@ class CartService {
                     payment: {
                         status: "PENDING",
                     },
-                    paymentExpiresAt: paymentExpiry,
+                    paymentExpiresAt: expiry,
                     status: "PENDING_PAYMENT",
                     scheduledAt: lockedCart.scheduledAt,
-                    ...(lockedCart.notes ? { notes: lockedCart.notes } : {}),
+                    ...(lockedCart.notes
+                        ? {
+                            notes: lockedCart.notes,
+                        }
+                        : {}),
                     cartSnapshot: lockedCart.toObject(),
                 };
-                const bookings = await Booking.create([bookingPayload], { session });
-                const createdBooking = bookings[0];
+                const [createdBooking] = await Booking.create([bookingPayload], { session });
                 if (!createdBooking) {
                     throw new Error("Failed to create booking");
                 }
-                await Cart.updateOne({ _id: lockedCart._id }, { $set: { activeBookingId: createdBooking._id } }, { session });
+                await Cart.updateOne({
+                    _id: lockedCart._id,
+                }, {
+                    $set: {
+                        activeBookingId: createdBooking._id,
+                    },
+                }, { session });
                 return createdBooking;
             });
-            /**
-             * Now fully safe — no `never`
-             */
             const finalBooking = result;
-            /**
-             * Payment already completed
-             */
-            if (finalBooking.payment.status === "PAID") {
+            if (finalBooking.payment.status ===
+                "PAID") {
                 return {
                     bookingId: finalBooking._id,
                     bookingReference: finalBooking.bookingReference,
-                    totalAmount: finalBooking.pricing.grandTotal,
+                    totalAmount: finalBooking.pricing
+                        .grandTotal,
                     paymentCompleted: true,
                 };
             }
             /**
-             * Create Cashfree order/session (outside transaction)
+             * Existing Cashfree order can be reused.
              */
+            if (finalBooking.payment
+                .providerOrderId &&
+                finalBooking.payment
+                    .paymentSessionId) {
+                return {
+                    bookingId: finalBooking._id,
+                    bookingReference: finalBooking.bookingReference,
+                    totalAmount: finalBooking.pricing
+                        .grandTotal,
+                    providerOrderId: finalBooking.payment
+                        .providerOrderId,
+                    paymentSessionId: finalBooking.payment
+                        .paymentSessionId,
+                    reusedPaymentSession: true,
+                };
+            }
+            /**
+             * Use a separate provider order ID.
+             *
+             * Do not rely only on bookingReference
+             * when retries are possible.
+             */
+            const providerOrderId = `${finalBooking.bookingReference}-${Date.now()}`;
             const cashfreeOrder = await CashfreeService.createOrder({
-                orderId: finalBooking.bookingReference,
-                amount: finalBooking.pricing.grandTotal,
-                customerName: finalBooking.customerDetails?.name || "Customer",
-                customerEmail: finalBooking.customerDetails?.email || "",
-                customerPhone: finalBooking.customerDetails?.phone || "",
-                userId: userId,
+                orderId: providerOrderId,
+                amount: finalBooking.pricing
+                    .grandTotal,
+                customerName: finalBooking.customerDetails
+                    ?.name || "Customer",
+                customerEmail: finalBooking.customerDetails
+                    ?.email || "",
+                customerPhone: finalBooking.customerDetails
+                    ?.phone || "",
+                userId,
             });
-            await Booking.updateOne({ _id: finalBooking._id }, {
+            await Booking.updateOne({
+                _id: finalBooking._id,
+                "payment.status": {
+                    $ne: "PAID",
+                },
+            }, {
                 $set: {
                     "payment.providerOrderId": cashfreeOrder.order_id,
-                    "payment.paymentSessionId": cashfreeOrder.payment_session_id,
+                    "payment.paymentSessionId": cashfreeOrder
+                        .payment_session_id,
                     "payment.lastAttemptAt": new Date(),
                     "payment.status": "PENDING",
                 },
@@ -1384,8 +1439,12 @@ class CartService {
             return {
                 bookingId: finalBooking._id,
                 bookingReference: finalBooking.bookingReference,
-                totalAmount: finalBooking.pricing.grandTotal,
-                paymentSessionId: cashfreeOrder.payment_session_id,
+                totalAmount: finalBooking.pricing
+                    .grandTotal,
+                providerOrderId: cashfreeOrder.order_id,
+                paymentSessionId: cashfreeOrder
+                    .payment_session_id,
+                reusedPaymentSession: false,
             };
         }
         finally {
