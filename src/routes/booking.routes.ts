@@ -32,8 +32,7 @@ import {
   selectCoordinator,
   respondToAssignment,
   requestReassignment,
-  getCoordinatorAssignmentRequests,
-  getCoordinatorBookings,
+  getCoordinatorBookingList,
   processAssignmentTimeouts,
   getBookingExecution,
   markCoordinatorArrived,
@@ -165,15 +164,9 @@ router.patch(
 );
 
 router.get(
-  "/coordinator/assignment-requests",
-  authenticate,
-  getCoordinatorAssignmentRequests,
-);
-
-router.get(
   "/coordinator/bookings",
   authenticate,
-  getCoordinatorBookings,
+  getCoordinatorBookingList,
 );
 
 router.get(

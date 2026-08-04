@@ -20,6 +20,7 @@ const MAX_OTP_RESENDS = 5;
 const MAX_OTP_VERIFICATION_ATTEMPTS = 5;
 
 type AssignmentAction = "ACCEPT" | "REJECT";
+export type CoordinatorBookingView = "REQUESTS" | "BOOKINGS";
 
 const STATUS_TRANSITIONS: Record<BookingStatus, BookingStatus[]> = {
   PENDING_PAYMENT: ["CONFIRMED", "CANCELLED", "EXPIRED"],
@@ -3647,89 +3648,96 @@ export class BookingService {
     };
   }
 
-  static async getCoordinatorAssignmentRequests(params: {
-    coordinatorId: string;
-    page?: number;
-    limit?: number;
-    sortOrder?: "asc" | "desc";
-  }) {
-    const {
-      coordinatorId,
-      page = 1,
-      limit = 20,
-      sortOrder = "desc",
-    } = params;
+static async getCoordinatorBookingList(params: {
+  coordinatorId: string;
+  view: CoordinatorBookingView;
+  status?: string;
+  page?: number;
+  limit?: number;
+  sortBy?: string;
+  sortOrder?: "asc" | "desc";
+}) {
+  const {
+    coordinatorId,
+    view,
+    status,
+    page = 1,
+    limit = 20,
+    sortBy,
+    sortOrder,
+  } = params;
 
-    const skip = (page - 1) * limit;
+  if (!Types.ObjectId.isValid(coordinatorId)) {
+    throw new Error("Invalid coordinator ID");
+  }
 
-    const query = {
-      isDeleted: false,
-      status: "ASSIGNMENT_PENDING",
-      "assignment.status": "PENDING_RESPONSE",
-      "assignment.requests": {
-        $elemMatch: {
-          coordinatorId: new Types.ObjectId(coordinatorId),
-          status: "PENDING",
-          responseDeadlineAt: { $gt: new Date() },
+  const safePage =
+    Number.isInteger(page) && page > 0
+      ? page
+      : 1;
+
+  const safeLimit =
+    Number.isInteger(limit) && limit > 0
+      ? Math.min(limit, 100)
+      : 20;
+
+  const skip =
+    (safePage - 1) * safeLimit;
+
+  const coordinatorObjectId =
+    new Types.ObjectId(coordinatorId);
+
+  const query: Record<string, any> = {
+    isDeleted: false,
+  };
+
+  let selectFields: Record<string, 1> = {};
+  let sort: Record<string, 1 | -1> = {};
+
+  if (view === "REQUESTS") {
+    query.status =
+      "ASSIGNMENT_PENDING";
+
+    query["assignment.status"] =
+      "PENDING_RESPONSE";
+
+    query["assignment.requests"] = {
+      $elemMatch: {
+        coordinatorId:
+          coordinatorObjectId,
+
+        status:
+          "PENDING",
+
+        responseDeadlineAt: {
+          $gt: new Date(),
         },
       },
     };
 
-    const [data, total] = await Promise.all([
-      Booking.find(query)
-        .select({
-          bookingReference: 1,
-          customerDetails: 1,
-          entries: 1,
-          scheduledAt: 1,
-          assignment: 1,
-          pricing: 1,
-          createdAt: 1,
-        })
-        .sort({
-          "assignment.requests.requestedAt":
-            sortOrder === "desc" ? -1 : 1,
-        })
-        .skip(skip)
-        .limit(limit)
-        .lean(),
-
-      Booking.countDocuments(query),
-    ]);
-
-    return {
-      data,
-      total,
-      page,
-      totalPages: Math.ceil(total / limit),
+    selectFields = {
+      bookingReference: 1,
+      customerDetails: 1,
+      entries: 1,
+      scheduledAt: 1,
+      assignment: 1,
+      pricing: 1,
+      createdAt: 1,
     };
-  }
 
-  static async getCoordinatorBookings(params: {
-    coordinatorId: string;
-    status?: string;
-    page?: number;
-    limit?: number;
-    sortBy?: string;
-    sortOrder?: "asc" | "desc";
-  }) {
-    const {
-      coordinatorId,
-      status,
-      page = 1,
-      limit = 20,
-      sortBy = "scheduledAt",
-      sortOrder = "asc",
-    } = params;
-
-    const skip = (page - 1) * limit;
-
-    const query: Record<string, any> = {
-      isDeleted: false,
-      "assignment.assignedCoordinatorId":
-        new Types.ObjectId(coordinatorId),
-      "assignment.status": "ACCEPTED",
+    sort = {
+      "assignment.requests.requestedAt":
+        sortOrder === "asc"
+          ? 1
+          : -1,
     };
+  } else {
+    query[
+      "assignment.assignedCoordinatorId"
+    ] = coordinatorObjectId;
+
+    query["assignment.status"] =
+      "ACCEPTED";
 
     if (status) {
       query.status = status;
@@ -3744,39 +3752,63 @@ export class BookingService {
       };
     }
 
-    const sort: Record<string, 1 | -1> = {
-      [sortBy]: sortOrder === "desc" ? -1 : 1,
+    selectFields = {
+      bookingReference: 1,
+      status: 1,
+      customerDetails: 1,
+      entries: 1,
+      scheduledAt: 1,
+      assignment: 1,
+      execution: 1,
+      pricing: 1,
+      completedAt: 1,
+      createdAt: 1,
     };
 
-    const [data, total] = await Promise.all([
+    const allowedSortFields = new Set([
+      "scheduledAt",
+      "createdAt",
+      "completedAt",
+      "status",
+      "pricing.grandTotal",
+    ]);
+
+    const safeSortBy =
+      sortBy &&
+      allowedSortFields.has(sortBy)
+        ? sortBy
+        : "scheduledAt";
+
+    sort = {
+      [safeSortBy]:
+        sortOrder === "desc"
+          ? -1
+          : 1,
+    };
+  }
+
+  const [data, total] =
+    await Promise.all([
       Booking.find(query)
-        .select({
-          bookingReference: 1,
-          status: 1,
-          customerDetails: 1,
-          entries: 1,
-          scheduledAt: 1,
-          assignment: 1,
-          execution: 1,
-          pricing: 1,
-          completedAt: 1,
-          createdAt: 1,
-        })
+        .select(selectFields)
         .sort(sort)
         .skip(skip)
-        .limit(limit)
+        .limit(safeLimit)
         .lean(),
 
       Booking.countDocuments(query),
     ]);
 
-    return {
-      data,
-      total,
-      page,
-      totalPages: Math.ceil(total / limit),
-    };
-  }
+  return {
+    view,
+    data,
+    total,
+    page: safePage,
+    limit: safeLimit,
+    totalPages:
+      Math.ceil(total / safeLimit),
+  };
+}
 
   static async processAssignmentTimeouts() {
     const now = new Date();

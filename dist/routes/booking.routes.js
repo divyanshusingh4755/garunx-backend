@@ -1,7 +1,7 @@
 import { Router, } from "express";
 import { body, param, query, validationResult, } from "express-validator";
 import { authenticate } from "../middleware/authenticate.js";
-import { paymentStatus, retryPayment, expirePayments, getMyBookings, getMyBookingById, cancelBooking, rescheduleBooking, updateBookingNotes, getAllBookings, getBookingById, getBookingStats, searchBookings, updateBookingStatus, refundBooking, getAvailableCoordinators, selectCoordinator, respondToAssignment, requestReassignment, getCoordinatorAssignmentRequests, getCoordinatorBookings, processAssignmentTimeouts, getBookingExecution, markCoordinatorArrived, verifyBookingOtp, startBookingService, completeBookingService, skipBookingService, addBookingMilestone, completeBookingExecution, generateBookingOtp, } from "../controllers/booking.controllers.js";
+import { paymentStatus, retryPayment, expirePayments, getMyBookings, getMyBookingById, cancelBooking, rescheduleBooking, updateBookingNotes, getAllBookings, getBookingById, getBookingStats, searchBookings, updateBookingStatus, refundBooking, getAvailableCoordinators, selectCoordinator, respondToAssignment, requestReassignment, getCoordinatorBookingList, processAssignmentTimeouts, getBookingExecution, markCoordinatorArrived, verifyBookingOtp, startBookingService, completeBookingService, skipBookingService, addBookingMilestone, completeBookingExecution, generateBookingOtp, } from "../controllers/booking.controllers.js";
 import { authorizeRoles } from "../middleware/authorizeRoles.js";
 import { Role } from "../types/rbac.js";
 const router = Router();
@@ -63,8 +63,7 @@ router.patch("/:bookingId/notes", authenticate, param("bookingId").isMongoId().w
     .withMessage("Notes must be a string")
     .isLength({ max: 1000 })
     .withMessage("Notes cannot exceed 1000 characters"), validate, updateBookingNotes);
-router.get("/coordinator/assignment-requests", authenticate, getCoordinatorAssignmentRequests);
-router.get("/coordinator/bookings", authenticate, getCoordinatorBookings);
+router.get("/coordinator/bookings", authenticate, getCoordinatorBookingList);
 router.get("/:bookingId/available-coordinators", authenticate, bookingIdValidation, getAvailableCoordinators);
 router.post("/:bookingId/assignment/select", authenticate, param("bookingId").isMongoId().withMessage("Invalid booking ID"), body("coordinatorId")
     .isMongoId()

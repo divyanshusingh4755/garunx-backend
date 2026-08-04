@@ -2,6 +2,7 @@ import type { Request } from "express";
 import { type BookingCategory, type BookingMilestone, type BookingStatus, type IBookingReschedule, type ReassignmentRequestedByRole } from "../models/booking.model.js";
 import mongoose, { Types } from "mongoose";
 type AssignmentAction = "ACCEPT" | "REJECT";
+export type CoordinatorBookingView = "REQUESTS" | "BOOKINGS";
 export interface CoordinatorFilters {
     matchCaste?: boolean;
     matchGotra?: boolean;
@@ -532,29 +533,16 @@ export declare class BookingService {
             requestedAt: Date;
         };
     }>;
-    static getCoordinatorAssignmentRequests(params: {
+    static getCoordinatorBookingList(params: {
         coordinatorId: string;
-        page?: number;
-        limit?: number;
-        sortOrder?: "asc" | "desc";
-    }): Promise<{
-        data: (import("../models/booking.model.js").IBooking & Required<{
-            _id: Types.ObjectId;
-        }> & {
-            __v: number;
-        })[];
-        total: number;
-        page: number;
-        totalPages: number;
-    }>;
-    static getCoordinatorBookings(params: {
-        coordinatorId: string;
+        view: CoordinatorBookingView;
         status?: string;
         page?: number;
         limit?: number;
         sortBy?: string;
         sortOrder?: "asc" | "desc";
     }): Promise<{
+        view: CoordinatorBookingView;
         data: (import("../models/booking.model.js").IBooking & Required<{
             _id: Types.ObjectId;
         }> & {
@@ -562,6 +550,7 @@ export declare class BookingService {
         })[];
         total: number;
         page: number;
+        limit: number;
         totalPages: number;
     }>;
     static processAssignmentTimeouts(): Promise<{

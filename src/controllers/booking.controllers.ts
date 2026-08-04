@@ -1,5 +1,5 @@
 import type { Request, Response } from "express";
-import { BookingService, type CoordinatorFilters } from "../services/booking.service.js";
+import { BookingService, type CoordinatorBookingView, type CoordinatorFilters } from "../services/booking.service.js";
 import { mapRoleToReassignmentRole } from "../utils/mapRole.js";
 
 export const paymentWebhooks = async (req: Request, res: Response) => {
@@ -873,14 +873,19 @@ export const requestReassignment = async (
 };
 
 /**
- * Pending assignment requests visible to a coordinator.
+ * Coordinator booking list.
+ *
+ * Views:
+ * - REQUESTS: Pending booking requests awaiting coordinator response
+ * - BOOKINGS: Accepted, ongoing, completed, or cancelled bookings
  */
-export const getCoordinatorAssignmentRequests = async (
+export const getCoordinatorBookingList = async (
   req: Request,
   res: Response,
 ) => {
   try {
-    const coordinatorId = req.user?.userId;
+    const coordinatorId =
+      req.user?.userId;
 
     if (!coordinatorId) {
       return res.status(401).json({
@@ -889,71 +894,88 @@ export const getCoordinatorAssignmentRequests = async (
       });
     }
 
-    const { page, limit, sortOrder } = req.query;
+    const {
+      view,
+      status,
+      page,
+      limit,
+      sortBy,
+      sortOrder,
+    } = req.query;
+
+    const normalizedView =
+      String(view ?? "")
+        .trim()
+        .toUpperCase() as CoordinatorBookingView;
+
+    if (
+      ![
+        "REQUESTS",
+        "BOOKINGS",
+      ].includes(normalizedView)
+    ) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Invalid view. Allowed values are REQUESTS and BOOKINGS",
+      });
+    }
+
+    const normalizedSortOrder =
+      sortOrder === "asc" ||
+        sortOrder === "desc"
+        ? sortOrder
+        : normalizedView === "REQUESTS"
+          ? "desc"
+          : "asc";
 
     const result =
-      await BookingService.getCoordinatorAssignmentRequests({
+      await BookingService.getCoordinatorBookingList({
         coordinatorId,
-        page: Number(page) || 1,
-        limit: Number(limit) || 20,
-        sortOrder: (sortOrder as "asc" | "desc") || "desc",
+        view: normalizedView,
+
+        ...(typeof status === "string" &&
+          status.trim() && {
+          status: status.trim(),
+        }),
+
+        page:
+          typeof page === "string"
+            ? Number(page)
+            : 1,
+
+        limit:
+          typeof limit === "string"
+            ? Number(limit)
+            : 20,
+
+        ...(typeof sortBy === "string" &&
+          sortBy.trim() && {
+          sortBy: sortBy.trim(),
+        }),
+
+        sortOrder:
+          normalizedSortOrder,
       });
 
     return res.status(200).json({
       success: true,
+      view: result.view,
       data: result.data,
-      total: result.total,
-      currentPage: result.page,
-      totalPages: result.totalPages,
+      pagination: {
+        total: result.total,
+        currentPage: result.page,
+        limit: result.limit,
+        totalPages:
+          result.totalPages,
+      },
     });
   } catch (error: any) {
     return res.status(400).json({
       success: false,
       message:
-        error.message || "Failed to fetch coordinator assignment requests",
-    });
-  }
-};
-
-/**
- * Accepted, ongoing, and completed bookings of a coordinator.
- */
-export const getCoordinatorBookings = async (
-  req: Request,
-  res: Response,
-) => {
-  try {
-    const coordinatorId = req.user?.userId;
-
-    if (!coordinatorId) {
-      return res.status(401).json({
-        success: false,
-        message: "Unauthorized",
-      });
-    }
-
-    const { status, page, limit, sortBy, sortOrder } = req.query;
-
-    const result = await BookingService.getCoordinatorBookings({
-      coordinatorId,
-      status: status as string,
-      page: Number(page) || 1,
-      limit: Number(limit) || 20,
-      sortBy: (sortBy as string) || "scheduledAt",
-      sortOrder: (sortOrder as "asc" | "desc") || "asc",
-    });
-
-    return res.status(200).json({
-      success: true,
-      data: result.data,
-      total: result.total,
-      currentPage: result.page,
-      totalPages: result.totalPages,
-    });
-  } catch (error: any) {
-    return res.status(400).json({
-      success: false,
-      message: error.message || "Failed to fetch coordinator bookings",
+        error.message ||
+        "Failed to fetch coordinator booking list",
     });
   }
 };

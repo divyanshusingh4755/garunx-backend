@@ -31,13 +31,13 @@ export declare const respondToAssignment: (req: Request, res: Response) => Promi
  */
 export declare const requestReassignment: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
 /**
- * Pending assignment requests visible to a coordinator.
+ * Coordinator booking list.
+ *
+ * Views:
+ * - REQUESTS: Pending booking requests awaiting coordinator response
+ * - BOOKINGS: Accepted, ongoing, completed, or cancelled bookings
  */
-export declare const getCoordinatorAssignmentRequests: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
-/**
- * Accepted, ongoing, and completed bookings of a coordinator.
- */
-export declare const getCoordinatorBookings: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
+export declare const getCoordinatorBookingList: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
 /**
  * Process coordinators who did not respond before their deadline.
  */

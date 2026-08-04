@@ -2270,24 +2270,39 @@ export class BookingService {
             reassignment: booking.assignment.reassignment,
         };
     }
-    static async getCoordinatorAssignmentRequests(params) {
-        const { coordinatorId, page = 1, limit = 20, sortOrder = "desc", } = params;
-        const skip = (page - 1) * limit;
+    static async getCoordinatorBookingList(params) {
+        const { coordinatorId, view, status, page = 1, limit = 20, sortBy, sortOrder, } = params;
+        if (!Types.ObjectId.isValid(coordinatorId)) {
+            throw new Error("Invalid coordinator ID");
+        }
+        const safePage = Number.isInteger(page) && page > 0
+            ? page
+            : 1;
+        const safeLimit = Number.isInteger(limit) && limit > 0
+            ? Math.min(limit, 100)
+            : 20;
+        const skip = (safePage - 1) * safeLimit;
+        const coordinatorObjectId = new Types.ObjectId(coordinatorId);
         const query = {
             isDeleted: false,
-            status: "ASSIGNMENT_PENDING",
-            "assignment.status": "PENDING_RESPONSE",
-            "assignment.requests": {
-                $elemMatch: {
-                    coordinatorId: new Types.ObjectId(coordinatorId),
-                    status: "PENDING",
-                    responseDeadlineAt: { $gt: new Date() },
-                },
-            },
         };
-        const [data, total] = await Promise.all([
-            Booking.find(query)
-                .select({
+        let selectFields = {};
+        let sort = {};
+        if (view === "REQUESTS") {
+            query.status =
+                "ASSIGNMENT_PENDING";
+            query["assignment.status"] =
+                "PENDING_RESPONSE";
+            query["assignment.requests"] = {
+                $elemMatch: {
+                    coordinatorId: coordinatorObjectId,
+                    status: "PENDING",
+                    responseDeadlineAt: {
+                        $gt: new Date(),
+                    },
+                },
+            };
+            selectFields = {
                 bookingReference: 1,
                 customerDetails: 1,
                 entries: 1,
@@ -2295,49 +2310,31 @@ export class BookingService {
                 assignment: 1,
                 pricing: 1,
                 createdAt: 1,
-            })
-                .sort({
-                "assignment.requests.requestedAt": sortOrder === "desc" ? -1 : 1,
-            })
-                .skip(skip)
-                .limit(limit)
-                .lean(),
-            Booking.countDocuments(query),
-        ]);
-        return {
-            data,
-            total,
-            page,
-            totalPages: Math.ceil(total / limit),
-        };
-    }
-    static async getCoordinatorBookings(params) {
-        const { coordinatorId, status, page = 1, limit = 20, sortBy = "scheduledAt", sortOrder = "asc", } = params;
-        const skip = (page - 1) * limit;
-        const query = {
-            isDeleted: false,
-            "assignment.assignedCoordinatorId": new Types.ObjectId(coordinatorId),
-            "assignment.status": "ACCEPTED",
-        };
-        if (status) {
-            query.status = status;
-        }
-        else {
-            query.status = {
-                $in: [
-                    "ASSIGNED",
-                    "IN_PROGRESS",
-                    "COMPLETED",
-                    "CANCELLED",
-                ],
+            };
+            sort = {
+                "assignment.requests.requestedAt": sortOrder === "asc"
+                    ? 1
+                    : -1,
             };
         }
-        const sort = {
-            [sortBy]: sortOrder === "desc" ? -1 : 1,
-        };
-        const [data, total] = await Promise.all([
-            Booking.find(query)
-                .select({
+        else {
+            query["assignment.assignedCoordinatorId"] = coordinatorObjectId;
+            query["assignment.status"] =
+                "ACCEPTED";
+            if (status) {
+                query.status = status;
+            }
+            else {
+                query.status = {
+                    $in: [
+                        "ASSIGNED",
+                        "IN_PROGRESS",
+                        "COMPLETED",
+                        "CANCELLED",
+                    ],
+                };
+            }
+            selectFields = {
                 bookingReference: 1,
                 status: 1,
                 customerDetails: 1,
@@ -2348,18 +2345,40 @@ export class BookingService {
                 pricing: 1,
                 completedAt: 1,
                 createdAt: 1,
-            })
+            };
+            const allowedSortFields = new Set([
+                "scheduledAt",
+                "createdAt",
+                "completedAt",
+                "status",
+                "pricing.grandTotal",
+            ]);
+            const safeSortBy = sortBy &&
+                allowedSortFields.has(sortBy)
+                ? sortBy
+                : "scheduledAt";
+            sort = {
+                [safeSortBy]: sortOrder === "desc"
+                    ? -1
+                    : 1,
+            };
+        }
+        const [data, total] = await Promise.all([
+            Booking.find(query)
+                .select(selectFields)
                 .sort(sort)
                 .skip(skip)
-                .limit(limit)
+                .limit(safeLimit)
                 .lean(),
             Booking.countDocuments(query),
         ]);
         return {
+            view,
             data,
             total,
-            page,
-            totalPages: Math.ceil(total / limit),
+            page: safePage,
+            limit: safeLimit,
+            totalPages: Math.ceil(total / safeLimit),
         };
     }
     static async processAssignmentTimeouts() {
