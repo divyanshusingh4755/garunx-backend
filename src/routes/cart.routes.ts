@@ -185,15 +185,23 @@ router.put(
 router.put(
   "/:cartId/schedule",
   optionalAuthenticate,
-  param("cartId").isMongoId().withMessage("Invalid cartId"),
+  param("cartId")
+    .isMongoId()
+    .withMessage("Invalid cartId"),
   body("scheduledDate")
     .notEmpty()
     .withMessage("scheduledDate is required")
-    .isISO8601()
-    .withMessage("Invalid scheduledDate"),
+    .matches(/^\d{4}-\d{2}-\d{2}$/)
+    .withMessage(
+      "scheduledDate must use YYYY-MM-DD format",
+    ),
   body("scheduledTime")
+    .notEmpty()
+    .withMessage("scheduledTime is required")
     .matches(/^([01]\d|2[0-3]):[0-5]\d$/)
-    .withMessage("scheduledTime must use HH:mm format"),
+    .withMessage(
+      "scheduledTime must use HH:mm format",
+    ),
   validate,
   updateSchedule,
 );

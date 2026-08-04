@@ -928,9 +928,40 @@ class CartService {
         return result.cart;
     }
     static async updateSchedule(owner, cartId, payload) {
-        const { scheduledDate, scheduledTime } = payload;
+        const { scheduledDate, scheduledTime, } = payload;
         if (!mongoose.Types.ObjectId.isValid(cartId)) {
             throw new Error("Invalid cartId");
+        }
+        if (typeof scheduledDate !== "string" ||
+            !scheduledDate.trim()) {
+            throw new Error("scheduledDate is required");
+        }
+        if (typeof scheduledTime !== "string" ||
+            !/^([01]\d|2[0-3]):[0-5]\d$/.test(scheduledTime)) {
+            throw new Error("scheduledTime is required in HH:mm format");
+        }
+        /*
+         * Supports:
+         * 2026-08-03
+         * 2026-08-03T00:00:00.000Z
+         */
+        const datePart = scheduledDate.split("T")[0];
+        if (!datePart ||
+            !/^\d{4}-\d{2}-\d{2}$/.test(datePart)) {
+            throw new Error("scheduledDate must be in YYYY-MM-DD format");
+        }
+        /*
+         * Interpret the selected date and time as India time.
+         * Example:
+         * 2026-08-03 + 10:30
+         * becomes 2026-08-03T05:00:00.000Z
+         */
+        const scheduledAt = new Date(`${datePart}T${scheduledTime}:00+05:30`);
+        if (Number.isNaN(scheduledAt.getTime())) {
+            throw new Error("Invalid scheduled date or time");
+        }
+        if (scheduledAt <= new Date()) {
+            throw new Error("Scheduled date and time cannot be in the past");
         }
         const cart = await Cart.findOne({
             _id: cartId,
@@ -940,29 +971,9 @@ class CartService {
             throw new Error("Cart not found");
         }
         this.ensureCartEditable(cart);
-        if (!scheduledDate) {
-            throw new Error("Scheduled date is required");
-        }
-        if (typeof scheduledTime !== "string" ||
-            !/^([01]\d|2[0-3]):[0-5]\d$/.test(scheduledTime)) {
-            throw new Error("scheduledTime is required in HH:mm format");
-        }
-        const date = new Date(scheduledDate);
-        if (isNaN(date.getTime())) {
-            throw new Error("Invalid scheduled date");
-        }
-        const now = new Date();
-        if (date < now) {
-            throw new Error("Scheduled date cannot be in the past");
-        }
-        /**
-         * OPTIONAL: future enhancement
-         * - slot validation
-         * - business hours validation
-         * - blackout dates
-         */
-        cart.scheduledDate = date;
-        cart.scheduledTime = scheduledTime;
+        cart.scheduledAt = scheduledAt;
+        cart.schedulingTimezone =
+            "Asia/Kolkata";
         cart.status = "SCHEDULED";
         await cart.save();
         return cart;
@@ -1282,7 +1293,7 @@ class CartService {
                         return existingBooking;
                     }
                 }
-                if (!cart.scheduledDate) {
+                if (!cart.scheduledAt) {
                     throw new Error("Scheduled date not set");
                 }
                 const validation = await this.validateCart({ userId }, cartId, true, session);
@@ -1321,7 +1332,7 @@ class CartService {
                     },
                     paymentExpiresAt: paymentExpiry,
                     status: "PENDING_PAYMENT",
-                    scheduledAt: lockedCart.scheduledDate,
+                    scheduledAt: lockedCart.scheduledAt,
                     ...(lockedCart.notes ? { notes: lockedCart.notes } : {}),
                     cartSnapshot: lockedCart.toObject(),
                 };

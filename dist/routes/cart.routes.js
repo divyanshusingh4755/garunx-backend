@@ -70,11 +70,15 @@ const serviceSelectionValidation = [
 ];
 router.put("/:cartId/selected-services", optionalAuthenticate, serviceSelectionValidation, updateSelectedServices);
 router.put("/:cartId/addon-services", optionalAuthenticate, serviceSelectionValidation, updateAddonServices);
-router.put("/:cartId/schedule", optionalAuthenticate, param("cartId").isMongoId().withMessage("Invalid cartId"), body("scheduledDate")
+router.put("/:cartId/schedule", optionalAuthenticate, param("cartId")
+    .isMongoId()
+    .withMessage("Invalid cartId"), body("scheduledDate")
     .notEmpty()
     .withMessage("scheduledDate is required")
-    .isISO8601()
-    .withMessage("Invalid scheduledDate"), body("scheduledTime")
+    .matches(/^\d{4}-\d{2}-\d{2}$/)
+    .withMessage("scheduledDate must use YYYY-MM-DD format"), body("scheduledTime")
+    .notEmpty()
+    .withMessage("scheduledTime is required")
     .matches(/^([01]\d|2[0-3]):[0-5]\d$/)
     .withMessage("scheduledTime must use HH:mm format"), validate, updateSchedule);
 router.put("/:cartId/customer-details", optionalAuthenticate, param("cartId").isMongoId().withMessage("Invalid cartId"), body("bookingFor")

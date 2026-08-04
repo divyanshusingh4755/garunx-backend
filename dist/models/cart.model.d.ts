@@ -57,8 +57,8 @@ export interface ICart extends Document {
     addonComponents: ISelectedComponent[];
     selectedServices: ISelectedService[];
     addonServices: IAddonService[];
-    scheduledDate?: Date;
-    scheduledTime?: string;
+    scheduledAt?: Date;
+    schedulingTimezone?: string;
     notes?: string;
     activeBookingId?: Types.ObjectId;
     basePrice: number;

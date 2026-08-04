@@ -51,7 +51,7 @@ export interface ISelectedService {
 }
 
 export interface IAddonService
-  extends ISelectedService {}
+  extends ISelectedService { }
 
 export interface ICart extends Document {
   _id: Types.ObjectId;
@@ -81,8 +81,8 @@ export interface ICart extends Document {
   addonComponents: ISelectedComponent[];
   selectedServices: ISelectedService[];
   addonServices: IAddonService[];
-  scheduledDate?: Date;
-  scheduledTime?: string;
+  scheduledAt?: Date;
+  schedulingTimezone?: string;
   notes?: string;
   activeBookingId?: Types.ObjectId;
   basePrice: number;
@@ -327,8 +327,15 @@ const cartSchema = new Schema<ICart>(
       type: [selectedServiceSchema],
       default: [],
     },
-    scheduledDate: Date,
-    scheduledTime: String,
+    scheduledAt: {
+      type: Date,
+      index: true,
+    },
+    schedulingTimezone: {
+      type: String,
+      trim: true,
+      default: "Asia/Kolkata",
+    },
     notes: {
       type: String,
       maxlength: 1000,

@@ -162,8 +162,8 @@ declare class CartService {
         };
         selectedServices: ISelectedService[];
         addonServices: IAddonService[];
-        scheduledDate?: Date;
-        scheduledTime?: string;
+        scheduledAt?: Date;
+        schedulingTimezone?: string;
         notes?: string;
         activeBookingId?: Types.ObjectId;
         basePrice: number;
@@ -262,8 +262,8 @@ declare class CartService {
         };
         selectedComponents: ISelectedComponent[];
         addonComponents: ISelectedComponent[];
-        scheduledDate?: Date;
-        scheduledTime?: string;
+        scheduledAt?: Date;
+        schedulingTimezone?: string;
         notes?: string;
         activeBookingId?: Types.ObjectId;
         basePrice: number;

@@ -207,8 +207,15 @@ const cartSchema = new Schema({
         type: [selectedServiceSchema],
         default: [],
     },
-    scheduledDate: Date,
-    scheduledTime: String,
+    scheduledAt: {
+        type: Date,
+        index: true,
+    },
+    schedulingTimezone: {
+        type: String,
+        trim: true,
+        default: "Asia/Kolkata",
+    },
     notes: {
         type: String,
         maxlength: 1000,
