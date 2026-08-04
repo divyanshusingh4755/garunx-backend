@@ -10,7 +10,8 @@ import { ReferralRewardService } from "./referralreward.service.js";
 import { escapeRegex } from "../utils/escapeRegex.js";
 import { User } from "../models/user.model.js";
 
-const COORDINATOR_RESPONSE_TIME_MS = 10 * 60 * 1000;
+const COORDINATOR_RESPONSE_TIME_MS = 2 * 60 * 60 * 1000;  // for testing only
+// const COORDINATOR_RESPONSE_TIME_MS = 10 * 60 * 1000;
 const ASSIGNMENT_WINDOW_MS = 2 * 60 * 60 * 1000;
 
 const BOOKING_OTP_EXPIRY_MS = 10 * 60 * 1000;
