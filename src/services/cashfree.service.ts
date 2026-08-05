@@ -40,6 +40,18 @@ export class CashfreeService {
     process.env.CASHFREE_API_VERSION ??
     "2025-01-01";
 
+  private static async wait(
+    milliseconds: number,
+  ): Promise<void> {
+    await new Promise<void>(
+      (resolve) =>
+        setTimeout(
+          resolve,
+          milliseconds,
+        ),
+    );
+  }
+
   private static getCredentials(): {
     clientId: string;
     clientSecret: string;
@@ -77,9 +89,9 @@ export class CashfreeService {
       headers: {
         ...(includeContentType
           ? {
-              "Content-Type":
-                "application/json",
-            }
+            "Content-Type":
+              "application/json",
+          }
           : {}),
         "x-client-id": clientId,
         "x-client-secret":
@@ -149,12 +161,12 @@ export class CashfreeService {
     const rounded =
       Math.round(
         (value + Number.EPSILON) *
-          100,
+        100,
       ) / 100;
 
     if (
       Math.abs(value - rounded) >
-      Number.EPSILON
+      1e-9
     ) {
       throw new Error(
         `${fieldName} may contain at most two decimal places`,
@@ -190,7 +202,7 @@ export class CashfreeService {
 
     if (
       process.env.CASHFREE_ENV ===
-        "PROD" &&
+      "PROD" &&
       url.protocol !== "https:"
     ) {
       throw new Error(
@@ -230,7 +242,7 @@ export class CashfreeService {
 
     if (
       process.env.CASHFREE_ENV ===
-        "PROD" &&
+      "PROD" &&
       url.protocol !== "https:"
     ) {
       throw new Error(
@@ -254,7 +266,7 @@ export class CashfreeService {
       const wrappedError =
         new Error(
           providerMessage ||
-            fallback,
+          fallback,
         ) as Error & {
           statusCode?: number;
           providerCode?: string;
@@ -300,11 +312,20 @@ export class CashfreeService {
         input.userId,
       );
 
+    const customerName =
+      this.validateIdentifier(
+        "customerName",
+        input.customerName,
+      );
+
     const customerPhone =
       this.validateIdentifier(
         "customerPhone",
         input.customerPhone,
       );
+
+    const customerEmail =
+      input.customerEmail.trim();
 
     const returnUrl =
       this.getReturnUrl(orderId);
@@ -325,25 +346,41 @@ export class CashfreeService {
     }
 
     const payload = {
-      order_id: orderId,
-      order_amount: amount,
-      order_currency: "INR",
+      order_id:
+        orderId,
+
+      order_amount:
+        amount,
+
+      order_currency:
+        "INR",
+
       order_expiry_time:
         new Date(
           Date.now() +
-            30 * 60 * 1000,
+          30 * 60 * 1000,
         ).toISOString(),
+
       customer_details: {
         customer_id:
           customerId,
+
         customer_name:
-          input.customerName.trim(),
-        customer_email:
-          input.customerEmail.trim(),
+          customerName,
+
         customer_phone:
           customerPhone,
+
+        ...(customerEmail
+          ? {
+            customer_email:
+              customerEmail,
+          }
+          : {}),
       },
-      order_meta: orderMeta,
+
+      order_meta:
+        orderMeta,
     };
 
     try {
@@ -351,11 +388,108 @@ export class CashfreeService {
         await axios.post(
           `${this.baseUrl}/orders`,
           payload,
-          this.getRequestConfig(true),
+          this.getRequestConfig(
+            true,
+          ),
         );
 
       return response.data;
     } catch (error: unknown) {
+      if (
+        axios.isAxiosError<
+          CashfreeErrorResponse
+        >(error)
+      ) {
+        const status =
+          error.response?.status;
+
+        const providerCode =
+          error.response?.data
+            ?.code;
+
+        const providerMessage =
+          error.response?.data
+            ?.message;
+
+        const requestId =
+          error.response?.headers?.[
+          "x-request-id"
+          ];
+
+        console.error(
+          "Cashfree create-order failed",
+          {
+            status,
+            providerCode,
+            providerMessage,
+            requestId,
+            orderId,
+          },
+        );
+
+        const ambiguousFailure =
+          status === 500 ||
+          status === 502 ||
+          status === 503 ||
+          status === 504;
+
+        const duplicateOrder =
+          providerCode ===
+          "order_already_exists" ||
+          providerMessage
+            ?.toLowerCase()
+            .includes(
+              "same id is already present",
+            );
+
+        if (
+          ambiguousFailure ||
+          duplicateOrder
+        ) {
+          let recoveryError:
+            unknown;
+
+          for (
+            let attempt = 1;
+            attempt <= 3;
+            attempt += 1
+          ) {
+            try {
+              const existingOrder =
+                await this.getOrder(
+                  orderId,
+                );
+
+              if (
+                existingOrder?.order_id ===
+                orderId &&
+                existingOrder
+                  ?.payment_session_id
+              ) {
+                return existingOrder;
+              }
+            } catch (error: unknown) {
+              recoveryError = error;
+            }
+
+            if (attempt < 3) {
+              await this.wait(500);
+            }
+          }
+
+          console.error(
+            "Cashfree order recovery failed",
+            {
+              orderId,
+              message:
+                recoveryError instanceof Error
+                  ? recoveryError.message
+                  : "Unknown error",
+            },
+          );
+        }
+      }
+
       throw this.getProviderError(
         error,
         "Failed to create Cashfree order",
@@ -425,7 +559,7 @@ export class CashfreeService {
         )
         .update(
           normalizedTimestamp +
-            rawPayload,
+          rawPayload,
           "utf8",
         )
         .digest();
@@ -446,7 +580,7 @@ export class CashfreeService {
     if (
       receivedSignature.length === 0 ||
       computedSignature.length !==
-        receivedSignature.length
+      receivedSignature.length
     ) {
       return false;
     }

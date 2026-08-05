@@ -10,6 +10,9 @@ export class CashfreeService {
      */
     static apiVersion = process.env.CASHFREE_API_VERSION ??
         "2025-01-01";
+    static async wait(milliseconds) {
+        await new Promise((resolve) => setTimeout(resolve, milliseconds));
+    }
     static getCredentials() {
         const clientId = process.env.CASHFREE_APP_ID?.trim();
         const clientSecret = process.env
@@ -65,7 +68,7 @@ export class CashfreeService {
         const rounded = Math.round((value + Number.EPSILON) *
             100) / 100;
         if (Math.abs(value - rounded) >
-            Number.EPSILON) {
+            1e-9) {
             throw new Error(`${fieldName} may contain at most two decimal places`);
         }
         return rounded;
@@ -135,7 +138,9 @@ export class CashfreeService {
         const orderId = this.validateOrderId(input.orderId);
         const amount = this.validateAmount("amount", input.amount);
         const customerId = this.validateIdentifier("userId", input.userId);
+        const customerName = this.validateIdentifier("customerName", input.customerName);
         const customerPhone = this.validateIdentifier("customerPhone", input.customerPhone);
+        const customerEmail = input.customerEmail.trim();
         const returnUrl = this.getReturnUrl(orderId);
         const notifyUrl = this.getNotifyUrl();
         const orderMeta = {
@@ -153,9 +158,13 @@ export class CashfreeService {
                 30 * 60 * 1000).toISOString(),
             customer_details: {
                 customer_id: customerId,
-                customer_name: input.customerName.trim(),
-                customer_email: input.customerEmail.trim(),
+                customer_name: customerName,
                 customer_phone: customerPhone,
+                ...(customerEmail
+                    ? {
+                        customer_email: customerEmail,
+                    }
+                    : {}),
             },
             order_meta: orderMeta,
         };
@@ -164,6 +173,57 @@ export class CashfreeService {
             return response.data;
         }
         catch (error) {
+            if (axios.isAxiosError(error)) {
+                const status = error.response?.status;
+                const providerCode = error.response?.data
+                    ?.code;
+                const providerMessage = error.response?.data
+                    ?.message;
+                const requestId = error.response?.headers?.["x-request-id"];
+                console.error("Cashfree create-order failed", {
+                    status,
+                    providerCode,
+                    providerMessage,
+                    requestId,
+                    orderId,
+                });
+                const ambiguousFailure = status === 500 ||
+                    status === 502 ||
+                    status === 503 ||
+                    status === 504;
+                const duplicateOrder = providerCode ===
+                    "order_already_exists" ||
+                    providerMessage
+                        ?.toLowerCase()
+                        .includes("same id is already present");
+                if (ambiguousFailure ||
+                    duplicateOrder) {
+                    let recoveryError;
+                    for (let attempt = 1; attempt <= 3; attempt += 1) {
+                        try {
+                            const existingOrder = await this.getOrder(orderId);
+                            if (existingOrder?.order_id ===
+                                orderId &&
+                                existingOrder
+                                    ?.payment_session_id) {
+                                return existingOrder;
+                            }
+                        }
+                        catch (error) {
+                            recoveryError = error;
+                        }
+                        if (attempt < 3) {
+                            await this.wait(500);
+                        }
+                    }
+                    console.error("Cashfree order recovery failed", {
+                        orderId,
+                        message: recoveryError instanceof Error
+                            ? recoveryError.message
+                            : "Unknown error",
+                    });
+                }
+            }
             throw this.getProviderError(error, "Failed to create Cashfree order");
         }
     }

@@ -15,6 +15,7 @@ interface RefundPaymentInput {
 export declare class CashfreeService {
     private static readonly baseUrl;
     private static readonly apiVersion;
+    private static wait;
     private static getCredentials;
     private static getRequestConfig;
     private static validateIdentifier;
