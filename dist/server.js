@@ -1,13 +1,10 @@
 import "dotenv/config";
 import mongoose from "mongoose";
 import app from "./app.js";
-import { connectDB, } from "./config/db.js";
-const rawPort = process.env.PORT?.trim() ??
-    "3000";
+import { connectDB } from "./config/db.js";
+const rawPort = process.env.PORT?.trim() ?? "3000";
 const port = Number(rawPort);
-if (!Number.isInteger(port) ||
-    port < 1 ||
-    port > 65535) {
+if (!Number.isInteger(port) || port < 1 || port > 65535) {
     throw new Error("PORT must be an integer between 1 and 65535");
 }
 let server;
@@ -19,8 +16,7 @@ const shutdown = async (reason, exitCode) => {
     isShuttingDown = true;
     console.error(`Shutting down: ${reason}`);
     const closeDatabase = async () => {
-        if (mongoose.connection.readyState !==
-            0) {
+        if (mongoose.connection.readyState !== 0) {
             await mongoose.disconnect();
         }
     };
@@ -31,7 +27,6 @@ const shutdown = async (reason, exitCode) => {
         finally {
             process.exit(exitCode);
         }
-        return;
     }
     server.close(async (error) => {
         try {
@@ -40,22 +35,19 @@ const shutdown = async (reason, exitCode) => {
         catch (disconnectError) {
             console.error("MongoDB disconnect failed:", disconnectError);
             process.exit(1);
-            return;
         }
         if (error) {
             console.error("HTTP server shutdown failed:", error);
             process.exit(1);
-            return;
         }
         process.exit(exitCode);
     });
 };
 const startServer = async () => {
     await connectDB();
-    server =
-        app.listen(port, () => {
-            console.log(`Server running on port ${port}`);
-        });
+    server = app.listen(port, () => {
+        console.log(`Server running on port ${port}`);
+    });
     server.on("error", (error) => {
         void shutdown(error.message, 1);
     });

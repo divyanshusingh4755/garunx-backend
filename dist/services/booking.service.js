@@ -517,7 +517,9 @@ export class BookingService {
             ? Math.min(limit, 100)
             : 20;
         const skip = (safePage - 1) * safeLimit;
-        const query = { isDeleted: false };
+        const query = {
+            isDeleted: false,
+        };
         if (status) {
             query.status = status;
         }
@@ -532,10 +534,12 @@ export class BookingService {
         }
         if (fromDate || toDate) {
             query.createdAt = {};
-            if (fromDate)
+            if (fromDate) {
                 query.createdAt.$gte = new Date(fromDate);
-            if (toDate)
+            }
+            if (toDate) {
                 query.createdAt.$lte = new Date(toDate);
+            }
         }
         if (searchTerm?.trim()) {
             const term = escapeRegex(searchTerm.trim());
@@ -586,37 +590,42 @@ export class BookingService {
         }
         let bookingQuery = Booking.find(query)
             .populate("userId", "fullName email phoneNumber")
-            .populate("cartId", "totalAmount status")
-            .populate({
-            path: "assignment.assignedCoordinatorId",
-            select: {
-                fullName: 1,
-                profileImage: 1,
-                gender: 1,
-                caste: 1,
-                gotra: 1,
-                userReference: 1,
-                "coordinatorProfile.averageRating": 1,
-                "coordinatorProfile.totalRatings": 1,
-                "coordinatorProfile.totalCompletedBookings": 1,
-                "coordinatorProfile.availabilityStatus": 1,
-            },
-        })
-            .populate({
-            path: "assignment.requests.coordinatorId",
-            select: {
-                fullName: 1,
-                profileImage: 1,
-                gender: 1,
-                caste: 1,
-                gotra: 1,
-                userReference: 1,
-                "coordinatorProfile.averageRating": 1,
-                "coordinatorProfile.totalRatings": 1,
-                "coordinatorProfile.totalCompletedBookings": 1,
-                "coordinatorProfile.availabilityStatus": 1,
-            },
-        });
+            .populate("cartId", "totalAmount status");
+        if (includeCoordinatorProfile) {
+            bookingQuery = bookingQuery
+                .populate({
+                path: "assignment.assignedCoordinatorId",
+                select: {
+                    fullName: 1,
+                    profileImage: 1,
+                    phoneNumber: 1,
+                    gender: 1,
+                    caste: 1,
+                    gotra: 1,
+                    userReference: 1,
+                    "coordinatorProfile.averageRating": 1,
+                    "coordinatorProfile.totalRatings": 1,
+                    "coordinatorProfile.totalCompletedBookings": 1,
+                    "coordinatorProfile.availabilityStatus": 1,
+                },
+            })
+                .populate({
+                path: "assignment.requests.coordinatorId",
+                select: {
+                    fullName: 1,
+                    profileImage: 1,
+                    phoneNumber: 1,
+                    gender: 1,
+                    caste: 1,
+                    gotra: 1,
+                    userReference: 1,
+                    "coordinatorProfile.averageRating": 1,
+                    "coordinatorProfile.totalRatings": 1,
+                    "coordinatorProfile.totalCompletedBookings": 1,
+                    "coordinatorProfile.availabilityStatus": 1,
+                },
+            });
+        }
         try {
             const [data, total] = await Promise.all([
                 bookingQuery
@@ -627,15 +636,22 @@ export class BookingService {
                 Booking.countDocuments(query),
             ]);
             const formattedData = data.map((booking) => {
-                const assignedCoordinator = booking.assignment
-                    ?.assignedCoordinatorId;
-                const coordinator = assignedCoordinator &&
+                const assignment = booking.assignment;
+                const assignedCoordinator = assignment?.assignedCoordinatorId;
+                const isAssignedCoordinatorPopulated = includeCoordinatorProfile &&
+                    assignedCoordinator &&
                     typeof assignedCoordinator ===
-                        "object"
+                        "object" &&
+                    "_id" in assignedCoordinator;
+                const assignedCoordinatorId = isAssignedCoordinatorPopulated
+                    ? assignedCoordinator._id
+                    : assignedCoordinator ?? null;
+                const coordinator = isAssignedCoordinatorPopulated
                     ? {
                         coordinatorId: assignedCoordinator._id,
                         fullName: assignedCoordinator.fullName,
                         profileImage: assignedCoordinator.profileImage,
+                        phoneNumber: assignedCoordinator.phoneNumber,
                         gender: assignedCoordinator.gender,
                         userReference: assignedCoordinator.userReference,
                         caste: assignedCoordinator.caste,
@@ -658,27 +674,31 @@ export class BookingService {
                             ?.availabilityStatus,
                     }
                     : null;
-                /*
-                 * All coordinators who have received
-                 * assignment requests for this booking.
-                 */
-                const coordinatorRequests = booking.assignment?.requests?.map((request) => {
+                const coordinatorRequests = assignment?.requests?.map((request) => {
                     const requestedCoordinator = request.coordinatorId;
+                    const isRequestedCoordinatorPopulated = includeCoordinatorProfile &&
+                        requestedCoordinator &&
+                        typeof requestedCoordinator ===
+                            "object" &&
+                        "_id" in requestedCoordinator;
+                    const requestedCoordinatorId = isRequestedCoordinatorPopulated
+                        ? requestedCoordinator._id
+                        : requestedCoordinator ?? null;
                     return {
                         requestId: request._id,
+                        coordinatorId: requestedCoordinatorId,
                         status: request.status,
                         assignmentType: request.assignmentType,
                         requestedAt: request.requestedAt,
                         responseDeadlineAt: request.responseDeadlineAt,
                         respondedAt: request.respondedAt,
                         rejectionReason: request.rejectionReason,
-                        coordinator: requestedCoordinator &&
-                            typeof requestedCoordinator ===
-                                "object"
+                        coordinator: isRequestedCoordinatorPopulated
                             ? {
                                 coordinatorId: requestedCoordinator._id,
                                 fullName: requestedCoordinator.fullName,
                                 profileImage: requestedCoordinator.profileImage,
+                                phoneNumber: requestedCoordinator.phoneNumber,
                                 gender: requestedCoordinator.gender,
                                 userReference: requestedCoordinator.userReference,
                                 caste: requestedCoordinator.caste,
@@ -706,29 +726,19 @@ export class BookingService {
                             : null,
                     };
                 }) ?? [];
-                const { assignment, ...bookingData } = booking;
+                const { assignment: _assignment, ...bookingData } = booking;
                 return {
                     ...bookingData,
                     assignment: assignment
                         ? {
                             ...assignment,
-                            /*
-                             * Keep only ID here.
-                             */
-                            assignedCoordinatorId: assignedCoordinator?._id ??
-                                assignedCoordinator ??
-                                null,
-                            /*
-                             * Don't return populated
-                             * raw request objects.
-                             */
+                            assignedCoordinatorId,
                             requests: coordinatorRequests,
                         }
                         : null,
-                    /*
-                     * Currently selected/accepted coordinator.
-                     */
-                    coordinator,
+                    coordinator: includeCoordinatorProfile
+                        ? coordinator
+                        : null,
                 };
             });
             return {

@@ -819,7 +819,10 @@ export class BookingService {
         : 20;
 
     const skip = (safePage - 1) * safeLimit;
-    const query: any = { isDeleted: false };
+
+    const query: any = {
+      isDeleted: false,
+    };
 
     if (status) {
       query.status = status;
@@ -839,12 +842,20 @@ export class BookingService {
 
     if (fromDate || toDate) {
       query.createdAt = {};
-      if (fromDate) query.createdAt.$gte = new Date(fromDate);
-      if (toDate) query.createdAt.$lte = new Date(toDate);
+
+      if (fromDate) {
+        query.createdAt.$gte = new Date(fromDate);
+      }
+
+      if (toDate) {
+        query.createdAt.$lte = new Date(toDate);
+      }
     }
 
     if (searchTerm?.trim()) {
-      const term = escapeRegex(searchTerm.trim());
+      const term = escapeRegex(
+        searchTerm.trim(),
+      );
 
       query.$or = [
         {
@@ -884,9 +895,10 @@ export class BookingService {
       "payment.status",
     ]);
 
-    const safeSortBy = allowedSortFields.has(sortBy)
-      ? sortBy
-      : "createdAt";
+    const safeSortBy =
+      allowedSortFields.has(sortBy)
+        ? sortBy
+        : "createdAt";
 
     const sortCriteria: any = {};
 
@@ -905,39 +917,45 @@ export class BookingService {
       .populate(
         "cartId",
         "totalAmount status",
-      )
-      .populate({
-        path: "assignment.assignedCoordinatorId",
-        select: {
-          fullName: 1,
-          profileImage: 1,
-          gender: 1,
-          caste: 1,
-          gotra: 1,
-          userReference: 1,
+      );
 
-          "coordinatorProfile.averageRating": 1,
-          "coordinatorProfile.totalRatings": 1,
-          "coordinatorProfile.totalCompletedBookings": 1,
-          "coordinatorProfile.availabilityStatus": 1,
-        },
-      })
-      .populate({
-        path: "assignment.requests.coordinatorId",
-        select: {
-          fullName: 1,
-          profileImage: 1,
-          gender: 1,
-          caste: 1,
-          gotra: 1,
-          userReference: 1,
+    if (includeCoordinatorProfile) {
+      bookingQuery = bookingQuery
+        .populate({
+          path: "assignment.assignedCoordinatorId",
+          select: {
+            fullName: 1,
+            profileImage: 1,
+            phoneNumber: 1,
+            gender: 1,
+            caste: 1,
+            gotra: 1,
+            userReference: 1,
 
-          "coordinatorProfile.averageRating": 1,
-          "coordinatorProfile.totalRatings": 1,
-          "coordinatorProfile.totalCompletedBookings": 1,
-          "coordinatorProfile.availabilityStatus": 1,
-        },
-      });
+            "coordinatorProfile.averageRating": 1,
+            "coordinatorProfile.totalRatings": 1,
+            "coordinatorProfile.totalCompletedBookings": 1,
+            "coordinatorProfile.availabilityStatus": 1,
+          },
+        })
+        .populate({
+          path: "assignment.requests.coordinatorId",
+          select: {
+            fullName: 1,
+            profileImage: 1,
+            phoneNumber: 1,
+            gender: 1,
+            caste: 1,
+            gotra: 1,
+            userReference: 1,
+
+            "coordinatorProfile.averageRating": 1,
+            "coordinatorProfile.totalRatings": 1,
+            "coordinatorProfile.totalCompletedBookings": 1,
+            "coordinatorProfile.availabilityStatus": 1,
+          },
+        });
+    }
 
     try {
       const [data, total] =
@@ -953,14 +971,26 @@ export class BookingService {
 
       const formattedData = data.map(
         (booking: any) => {
+          const assignment =
+            booking.assignment;
+
           const assignedCoordinator =
-            booking.assignment
-              ?.assignedCoordinatorId;
+            assignment?.assignedCoordinatorId;
+
+          const isAssignedCoordinatorPopulated =
+            includeCoordinatorProfile &&
+            assignedCoordinator &&
+            typeof assignedCoordinator ===
+            "object" &&
+            "_id" in assignedCoordinator;
+
+          const assignedCoordinatorId =
+            isAssignedCoordinatorPopulated
+              ? assignedCoordinator._id
+              : assignedCoordinator ?? null;
 
           const coordinator =
-            assignedCoordinator &&
-              typeof assignedCoordinator ===
-              "object"
+            isAssignedCoordinatorPopulated
               ? {
                 coordinatorId:
                   assignedCoordinator._id,
@@ -970,6 +1000,9 @@ export class BookingService {
 
                 profileImage:
                   assignedCoordinator.profileImage,
+
+                phoneNumber:
+                  assignedCoordinator.phoneNumber,
 
                 gender:
                   assignedCoordinator.gender,
@@ -1009,19 +1042,30 @@ export class BookingService {
               }
               : null;
 
-          /*
-           * All coordinators who have received
-           * assignment requests for this booking.
-           */
           const coordinatorRequests =
-            booking.assignment?.requests?.map(
+            assignment?.requests?.map(
               (request: any) => {
                 const requestedCoordinator =
                   request.coordinatorId;
 
+                const isRequestedCoordinatorPopulated =
+                  includeCoordinatorProfile &&
+                  requestedCoordinator &&
+                  typeof requestedCoordinator ===
+                  "object" &&
+                  "_id" in requestedCoordinator;
+
+                const requestedCoordinatorId =
+                  isRequestedCoordinatorPopulated
+                    ? requestedCoordinator._id
+                    : requestedCoordinator ?? null;
+
                 return {
                   requestId:
                     request._id,
+
+                  coordinatorId:
+                    requestedCoordinatorId,
 
                   status:
                     request.status,
@@ -1042,9 +1086,7 @@ export class BookingService {
                     request.rejectionReason,
 
                   coordinator:
-                    requestedCoordinator &&
-                      typeof requestedCoordinator ===
-                      "object"
+                    isRequestedCoordinatorPopulated
                       ? {
                         coordinatorId:
                           requestedCoordinator._id,
@@ -1054,6 +1096,9 @@ export class BookingService {
 
                         profileImage:
                           requestedCoordinator.profileImage,
+
+                        phoneNumber:
+                          requestedCoordinator.phoneNumber,
 
                         gender:
                           requestedCoordinator.gender,
@@ -1100,7 +1145,7 @@ export class BookingService {
             ) ?? [];
 
           const {
-            assignment,
+            assignment: _assignment,
             ...bookingData
           } = booking;
 
@@ -1111,27 +1156,17 @@ export class BookingService {
               ? {
                 ...assignment,
 
-                /*
-                 * Keep only ID here.
-                 */
-                assignedCoordinatorId:
-                  assignedCoordinator?._id ??
-                  assignedCoordinator ??
-                  null,
+                assignedCoordinatorId,
 
-                /*
-                 * Don't return populated
-                 * raw request objects.
-                 */
                 requests:
                   coordinatorRequests,
               }
               : null,
 
-            /*
-             * Currently selected/accepted coordinator.
-             */
-            coordinator,
+            coordinator:
+              includeCoordinatorProfile
+                ? coordinator
+                : null,
           };
         },
       );
@@ -1144,7 +1179,9 @@ export class BookingService {
           Math.ceil(total / safeLimit),
       };
     } catch (error: any) {
-      throw new Error(`Booking fetch failed: ${error.message}`);
+      throw new Error(
+        `Booking fetch failed: ${error.message}`,
+      );
     }
   }
 
@@ -3648,167 +3685,167 @@ export class BookingService {
     };
   }
 
-static async getCoordinatorBookingList(params: {
-  coordinatorId: string;
-  view: CoordinatorBookingView;
-  status?: string;
-  page?: number;
-  limit?: number;
-  sortBy?: string;
-  sortOrder?: "asc" | "desc";
-}) {
-  const {
-    coordinatorId,
-    view,
-    status,
-    page = 1,
-    limit = 20,
-    sortBy,
-    sortOrder,
-  } = params;
+  static async getCoordinatorBookingList(params: {
+    coordinatorId: string;
+    view: CoordinatorBookingView;
+    status?: string;
+    page?: number;
+    limit?: number;
+    sortBy?: string;
+    sortOrder?: "asc" | "desc";
+  }) {
+    const {
+      coordinatorId,
+      view,
+      status,
+      page = 1,
+      limit = 20,
+      sortBy,
+      sortOrder,
+    } = params;
 
-  if (!Types.ObjectId.isValid(coordinatorId)) {
-    throw new Error("Invalid coordinator ID");
-  }
+    if (!Types.ObjectId.isValid(coordinatorId)) {
+      throw new Error("Invalid coordinator ID");
+    }
 
-  const safePage =
-    Number.isInteger(page) && page > 0
-      ? page
-      : 1;
+    const safePage =
+      Number.isInteger(page) && page > 0
+        ? page
+        : 1;
 
-  const safeLimit =
-    Number.isInteger(limit) && limit > 0
-      ? Math.min(limit, 100)
-      : 20;
+    const safeLimit =
+      Number.isInteger(limit) && limit > 0
+        ? Math.min(limit, 100)
+        : 20;
 
-  const skip =
-    (safePage - 1) * safeLimit;
+    const skip =
+      (safePage - 1) * safeLimit;
 
-  const coordinatorObjectId =
-    new Types.ObjectId(coordinatorId);
+    const coordinatorObjectId =
+      new Types.ObjectId(coordinatorId);
 
-  const query: Record<string, any> = {
-    isDeleted: false,
-  };
+    const query: Record<string, any> = {
+      isDeleted: false,
+    };
 
-  let selectFields: Record<string, 1> = {};
-  let sort: Record<string, 1 | -1> = {};
+    let selectFields: Record<string, 1> = {};
+    let sort: Record<string, 1 | -1> = {};
 
-  if (view === "REQUESTS") {
-    query.status =
-      "ASSIGNMENT_PENDING";
+    if (view === "REQUESTS") {
+      query.status =
+        "ASSIGNMENT_PENDING";
 
-    query["assignment.status"] =
-      "PENDING_RESPONSE";
+      query["assignment.status"] =
+        "PENDING_RESPONSE";
 
-    query["assignment.requests"] = {
-      $elemMatch: {
-        coordinatorId:
-          coordinatorObjectId,
+      query["assignment.requests"] = {
+        $elemMatch: {
+          coordinatorId:
+            coordinatorObjectId,
 
-        status:
-          "PENDING",
+          status:
+            "PENDING",
 
-        responseDeadlineAt: {
-          $gt: new Date(),
+          responseDeadlineAt: {
+            $gt: new Date(),
+          },
         },
-      },
-    };
+      };
 
-    selectFields = {
-      bookingReference: 1,
-      customerDetails: 1,
-      entries: 1,
-      scheduledAt: 1,
-      assignment: 1,
-      pricing: 1,
-      createdAt: 1,
-    };
+      selectFields = {
+        bookingReference: 1,
+        customerDetails: 1,
+        entries: 1,
+        scheduledAt: 1,
+        assignment: 1,
+        pricing: 1,
+        createdAt: 1,
+      };
 
-    sort = {
-      "assignment.requests.requestedAt":
-        sortOrder === "asc"
-          ? 1
-          : -1,
-    };
-  } else {
-    query[
-      "assignment.assignedCoordinatorId"
-    ] = coordinatorObjectId;
-
-    query["assignment.status"] =
-      "ACCEPTED";
-
-    if (status) {
-      query.status = status;
+      sort = {
+        "assignment.requests.requestedAt":
+          sortOrder === "asc"
+            ? 1
+            : -1,
+      };
     } else {
-      query.status = {
-        $in: [
-          "ASSIGNED",
-          "IN_PROGRESS",
-          "COMPLETED",
-          "CANCELLED",
-        ],
+      query[
+        "assignment.assignedCoordinatorId"
+      ] = coordinatorObjectId;
+
+      query["assignment.status"] =
+        "ACCEPTED";
+
+      if (status) {
+        query.status = status;
+      } else {
+        query.status = {
+          $in: [
+            "ASSIGNED",
+            "IN_PROGRESS",
+            "COMPLETED",
+            "CANCELLED",
+          ],
+        };
+      }
+
+      selectFields = {
+        bookingReference: 1,
+        status: 1,
+        customerDetails: 1,
+        entries: 1,
+        scheduledAt: 1,
+        assignment: 1,
+        execution: 1,
+        pricing: 1,
+        completedAt: 1,
+        createdAt: 1,
+      };
+
+      const allowedSortFields = new Set([
+        "scheduledAt",
+        "createdAt",
+        "completedAt",
+        "status",
+        "pricing.grandTotal",
+      ]);
+
+      const safeSortBy =
+        sortBy &&
+          allowedSortFields.has(sortBy)
+          ? sortBy
+          : "scheduledAt";
+
+      sort = {
+        [safeSortBy]:
+          sortOrder === "desc"
+            ? -1
+            : 1,
       };
     }
 
-    selectFields = {
-      bookingReference: 1,
-      status: 1,
-      customerDetails: 1,
-      entries: 1,
-      scheduledAt: 1,
-      assignment: 1,
-      execution: 1,
-      pricing: 1,
-      completedAt: 1,
-      createdAt: 1,
-    };
+    const [data, total] =
+      await Promise.all([
+        Booking.find(query)
+          .select(selectFields)
+          .sort(sort)
+          .skip(skip)
+          .limit(safeLimit)
+          .lean(),
 
-    const allowedSortFields = new Set([
-      "scheduledAt",
-      "createdAt",
-      "completedAt",
-      "status",
-      "pricing.grandTotal",
-    ]);
+        Booking.countDocuments(query),
+      ]);
 
-    const safeSortBy =
-      sortBy &&
-      allowedSortFields.has(sortBy)
-        ? sortBy
-        : "scheduledAt";
-
-    sort = {
-      [safeSortBy]:
-        sortOrder === "desc"
-          ? -1
-          : 1,
+    return {
+      view,
+      data,
+      total,
+      page: safePage,
+      limit: safeLimit,
+      totalPages:
+        Math.ceil(total / safeLimit),
     };
   }
-
-  const [data, total] =
-    await Promise.all([
-      Booking.find(query)
-        .select(selectFields)
-        .sort(sort)
-        .skip(skip)
-        .limit(safeLimit)
-        .lean(),
-
-      Booking.countDocuments(query),
-    ]);
-
-  return {
-    view,
-    data,
-    total,
-    page: safePage,
-    limit: safeLimit,
-    totalPages:
-      Math.ceil(total / safeLimit),
-  };
-}
 
   static async processAssignmentTimeouts() {
     const now = new Date();
@@ -4877,7 +4914,7 @@ static async getCoordinatorBookingList(params: {
         MAX_OTP_RESENDS -
         (booking.execution.otpVerification.resendCount ?? 0),
 
-        otp
+      otp
       // ...(process.env.NODE_ENV !== "production" && {
       //   otp,
       // }),

@@ -1,63 +1,29 @@
 import "dotenv/config";
-
-import type {
-  Server,
-} from "node:http";
-
+import type { Server } from "node:http";
 import mongoose from "mongoose";
-
 import app from "./app.js";
+import { connectDB } from "./config/db.js";
 
-import {
-  connectDB,
-} from "./config/db.js";
+const rawPort = process.env.PORT?.trim() ?? "3000";
 
-const rawPort =
-  process.env.PORT?.trim() ??
-  "3000";
-
-const port =
-  Number(rawPort);
-
-if (
-  !Number.isInteger(port) ||
-  port < 1 ||
-  port > 65535
-) {
-  throw new Error(
-    "PORT must be an integer between 1 and 65535",
-  );
+const port = Number(rawPort);
+if (!Number.isInteger(port) || port < 1 || port > 65535) {
+  throw new Error("PORT must be an integer between 1 and 65535");
 }
 
-let server:
-  Server | undefined;
+let server: Server | undefined;
+let isShuttingDown = false;
 
-let isShuttingDown =
-  false;
-
-const shutdown = async (
-  reason: string,
-  exitCode: number,
-): Promise<void> => {
-  if (isShuttingDown) {
-    return;
-  }
-
+const shutdown = async (reason: string, exitCode: number): Promise<void> => {
+  if (isShuttingDown) { return }
   isShuttingDown = true;
+  console.error(`Shutting down: ${reason}`);
 
-  console.error(
-    `Shutting down: ${reason}`,
-  );
-
-  const closeDatabase =
-    async (): Promise<void> => {
-      if (
-        mongoose.connection.readyState !==
-        0
-      ) {
-        await mongoose.disconnect();
-      }
-    };
+  const closeDatabase = async (): Promise<void> => {
+    if (mongoose.connection.readyState !== 0) {
+      await mongoose.disconnect();
+    }
+  };
 
   if (!server) {
     try {
@@ -65,38 +31,25 @@ const shutdown = async (
     } finally {
       process.exit(exitCode);
     }
-
-    return;
   }
 
-  server.close(
-    async (error?: Error) => {
-      try {
-        await closeDatabase();
-      } catch (
-        disconnectError: unknown
-      ) {
-        console.error(
-          "MongoDB disconnect failed:",
-          disconnectError,
-        );
+  server.close(async (error?: Error) => {
+    try {
+      await closeDatabase();
+    } catch (
+    disconnectError: unknown
+    ) {
+      console.error("MongoDB disconnect failed:", disconnectError);
+      process.exit(1);
+    }
 
-        process.exit(1);
-        return;
-      }
+    if (error) {
+      console.error("HTTP server shutdown failed:", error);
+      process.exit(1);
+    }
 
-      if (error) {
-        console.error(
-          "HTTP server shutdown failed:",
-          error,
-        );
-
-        process.exit(1);
-        return;
-      }
-
-      process.exit(exitCode);
-    },
+    process.exit(exitCode);
+  },
   );
 };
 
@@ -104,25 +57,13 @@ const startServer =
   async (): Promise<void> => {
     await connectDB();
 
-    server =
-      app.listen(
-        port,
-        () => {
-          console.log(
-            `Server running on port ${port}`,
-          );
-        },
-      );
+    server = app.listen(port, () => {
+      console.log(`Server running on port ${port}`);
+    });
 
-    server.on(
-      "error",
-      (error: Error) => {
-        void shutdown(
-          error.message,
-          1,
-        );
-      },
-    );
+    server.on("error", (error: Error) => {
+      void shutdown(error.message, 1);
+    });
   };
 
 process.on(
