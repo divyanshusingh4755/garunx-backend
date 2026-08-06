@@ -2313,8 +2313,24 @@ export class BookingService {
                 },
             };
             selectFields = {
+                userId: 1,
                 bookingReference: 1,
                 customerDetails: 1,
+                /*
+                 * Contains:
+                 *
+                 * SERVICE:
+                 * - serviceConfiguration.serviceSnapshot
+                 * - serviceConfiguration.tier
+                 * - serviceConfiguration.location
+                 *
+                 * PACKAGE:
+                 * - packageConfiguration.packageSnapshot
+                 * - selectedServices[].tier
+                 * - selectedServices[].location
+                 * - addonServices[].tier
+                 * - addonServices[].location
+                 */
                 entries: 1,
                 scheduledAt: 1,
                 assignment: 1,
@@ -2345,9 +2361,14 @@ export class BookingService {
                 };
             }
             selectFields = {
+                userId: 1,
                 bookingReference: 1,
                 status: 1,
                 customerDetails: 1,
+                /*
+                 * Includes complete package/service
+                 * snapshot, tier and location details.
+                 */
                 entries: 1,
                 scheduledAt: 1,
                 assignment: 1,
@@ -2376,15 +2397,167 @@ export class BookingService {
         const [data, total] = await Promise.all([
             Booking.find(query)
                 .select(selectFields)
+                .populate({
+                path: "userId",
+                select: {
+                    fullName: 1,
+                    profileImage: 1,
+                    phoneNumber: 1,
+                    email: 1,
+                    userReference: 1,
+                },
+            })
                 .sort(sort)
                 .skip(skip)
                 .limit(safeLimit)
                 .lean(),
             Booking.countDocuments(query),
         ]);
+        const formattedData = data.map((booking) => {
+            const populatedUser = booking.userId &&
+                typeof booking.userId === "object" &&
+                "_id" in booking.userId
+                ? booking.userId
+                : null;
+            const bookingEntries = booking.entries?.map((entry) => {
+                if (entry.entryType === "SERVICE") {
+                    const service = entry.serviceConfiguration;
+                    return {
+                        entryType: "SERVICE",
+                        service: service
+                            ? {
+                                serviceId: service.serviceId,
+                                name: service
+                                    .serviceSnapshot
+                                    ?.name,
+                                shortDescription: service
+                                    .serviceSnapshot
+                                    ?.shortDescription,
+                                thumbnailImage: service
+                                    .serviceSnapshot
+                                    ?.thumbnailImage,
+                                serviceReference: service
+                                    .serviceSnapshot
+                                    ?.serviceReference,
+                                serviceRole: service.serviceRole,
+                                subService: service.subService ??
+                                    null,
+                                tier: service.tier
+                                    ? {
+                                        tierId: service
+                                            .tier
+                                            .tierId,
+                                        name: service
+                                            .tier
+                                            .name,
+                                    }
+                                    : null,
+                                location: service.location
+                                    ? {
+                                        locationId: service
+                                            .location
+                                            .locationId,
+                                        name: service
+                                            .location
+                                            .name,
+                                    }
+                                    : null,
+                                components: service.components ??
+                                    [],
+                                pricing: service.pricing,
+                            }
+                            : null,
+                    };
+                }
+                if (entry.entryType === "PACKAGE") {
+                    const packageConfiguration = entry.packageConfiguration;
+                    const formatService = (service) => ({
+                        serviceId: service.serviceId,
+                        name: service.serviceSnapshot
+                            ?.name,
+                        shortDescription: service.serviceSnapshot
+                            ?.shortDescription,
+                        thumbnailImage: service.serviceSnapshot
+                            ?.thumbnailImage,
+                        serviceReference: service.serviceSnapshot
+                            ?.serviceReference,
+                        serviceRole: service.serviceRole,
+                        subService: service.subService ??
+                            null,
+                        tier: service.tier
+                            ? {
+                                tierId: service.tier
+                                    .tierId,
+                                name: service.tier
+                                    .name,
+                            }
+                            : null,
+                        location: service.location
+                            ? {
+                                locationId: service.location
+                                    .locationId,
+                                name: service.location
+                                    .name,
+                            }
+                            : null,
+                        components: service.components ??
+                            [],
+                        pricing: service.pricing,
+                    });
+                    return {
+                        entryType: "PACKAGE",
+                        package: packageConfiguration
+                            ? {
+                                packageId: packageConfiguration
+                                    .packageId,
+                                name: packageConfiguration
+                                    .packageSnapshot
+                                    ?.name,
+                                shortDescription: packageConfiguration
+                                    .packageSnapshot
+                                    ?.shortDescription,
+                                thumbnailImage: packageConfiguration
+                                    .packageSnapshot
+                                    ?.thumbnailImage,
+                                packageReference: packageConfiguration
+                                    .packageSnapshot
+                                    ?.packageReference,
+                                selectedServices: packageConfiguration
+                                    .selectedServices
+                                    ?.map(formatService) ?? [],
+                                addonServices: packageConfiguration
+                                    .addonServices
+                                    ?.map(formatService) ?? [],
+                                pricing: packageConfiguration
+                                    .pricing,
+                            }
+                            : null,
+                    };
+                }
+                return entry;
+            }) ?? [];
+            const { entries: _entries, userId: _userId, ...bookingData } = booking;
+            return {
+                ...bookingData,
+                userId: populatedUser?._id ??
+                    booking.userId ??
+                    null,
+                user: populatedUser
+                    ? {
+                        userId: populatedUser._id,
+                        fullName: populatedUser.fullName,
+                        profileImage: populatedUser.profileImage,
+                        phoneNumber: populatedUser.phoneNumber,
+                        email: populatedUser.email,
+                        userReference: populatedUser.userReference,
+                    }
+                    : null,
+                entries: bookingEntries,
+            };
+        });
         return {
             view,
-            data,
+            data: formattedData,
             total,
             page: safePage,
             limit: safeLimit,

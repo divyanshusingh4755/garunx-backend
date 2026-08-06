@@ -543,11 +543,7 @@ export declare class BookingService {
         sortOrder?: "asc" | "desc";
     }): Promise<{
         view: CoordinatorBookingView;
-        data: (import("../models/booking.model.js").IBooking & Required<{
-            _id: Types.ObjectId;
-        }> & {
-            __v: number;
-        })[];
+        data: any[];
         total: number;
         page: number;
         limit: number;
