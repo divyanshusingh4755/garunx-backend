@@ -1,8 +1,4 @@
-import {
-  Types,
-  type QueryFilter,
-  type SortOrder,
-} from "mongoose";
+import { Types, type QueryFilter, type SortOrder } from "mongoose";
 import {
   ComponentItem,
   type IComponentItem,
@@ -17,16 +13,10 @@ type CreateComponentItemInput = {
 };
 
 type ComponentItemUpdate = Partial<
-  Pick<
-    IComponentItem,
-    "name" | "price" | "isActive"
-  >
+  Pick<IComponentItem, "name" | "price" | "isActive">
 >;
 
-const createHttpError = (
-  message: string,
-  statusCode: number,
-) => {
+const createHttpError = (message: string, statusCode: number) => {
   const error = new Error(message) as Error & {
     statusCode: number;
   };
@@ -36,17 +26,12 @@ const createHttpError = (
 };
 
 export class ComponentItemService {
-  static async createComponentItem(
-    payload: CreateComponentItemInput,
-  ) {
+  static async createComponentItem(payload: CreateComponentItemInput) {
     try {
       return await ComponentItem.create(payload);
     } catch (error: any) {
       if (error?.code === 11000) {
-        throw createHttpError(
-          "Component item already exists",
-          409,
-        );
+        throw createHttpError("Component item already exists", 409);
       }
 
       throw error;
@@ -58,51 +43,36 @@ export class ComponentItemService {
     updateData: ComponentItemUpdate,
   ) {
     try {
-      const componentItem =
-        await ComponentItem.findByIdAndUpdate(
-          componentItemId,
-          {
-            $set: updateData,
-          },
-          {
-            new: true,
-            runValidators: true,
-          },
-        ).lean();
+      const componentItem = await ComponentItem.findByIdAndUpdate(
+        componentItemId,
+        {
+          $set: updateData,
+        },
+        {
+          new: true,
+          runValidators: true,
+        },
+      ).lean();
 
       if (!componentItem) {
-        throw createHttpError(
-          "Component item not found",
-          404,
-        );
+        throw createHttpError("Component item not found", 404);
       }
 
       return componentItem;
     } catch (error: any) {
       if (error?.code === 11000) {
-        throw createHttpError(
-          "Component item already exists",
-          409,
-        );
+        throw createHttpError("Component item already exists", 409);
       }
 
       throw error;
     }
   }
 
-  static async getComponentItemById(
-    componentItemId: string,
-  ) {
-    const componentItem =
-      await ComponentItem.findById(
-        componentItemId,
-      ).lean();
+  static async getComponentItemById(componentItemId: string) {
+    const componentItem = await ComponentItem.findById(componentItemId).lean();
 
     if (!componentItem) {
-      throw createHttpError(
-        "Component item not found",
-        404,
-      );
+      throw createHttpError("Component item not found", 404);
     }
 
     return componentItem;
@@ -125,10 +95,7 @@ export class ComponentItemService {
       sortOrder = "desc",
     } = params;
 
-    const safeLimit = Math.min(
-      Math.max(limit, 1),
-      100,
-    );
+    const safeLimit = Math.min(Math.max(limit, 1), 100);
 
     const safePage = Math.max(page, 1);
     const skip = (safePage - 1) * safeLimit;
@@ -141,9 +108,7 @@ export class ComponentItemService {
 
     const term = searchTerm?.trim();
 
-    const isTextSearch = Boolean(
-      term && term.length > 4,
-    );
+    const isTextSearch = Boolean(term && term.length > 4);
 
     if (term) {
       if (isTextSearch) {
@@ -158,19 +123,11 @@ export class ComponentItemService {
       }
     }
 
-    let projection:
-      | Record<string, unknown>
-      | undefined;
+    let projection: Record<string, unknown> | undefined;
 
-    let sortCriteria: Record<
-      string,
-      SortOrder | { $meta: "textScore" }
-    >;
+    let sortCriteria: Record<string, SortOrder | { $meta: "textScore" }>;
 
-    if (
-      isTextSearch &&
-      sortBy === "relevance"
-    ) {
+    if (isTextSearch && sortBy === "relevance") {
       projection = {
         score: {
           $meta: "textScore",
@@ -191,14 +148,10 @@ export class ComponentItemService {
         "updatedAt",
       ]);
 
-      const safeSortBy =
-        allowedSortFields.has(sortBy)
-          ? sortBy
-          : "createdAt";
+      const safeSortBy = allowedSortFields.has(sortBy) ? sortBy : "createdAt";
 
       sortCriteria = {
-        [safeSortBy]:
-          sortOrder === "asc" ? 1 : -1,
+        [safeSortBy]: sortOrder === "asc" ? 1 : -1,
       };
 
       if (safeSortBy !== "createdAt") {
@@ -206,54 +159,45 @@ export class ComponentItemService {
       }
     }
 
-    const [componentItems, total] =
-      await Promise.all([
-        ComponentItem.find(query, projection)
-          .sort(sortCriteria)
-          .skip(skip)
-          .limit(safeLimit)
-          .lean(),
+    const [componentItems, total] = await Promise.all([
+      ComponentItem.find(query, projection)
+        .sort(sortCriteria)
+        .skip(skip)
+        .limit(safeLimit)
+        .lean(),
 
-        ComponentItem.countDocuments(query),
-      ]);
+      ComponentItem.countDocuments(query),
+    ]);
 
     return {
       data: componentItems,
       total,
       page: safePage,
-      totalPages: Math.ceil(
-        total / safeLimit,
-      ),
+      totalPages: Math.ceil(total / safeLimit),
     };
   }
 
-  static async getDeactivationImpact(
-    componentItemId: string,
-  ) {
-    const itemId = new Types.ObjectId(
-      componentItemId,
-    );
+  static async getDeactivationImpact(componentItemId: string) {
+    const itemId = new Types.ObjectId(componentItemId);
 
-    const affected =
-      await ServiceComponent.find(
-        {
-          items: {
-            $elemMatch: {
-              itemId,
-            },
+    const affected = await ServiceComponent.find(
+      {
+        items: {
+          $elemMatch: {
+            itemId,
           },
         },
-        {
-          _id: 1,
-          serviceId: 1,
-          componentId: 1,
-          items: 1,
-        },
-      ).lean();
+      },
+      {
+        _id: 1,
+        serviceId: 1,
+        componentId: 1,
+        items: 1,
+      },
+    ).lean();
 
     return {
-      affectedServiceComponentsCount:
-        affected.length,
+      affectedServiceComponentsCount: affected.length,
       affected,
     };
   }
@@ -263,18 +207,12 @@ export class ComponentItemService {
     isActive: boolean,
     confirmed = false,
   ) {
-    const componentItem =
-      await ComponentItem.findById(
-        componentItemId,
-      )
-        .select("_id isActive")
-        .lean();
+    const componentItem = await ComponentItem.findById(componentItemId)
+      .select("_id isActive")
+      .lean();
 
     if (!componentItem) {
-      throw createHttpError(
-        "Component item not found",
-        404,
-      );
+      throw createHttpError("Component item not found", 404);
     }
 
     if (componentItem.isActive === isActive) {
@@ -286,14 +224,9 @@ export class ComponentItemService {
     }
 
     if (!isActive && !confirmed) {
-      const impact =
-        await this.getDeactivationImpact(
-          componentItemId,
-        );
+      const impact = await this.getDeactivationImpact(componentItemId);
 
-      if (
-        impact.affectedServiceComponentsCount > 0
-      ) {
+      if (impact.affectedServiceComponentsCount > 0) {
         return {
           requiresConfirmation: true,
           impact,
@@ -301,25 +234,21 @@ export class ComponentItemService {
       }
     }
 
-    const updatedComponentItem =
-      await ComponentItem.findByIdAndUpdate(
-        componentItemId,
-        {
-          $set: {
-            isActive,
-          },
+    const updatedComponentItem = await ComponentItem.findByIdAndUpdate(
+      componentItemId,
+      {
+        $set: {
+          isActive,
         },
-        {
-          new: true,
-          runValidators: true,
-        },
-      ).lean();
+      },
+      {
+        new: true,
+        runValidators: true,
+      },
+    ).lean();
 
     if (!updatedComponentItem) {
-      throw createHttpError(
-        "Component item not found",
-        404,
-      );
+      throw createHttpError("Component item not found", 404);
     }
 
     return {

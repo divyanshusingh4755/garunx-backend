@@ -1,23 +1,12 @@
-import {
-  Types,
-} from "mongoose";
+import { Types } from "mongoose";
 
-import {
-  TaxProfile,
-  type ITaxProfile
-} from "../models/tax-profile.model.js";
+import { TaxProfile, type ITaxProfile } from "../models/tax-profile.model.js";
 
-import {
-  ServicePricing,
-} from "../models/servicepricing.model.js";
+import { ServicePricing } from "../models/servicepricing.model.js";
 
-import {
-  PackageTierPricing,
-} from "../models/packagetierpricing.model.js";
+import { PackageTierPricing } from "../models/packagetierpricing.model.js";
 
-import {
-  escapeRegex,
-} from "../utils/escapeRegex.js";
+import { escapeRegex } from "../utils/escapeRegex.js";
 import type { TaxTreatment } from "../types/tax.types.js";
 
 export interface CreateTaxProfilePayload {
@@ -45,65 +34,31 @@ export interface TaxProfileFilters {
   limit?: number;
 }
 
-type TaxProfileQuery =
-  Record<string, unknown>;
+type TaxProfileQuery = Record<string, unknown>;
 
 export class TaxProfileService {
-  private static async getTaxProfileUsage(
-    taxProfileId: Types.ObjectId,
-  ) {
-    const [
-      servicePricing,
-      packagePricing,
-    ] = await Promise.all([
+  private static async getTaxProfileUsage(taxProfileId: Types.ObjectId) {
+    const [servicePricing, packagePricing] = await Promise.all([
       ServicePricing.find({
         taxProfileId,
         isActive: true,
       })
-        .populate(
-          "serviceId",
-          "name",
-        )
-        .populate(
-          "locationId",
-          "name",
-        )
-        .populate(
-          "tierId",
-          "name",
-        )
-        .populate(
-          "componentId",
-          "name",
-        )
-        .select(
-          "serviceId locationId tierId componentId",
-        )
+        .populate("serviceId", "name")
+        .populate("locationId", "name")
+        .populate("tierId", "name")
+        .populate("componentId", "name")
+        .select("serviceId locationId tierId componentId")
         .lean(),
 
       PackageTierPricing.find({
         taxProfileId,
         isActive: true,
       })
-        .populate(
-          "packageId",
-          "name",
-        )
-        .populate(
-          "locationId",
-          "name",
-        )
-        .populate(
-          "tierId",
-          "name",
-        )
-        .populate(
-          "serviceId",
-          "name",
-        )
-        .select(
-          "packageId locationId tierId serviceId",
-        )
+        .populate("packageId", "name")
+        .populate("locationId", "name")
+        .populate("tierId", "name")
+        .populate("serviceId", "name")
+        .select("packageId locationId tierId serviceId")
         .lean(),
     ]);
 
@@ -116,35 +71,26 @@ export class TaxProfileService {
       }
     >();
 
-    for (
-      const pricing of servicePricing
-    ) {
-      const service =
-        pricing.serviceId as unknown as
-          | {
-              _id: Types.ObjectId;
-              name?: string;
-            }
-          | null;
+    for (const pricing of servicePricing) {
+      const service = pricing.serviceId as unknown as {
+        _id: Types.ObjectId;
+        name?: string;
+      } | null;
 
       if (!service?._id) {
         continue;
       }
 
-      const serviceId =
-        service._id.toString();
+      const serviceId = service._id.toString();
 
-      const existing =
-        serviceMap.get(serviceId);
+      const existing = serviceMap.get(serviceId);
 
       if (existing) {
         existing.pricingCount += 1;
       } else {
         serviceMap.set(serviceId, {
           serviceId,
-          serviceName:
-            service.name ??
-            "Unknown service",
+          serviceName: service.name ?? "Unknown service",
           pricingCount: 1,
         });
       }
@@ -159,58 +105,43 @@ export class TaxProfileService {
       }
     >();
 
-    for (
-      const pricing of packagePricing
-    ) {
-      const packageDocument =
-        pricing.packageId as unknown as
-          | {
-              _id: Types.ObjectId;
-              name?: string;
-            }
-          | null;
+    for (const pricing of packagePricing) {
+      const packageDocument = pricing.packageId as unknown as {
+        _id: Types.ObjectId;
+        name?: string;
+      } | null;
 
       if (!packageDocument?._id) {
         continue;
       }
 
-      const packageId =
-        packageDocument._id.toString();
+      const packageId = packageDocument._id.toString();
 
-      const existing =
-        packageMap.get(packageId);
+      const existing = packageMap.get(packageId);
 
       if (existing) {
         existing.pricingCount += 1;
       } else {
         packageMap.set(packageId, {
           packageId,
-          packageName:
-            packageDocument.name ??
-            "Unknown package",
+          packageName: packageDocument.name ?? "Unknown package",
           pricingCount: 1,
         });
       }
     }
 
-    const services =
-      Array.from(serviceMap.values());
+    const services = Array.from(serviceMap.values());
 
-    const packages =
-      Array.from(packageMap.values());
+    const packages = Array.from(packageMap.values());
 
     return {
       services,
       packages,
       summary: {
-        servicePricingCount:
-          servicePricing.length,
-        packagePricingCount:
-          packagePricing.length,
-        affectedServiceCount:
-          services.length,
-        affectedPackageCount:
-          packages.length,
+        servicePricingCount: servicePricing.length,
+        packagePricingCount: packagePricing.length,
+        affectedServiceCount: services.length,
+        affectedPackageCount: packages.length,
       },
     };
   }
@@ -220,36 +151,25 @@ export class TaxProfileService {
     fieldName = "taxProfileId",
   ): void {
     if (!Types.ObjectId.isValid(id)) {
-      throw new Error(
-        `Invalid ${fieldName}`,
-      );
+      throw new Error(`Invalid ${fieldName}`);
     }
   }
 
   private static toObjectId(
-    value:
-      | string
-      | Types.ObjectId,
+    value: string | Types.ObjectId,
     fieldName: string,
   ): Types.ObjectId {
-    const stringValue =
-      value.toString();
+    const stringValue = value.toString();
 
-    this.validateObjectId(
-      stringValue,
-      fieldName,
-    );
+    this.validateObjectId(stringValue, fieldName);
 
-    return new Types.ObjectId(
-      stringValue,
-    );
+    return new Types.ObjectId(stringValue);
   }
 
   private static normalizeOptionalString(
     value?: string | null,
   ): string | undefined {
-    const normalized =
-      value?.trim();
+    const normalized = value?.trim();
 
     return normalized || undefined;
   }
@@ -258,19 +178,11 @@ export class TaxProfileService {
     treatment: TaxTreatment,
     totalRate: number,
   ): void {
-    if (
-      treatment === "TAXABLE" &&
-      totalRate <= 0
-    ) {
-      throw new Error(
-        "Taxable tax profile must have a rate greater than zero",
-      );
+    if (treatment === "TAXABLE" && totalRate <= 0) {
+      throw new Error("Taxable tax profile must have a rate greater than zero");
     }
 
-    if (
-      treatment !== "TAXABLE" &&
-      totalRate !== 0
-    ) {
+    if (treatment !== "TAXABLE" && totalRate !== 0) {
       throw new Error(
         "Non-taxable tax profiles must have a rate equal to zero",
       );
@@ -280,36 +192,23 @@ export class TaxProfileService {
   static async createTaxProfile(
     payload: CreateTaxProfilePayload,
   ): Promise<ITaxProfile> {
-    const code =
-      payload.code
-        .trim()
-        .toUpperCase();
+    const code = payload.code.trim().toUpperCase();
 
-    const name =
-      payload.name.trim();
+    const name = payload.name.trim();
 
-    this.validateTreatmentRate(
-      payload.treatment,
-      payload.totalRate,
-    );
+    this.validateTreatmentRate(payload.treatment, payload.totalRate);
 
-    const existingProfile =
-      await TaxProfile.findOne({
-        code,
-      })
-        .select("_id")
-        .lean();
+    const existingProfile = await TaxProfile.findOne({
+      code,
+    })
+      .select("_id")
+      .lean();
 
     if (existingProfile) {
-      throw new Error(
-        `Tax profile with code ${code} already exists`,
-      );
+      throw new Error(`Tax profile with code ${code} already exists`);
     }
 
-    const description =
-      this.normalizeOptionalString(
-        payload.description,
-      );
+    const description = this.normalizeOptionalString(payload.description);
 
     const createPayload: {
       name: string;
@@ -323,36 +222,25 @@ export class TaxProfileService {
     } = {
       name,
       code,
-      treatment:
-        payload.treatment,
-      totalRate:
-        payload.totalRate,
+      treatment: payload.treatment,
+      totalRate: payload.totalRate,
       isActive: true,
     };
 
     if (description) {
-      createPayload.description =
-        description;
+      createPayload.description = description;
     }
 
     if (payload.createdBy) {
-      const createdBy =
-        this.toObjectId(
-          payload.createdBy,
-          "createdBy",
-        );
+      const createdBy = this.toObjectId(payload.createdBy, "createdBy");
 
-      createPayload.createdBy =
-        createdBy;
+      createPayload.createdBy = createdBy;
 
-      createPayload.updatedBy =
-        createdBy;
+      createPayload.updatedBy = createdBy;
     }
 
     try {
-      return await TaxProfile.create(
-        createPayload,
-      );
+      return await TaxProfile.create(createPayload);
     } catch (error: unknown) {
       if (
         error &&
@@ -360,83 +248,49 @@ export class TaxProfileService {
         "code" in error &&
         error.code === 11000
       ) {
-        throw new Error(
-          `Tax profile with code ${code} already exists`,
-        );
+        throw new Error(`Tax profile with code ${code} already exists`);
       }
 
       throw error;
     }
   }
 
-  static async getTaxProfiles(
-    filters:
-      TaxProfileFilters = {},
-  ) {
+  static async getTaxProfiles(filters: TaxProfileFilters = {}) {
     const page =
-      Number.isInteger(filters.page) &&
-      (filters.page ?? 0) > 0
+      Number.isInteger(filters.page) && (filters.page ?? 0) > 0
         ? filters.page!
         : 1;
 
     const limit =
-      Number.isInteger(filters.limit) &&
-      (filters.limit ?? 0) > 0
-        ? Math.min(
-            filters.limit!,
-            100,
-          )
+      Number.isInteger(filters.limit) && (filters.limit ?? 0) > 0
+        ? Math.min(filters.limit!, 100)
         : 20;
 
-    const skip =
-      (page - 1) * limit;
+    const skip = (page - 1) * limit;
 
-    const query:
-      TaxProfileQuery = {};
+    const query: TaxProfileQuery = {};
 
     if (filters.treatment) {
-      query.treatment =
-        filters.treatment;
+      query.treatment = filters.treatment;
     }
 
-    if (
-      typeof filters.isActive ===
-      "boolean"
-    ) {
-      query.isActive =
-        filters.isActive;
+    if (typeof filters.isActive === "boolean") {
+      query.isActive = filters.isActive;
     }
 
-    if (
-      filters.search?.trim()
-    ) {
+    if (filters.search?.trim()) {
       const regex = {
-        $regex:
-          escapeRegex(
-            filters.search.trim(),
-          ),
+        $regex: escapeRegex(filters.search.trim()),
         $options: "i",
       };
 
-      query.$or = [
-        { name: regex },
-        { code: regex },
-      ];
+      query.$or = [{ name: regex }, { code: regex }];
     }
 
-    const [
-      taxProfiles,
-      total,
-    ] = await Promise.all([
+    const [taxProfiles, total] = await Promise.all([
       TaxProfile.find(query)
-        .populate(
-          "createdBy",
-          "fullName email role",
-        )
-        .populate(
-          "updatedBy",
-          "fullName email role",
-        )
+        .populate("createdBy", "fullName email role")
+        .populate("updatedBy", "fullName email role")
         .sort({
           isActive: -1,
           createdAt: -1,
@@ -445,13 +299,10 @@ export class TaxProfileService {
         .limit(limit)
         .lean(),
 
-      TaxProfile.countDocuments(
-        query,
-      ),
+      TaxProfile.countDocuments(query),
     ]);
 
-    const totalPages =
-      Math.ceil(total / limit);
+    const totalPages = Math.ceil(total / limit);
 
     return {
       data: taxProfiles,
@@ -460,10 +311,8 @@ export class TaxProfileService {
         page,
         limit,
         totalPages,
-        hasNextPage:
-          page < totalPages,
-        hasPreviousPage:
-          page > 1,
+        hasNextPage: page < totalPages,
+        hasPreviousPage: page > 1,
       },
     };
   }
@@ -472,9 +321,7 @@ export class TaxProfileService {
     return TaxProfile.find({
       isActive: true,
     })
-      .select(
-        "name code treatment totalRate",
-      )
+      .select("name code treatment totalRate")
       .sort({
         treatment: 1,
         totalRate: 1,
@@ -483,31 +330,16 @@ export class TaxProfileService {
       .lean();
   }
 
-  static async getTaxProfileById(
-    taxProfileId: string,
-  ) {
-    this.validateObjectId(
-      taxProfileId,
-    );
+  static async getTaxProfileById(taxProfileId: string) {
+    this.validateObjectId(taxProfileId);
 
-    const taxProfile =
-      await TaxProfile.findById(
-        taxProfileId,
-      )
-        .populate(
-          "createdBy",
-          "fullName email role",
-        )
-        .populate(
-          "updatedBy",
-          "fullName email role",
-        )
-        .lean();
+    const taxProfile = await TaxProfile.findById(taxProfileId)
+      .populate("createdBy", "fullName email role")
+      .populate("updatedBy", "fullName email role")
+      .lean();
 
     if (!taxProfile) {
-      throw new Error(
-        "Tax profile not found",
-      );
+      throw new Error("Tax profile not found");
     }
 
     return taxProfile;
@@ -515,86 +347,46 @@ export class TaxProfileService {
 
   static async updateTaxProfile(
     taxProfileId: string,
-    payload:
-      UpdateTaxProfilePayload,
+    payload: UpdateTaxProfilePayload,
   ) {
-    this.validateObjectId(
-      taxProfileId,
-    );
+    this.validateObjectId(taxProfileId);
 
-    const taxProfile =
-      await TaxProfile.findById(
-        taxProfileId,
-      );
+    const taxProfile = await TaxProfile.findById(taxProfileId);
 
     if (!taxProfile) {
-      throw new Error(
-        "Tax profile not found",
-      );
+      throw new Error("Tax profile not found");
     }
 
-    const nextTreatment =
-      payload.treatment ??
-      taxProfile.treatment;
+    const nextTreatment = payload.treatment ?? taxProfile.treatment;
 
-    const nextTotalRate =
-      payload.totalRate ??
-      taxProfile.totalRate;
+    const nextTotalRate = payload.totalRate ?? taxProfile.totalRate;
 
-    this.validateTreatmentRate(
-      nextTreatment,
-      nextTotalRate,
-    );
+    this.validateTreatmentRate(nextTreatment, nextTotalRate);
 
-    if (
-      payload.name !== undefined
-    ) {
-      taxProfile.name =
-        payload.name.trim();
+    if (payload.name !== undefined) {
+      taxProfile.name = payload.name.trim();
     }
 
-    if (
-      payload.treatment !== undefined
-    ) {
-      taxProfile.treatment =
-        payload.treatment;
+    if (payload.treatment !== undefined) {
+      taxProfile.treatment = payload.treatment;
     }
 
-    if (
-      payload.totalRate !== undefined
-    ) {
-      taxProfile.totalRate =
-        payload.totalRate;
+    if (payload.totalRate !== undefined) {
+      taxProfile.totalRate = payload.totalRate;
     }
 
-    if (
-      Object.prototype.hasOwnProperty.call(
-        payload,
-        "description",
-      )
-    ) {
-      const description =
-        this.normalizeOptionalString(
-          payload.description,
-        );
+    if (Object.prototype.hasOwnProperty.call(payload, "description")) {
+      const description = this.normalizeOptionalString(payload.description);
 
       if (description) {
-        taxProfile.description =
-          description;
+        taxProfile.description = description;
       } else {
-        taxProfile.set(
-          "description",
-          undefined,
-        );
+        taxProfile.set("description", undefined);
       }
     }
 
     if (payload.updatedBy) {
-      taxProfile.updatedBy =
-        this.toObjectId(
-          payload.updatedBy,
-          "updatedBy",
-        );
+      taxProfile.updatedBy = this.toObjectId(payload.updatedBy, "updatedBy");
     }
 
     return taxProfile.save();
@@ -603,43 +395,26 @@ export class TaxProfileService {
   static async updateTaxProfileStatus(
     taxProfileId: string,
     isActive: boolean,
-    updatedBy?:
-      | string
-      | Types.ObjectId,
+    updatedBy?: string | Types.ObjectId,
   ) {
-    this.validateObjectId(
-      taxProfileId,
-    );
+    this.validateObjectId(taxProfileId);
 
-    const taxProfile =
-      await TaxProfile.findById(
-        taxProfileId,
-      );
+    const taxProfile = await TaxProfile.findById(taxProfileId);
 
     if (!taxProfile) {
-      throw new Error(
-        "Tax profile not found",
-      );
+      throw new Error("Tax profile not found");
     }
 
-    if (
-      taxProfile.isActive ===
-      isActive
-    ) {
+    if (taxProfile.isActive === isActive) {
       return taxProfile;
     }
 
     if (!isActive) {
-      const usage =
-        await this.getTaxProfileUsage(
-          taxProfile._id,
-        );
+      const usage = await this.getTaxProfileUsage(taxProfile._id);
 
       const isInUse =
-        usage.summary
-          .servicePricingCount > 0 ||
-        usage.summary
-          .packagePricingCount > 0;
+        usage.summary.servicePricingCount > 0 ||
+        usage.summary.packagePricingCount > 0;
 
       if (isInUse) {
         const error = new Error(
@@ -656,15 +431,10 @@ export class TaxProfileService {
       }
     }
 
-    taxProfile.isActive =
-      isActive;
+    taxProfile.isActive = isActive;
 
     if (updatedBy) {
-      taxProfile.updatedBy =
-        this.toObjectId(
-          updatedBy,
-          "updatedBy",
-        );
+      taxProfile.updatedBy = this.toObjectId(updatedBy, "updatedBy");
     }
 
     return taxProfile.save();

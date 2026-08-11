@@ -1,4 +1,4 @@
-import { Types, } from "mongoose";
+import { Types } from "mongoose";
 import { ComponentItem, } from "../models/componentitem.model.js";
 import { ServiceComponent } from "../models/servicecomponent.model.js";
 import { escapeRegex } from "../utils/escapeRegex.js";
@@ -72,8 +72,7 @@ export class ComponentItemService {
         }
         let projection;
         let sortCriteria;
-        if (isTextSearch &&
-            sortBy === "relevance") {
+        if (isTextSearch && sortBy === "relevance") {
             projection = {
                 score: {
                     $meta: "textScore",
@@ -93,9 +92,7 @@ export class ComponentItemService {
                 "createdAt",
                 "updatedAt",
             ]);
-            const safeSortBy = allowedSortFields.has(sortBy)
-                ? sortBy
-                : "createdAt";
+            const safeSortBy = allowedSortFields.has(sortBy) ? sortBy : "createdAt";
             sortCriteria = {
                 [safeSortBy]: sortOrder === "asc" ? 1 : -1,
             };

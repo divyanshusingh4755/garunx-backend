@@ -1,5 +1,5 @@
-import { Schema, } from "mongoose";
-import { TaxJurisdiction, TaxPriceMode, TaxSource } from "../types/tax.types.js";
+import { Schema } from "mongoose";
+import { TaxJurisdiction, TaxPriceMode, TaxSource, } from "../types/tax.types.js";
 export const taxProfileSnapshotSchema = new Schema({
     taxProfileId: {
         type: Schema.Types.ObjectId,
@@ -19,12 +19,7 @@ export const taxProfileSnapshotSchema = new Schema({
     },
     treatment: {
         type: String,
-        enum: [
-            "TAXABLE",
-            "EXEMPT",
-            "NIL_RATED",
-            "NON_GST",
-        ],
+        enum: ["TAXABLE", "EXEMPT", "NIL_RATED", "NON_GST"],
         required: true,
     },
     totalRate: {
@@ -47,12 +42,10 @@ export const taxProfileSnapshotSchema = new Schema({
     _id: false,
 });
 taxProfileSnapshotSchema.pre("validate", function () {
-    if (this.treatment === "TAXABLE" &&
-        this.totalRate <= 0) {
+    if (this.treatment === "TAXABLE" && this.totalRate <= 0) {
         throw new Error("Taxable tax snapshot must have a rate greater than zero");
     }
-    if (this.treatment !== "TAXABLE" &&
-        this.totalRate !== 0) {
+    if (this.treatment !== "TAXABLE" && this.totalRate !== 0) {
         throw new Error("Non-taxable tax snapshot must have a rate equal to zero");
     }
 });

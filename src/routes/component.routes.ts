@@ -4,12 +4,7 @@ import {
   type Response,
   type NextFunction,
 } from "express";
-import {
-  body,
-  param,
-  query,
-  validationResult,
-} from "express-validator";
+import { body, param, query, validationResult } from "express-validator";
 
 import {
   createComponent,
@@ -23,11 +18,7 @@ import { authenticate } from "../middleware/authenticate.js";
 
 const router = Router();
 
-const validate = (
-  req: Request,
-  res: Response,
-  next: NextFunction,
-) => {
+const validate = (req: Request, res: Response, next: NextFunction) => {
   const errors = validationResult(req);
 
   if (!errors.isEmpty()) {
@@ -88,9 +79,7 @@ const createComponentValidation = [
 ];
 
 const updateComponentValidation = [
-  param("componentId")
-    .isMongoId()
-    .withMessage("Invalid component ID"),
+  param("componentId").isMongoId().withMessage("Invalid component ID"),
 
   body().custom((value) => {
     const allowedFields = [
@@ -114,9 +103,7 @@ const updateComponentValidation = [
     );
 
     if (invalidFields.length > 0) {
-      throw new Error(
-        `Invalid update fields: ${invalidFields.join(", ")}`,
-      );
+      throw new Error(`Invalid update fields: ${invalidFields.join(", ")}`);
     }
 
     return true;
@@ -130,10 +117,7 @@ const updateComponentValidation = [
     .notEmpty()
     .withMessage("name cannot be empty"),
 
-  body("categoryId")
-    .optional()
-    .isMongoId()
-    .withMessage("Invalid category ID"),
+  body("categoryId").optional().isMongoId().withMessage("Invalid category ID"),
 
   body("description")
     .optional()
@@ -167,17 +151,13 @@ const updateComponentValidation = [
 ];
 
 const componentIdValidation = [
-  param("componentId")
-    .isMongoId()
-    .withMessage("Invalid component ID"),
+  param("componentId").isMongoId().withMessage("Invalid component ID"),
 
   validate,
 ];
 
 const componentStatusValidation = [
-  param("componentId")
-    .isMongoId()
-    .withMessage("Invalid component ID"),
+  param("componentId").isMongoId().withMessage("Invalid component ID"),
 
   body("isActive")
     .exists({ checkNull: true })
@@ -194,10 +174,7 @@ const componentStatusValidation = [
 ];
 
 const listValidation = [
-  query("categoryId")
-    .optional()
-    .isMongoId()
-    .withMessage("Invalid category ID"),
+  query("categoryId").optional().isMongoId().withMessage("Invalid category ID"),
 
   query("limit")
     .optional()
@@ -245,11 +222,7 @@ const listValidation = [
   validate,
 ];
 
-router.get(
-  "/",
-  listValidation,
-  getAllComponents,
-);
+router.get("/", listValidation, getAllComponents);
 
 router.get(
   "/:componentId",
@@ -258,12 +231,7 @@ router.get(
   getComponentById,
 );
 
-router.post(
-  "/",
-  authenticate,
-  createComponentValidation,
-  createComponent,
-);
+router.post("/", authenticate, createComponentValidation, createComponent);
 
 router.patch(
   "/:componentId",

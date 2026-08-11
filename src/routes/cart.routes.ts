@@ -4,12 +4,7 @@ import {
   type Response,
   type NextFunction,
 } from "express";
-import {
-  body,
-  param,
-  query,
-  validationResult,
-} from "express-validator";
+import { body, param, query, validationResult } from "express-validator";
 
 import {
   createServiceCart,
@@ -40,11 +35,7 @@ import {
 
 const router = Router();
 
-const validate = (
-  req: Request,
-  res: Response,
-  next: NextFunction,
-) => {
+const validate = (req: Request, res: Response, next: NextFunction) => {
   const errors = validationResult(req);
 
   if (!errors.isEmpty()) {
@@ -61,9 +52,7 @@ const validate = (
 };
 
 const cartIdValidation = [
-  param("cartId")
-    .isMongoId()
-    .withMessage("Invalid cartId"),
+  param("cartId").isMongoId().withMessage("Invalid cartId"),
   validate,
 ];
 
@@ -107,11 +96,7 @@ router.post(
   createPackageCart,
 );
 
-router.post(
-  "/merge",
-  authenticate,
-  mergeGuestCartToUser,
-);
+router.post("/merge", authenticate, mergeGuestCartToUser);
 
 router.get(
   "/",
@@ -128,12 +113,7 @@ router.get(
   getUserCarts,
 );
 
-router.get(
-  "/:cartId",
-  optionalAuthenticate,
-  cartIdValidation,
-  getCartById,
-);
+router.get("/:cartId", optionalAuthenticate, cartIdValidation, getCartById);
 
 router.put(
   "/:cartId/components",
@@ -159,12 +139,8 @@ router.put(
 
 const serviceSelectionValidation = [
   param("cartId").isMongoId().withMessage("Invalid cartId"),
-  body("serviceIds")
-    .isArray()
-    .withMessage("serviceIds must be an array"),
-  body("serviceIds.*")
-    .isMongoId()
-    .withMessage("Invalid serviceId"),
+  body("serviceIds").isArray().withMessage("serviceIds must be an array"),
+  body("serviceIds.*").isMongoId().withMessage("Invalid serviceId"),
   validate,
 ];
 
@@ -185,23 +161,17 @@ router.put(
 router.put(
   "/:cartId/schedule",
   optionalAuthenticate,
-  param("cartId")
-    .isMongoId()
-    .withMessage("Invalid cartId"),
+  param("cartId").isMongoId().withMessage("Invalid cartId"),
   body("scheduledDate")
     .notEmpty()
     .withMessage("scheduledDate is required")
     .matches(/^\d{4}-\d{2}-\d{2}$/)
-    .withMessage(
-      "scheduledDate must use YYYY-MM-DD format",
-    ),
+    .withMessage("scheduledDate must use YYYY-MM-DD format"),
   body("scheduledTime")
     .notEmpty()
     .withMessage("scheduledTime is required")
     .matches(/^([01]\d|2[0-3]):[0-5]\d$/)
-    .withMessage(
-      "scheduledTime must use HH:mm format",
-    ),
+    .withMessage("scheduledTime must use HH:mm format"),
   validate,
   updateSchedule,
 );
@@ -219,10 +189,7 @@ router.put(
     .isEmail()
     .withMessage("Valid email is required")
     .normalizeEmail(),
-  body("phone")
-    .notEmpty()
-    .withMessage("phone is required")
-    .isString(),
+  body("phone").notEmpty().withMessage("phone is required").isString(),
   validate,
   updateCustomerDetails,
 );
@@ -261,12 +228,7 @@ router.post(
   validateCart,
 );
 
-router.post(
-  "/:cartId/checkout",
-  authenticate,
-  cartIdValidation,
-  checkoutCart,
-);
+router.post("/:cartId/checkout", authenticate, cartIdValidation, checkoutCart);
 
 router.post(
   "/:cartId/reopen",
@@ -295,11 +257,6 @@ router.delete(
   removeCoupon,
 );
 
-router.delete(
-  "/:cartId",
-  optionalAuthenticate,
-  cartIdValidation,
-  deleteCart,
-);
+router.delete("/:cartId", optionalAuthenticate, cartIdValidation, deleteCart);
 
 export default router;

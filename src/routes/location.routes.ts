@@ -4,12 +4,7 @@ import {
   type Response,
   type NextFunction,
 } from "express";
-import {
-  body,
-  param,
-  query,
-  validationResult,
-} from "express-validator";
+import { body, param, query, validationResult } from "express-validator";
 import { authenticate } from "../middleware/authenticate.js";
 import {
   createLocation,
@@ -62,30 +57,20 @@ const coordinatesValidation = [
         coordinates.length !== 2 ||
         !coordinates.every(
           (coordinate) =>
-            typeof coordinate === "number" &&
-            Number.isFinite(coordinate),
+            typeof coordinate === "number" && Number.isFinite(coordinate),
         )
       ) {
-        throw new Error(
-          "Longitude and latitude must be valid numbers",
-        );
+        throw new Error("Longitude and latitude must be valid numbers");
       }
 
-      const [longitude, latitude] = coordinates as [
-        number,
-        number,
-      ];
+      const [longitude, latitude] = coordinates as [number, number];
 
       if (longitude < -180 || longitude > 180) {
-        throw new Error(
-          "Longitude must be between -180 and 180",
-        );
+        throw new Error("Longitude must be between -180 and 180");
       }
 
       if (latitude < -90 || latitude > 90) {
-        throw new Error(
-          "Latitude must be between -90 and 90",
-        );
+        throw new Error("Latitude must be between -90 and 90");
       }
 
       return true;
@@ -188,9 +173,7 @@ const updateLocationValidation = [
     );
 
     if (invalidFields.length > 0) {
-      throw new Error(
-        `Invalid update fields: ${invalidFields.join(", ")}`,
-      );
+      throw new Error(`Invalid update fields: ${invalidFields.join(", ")}`);
     }
 
     return true;
@@ -212,15 +195,9 @@ const updateLocationValidation = [
     .notEmpty()
     .withMessage("country cannot be empty"),
 
-  body("stateId")
-    .optional()
-    .isMongoId()
-    .withMessage("Invalid stateId"),
+  body("stateId").optional().isMongoId().withMessage("Invalid stateId"),
 
-  body("cityId")
-    .optional()
-    .isMongoId()
-    .withMessage("Invalid cityId"),
+  body("cityId").optional().isMongoId().withMessage("Invalid cityId"),
 
   body("fullAddress")
     .optional()
@@ -315,30 +292,15 @@ const listValidation = [
 
   query("sortBy")
     .optional()
-    .isIn([
-      "name",
-      "country",
-      "pincode",
-      "createdAt",
-      "updatedAt",
-      "relevance",
-    ])
+    .isIn(["name", "country", "pincode", "createdAt", "updatedAt", "relevance"])
     .withMessage("Invalid sortBy value"),
 
   handleValidationErrors,
 ];
 
-router.get(
-  "/get-all-location",
-  listValidation,
-  getAllLocation,
-);
+router.get("/get-all-location", listValidation, getAllLocation);
 
-router.post(
-  "/get-location-by-ids",
-  locationIdsValidation,
-  getLocationIds,
-);
+router.post("/get-location-by-ids", locationIdsValidation, getLocationIds);
 
 router.post(
   "/create-location",
@@ -354,18 +316,8 @@ router.patch(
   updateLocation,
 );
 
-router.patch(
-  "/:id/status",
-  authenticate,
-  statusValidation,
-  deleteLocation,
-);
+router.patch("/:id/status", authenticate, statusValidation, deleteLocation);
 
-router.get(
-  "/:id",
-  authenticate,
-  locationIdValidation,
-  getLocationById,
-);
+router.get("/:id", authenticate, locationIdValidation, getLocationById);
 
 export default router;

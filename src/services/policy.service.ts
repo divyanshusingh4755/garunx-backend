@@ -1,19 +1,10 @@
-import mongoose, {
-  Types,
-} from "mongoose";
+import mongoose, { Types } from "mongoose";
 
-import {
-  Content,
-} from "../models/policy.model.js";
+import { Content } from "../models/policy.model.js";
 
-type PolicyType =
-  | "TERMS"
-  | "PRIVACY"
-  | "REFUND";
+type PolicyType = "TERMS" | "PRIVACY" | "REFUND";
 
-type UserType =
-  | "User"
-  | "Coordinator";
+type UserType = "User" | "Coordinator";
 
 interface CreatePolicyPayload {
   type: PolicyType;
@@ -34,77 +25,57 @@ interface PolicyQuery {
 }
 
 export class PolicyService {
-  private static ensureValidId(
-    id: string,
-  ): void {
+  private static ensureValidId(id: string): void {
     if (!Types.ObjectId.isValid(id)) {
-      throw new Error(
-        "Invalid policy id",
-      );
+      throw new Error("Invalid policy id");
     }
   }
 
-  static async createPolicy(
-    payload: CreatePolicyPayload,
-  ) {
-    const latestPolicy =
-      await Content.findOne({
-        type: payload.type,
-        userType: payload.userType,
-      })
-        .sort({ version: -1 })
-        .select("version")
-        .lean();
+  static async createPolicy(payload: CreatePolicyPayload) {
+    const latestPolicy = await Content.findOne({
+      type: payload.type,
+      userType: payload.userType,
+    })
+      .sort({ version: -1 })
+      .select("version")
+      .lean();
 
-    const version =
-      (latestPolicy?.version ?? 0) + 1;
+    const version = (latestPolicy?.version ?? 0) + 1;
 
-    const hasActivePolicy =
-      await Content.exists({
-        type: payload.type,
-        userType: payload.userType,
-        isActive: true,
-      });
+    const hasActivePolicy = await Content.exists({
+      type: payload.type,
+      userType: payload.userType,
+      isActive: true,
+    });
 
-    const policy =
-      await Content.create({
-        ...payload,
-        version,
-        isActive: !hasActivePolicy,
-        ...(!hasActivePolicy
-          ? {
+    const policy = await Content.create({
+      ...payload,
+      version,
+      isActive: !hasActivePolicy,
+      ...(!hasActivePolicy
+        ? {
             publishedAt: new Date(),
           }
-          : {}),
-      });
+        : {}),
+    });
 
     return policy;
   }
 
-  static async updatePolicy(
-    id: string,
-    payload: UpdatePolicyPayload,
-  ) {
+  static async updatePolicy(id: string, payload: UpdatePolicyPayload) {
     this.ensureValidId(id);
 
-    const policy =
-      await Content.findById(id);
+    const policy = await Content.findById(id);
 
     if (!policy) {
-      throw new Error(
-        "Policy not found",
-      );
+      throw new Error("Policy not found");
     }
 
-    if (
-      payload.title !== undefined
-    ) {
+    if (payload.title !== undefined) {
       policy.title = payload.title;
     }
 
-    if (
-      payload.content !== undefined
-    ) {
+    if (payload.content !== undefined) {
       policy.content = payload.content;
     }
 
@@ -118,18 +89,12 @@ export class PolicyService {
     type?: PolicyType,
     userType?: UserType,
   ) {
-    const safePage =
-      Number.isInteger(page) && page > 0
-        ? page
-        : 1;
+    const safePage = Number.isInteger(page) && page > 0 ? page : 1;
 
     const safeLimit =
-      Number.isInteger(limit) && limit > 0
-        ? Math.min(limit, 100)
-        : 20;
+      Number.isInteger(limit) && limit > 0 ? Math.min(limit, 100) : 20;
 
-    const skip =
-      (safePage - 1) * safeLimit;
+    const skip = (safePage - 1) * safeLimit;
 
     const query: PolicyQuery = {};
 
@@ -141,98 +106,79 @@ export class PolicyService {
       query.userType = userType;
     }
 
-    if (
-      typeof isActive === "boolean"
-    ) {
+    if (typeof isActive === "boolean") {
       query.isActive = isActive;
     }
 
-    const [data, total] =
-      await Promise.all([
-        Content.find(query)
-          .sort({
-            type: 1,
-            userType: 1,
-            version: -1,
-          })
-          .skip(skip)
-          .limit(safeLimit)
-          .lean(),
+    const [data, total] = await Promise.all([
+      Content.find(query)
+        .sort({
+          type: 1,
+          userType: 1,
+          version: -1,
+        })
+        .skip(skip)
+        .limit(safeLimit)
+        .lean(),
 
-        Content.countDocuments(query),
-      ]);
+      Content.countDocuments(query),
+    ]);
 
     return {
       data,
       total,
       page: safePage,
       limit: safeLimit,
-      totalPages:
-        Math.ceil(total / safeLimit),
+      totalPages: Math.ceil(total / safeLimit),
     };
   }
 
-  static async togglePolicyStatus(
-    id: string,
-    isActive: boolean,
-  ) {
+  static async togglePolicyStatus(id: string, isActive: boolean) {
     this.ensureValidId(id);
 
-    const session =
-      await mongoose.startSession();
+    const session = await mongoose.startSession();
 
     try {
       let updatedPolicy = null;
 
-      await session.withTransaction(
-        async () => {
-          const policy =
-            await Content.findById(id)
-              .session(session);
+      await session.withTransaction(async () => {
+        const policy = await Content.findById(id).session(session);
 
-          if (!policy) {
-            throw new Error(
-              "Policy not found",
-            );
-          }
+        if (!policy) {
+          throw new Error("Policy not found");
+        }
 
-          if (isActive) {
-            await Content.updateMany(
-              {
-                _id: {
-                  $ne: policy._id,
-                },
-                type: policy.type,
-                userType:
-                  policy.userType,
-                isActive: true,
+        if (isActive) {
+          await Content.updateMany(
+            {
+              _id: {
+                $ne: policy._id,
               },
-              {
-                $set: {
-                  isActive: false,
-                },
+              type: policy.type,
+              userType: policy.userType,
+              isActive: true,
+            },
+            {
+              $set: {
+                isActive: false,
               },
-              { session },
-            );
+            },
+            { session },
+          );
 
-            policy.isActive = true;
-            policy.publishedAt =
-              new Date();
-          } else {
-            policy.isActive = false;
-          }
+          policy.isActive = true;
+          policy.publishedAt = new Date();
+        } else {
+          policy.isActive = false;
+        }
 
-          updatedPolicy =
-            await policy.save({
-              session,
-            });
-        },
-      );
+        updatedPolicy = await policy.save({
+          session,
+        });
+      });
 
       if (!updatedPolicy) {
-        throw new Error(
-          "Policy status update failed",
-        );
+        throw new Error("Policy status update failed");
       }
 
       return updatedPolicy;
@@ -241,30 +187,24 @@ export class PolicyService {
     }
   }
 
-  static async getPolicyByType(
-    type: PolicyType,
-    userType: UserType,
-  ) {
-    const policy =
-      await Content.findOne({
-        type,
-        userType,
-        isActive: true,
+  static async getPolicyByType(type: PolicyType, userType: UserType) {
+    const policy = await Content.findOne({
+      type,
+      userType,
+      isActive: true,
+    })
+      .select({
+        type: 1,
+        userType: 1,
+        title: 1,
+        content: 1,
+        version: 1,
+        publishedAt: 1,
       })
-        .select({
-          type: 1,
-          userType: 1,
-          title: 1,
-          content: 1,
-          version: 1,
-          publishedAt: 1,
-        })
-        .lean();
+      .lean();
 
     if (!policy) {
-      throw new Error(
-        `${type} policy not found`,
-      );
+      throw new Error(`${type} policy not found`);
     }
 
     return policy;

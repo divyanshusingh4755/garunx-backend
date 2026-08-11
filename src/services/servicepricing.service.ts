@@ -1,6 +1,4 @@
-import mongoose, {
-  Types,
-} from "mongoose";
+import mongoose, { Types } from "mongoose";
 import { Service } from "../models/service.model.js";
 import { ServicePricing } from "../models/servicepricing.model.js";
 import { ServiceComponent } from "../models/servicecomponent.model.js";
@@ -15,9 +13,7 @@ type PopulatedComponent = {
   isActive: boolean;
 };
 
-type TaxPriceMode =
-  | "EXCLUSIVE"
-  | "INCLUSIVE";
+type TaxPriceMode = "EXCLUSIVE" | "INCLUSIVE";
 
 interface ComponentPricingInput {
   componentId: string;
@@ -37,10 +33,7 @@ interface BulkTierPricingPayload {
   pricing: LocationPricingInput[];
 }
 
-const createHttpError = (
-  message: string,
-  statusCode: number,
-) => {
+const createHttpError = (message: string, statusCode: number) => {
   const error = new Error(message) as Error & {
     statusCode: number;
   };
@@ -50,68 +43,37 @@ const createHttpError = (
 };
 
 export class ServicePricingService {
-  static async bulkUpsertTierPricing(
-    payload: BulkTierPricingPayload,
-  ) {
-    const {
-      serviceId,
-      tierId,
-      pricing,
-    } = payload;
+  static async bulkUpsertTierPricing(payload: BulkTierPricingPayload) {
+    const { serviceId, tierId, pricing } = payload;
 
-    const service = await Service.findById(
-      serviceId,
-    ).lean();
+    const service = await Service.findById(serviceId).lean();
 
     if (!service) {
-      throw createHttpError(
-        "Service not found",
-        404,
-      );
+      throw createHttpError("Service not found", 404);
     }
 
     const tierExists = service.tiers.some(
-      (tier) =>
-        tier.tierId.toString() ===
-        tierId,
+      (tier) => tier.tierId.toString() === tierId,
     );
 
     if (!tierExists) {
-      throw createHttpError(
-        "Tier does not belong to service",
-        400,
-      );
+      throw createHttpError("Tier does not belong to service", 400);
     }
 
-    const serviceLocationIds =
-      new Set(
-        service.locations.map(
-          (location) =>
-            location.locationId.toString(),
-        ),
-      );
+    const serviceLocationIds = new Set(
+      service.locations.map((location) => location.locationId.toString()),
+    );
 
-    const allComponentIds =
-      new Set<string>();
+    const allComponentIds = new Set<string>();
 
-    const allTaxProfileIds =
-      new Set<string>();
+    const allTaxProfileIds = new Set<string>();
 
-    const locationIdsSeen =
-      new Set<string>();
+    const locationIdsSeen = new Set<string>();
 
-    for (
-      const locationPricing
-      of pricing
-    ) {
-      const locationId =
-        String(
-          locationPricing.locationId,
-        );
+    for (const locationPricing of pricing) {
+      const locationId = String(locationPricing.locationId);
 
-      if (
-        locationIdsSeen.has(locationId)
-      ) {
+      if (locationIdsSeen.has(locationId)) {
         throw createHttpError(
           `Duplicate location in pricing: ${locationId}`,
           400,
@@ -120,54 +82,32 @@ export class ServicePricingService {
 
       locationIdsSeen.add(locationId);
 
-      if (
-        !serviceLocationIds.has(
-          locationId,
-        )
-      ) {
+      if (!serviceLocationIds.has(locationId)) {
         throw createHttpError(
           `Location ${locationId} does not belong to service`,
           400,
         );
       }
 
-      const componentIdsSeen =
-        new Set<string>();
+      const componentIdsSeen = new Set<string>();
 
-      for (
-        const componentPricing
-        of locationPricing.components
-      ) {
-        const componentId =
-          String(
-            componentPricing.componentId,
-          );
+      for (const componentPricing of locationPricing.components) {
+        const componentId = String(componentPricing.componentId);
 
-        if (
-          componentIdsSeen.has(
-            componentId,
-          )
-        ) {
+        if (componentIdsSeen.has(componentId)) {
           throw createHttpError(
             `Duplicate component ${componentId} for location ${locationId}`,
             400,
           );
         }
 
-        componentIdsSeen.add(
-          componentId,
-        );
+        componentIdsSeen.add(componentId);
 
-        allComponentIds.add(
-          componentId,
-        );
+        allComponentIds.add(componentId);
 
         if (
-          typeof componentPricing.price !==
-          "number" ||
-          !Number.isFinite(
-            componentPricing.price,
-          ) ||
+          typeof componentPricing.price !== "number" ||
+          !Number.isFinite(componentPricing.price) ||
           componentPricing.price < 0
         ) {
           throw createHttpError(
@@ -176,22 +116,16 @@ export class ServicePricingService {
           );
         }
 
-        const taxProfileId =
-          componentPricing.taxProfileId;
+        const taxProfileId = componentPricing.taxProfileId;
 
         if (taxProfileId) {
-          allTaxProfileIds.add(
-            taxProfileId,
-          );
+          allTaxProfileIds.add(taxProfileId);
         }
 
         if (
-          componentPricing.taxPriceMode !==
-          undefined &&
-          componentPricing.taxPriceMode !==
-          "EXCLUSIVE" &&
-          componentPricing.taxPriceMode !==
-          "INCLUSIVE"
+          componentPricing.taxPriceMode !== undefined &&
+          componentPricing.taxPriceMode !== "EXCLUSIVE" &&
+          componentPricing.taxPriceMode !== "INCLUSIVE"
         ) {
           throw createHttpError(
             `Invalid taxPriceMode for component ${componentId}`,
@@ -201,89 +135,56 @@ export class ServicePricingService {
       }
     }
 
-    const componentObjectIds = [
-      ...allComponentIds,
-    ].map(
-      (id) =>
-        new Types.ObjectId(id),
+    const componentObjectIds = [...allComponentIds].map(
+      (id) => new Types.ObjectId(id),
     );
 
-    const validComponents =
-      await ServiceComponent.find({
-        serviceId:
-          new Types.ObjectId(serviceId),
-        tierId:
-          new Types.ObjectId(tierId),
-        componentId: {
-          $in: componentObjectIds,
-        },
-      })
-        .select("componentId")
-        .lean();
+    const validComponents = await ServiceComponent.find({
+      serviceId: new Types.ObjectId(serviceId),
+      tierId: new Types.ObjectId(tierId),
+      componentId: {
+        $in: componentObjectIds,
+      },
+    })
+      .select("componentId")
+      .lean();
 
-    const validComponentSet =
-      new Set(
-        validComponents.map(
-          (component) =>
-            component.componentId.toString(),
-        ),
-      );
-
-    const invalidComponentIds = [
-      ...allComponentIds,
-    ].filter(
-      (componentId) =>
-        !validComponentSet.has(
-          componentId,
-        ),
+    const validComponentSet = new Set(
+      validComponents.map((component) => component.componentId.toString()),
     );
 
-    if (
-      invalidComponentIds.length > 0
-    ) {
+    const invalidComponentIds = [...allComponentIds].filter(
+      (componentId) => !validComponentSet.has(componentId),
+    );
+
+    if (invalidComponentIds.length > 0) {
       throw createHttpError(
         `Components do not belong to this service tier: ${invalidComponentIds.join(", ")}`,
         400,
       );
     }
 
-    const taxProfileIds = [
-      ...allTaxProfileIds,
-    ];
+    const taxProfileIds = [...allTaxProfileIds];
 
     if (taxProfileIds.length > 0) {
-      const validTaxProfiles =
-        await TaxProfile.find({
-          _id: {
-            $in: taxProfileIds.map(
-              (id) =>
-                new Types.ObjectId(id),
-            ),
-          },
-          isActive: true,
-        })
-          .select("_id")
-          .lean();
+      const validTaxProfiles = await TaxProfile.find({
+        _id: {
+          $in: taxProfileIds.map((id) => new Types.ObjectId(id)),
+        },
+        isActive: true,
+      })
+        .select("_id")
+        .lean();
 
-      const validTaxProfileSet =
-        new Set(
-          validTaxProfiles.map(
-            (profile) =>
-              profile._id.toString(),
-          ),
-        );
+      const validTaxProfileSet = new Set(
+        validTaxProfiles.map((profile) => profile._id.toString()),
+      );
 
-      const invalidTaxProfileIds =
-        taxProfileIds.filter(
-          (id) =>
-            !validTaxProfileSet.has(
-              id,
-            ),
-        );
+      const invalidTaxProfileIds = taxProfileIds.filter(
+        (id) => !validTaxProfileSet.has(id),
+      );
 
-      if (
-        invalidTaxProfileIds.length > 0
-      ) {
+      if (invalidTaxProfileIds.length > 0) {
         throw createHttpError(
           `Inactive or invalid tax profiles: ${invalidTaxProfileIds.join(", ")}`,
           400,
@@ -291,11 +192,9 @@ export class ServicePricingService {
       }
     }
 
-    const serviceObjectId =
-      new Types.ObjectId(serviceId);
+    const serviceObjectId = new Types.ObjectId(serviceId);
 
-    const tierObjectId =
-      new Types.ObjectId(tierId);
+    const tierObjectId = new Types.ObjectId(tierId);
 
     const bulkOperations: any[] = [];
 
@@ -304,79 +203,51 @@ export class ServicePricingService {
       componentId: Types.ObjectId;
     }> = [];
 
-    for (
-      const locationPricing
-      of pricing
-    ) {
-      const locationObjectId =
-        new Types.ObjectId(
-          locationPricing.locationId,
+    for (const locationPricing of pricing) {
+      const locationObjectId = new Types.ObjectId(locationPricing.locationId);
+
+      for (const componentPricing of locationPricing.components) {
+        const componentObjectId = new Types.ObjectId(
+          componentPricing.componentId,
         );
 
-      for (
-        const componentPricing
-        of locationPricing.components
-      ) {
-        const componentObjectId =
-          new Types.ObjectId(
-            componentPricing.componentId,
-          );
+        const taxProfileId = componentPricing.taxProfileId ?? null;
 
-        const taxProfileId =
-          componentPricing.taxProfileId ??
-          null;
-
-        const taxPriceMode =
-          taxProfileId
-            ? componentPricing.taxPriceMode ??
-            "EXCLUSIVE"
-            : "EXCLUSIVE";
+        const taxPriceMode = taxProfileId
+          ? (componentPricing.taxPriceMode ?? "EXCLUSIVE")
+          : "EXCLUSIVE";
 
         requestedPairs.push({
-          locationId:
-            locationObjectId,
-          componentId:
-            componentObjectId,
+          locationId: locationObjectId,
+          componentId: componentObjectId,
         });
 
         bulkOperations.push({
           updateOne: {
             filter: {
-              serviceId:
-                serviceObjectId,
-              tierId:
-                tierObjectId,
-              locationId:
-                locationObjectId,
-              componentId:
-                componentObjectId,
+              serviceId: serviceObjectId,
+              tierId: tierObjectId,
+              locationId: locationObjectId,
+              componentId: componentObjectId,
             },
 
             update: {
               $set: {
-                price:
-                  componentPricing.price,
+                price: componentPricing.price,
 
-                taxProfileId:
-                  taxProfileId
-                    ? new Types.ObjectId(
-                      taxProfileId,
-                    )
-                    : null,
+                taxProfileId: taxProfileId
+                  ? new Types.ObjectId(taxProfileId)
+                  : null,
 
                 taxPriceMode,
                 isActive: true,
               },
 
               $setOnInsert: {
-                serviceId:
-                  serviceObjectId,
-                tierId:
-                  tierObjectId,
-                locationId:
-                  locationObjectId,
-                componentId:
-                  componentObjectId,
+                serviceId: serviceObjectId,
+                tierId: tierObjectId,
+                locationId: locationObjectId,
+                componentId: componentObjectId,
               },
             },
 
@@ -386,26 +257,20 @@ export class ServicePricingService {
       }
     }
 
-    const session =
-      await mongoose.startSession();
+    const session = await mongoose.startSession();
 
     try {
       session.startTransaction();
 
-      await ServicePricing.bulkWrite(
-        bulkOperations,
-        {
-          ordered: true,
-          session,
-        },
-      );
+      await ServicePricing.bulkWrite(bulkOperations, {
+        ordered: true,
+        session,
+      });
 
       await ServicePricing.deleteMany(
         {
-          serviceId:
-            serviceObjectId,
-          tierId:
-            tierObjectId,
+          serviceId: serviceObjectId,
+          tierId: tierObjectId,
           $nor: requestedPairs,
         },
         {
@@ -424,16 +289,12 @@ export class ServicePricingService {
       await session.endSession();
     }
 
-    await ServiceCascadingEngine.run(
-      serviceId,
-    );
+    await ServiceCascadingEngine.run(serviceId);
 
     return {
       success: true,
-      message:
-        "Pricing updated successfully",
-      updatedCount:
-        bulkOperations.length,
+      message: "Pricing updated successfully",
+      updatedCount: bulkOperations.length,
     };
   }
 
@@ -442,248 +303,164 @@ export class ServicePricingService {
     tierId: string,
     locationId: string,
   ) {
-    const service = await Service.findById(
-      serviceId,
-    ).lean();
+    const service = await Service.findById(serviceId).lean();
 
     if (!service) {
-      throw createHttpError(
-        "Service not found",
-        404,
-      );
+      throw createHttpError("Service not found", 404);
     }
 
     if (!service.isActive) {
-      throw createHttpError(
-        "Service is inactive",
-        400,
-      );
+      throw createHttpError("Service is inactive", 400);
     }
 
     const tier = service.tiers.find(
-      (item) =>
-        item.tierId.toString() ===
-        tierId,
+      (item) => item.tierId.toString() === tierId,
     );
 
     if (!tier) {
-      throw createHttpError(
-        "Tier does not belong to service",
-        400,
-      );
+      throw createHttpError("Tier does not belong to service", 400);
     }
 
-    const location =
-      service.locations.find(
-        (item) =>
-          item.locationId.toString() ===
-          locationId,
-      );
+    const location = service.locations.find(
+      (item) => item.locationId.toString() === locationId,
+    );
 
     if (!location) {
-      throw createHttpError(
-        "Location does not belong to service",
-        400,
-      );
+      throw createHttpError("Location does not belong to service", 400);
     }
 
     if (!location.isActive) {
-      throw createHttpError(
-        "Location is inactive for this service",
-        400,
-      );
+      throw createHttpError("Location is inactive for this service", 400);
     }
 
-    const components =
-      await ServiceComponent.find({
-        serviceId:
-          new Types.ObjectId(serviceId),
-        tierId:
-          new Types.ObjectId(tierId),
+    const components = await ServiceComponent.find({
+      serviceId: new Types.ObjectId(serviceId),
+      tierId: new Types.ObjectId(tierId),
+    })
+      .populate({
+        path: "componentId",
+        match: {
+          isActive: true,
+        },
+        select: "name description imageUrl isActive",
       })
-        .populate({
-          path: "componentId",
-          match: {
-            isActive: true,
-          },
-          select:
-            "name description imageUrl isActive",
-        })
-        .select(
-          "componentId isRequired items",
-        )
-        .lean();
+      .select("componentId isRequired items")
+      .lean();
 
-    const pricing =
-      await ServicePricing.find({
-        serviceId:
-          new Types.ObjectId(serviceId),
-        tierId:
-          new Types.ObjectId(tierId),
-        locationId:
-          new Types.ObjectId(locationId),
-        isActive: true,
+    const pricing = await ServicePricing.find({
+      serviceId: new Types.ObjectId(serviceId),
+      tierId: new Types.ObjectId(tierId),
+      locationId: new Types.ObjectId(locationId),
+      isActive: true,
+    })
+      .select("componentId price taxProfileId taxPriceMode")
+      .populate({
+        path: "taxProfileId",
+        match: {
+          isActive: true,
+        },
+        select: "name code treatment totalRate isActive",
       })
-        .select(
-          "componentId price taxProfileId taxPriceMode",
-        )
-        .populate({
-          path: "taxProfileId",
-          match: {
-            isActive: true,
-          },
-          select:
-            "name code treatment totalRate isActive",
-        })
-        .lean();
+      .lean();
 
     const pricingMap = new Map(
-      pricing.map(
-        (pricingRecord) => [
-          pricingRecord.componentId.toString(),
-          pricingRecord,
-        ],
-      ),
+      pricing.map((pricingRecord) => [
+        pricingRecord.componentId.toString(),
+        pricingRecord,
+      ]),
     );
 
-    const resolvedComponents =
-      components.flatMap(
-        (component) => {
-          const componentData = component.componentId as unknown as PopulatedComponent | null;
+    const resolvedComponents = components.flatMap((component) => {
+      const componentData =
+        component.componentId as unknown as PopulatedComponent | null;
 
-          if (!componentData) {
-            return [];
+      if (!componentData) {
+        return [];
+      }
+
+      const componentId = componentData._id.toString();
+
+      const pricingRecord = pricingMap.get(componentId);
+
+      const taxProfile = pricingRecord?.taxProfileId as
+        | {
+            _id: Types.ObjectId;
+            name?: string;
+            code?: string;
+            treatment?: string;
+            totalRate?: number;
+            isActive?: boolean;
           }
+        | null
+        | undefined;
 
-          const componentId =
-            componentData._id.toString();
+      return [
+        {
+          componentId: componentData._id,
 
-          const pricingRecord =
-            pricingMap.get(componentId);
+          name: componentData.name,
 
-          const taxProfile =
-            pricingRecord?.taxProfileId as
-            | {
-              _id: Types.ObjectId;
-              name?: string;
-              code?: string;
-              treatment?: string;
-              totalRate?: number;
-              isActive?: boolean;
-            }
-            | null
-            | undefined;
+          description: componentData.description ?? "",
 
-          return [
-            {
-              componentId:
-                componentData._id,
+          imageUrl: componentData.imageUrl ?? null,
 
-              name:
-                componentData.name,
+          isRequired: component.isRequired,
 
-              description:
-                componentData.description ??
-                "",
+          price: pricingRecord?.price ?? null,
 
-              imageUrl:
-                componentData.imageUrl ??
-                null,
+          isPriceConfigured: Boolean(pricingRecord),
 
-              isRequired:
-                component.isRequired,
+          tax: pricingRecord
+            ? {
+                taxProfileId: taxProfile?._id ?? null,
 
-              price:
-                pricingRecord?.price ??
-                null,
+                profileName: taxProfile?.name ?? null,
 
-              isPriceConfigured:
-                Boolean(
-                  pricingRecord,
-                ),
+                profileCode: taxProfile?.code ?? null,
 
-              tax: pricingRecord
-                ? {
-                  taxProfileId:
-                    taxProfile?._id ??
-                    null,
+                treatment: taxProfile?.treatment ?? null,
 
-                  profileName:
-                    taxProfile?.name ??
-                    null,
+                totalRate: taxProfile?.totalRate ?? 0,
 
-                  profileCode:
-                    taxProfile?.code ??
-                    null,
+                priceMode: taxProfile
+                  ? pricingRecord.taxPriceMode
+                  : "EXCLUSIVE",
 
-                  treatment:
-                    taxProfile?.treatment ??
-                    null,
+                isTaxConfigured: Boolean(taxProfile),
+              }
+            : null,
 
-                  totalRate:
-                    taxProfile?.totalRate ??
-                    0,
-
-                  priceMode:
-                    taxProfile
-                      ? pricingRecord.taxPriceMode
-                      : "EXCLUSIVE",
-
-                  isTaxConfigured:
-                    Boolean(
-                      taxProfile,
-                    ),
-                }
-                : null,
-
-              items:
-                component.items ?? [],
-            },
-          ];
+          items: component.items ?? [],
         },
-      );
+      ];
+    });
 
-    const requiredComponents =
-      resolvedComponents.filter(
-        (component) =>
-          component.isRequired,
-      );
+    const requiredComponents = resolvedComponents.filter(
+      (component) => component.isRequired,
+    );
 
-    const optionalComponents =
-      resolvedComponents.filter(
-        (component) =>
-          !component.isRequired,
-      );
+    const optionalComponents = resolvedComponents.filter(
+      (component) => !component.isRequired,
+    );
 
-    const startingPrice =
-      requiredComponents.reduce(
-        (sum, component) =>
-          sum +
-          (component.price ?? 0),
-        0,
-      );
+    const startingPrice = requiredComponents.reduce(
+      (sum, component) => sum + (component.price ?? 0),
+      0,
+    );
 
     const isAvailable =
       requiredComponents.length > 0 &&
-      requiredComponents.every(
-        (component) =>
-          component.isPriceConfigured,
-      );
+      requiredComponents.every((component) => component.isPriceConfigured);
 
     return {
       service: {
         id: service._id,
         name: service.name,
-        shortDescription:
-          service.shortDescription,
-        fullDescription:
-          service.fullDescription,
-        thumbnailImage:
-          service.thumbnailImage,
-        bannerImage:
-          service.bannerImage,
-        serviceReference:
-          service.serviceReference,
+        shortDescription: service.shortDescription,
+        fullDescription: service.fullDescription,
+        thumbnailImage: service.thumbnailImage,
+        bannerImage: service.bannerImage,
+        serviceReference: service.serviceReference,
       },
 
       tier: {
@@ -692,21 +469,16 @@ export class ServicePricingService {
       },
 
       location: {
-        id:
-          location.locationId,
+        id: location.locationId,
         name: location.name,
       },
 
-      components:
-        resolvedComponents,
+      components: resolvedComponents,
 
       summary: {
-        totalComponents:
-          resolvedComponents.length,
-        requiredComponentCount:
-          requiredComponents.length,
-        optionalComponentCount:
-          optionalComponents.length,
+        totalComponents: resolvedComponents.length,
+        requiredComponentCount: requiredComponents.length,
+        optionalComponentCount: optionalComponents.length,
         startingPrice,
         isAvailable,
       },

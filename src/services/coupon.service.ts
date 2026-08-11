@@ -1,21 +1,10 @@
-import {
-  Types,
-} from "mongoose";
+import { Types } from "mongoose";
 
-import {
-  Coupon,
-  type ICoupon,
-} from "../models/coupon.model.js";
+import { Coupon, type ICoupon } from "../models/coupon.model.js";
 
-import {
-  escapeRegex,
-} from "../utils/escapeRegex.js";
+import { escapeRegex } from "../utils/escapeRegex.js";
 
-type ApplicableOn =
-  | "ALL"
-  | "SERVICE"
-  | "PACKAGE"
-  | "REFERRAL";
+type ApplicableOn = "ALL" | "SERVICE" | "PACKAGE" | "REFERRAL";
 
 type CouponUpdateData = Partial<
   Pick<
@@ -47,15 +36,9 @@ interface ValidateCouponInput {
   isFirstOrder?: boolean;
 }
 
-type SortSpecification = Record<
-  string,
-  1 | -1 | { $meta: "textScore" }
->;
+type SortSpecification = Record<string, 1 | -1 | { $meta: "textScore" }>;
 
-type ProjectionSpecification = Record<
-  string,
-  0 | 1 | { $meta: "textScore" }
->;
+type ProjectionSpecification = Record<string, 0 | 1 | { $meta: "textScore" }>;
 
 export class CouponService {
   private static ensureValidId(id: string): void {
@@ -64,29 +47,19 @@ export class CouponService {
     }
   }
 
-  static async createCoupon(
-    couponData: CouponUpdateData,
-  ) {
+  static async createCoupon(couponData: CouponUpdateData) {
     if (!couponData.couponCode?.trim()) {
-      throw new Error(
-        "Coupon code is required",
-      );
+      throw new Error("Coupon code is required");
     }
 
-    const normalizedCode =
-      couponData.couponCode
-        .trim()
-        .toUpperCase();
+    const normalizedCode = couponData.couponCode.trim().toUpperCase();
 
-    const existingCoupon =
-      await Coupon.findOne({
-        couponCode: normalizedCode,
-      }).lean();
+    const existingCoupon = await Coupon.findOne({
+      couponCode: normalizedCode,
+    }).lean();
 
     if (existingCoupon) {
-      throw new Error(
-        `Coupon code '${normalizedCode}' already exists`,
-      );
+      throw new Error(`Coupon code '${normalizedCode}' already exists`);
     }
 
     const coupon = new Coupon({
@@ -97,10 +70,7 @@ export class CouponService {
     return coupon.save();
   }
 
-  static async updateCoupon(
-    id: string,
-    updateData: CouponUpdateData,
-  ) {
+  static async updateCoupon(id: string, updateData: CouponUpdateData) {
     this.ensureValidId(id);
 
     const coupon = await Coupon.findById(id);
@@ -110,9 +80,7 @@ export class CouponService {
     }
 
     if (updateData.couponCode !== undefined) {
-      const normalizedCode = updateData.couponCode
-        .trim()
-        .toUpperCase();
+      const normalizedCode = updateData.couponCode.trim().toUpperCase();
 
       const duplicate = await Coupon.exists({
         couponCode: normalizedCode,
@@ -122,9 +90,7 @@ export class CouponService {
       });
 
       if (duplicate) {
-        throw new Error(
-          `Coupon code '${normalizedCode}' already exists`,
-        );
+        throw new Error(`Coupon code '${normalizedCode}' already exists`);
       }
 
       coupon.couponCode = normalizedCode;
@@ -156,9 +122,7 @@ export class CouponService {
       coupon.packages = [];
 
       if (!coupon.services || coupon.services.length === 0) {
-        throw new Error(
-          "At least one service is required for SERVICE coupons",
-        );
+        throw new Error("At least one service is required for SERVICE coupons");
       }
     }
 
@@ -166,27 +130,17 @@ export class CouponService {
       coupon.services = [];
 
       if (!coupon.packages || coupon.packages.length === 0) {
-        throw new Error(
-          "At least one package is required for PACKAGE coupons",
-        );
+        throw new Error("At least one package is required for PACKAGE coupons");
       }
     }
 
-    if (
-      coupon.applicableOn === "ALL" ||
-      coupon.applicableOn === "REFERRAL"
-    ) {
+    if (coupon.applicableOn === "ALL" || coupon.applicableOn === "REFERRAL") {
       coupon.services = [];
       coupon.packages = [];
     }
 
-    if (
-      coupon.applicableOn === "REFERRAL" &&
-      !coupon.assignedUserId
-    ) {
-      throw new Error(
-        "assignedUserId is required for REFERRAL coupons",
-      );
+    if (coupon.applicableOn === "REFERRAL" && !coupon.assignedUserId) {
+      throw new Error("assignedUserId is required for REFERRAL coupons");
     }
 
     await coupon.save();
@@ -229,8 +183,7 @@ export class CouponService {
   static async deleteCoupon(id: string) {
     this.ensureValidId(id);
 
-    const coupon =
-      await Coupon.findByIdAndDelete(id);
+    const coupon = await Coupon.findByIdAndDelete(id);
 
     if (!coupon) {
       throw new Error("Coupon not found");
@@ -239,9 +192,7 @@ export class CouponService {
     return coupon;
   }
 
-  static async toggleCouponStatus(
-    id: string,
-  ) {
+  static async toggleCouponStatus(id: string) {
     this.ensureValidId(id);
 
     const coupon = await Coupon.findById(id);
@@ -266,22 +217,13 @@ export class CouponService {
     sortOrder: "asc" | "desc" = "desc",
   ) {
     const safeLimit =
-      Number.isInteger(limit) && limit > 0
-        ? Math.min(limit, 100)
-        : 20;
+      Number.isInteger(limit) && limit > 0 ? Math.min(limit, 100) : 20;
 
-    const safePage =
-      Number.isInteger(page) && page > 0
-        ? page
-        : 1;
+    const safePage = Number.isInteger(page) && page > 0 ? page : 1;
 
-    const skip =
-      safeLimit * (safePage - 1);
+    const skip = safeLimit * (safePage - 1);
 
-    const conditions: Record<
-      string,
-      unknown
-    >[] = [];
+    const conditions: Record<string, unknown>[] = [];
 
     if (typeof isActive === "boolean") {
       conditions.push({ isActive });
@@ -289,13 +231,9 @@ export class CouponService {
 
     if (applicableOn) {
       const values = (
-        Array.isArray(applicableOn)
-          ? applicableOn
-          : applicableOn.split(",")
+        Array.isArray(applicableOn) ? applicableOn : applicableOn.split(",")
       )
-        .map((item) =>
-          item.trim().toUpperCase(),
-        )
+        .map((item) => item.trim().toUpperCase())
         .filter(Boolean) as ApplicableOn[];
 
       if (assignedUserId) {
@@ -303,12 +241,12 @@ export class CouponService {
           $or: values.map((value) =>
             value === "REFERRAL"
               ? {
-                applicableOn: "REFERRAL",
-                assignedUserId,
-              }
+                  applicableOn: "REFERRAL",
+                  assignedUserId,
+                }
               : {
-                applicableOn: value,
-              },
+                  applicableOn: value,
+                },
           ),
         });
       } else {
@@ -324,14 +262,11 @@ export class CouponService {
       });
     }
 
-    const normalizedSearch =
-      searchTerm?.trim();
+    const normalizedSearch = searchTerm?.trim();
 
-    const isTextSearch =
-      Boolean(
-        normalizedSearch &&
-        normalizedSearch.length > 4,
-      );
+    const isTextSearch = Boolean(
+      normalizedSearch && normalizedSearch.length > 4,
+    );
 
     if (normalizedSearch) {
       if (isTextSearch) {
@@ -345,17 +280,13 @@ export class CouponService {
           $or: [
             {
               name: {
-                $regex:
-                  `^${escapeRegex(normalizedSearch)}`,
+                $regex: `^${escapeRegex(normalizedSearch)}`,
                 $options: "i",
               },
             },
             {
               couponCode: {
-                $regex:
-                  `^${escapeRegex(
-                    normalizedSearch.toUpperCase(),
-                  )}`,
+                $regex: `^${escapeRegex(normalizedSearch.toUpperCase())}`,
               },
             },
           ],
@@ -363,10 +294,7 @@ export class CouponService {
       }
     }
 
-    const query =
-      conditions.length > 0
-        ? { $and: conditions }
-        : {};
+    const query = conditions.length > 0 ? { $and: conditions } : {};
 
     const allowedSortFields = new Set([
       "createdAt",
@@ -383,18 +311,12 @@ export class CouponService {
       "relevance",
     ]);
 
-    const safeSortBy =
-      allowedSortFields.has(sortBy)
-        ? sortBy
-        : "createdAt";
+    const safeSortBy = allowedSortFields.has(sortBy) ? sortBy : "createdAt";
 
     let projection: ProjectionSpecification = {};
     let sortCriteria: SortSpecification;
 
-    if (
-      isTextSearch &&
-      safeSortBy === "relevance"
-    ) {
+    if (isTextSearch && safeSortBy === "relevance") {
       projection = {
         score: {
           $meta: "textScore",
@@ -408,15 +330,10 @@ export class CouponService {
       };
     } else {
       const actualSortField =
-        safeSortBy === "relevance"
-          ? "createdAt"
-          : safeSortBy;
+        safeSortBy === "relevance" ? "createdAt" : safeSortBy;
 
       sortCriteria = {
-        [actualSortField]:
-          sortOrder === "desc"
-            ? -1
-            : 1,
+        [actualSortField]: sortOrder === "desc" ? -1 : 1,
       };
 
       if (actualSortField !== "createdAt") {
@@ -425,36 +342,29 @@ export class CouponService {
     }
 
     try {
-      const [data, total] =
-        await Promise.all([
-          Coupon.find(query, projection)
-            .populate("services", "name")
-            .populate("packages", "name")
-            .sort(sortCriteria)
-            .skip(skip)
-            .limit(safeLimit)
-            .lean(),
+      const [data, total] = await Promise.all([
+        Coupon.find(query, projection)
+          .populate("services", "name")
+          .populate("packages", "name")
+          .sort(sortCriteria)
+          .skip(skip)
+          .limit(safeLimit)
+          .lean(),
 
-          Coupon.countDocuments(query),
-        ]);
+        Coupon.countDocuments(query),
+      ]);
 
       return {
         data,
         total,
         page: safePage,
         limit: safeLimit,
-        totalPages:
-          Math.ceil(total / safeLimit),
+        totalPages: Math.ceil(total / safeLimit),
       };
     } catch (error: unknown) {
-      const message =
-        error instanceof Error
-          ? error.message
-          : "Unknown error";
+      const message = error instanceof Error ? error.message : "Unknown error";
 
-      throw new Error(
-        `Coupon fetch failed: ${message}`,
-      );
+      throw new Error(`Coupon fetch failed: ${message}`);
     }
   }
 
@@ -466,17 +376,11 @@ export class CouponService {
     userId,
     isFirstOrder = false,
   }: ValidateCouponInput) {
-    if (
-      !Number.isFinite(orderAmount) ||
-      orderAmount < 0
-    ) {
-      throw new Error(
-        "Order amount must be a non-negative number",
-      );
+    if (!Number.isFinite(orderAmount) || orderAmount < 0) {
+      throw new Error("Order amount must be a non-negative number");
     }
 
-    const normalizedCode =
-      couponCode.trim().toUpperCase();
+    const normalizedCode = couponCode.trim().toUpperCase();
 
     const coupon = await Coupon.findOne({
       couponCode: normalizedCode,
@@ -489,57 +393,36 @@ export class CouponService {
 
     const now = new Date();
 
-    if (
-      coupon.validFrom &&
-      coupon.validFrom > now
-    ) {
-      throw new Error(
-        "Coupon is not active yet",
-      );
+    if (coupon.validFrom && coupon.validFrom > now) {
+      throw new Error("Coupon is not active yet");
     }
 
-    if (
-      coupon.validTill &&
-      coupon.validTill < now
-    ) {
+    if (coupon.validTill && coupon.validTill < now) {
       throw new Error("Coupon has expired");
     }
 
     if (coupon.assignedUserId) {
       if (!userId) {
-        throw new Error(
-          "User authentication is required for this coupon",
-        );
+        throw new Error("User authentication is required for this coupon");
       }
 
-      if (
-        coupon.assignedUserId.toString() !==
-        userId
-      ) {
-        throw new Error(
-          "This coupon does not belong to you",
-        );
+      if (coupon.assignedUserId.toString() !== userId) {
+        throw new Error("This coupon does not belong to you");
       }
     }
 
     switch (coupon.applicableOn) {
       case "SERVICE": {
         if (!serviceId) {
-          throw new Error(
-            "This coupon is applicable only for services",
-          );
+          throw new Error("This coupon is applicable only for services");
         }
 
-        const isApplicable =
-          coupon.services.some(
-            (item) =>
-              item.toString() === serviceId,
-          );
+        const isApplicable = coupon.services.some(
+          (item) => item.toString() === serviceId,
+        );
 
         if (!isApplicable) {
-          throw new Error(
-            "Coupon is not applicable for this service",
-          );
+          throw new Error("Coupon is not applicable for this service");
         }
 
         break;
@@ -547,21 +430,15 @@ export class CouponService {
 
       case "PACKAGE": {
         if (!packageId) {
-          throw new Error(
-            "This coupon is applicable only for packages",
-          );
+          throw new Error("This coupon is applicable only for packages");
         }
 
-        const isApplicable =
-          coupon.packages.some(
-            (item) =>
-              item.toString() === packageId,
-          );
+        const isApplicable = coupon.packages.some(
+          (item) => item.toString() === packageId,
+        );
 
         if (!isApplicable) {
-          throw new Error(
-            "Coupon is not applicable for this package",
-          );
+          throw new Error("Coupon is not applicable for this package");
         }
 
         break;
@@ -572,56 +449,31 @@ export class CouponService {
         break;
     }
 
-    if (
-      coupon.usageLimit > 0 &&
-      coupon.usedCount >= coupon.usageLimit
-    ) {
-      throw new Error(
-        "Coupon usage limit reached",
-      );
+    if (coupon.usageLimit > 0 && coupon.usedCount >= coupon.usageLimit) {
+      throw new Error("Coupon usage limit reached");
     }
 
-    if (
-      orderAmount < coupon.minOrderAmount
-    ) {
-      throw new Error(
-        `Minimum order amount is ₹${coupon.minOrderAmount}`,
-      );
+    if (orderAmount < coupon.minOrderAmount) {
+      throw new Error(`Minimum order amount is ₹${coupon.minOrderAmount}`);
     }
 
-    if (
-      coupon.isFirstOrderOnly &&
-      !isFirstOrder
-    ) {
-      throw new Error(
-        "Coupon is valid only for first order",
-      );
+    if (coupon.isFirstOrderOnly && !isFirstOrder) {
+      throw new Error("Coupon is valid only for first order");
     }
 
     let discountAmount: number;
 
-    if (
-      coupon.discountType === "PERCENTAGE"
-    ) {
-      discountAmount =
-        (orderAmount * coupon.discount) / 100;
+    if (coupon.discountType === "PERCENTAGE") {
+      discountAmount = (orderAmount * coupon.discount) / 100;
 
-      if (
-        coupon.maxDiscountAmount !== undefined
-      ) {
-        discountAmount = Math.min(
-          discountAmount,
-          coupon.maxDiscountAmount,
-        );
+      if (coupon.maxDiscountAmount !== undefined) {
+        discountAmount = Math.min(discountAmount, coupon.maxDiscountAmount);
       }
     } else {
       discountAmount = coupon.discount;
     }
 
-    discountAmount = Math.min(
-      discountAmount,
-      orderAmount,
-    );
+    discountAmount = Math.min(discountAmount, orderAmount);
 
     return {
       couponId: coupon._id,
@@ -630,8 +482,7 @@ export class CouponService {
       discountType: coupon.discountType,
       discount: coupon.discount,
       discountAmount,
-      finalAmount:
-        orderAmount - discountAmount,
+      finalAmount: orderAmount - discountAmount,
     };
   }
 }

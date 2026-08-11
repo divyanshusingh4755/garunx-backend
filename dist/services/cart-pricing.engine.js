@@ -1,17 +1,16 @@
-import { Types, } from "mongoose";
-import { ServicePricing, } from "../models/servicepricing.model.js";
-import { PackageTierPricing, } from "../models/packagetierpricing.model.js";
-import { ServiceComponent, } from "../models/servicecomponent.model.js";
-import { PackageTierMap, } from "../models/packagetiermap.model.js";
+import { Types } from "mongoose";
+import { ServicePricing } from "../models/servicepricing.model.js";
+import { PackageTierPricing } from "../models/packagetierpricing.model.js";
+import { ServiceComponent } from "../models/servicecomponent.model.js";
+import { PackageTierMap } from "../models/packagetiermap.model.js";
 import { TaxProfile } from "../models/tax-profile.model.js";
-import { TaxCalculatorService, } from "./tax-calculator.service.js";
-import { TaxContextService, } from "./tax-context.service.js";
-import { taxConfig, } from "../config/tax.config.js";
+import { TaxCalculatorService } from "./tax-calculator.service.js";
+import { TaxContextService } from "./tax-context.service.js";
+import { taxConfig } from "../config/tax.config.js";
 import { TaxPriceMode, TaxSource, TaxTreatment, } from "../types/tax.types.js";
 export class CartPricingEngine {
     static round(value) {
-        return (Math.round((value + Number.EPSILON) *
-            100) / 100);
+        return Math.round((value + Number.EPSILON) * 100) / 100;
     }
     static validateObjectId(value, fieldName) {
         if (!Types.ObjectId.isValid(value.toString())) {
@@ -19,20 +18,16 @@ export class CartPricingEngine {
         }
     }
     static validateMoney(fieldName, value) {
-        if (typeof value !== "number" ||
-            !Number.isFinite(value) ||
-            value < 0) {
+        if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
             throw new Error(`${fieldName} must be a valid non-negative number`);
         }
         return this.round(value);
     }
     static validateTaxPriceMode(value) {
-        if (value ===
-            TaxPriceMode.EXCLUSIVE) {
+        if (value === TaxPriceMode.EXCLUSIVE) {
             return TaxPriceMode.EXCLUSIVE;
         }
-        if (value ===
-            TaxPriceMode.INCLUSIVE) {
+        if (value === TaxPriceMode.INCLUSIVE) {
             return TaxPriceMode.INCLUSIVE;
         }
         throw new Error(`Invalid tax price mode: ${String(value)}`);
@@ -61,8 +56,7 @@ export class CartPricingEngine {
     static async loadTaxProfiles(taxProfileIds) {
         const uniqueIds = [
             ...new Set(taxProfileIds
-                .filter((id) => id !== null &&
-                id !== undefined)
+                .filter((id) => id !== null && id !== undefined)
                 .map((id) => {
                 const stringId = id.toString();
                 if (!Types.ObjectId.isValid(stringId)) {
@@ -82,10 +76,7 @@ export class CartPricingEngine {
         })
             .select("name code treatment totalRate")
             .lean();
-        return new Map(profiles.map((profile) => [
-            profile._id.toString(),
-            profile,
-        ]));
+        return new Map(profiles.map((profile) => [profile._id.toString(), profile]));
     }
     static emptyTaxSummary() {
         return {
@@ -97,46 +88,31 @@ export class CartPricingEngine {
         };
     }
     static addLineTaxToSummary(summary, tax) {
-        summary.taxableAmount =
-            this.round(summary.taxableAmount +
-                tax.taxableAmount);
-        summary.cgstAmount =
-            this.round(summary.cgstAmount +
-                tax.cgstAmount);
-        summary.sgstAmount =
-            this.round(summary.sgstAmount +
-                tax.sgstAmount);
-        summary.igstAmount =
-            this.round(summary.igstAmount +
-                tax.igstAmount);
-        summary.totalTax =
-            this.round(summary.totalTax +
-                tax.totalTax);
+        summary.taxableAmount = this.round(summary.taxableAmount + tax.taxableAmount);
+        summary.cgstAmount = this.round(summary.cgstAmount + tax.cgstAmount);
+        summary.sgstAmount = this.round(summary.sgstAmount + tax.sgstAmount);
+        summary.igstAmount = this.round(summary.igstAmount + tax.igstAmount);
+        summary.totalTax = this.round(summary.totalTax + tax.totalTax);
     }
     static calculatePricingLine(params) {
         const { pricing, taxProfileMap, supplierStateCode, placeOfSupplyStateCode, source, } = params;
         const normalizedAmount = this.validateMoney("Line amount", params.amount);
         const discountAmount = this.validateMoney("Line discount", params.discountAmount ?? 0);
-        if (discountAmount >
-            normalizedAmount) {
+        if (discountAmount > normalizedAmount) {
             throw new Error("Line discount cannot be greater than the line amount");
         }
-        const taxProfileId = pricing.taxProfileId ??
-            null;
+        const taxProfileId = pricing.taxProfileId ?? null;
         const taxPriceMode = this.validateTaxPriceMode(pricing.taxPriceMode);
-        if (!taxConfig.enabled ||
-            !taxProfileId) {
+        if (!taxConfig.enabled || !taxProfileId) {
             return {
                 amount: normalizedAmount,
                 discountAmount,
-                finalAmount: this.round(normalizedAmount -
-                    discountAmount),
+                finalAmount: this.round(normalizedAmount - discountAmount),
                 taxProfileId,
                 taxPriceMode,
             };
         }
-        if (!supplierStateCode ||
-            !placeOfSupplyStateCode) {
+        if (!supplierStateCode || !placeOfSupplyStateCode) {
             throw new Error("Tax context is required for taxable pricing");
         }
         const taxProfile = taxProfileMap.get(taxProfileId.toString());
@@ -152,8 +128,7 @@ export class CartPricingEngine {
             priceMode: taxPriceMode,
             source,
         };
-        const tax = TaxCalculatorService
-            .calculateLineTax({
+        const tax = TaxCalculatorService.calculateLineTax({
             amount: normalizedAmount,
             discountAmount,
             profile: profileSnapshot,
@@ -185,16 +160,14 @@ export class CartPricingEngine {
             []);
         this.ensureUniqueIds(selectedComponents, (item) => item.componentId, "selected component");
         this.ensureUniqueIds(addonComponents, (item) => item.componentId, "addon component");
-        const selectedIds = new Set(selectedComponents.map((item) => item.componentId
-            .toString()));
+        const selectedIds = new Set(selectedComponents.map((item) => item.componentId.toString()));
         for (const addon of addonComponents) {
-            const id = addon.componentId
-                .toString();
+            const id = addon.componentId.toString();
             if (selectedIds.has(id)) {
                 throw new Error(`Component cannot be both selected and addon: ${id}`);
             }
         }
-        const [serviceComponents, pricingRows,] = await Promise.all([
+        const [serviceComponents, pricingRows] = await Promise.all([
             ServiceComponent.find({
                 serviceId: cart.serviceId,
                 tierId: cart.tierId,
@@ -205,37 +178,26 @@ export class CartPricingEngine {
                 locationId: cart.locationId,
             }).lean(),
         ]);
-        const pricingMap = this.createUniqueMap(pricingRows, (pricing) => pricing.componentId
-            .toString(), "service pricing row for component");
-        const serviceComponentMap = this.createUniqueMap(serviceComponents, (component) => component.componentId
-            .toString(), "service component");
+        const pricingMap = this.createUniqueMap(pricingRows, (pricing) => pricing.componentId.toString(), "service pricing row for component");
+        const serviceComponentMap = this.createUniqueMap(serviceComponents, (component) => component.componentId.toString(), "service component");
         const taxProfileMap = await this.loadTaxProfiles(pricingRows.map((pricing) => pricing.taxProfileId));
         let supplierStateCode;
         let placeOfSupplyStateCode;
         if (taxConfig.enabled) {
-            const taxContext = await TaxContextService
-                .resolveByLocationId(cart.locationId);
-            supplierStateCode =
-                taxContext
-                    .supplierStateCode;
-            placeOfSupplyStateCode =
-                taxContext
-                    .placeOfSupplyStateCode;
+            const taxContext = await TaxContextService.resolveByLocationId(cart.locationId);
+            supplierStateCode = taxContext.supplierStateCode;
+            placeOfSupplyStateCode = taxContext.placeOfSupplyStateCode;
         }
         const requiredComponentIds = serviceComponents
             .filter((component) => component.isRequired)
-            .map((component) => component.componentId
-            .toString());
-        const duplicateRequiredIds = requiredComponentIds.filter((id, index) => requiredComponentIds
-            .indexOf(id) !== index);
-        if (duplicateRequiredIds.length >
-            0) {
+            .map((component) => component.componentId.toString());
+        const duplicateRequiredIds = requiredComponentIds.filter((id, index) => requiredComponentIds.indexOf(id) !== index);
+        if (duplicateRequiredIds.length > 0) {
             throw new Error(`Duplicate required service component: ${duplicateRequiredIds[0]}`);
         }
         const requiredComponentIdSet = new Set(requiredComponentIds);
         const selectedComponentMap = new Map(selectedComponents.map((component) => [
-            component.componentId
-                .toString(),
+            component.componentId.toString(),
             component,
         ]));
         const componentLines = new Map();
@@ -253,29 +215,18 @@ export class CartPricingEngine {
             const cartComponent = selectedComponentMap.get(componentId);
             const line = this.calculatePricingLine({
                 amount: pricing.price,
-                discountAmount: cartComponent
-                    ?.discountAmount ??
-                    0,
+                discountAmount: cartComponent?.discountAmount ?? 0,
                 pricing,
                 taxProfileMap,
-                ...(supplierStateCode !== undefined
-                    ? { supplierStateCode }
-                    : {}),
+                ...(supplierStateCode !== undefined ? { supplierStateCode } : {}),
                 ...(placeOfSupplyStateCode !== undefined
                     ? { placeOfSupplyStateCode }
                     : {}),
-                source: TaxSource
-                    .SERVICE_PRICING,
+                source: TaxSource.SERVICE_PRICING,
             });
-            basePrice =
-                this.round(basePrice +
-                    line.amount);
-            discountAmount =
-                this.round(discountAmount +
-                    line.discountAmount);
-            totalAmount =
-                this.round(totalAmount +
-                    line.finalAmount);
+            basePrice = this.round(basePrice + line.amount);
+            discountAmount = this.round(discountAmount + line.discountAmount);
+            totalAmount = this.round(totalAmount + line.finalAmount);
             if (line.tax) {
                 this.addLineTaxToSummary(taxSummary, line.tax);
             }
@@ -289,14 +240,11 @@ export class CartPricingEngine {
                 priceBeforeDiscount: line.amount,
                 discountAmount: line.discountAmount,
                 price: line.finalAmount,
-                ...(line.tax
-                    ? { tax: line.tax }
-                    : {}),
+                ...(line.tax ? { tax: line.tax } : {}),
             });
         }
         for (const component of selectedComponents) {
-            const componentId = component.componentId
-                .toString();
+            const componentId = component.componentId.toString();
             if (requiredComponentIdSet.has(componentId)) {
                 continue;
             }
@@ -306,28 +254,18 @@ export class CartPricingEngine {
             }
             const line = this.calculatePricingLine({
                 amount: pricing.price,
-                discountAmount: component.discountAmount ??
-                    0,
+                discountAmount: component.discountAmount ?? 0,
                 pricing,
                 taxProfileMap,
-                ...(supplierStateCode !== undefined
-                    ? { supplierStateCode }
-                    : {}),
+                ...(supplierStateCode !== undefined ? { supplierStateCode } : {}),
                 ...(placeOfSupplyStateCode !== undefined
                     ? { placeOfSupplyStateCode }
                     : {}),
-                source: TaxSource
-                    .SERVICE_PRICING,
+                source: TaxSource.SERVICE_PRICING,
             });
-            basePrice =
-                this.round(basePrice +
-                    line.amount);
-            discountAmount =
-                this.round(discountAmount +
-                    line.discountAmount);
-            totalAmount =
-                this.round(totalAmount +
-                    line.finalAmount);
+            basePrice = this.round(basePrice + line.amount);
+            discountAmount = this.round(discountAmount + line.discountAmount);
+            totalAmount = this.round(totalAmount + line.finalAmount);
             if (line.tax) {
                 this.addLineTaxToSummary(taxSummary, line.tax);
             }
@@ -341,49 +279,35 @@ export class CartPricingEngine {
                 priceBeforeDiscount: line.amount,
                 discountAmount: line.discountAmount,
                 price: line.finalAmount,
-                ...(line.tax
-                    ? { tax: line.tax }
-                    : {}),
+                ...(line.tax ? { tax: line.tax } : {}),
             });
         }
         for (const component of addonComponents) {
-            const componentId = component.componentId
-                .toString();
+            const componentId = component.componentId.toString();
             const pricing = pricingMap.get(componentId);
             if (!pricing) {
                 throw new Error(`Pricing not found for addon component: ${componentId}`);
             }
             const line = this.calculatePricingLine({
                 amount: pricing.price,
-                discountAmount: component.discountAmount ??
-                    0,
+                discountAmount: component.discountAmount ?? 0,
                 pricing,
                 taxProfileMap,
-                ...(supplierStateCode !== undefined
-                    ? { supplierStateCode }
-                    : {}),
+                ...(supplierStateCode !== undefined ? { supplierStateCode } : {}),
                 ...(placeOfSupplyStateCode !== undefined
                     ? { placeOfSupplyStateCode }
                     : {}),
-                source: TaxSource
-                    .SERVICE_PRICING,
+                source: TaxSource.SERVICE_PRICING,
             });
-            addonPrice =
-                this.round(addonPrice +
-                    line.amount);
-            discountAmount =
-                this.round(discountAmount +
-                    line.discountAmount);
-            totalAmount =
-                this.round(totalAmount +
-                    line.finalAmount);
+            addonPrice = this.round(addonPrice + line.amount);
+            discountAmount = this.round(discountAmount + line.discountAmount);
+            totalAmount = this.round(totalAmount + line.finalAmount);
             if (line.tax) {
                 this.addLineTaxToSummary(taxSummary, line.tax);
             }
             componentLines.set(componentId, line);
         }
-        const subtotal = this.round(basePrice +
-            addonPrice);
+        const subtotal = this.round(basePrice + addonPrice);
         const result = {
             basePrice,
             addonPrice,
@@ -399,14 +323,10 @@ export class CartPricingEngine {
             serviceItems: [],
         };
         if (supplierStateCode) {
-            result.taxSummary
-                .supplierStateCode =
-                supplierStateCode;
+            result.taxSummary.supplierStateCode = supplierStateCode;
         }
         if (placeOfSupplyStateCode) {
-            result.taxSummary
-                .placeOfSupplyStateCode =
-                placeOfSupplyStateCode;
+            result.taxSummary.placeOfSupplyStateCode = placeOfSupplyStateCode;
         }
         return result;
     }
@@ -422,20 +342,17 @@ export class CartPricingEngine {
         this.validateObjectId(cart.locationId, "locationId");
         const selectedServices = (cart.selectedServices ??
             []);
-        const addonServices = (cart.addonServices ??
-            []);
+        const addonServices = (cart.addonServices ?? []);
         this.ensureUniqueIds(selectedServices, (item) => item.serviceId, "selected service");
         this.ensureUniqueIds(addonServices, (item) => item.serviceId, "addon service");
-        const selectedIds = new Set(selectedServices.map((item) => item.serviceId
-            .toString()));
+        const selectedIds = new Set(selectedServices.map((item) => item.serviceId.toString()));
         for (const addon of addonServices) {
-            const id = addon.serviceId
-                .toString();
+            const id = addon.serviceId.toString();
             if (selectedIds.has(id)) {
                 throw new Error(`Service cannot be both selected and addon: ${id}`);
             }
         }
-        const [packageTierMap, pricingRows,] = await Promise.all([
+        const [packageTierMap, pricingRows] = await Promise.all([
             PackageTierMap.findOne({
                 packageId: cart.packageId,
                 tierId: cart.tierId,
@@ -449,47 +366,31 @@ export class CartPricingEngine {
         if (!packageTierMap) {
             throw new Error("Package tier mapping not found");
         }
-        const packageServices = packageTierMap.services ??
-            [];
+        const packageServices = packageTierMap.services ?? [];
         this.ensureUniqueIds(packageServices, (service) => service.serviceId, "package tier service");
-        const pricingMap = this.createUniqueMap(pricingRows, (pricing) => pricing.serviceId
-            .toString(), "package pricing row for service");
+        const pricingMap = this.createUniqueMap(pricingRows, (pricing) => pricing.serviceId.toString(), "package pricing row for service");
         const taxProfileMap = await this.loadTaxProfiles(pricingRows.map((pricing) => pricing.taxProfileId));
         let supplierStateCode;
         let placeOfSupplyStateCode;
         if (taxConfig.enabled) {
-            const taxContext = await TaxContextService
-                .resolveByLocationId(cart.locationId);
-            supplierStateCode =
-                taxContext
-                    .supplierStateCode;
-            placeOfSupplyStateCode =
-                taxContext
-                    .placeOfSupplyStateCode;
+            const taxContext = await TaxContextService.resolveByLocationId(cart.locationId);
+            supplierStateCode = taxContext.supplierStateCode;
+            placeOfSupplyStateCode = taxContext.placeOfSupplyStateCode;
         }
         const selectedServiceMap = new Map(selectedServices.map((service) => [
-            service.serviceId
-                .toString(),
+            service.serviceId.toString(),
             service,
         ]));
-        const addonServiceMap = new Map(addonServices.map((service) => [
-            service.serviceId
-                .toString(),
-            service,
-        ]));
-        const mappedServiceIds = new Set(packageServices.map((service) => service.serviceId
-            .toString()));
+        const addonServiceMap = new Map(addonServices.map((service) => [service.serviceId.toString(), service]));
+        const mappedServiceIds = new Set(packageServices.map((service) => service.serviceId.toString()));
         for (const selectedService of selectedServices) {
-            const id = selectedService
-                .serviceId
-                .toString();
+            const id = selectedService.serviceId.toString();
             if (!mappedServiceIds.has(id)) {
                 throw new Error(`Selected service is not part of the package tier: ${id}`);
             }
         }
         for (const addonService of addonServices) {
-            const id = addonService.serviceId
-                .toString();
+            const id = addonService.serviceId.toString();
             if (!mappedServiceIds.has(id)) {
                 throw new Error(`Addon service is not part of the package tier: ${id}`);
             }
@@ -502,49 +403,35 @@ export class CartPricingEngine {
         let discountAmount = 0;
         let totalAmount = 0;
         for (const service of packageServices) {
-            const serviceId = service.serviceId
-                .toString();
+            const serviceId = service.serviceId.toString();
             const pricing = pricingMap.get(serviceId);
             const selectedService = selectedServiceMap.get(serviceId);
             const addonService = addonServiceMap.get(serviceId);
-            if (selectedService &&
-                service.isRelated) {
+            if (selectedService && service.isRelated) {
                 throw new Error(`Related service must be selected as addon: ${serviceId}`);
             }
-            if (addonService &&
-                !service.isRelated) {
+            if (addonService && !service.isRelated) {
                 throw new Error(`Non-related package service cannot be selected as addon: ${serviceId}`);
             }
-            if (!selectedService &&
-                !addonService) {
+            if (!selectedService && !addonService) {
                 continue;
             }
             if (!pricing) {
                 throw new Error(`Pricing not found for selected package service: ${serviceId}`);
             }
-            if (selectedService &&
-                !service.isRelated) {
+            if (selectedService && !service.isRelated) {
                 const line = this.calculatePricingLine({
                     amount: pricing.finalPrice,
-                    discountAmount: selectedService
-                        .discountAmount ??
-                        0,
+                    discountAmount: selectedService.discountAmount ?? 0,
                     pricing,
                     taxProfileMap,
                     supplierStateCode,
                     placeOfSupplyStateCode,
-                    source: TaxSource
-                        .PACKAGE_PRICING,
+                    source: TaxSource.PACKAGE_PRICING,
                 });
-                basePrice =
-                    this.round(basePrice +
-                        line.amount);
-                discountAmount =
-                    this.round(discountAmount +
-                        line.discountAmount);
-                totalAmount =
-                    this.round(totalAmount +
-                        line.finalAmount);
+                basePrice = this.round(basePrice + line.amount);
+                discountAmount = this.round(discountAmount + line.discountAmount);
+                totalAmount = this.round(totalAmount + line.finalAmount);
                 if (line.tax) {
                     this.addLineTaxToSummary(taxSummary, line.tax);
                 }
@@ -557,42 +444,29 @@ export class CartPricingEngine {
                     priceBeforeDiscount: line.amount,
                     discountAmount: line.discountAmount,
                     price: line.finalAmount,
-                    ...(line.tax
-                        ? { tax: line.tax }
-                        : {}),
+                    ...(line.tax ? { tax: line.tax } : {}),
                 });
             }
-            if (addonService &&
-                service.isRelated) {
+            if (addonService && service.isRelated) {
                 const line = this.calculatePricingLine({
                     amount: pricing.finalPrice,
-                    discountAmount: addonService
-                        .discountAmount ??
-                        0,
+                    discountAmount: addonService.discountAmount ?? 0,
                     pricing,
                     taxProfileMap,
                     supplierStateCode,
                     placeOfSupplyStateCode,
-                    source: TaxSource
-                        .PACKAGE_PRICING,
+                    source: TaxSource.PACKAGE_PRICING,
                 });
-                addonPrice =
-                    this.round(addonPrice +
-                        line.amount);
-                discountAmount =
-                    this.round(discountAmount +
-                        line.discountAmount);
-                totalAmount =
-                    this.round(totalAmount +
-                        line.finalAmount);
+                addonPrice = this.round(addonPrice + line.amount);
+                discountAmount = this.round(discountAmount + line.discountAmount);
+                totalAmount = this.round(totalAmount + line.finalAmount);
                 if (line.tax) {
                     this.addLineTaxToSummary(taxSummary, line.tax);
                 }
                 serviceLines.set(serviceId, line);
             }
         }
-        const subtotal = this.round(basePrice +
-            addonPrice);
+        const subtotal = this.round(basePrice + addonPrice);
         const result = {
             basePrice,
             addonPrice,
@@ -608,14 +482,10 @@ export class CartPricingEngine {
             serviceItems,
         };
         if (supplierStateCode) {
-            result.taxSummary
-                .supplierStateCode =
-                supplierStateCode;
+            result.taxSummary.supplierStateCode = supplierStateCode;
         }
         if (placeOfSupplyStateCode) {
-            result.taxSummary
-                .placeOfSupplyStateCode =
-                placeOfSupplyStateCode;
+            result.taxSummary.placeOfSupplyStateCode = placeOfSupplyStateCode;
         }
         return result;
     }

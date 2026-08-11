@@ -4,12 +4,7 @@ import {
   type Response,
   type NextFunction,
 } from "express";
-import {
-  body,
-  param,
-  query,
-  validationResult,
-} from "express-validator";
+import { body, param, query, validationResult } from "express-validator";
 import { authenticate } from "../middleware/authenticate.js";
 import {
   createState,
@@ -21,11 +16,7 @@ import {
 
 const router = Router();
 
-const validate = (
-  req: Request,
-  res: Response,
-  next: NextFunction,
-) => {
+const validate = (req: Request, res: Response, next: NextFunction) => {
   const errors = validationResult(req);
 
   if (!errors.isEmpty()) {
@@ -61,30 +52,20 @@ const locationValidation = [
         coordinates.length !== 2 ||
         !coordinates.every(
           (coordinate) =>
-            typeof coordinate === "number" &&
-            Number.isFinite(coordinate),
+            typeof coordinate === "number" && Number.isFinite(coordinate),
         )
       ) {
-        throw new Error(
-          "Longitude and latitude must be valid numbers",
-        );
+        throw new Error("Longitude and latitude must be valid numbers");
       }
 
-      const [longitude, latitude] = coordinates as [
-        number,
-        number,
-      ];
+      const [longitude, latitude] = coordinates as [number, number];
 
       if (longitude < -180 || longitude > 180) {
-        throw new Error(
-          "Longitude must be between -180 and 180",
-        );
+        throw new Error("Longitude must be between -180 and 180");
       }
 
       if (latitude < -90 || latitude > 90) {
-        throw new Error(
-          "Latitude must be between -90 and 90",
-        );
+        throw new Error("Latitude must be between -90 and 90");
       }
 
       return true;
@@ -141,9 +122,7 @@ const createStateValidation = [
 ];
 
 const updateStateValidation = [
-  param("id")
-    .isMongoId()
-    .withMessage("Invalid state ID"),
+  param("id").isMongoId().withMessage("Invalid state ID"),
 
   body().custom((value) => {
     const allowedFields = [
@@ -167,9 +146,7 @@ const updateStateValidation = [
     );
 
     if (invalidFields.length > 0) {
-      throw new Error(
-        `Invalid update fields: ${invalidFields.join(", ")}`,
-      );
+      throw new Error(`Invalid update fields: ${invalidFields.join(", ")}`);
     }
 
     return true;
@@ -220,17 +197,13 @@ const updateStateValidation = [
 ];
 
 const stateIdValidation = [
-  param("id")
-    .isMongoId()
-    .withMessage("Invalid state ID"),
+  param("id").isMongoId().withMessage("Invalid state ID"),
 
   validate,
 ];
 
 const statusValidation = [
-  param("id")
-    .isMongoId()
-    .withMessage("Invalid state ID"),
+  param("id").isMongoId().withMessage("Invalid state ID"),
 
   body("status")
     .exists({ checkNull: true })
@@ -264,31 +237,15 @@ const listValidation = [
 
   query("sortBy")
     .optional()
-    .isIn([
-      "name",
-      "country",
-      "gstCode",
-      "createdAt",
-      "updatedAt",
-      "relevance",
-    ])
+    .isIn(["name", "country", "gstCode", "createdAt", "updatedAt", "relevance"])
     .withMessage("Invalid sortBy value"),
 
   validate,
 ];
 
-router.get(
-  "/get-all-state",
-  listValidation,
-  getAllState,
-);
+router.get("/get-all-state", listValidation, getAllState);
 
-router.post(
-  "/create-state",
-  authenticate,
-  createStateValidation,
-  createState,
-);
+router.post("/create-state", authenticate, createStateValidation, createState);
 
 router.patch(
   "/update-state/:id",
@@ -297,18 +254,8 @@ router.patch(
   updateState,
 );
 
-router.get(
-  "/:id",
-  authenticate,
-  stateIdValidation,
-  getStateById,
-);
+router.get("/:id", authenticate, stateIdValidation, getStateById);
 
-router.patch(
-  "/:id/status",
-  authenticate,
-  statusValidation,
-  deleteState,
-);
+router.patch("/:id/status", authenticate, statusValidation, deleteState);
 
 export default router;

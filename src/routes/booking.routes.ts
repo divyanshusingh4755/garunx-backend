@@ -4,12 +4,7 @@ import {
   type Response,
   type NextFunction,
 } from "express";
-import {
-  body,
-  param,
-  query,
-  validationResult,
-} from "express-validator";
+import { body, param, query, validationResult } from "express-validator";
 
 import { authenticate } from "../middleware/authenticate.js";
 
@@ -50,11 +45,7 @@ import { Role } from "../types/rbac.js";
 
 const router = Router();
 
-const validate = (
-  req: Request,
-  res: Response,
-  next: NextFunction,
-) => {
+const validate = (req: Request, res: Response, next: NextFunction) => {
   const errors = validationResult(req);
 
   if (!errors.isEmpty()) {
@@ -71,26 +62,18 @@ const validate = (
 };
 
 const bookingIdValidation = [
-  param("bookingId")
-    .isMongoId()
-    .withMessage("Invalid booking ID"),
+  param("bookingId").isMongoId().withMessage("Invalid booking ID"),
   validate,
 ];
 
 const cartIdValidation = [
-  param("cartId")
-    .isMongoId()
-    .withMessage("Invalid cart ID"),
+  param("cartId").isMongoId().withMessage("Invalid cart ID"),
   validate,
 ];
 
 const executionValidation = [
-  param("bookingId")
-    .isMongoId()
-    .withMessage("Invalid booking ID"),
-  param("executionId")
-    .isUUID()
-    .withMessage("Invalid execution ID"),
+  param("bookingId").isMongoId().withMessage("Invalid booking ID"),
+  param("executionId").isUUID().withMessage("Invalid execution ID"),
   validate,
 ];
 
@@ -136,9 +119,7 @@ router.patch(
   "/:bookingId/reschedule",
   authenticate,
   param("bookingId").isMongoId().withMessage("Invalid booking ID"),
-  body("scheduledAt")
-    .isISO8601()
-    .withMessage("Valid scheduledAt is required"),
+  body("scheduledAt").isISO8601().withMessage("Valid scheduledAt is required"),
   body("reason")
     .isString()
     .trim()
@@ -163,11 +144,7 @@ router.patch(
   updateBookingNotes,
 );
 
-router.get(
-  "/coordinator/bookings",
-  authenticate,
-  getCoordinatorBookingList,
-);
+router.get("/coordinator/bookings", authenticate, getCoordinatorBookingList);
 
 router.get(
   "/:bookingId/available-coordinators",
@@ -180,13 +157,8 @@ router.post(
   "/:bookingId/assignment/select",
   authenticate,
   param("bookingId").isMongoId().withMessage("Invalid booking ID"),
-  body("coordinatorId")
-    .isMongoId()
-    .withMessage("Invalid coordinator ID"),
-  body("scheduledAt")
-    .optional()
-    .isISO8601()
-    .withMessage("Invalid scheduledAt"),
+  body("coordinatorId").isMongoId().withMessage("Invalid coordinator ID"),
+  body("scheduledAt").optional().isISO8601().withMessage("Invalid scheduledAt"),
   body("rescheduleReason")
     .optional()
     .isString()
@@ -288,10 +260,7 @@ router.post(
   "/:bookingId/execution/milestones",
   authenticate,
   param("bookingId").isMongoId().withMessage("Invalid booking ID"),
-  body("code")
-    .isString()
-    .notEmpty()
-    .withMessage("Milestone code is required"),
+  body("code").isString().notEmpty().withMessage("Milestone code is required"),
   body("notes")
     .optional()
     .isString()
@@ -308,9 +277,7 @@ router.post(
   body("proofUrls")
     .isArray({ min: 1 })
     .withMessage("At least one completion proof is required"),
-  body("proofUrls.*")
-    .isURL()
-    .withMessage("Every proof URL must be valid"),
+  body("proofUrls.*").isURL().withMessage("Every proof URL must be valid"),
   body("notes")
     .optional()
     .isString()
@@ -413,11 +380,6 @@ router.post(
   refundBooking,
 );
 
-router.get(
-  "/:bookingId",
-  authenticate,
-  bookingIdValidation,
-  getBookingById,
-);
+router.get("/:bookingId", authenticate, bookingIdValidation, getBookingById);
 
 export default router;

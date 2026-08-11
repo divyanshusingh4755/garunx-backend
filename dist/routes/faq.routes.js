@@ -1,5 +1,5 @@
 import { Router, } from "express";
-import { body, param, query, validationResult, } from "express-validator";
+import { body, param, query, validationResult } from "express-validator";
 import { authenticate } from "../middleware/authenticate.js";
 import { getAllFaqs, getFaqById, createFaq, updateFaq, toggleFaqStatus, deleteFaq, } from "../controllers/faq.controllers.js";
 const FAQ_TYPES = [
@@ -30,9 +30,7 @@ const validateRequest = (req, res, next) => {
     next();
 };
 const faqIdValidation = [
-    param("id")
-        .isMongoId()
-        .withMessage("Invalid FAQ ID"),
+    param("id").isMongoId().withMessage("Invalid FAQ ID"),
     validateRequest,
 ];
 const createFaqValidation = [
@@ -59,10 +57,7 @@ const createFaqValidation = [
         .isBoolean()
         .withMessage("isActive must be a boolean")
         .toBoolean(),
-    body("faqType")
-        .optional()
-        .isIn(FAQ_TYPES)
-        .withMessage("Invalid FAQ type"),
+    body("faqType").optional().isIn(FAQ_TYPES).withMessage("Invalid FAQ type"),
     body("displayOrder")
         .optional()
         .isInt({ min: 0 })
@@ -71,13 +66,9 @@ const createFaqValidation = [
     validateRequest,
 ];
 const updateFaqValidation = [
-    param("id")
-        .isMongoId()
-        .withMessage("Invalid FAQ ID"),
+    param("id").isMongoId().withMessage("Invalid FAQ ID"),
     body().custom((value) => {
-        if (!value ||
-            typeof value !== "object" ||
-            Array.isArray(value)) {
+        if (!value || typeof value !== "object" || Array.isArray(value)) {
             throw new Error("Request body must be an object");
         }
         const allowedFields = [
@@ -120,10 +111,7 @@ const updateFaqValidation = [
         .isBoolean()
         .withMessage("isActive must be a boolean")
         .toBoolean(),
-    body("faqType")
-        .optional()
-        .isIn(FAQ_TYPES)
-        .withMessage("Invalid FAQ type"),
+    body("faqType").optional().isIn(FAQ_TYPES).withMessage("Invalid FAQ type"),
     body("displayOrder")
         .optional()
         .isInt({ min: 0 })
@@ -132,10 +120,7 @@ const updateFaqValidation = [
     validateRequest,
 ];
 const listFaqValidation = [
-    query("faqType")
-        .optional()
-        .isIn(FAQ_TYPES)
-        .withMessage("Invalid FAQ type"),
+    query("faqType").optional().isIn(FAQ_TYPES).withMessage("Invalid FAQ type"),
     query("isActive")
         .optional()
         .isBoolean()

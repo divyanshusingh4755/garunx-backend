@@ -8,9 +8,7 @@ export const getTheme = async (req, res) => {
         });
     }
     catch (error) {
-        const statusCode = error.message
-            ?.toLowerCase()
-            .includes("not found")
+        const statusCode = error.message?.toLowerCase().includes("not found")
             ? 404
             : 500;
         return res.status(statusCode).json({

@@ -1,9 +1,6 @@
 import { Router } from "express";
 import { body } from "express-validator";
-import {
-  getTheme,
-  updateTheme,
-} from "../controllers/brand.controllers.js";
+import { getTheme, updateTheme } from "../controllers/brand.controllers.js";
 import { authenticate } from "../middleware/authenticate.js";
 // import { hasPermission } from "../middleware/hasPermission.js";
 import { validate } from "../utils/validate.js";
@@ -31,14 +28,10 @@ const updateThemeValidation = [
         throw new Error("At least one theme field is required");
       }
 
-      const invalidFields = keys.filter(
-        (key) => !allowedFields.includes(key),
-      );
+      const invalidFields = keys.filter((key) => !allowedFields.includes(key));
 
       if (invalidFields.length > 0) {
-        throw new Error(
-          `Invalid theme fields: ${invalidFields.join(", ")}`,
-        );
+        throw new Error(`Invalid theme fields: ${invalidFields.join(", ")}`);
       }
 
       return true;
@@ -89,11 +82,6 @@ const updateThemeValidation = [
 
 router.get("/get-theme", getTheme);
 
-router.patch(
-  "/update-theme",
-  authenticate,
-  updateThemeValidation,
-  updateTheme,
-);
+router.patch("/update-theme", authenticate, updateThemeValidation, updateTheme);
 
 export default router;

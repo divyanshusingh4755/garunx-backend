@@ -1,4 +1,4 @@
-import { RolePermissions, } from "../types/rbac.js";
+import { RolePermissions } from "../types/rbac.js";
 export const hasPermission = (requiredPermission) => {
     return (req, res, next) => {
         if (!req.user) {

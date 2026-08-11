@@ -60,7 +60,7 @@ export const updateComponent = async (req, res) => {
 };
 export const toggleComponentStatus = async (req, res) => {
     try {
-        const { isActive, confirmed = false, } = req.body;
+        const { isActive, confirmed = false } = req.body;
         const result = await ComponentService.toggleComponentStatus(req.params.componentId, isActive, confirmed);
         if (result.requiresConfirmation) {
             return res.status(200).json({
@@ -79,8 +79,7 @@ export const toggleComponentStatus = async (req, res) => {
     catch (error) {
         return res.status(getStatusCode(error)).json({
             success: false,
-            message: error.message ||
-                "Failed to update component status",
+            message: error.message || "Failed to update component status",
         });
     }
 };
@@ -115,13 +114,8 @@ export const getAllComponents = async (req, res) => {
         const result = await ComponentService.findComponents({
             limit: limit ? Number(limit) : 20,
             page: page ? Number(page) : 1,
-            sortBy: typeof sortBy === "string"
-                ? sortBy
-                : "name",
-            sortOrder: sortOrder === "asc" ||
-                sortOrder === "desc"
-                ? sortOrder
-                : "asc",
+            sortBy: typeof sortBy === "string" ? sortBy : "name",
+            sortOrder: sortOrder === "asc" || sortOrder === "desc" ? sortOrder : "asc",
             ...(typeof searchTerm === "string" && {
                 searchTerm,
             }),
@@ -149,8 +143,7 @@ export const getAllComponents = async (req, res) => {
     catch (error) {
         return res.status(getStatusCode(error)).json({
             success: false,
-            message: error.message ||
-                "Failed to fetch components",
+            message: error.message || "Failed to fetch components",
         });
     }
 };

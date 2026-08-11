@@ -1,4 +1,4 @@
-import { model, Schema, } from "mongoose";
+import { model, Schema } from "mongoose";
 const categorySchema = new Schema({
     label: {
         type: String,

@@ -1,45 +1,33 @@
-import {
-  Counter,
-} from "../models/counter.model.js";
+import { Counter } from "../models/counter.model.js";
 
-export const getNextSequence =
-  async (
-    id: string,
-  ): Promise<number> => {
-    const normalizedId =
-      id.trim();
+export const getNextSequence = async (id: string): Promise<number> => {
+  const normalizedId = id.trim();
 
-    if (!normalizedId) {
-      throw new Error(
-        "Counter ID is required",
-      );
-    }
+  if (!normalizedId) {
+    throw new Error("Counter ID is required");
+  }
 
-    const counter =
-      await Counter.findOneAndUpdate(
-        {
-          id: normalizedId,
-        },
-        {
-          $inc: {
-            seq: 1,
-          },
-        },
-        {
-          new: true,
-          upsert: true,
-          setDefaultsOnInsert:
-            true,
-        },
-      )
-        .select("seq")
-        .lean();
+  const counter = await Counter.findOneAndUpdate(
+    {
+      id: normalizedId,
+    },
+    {
+      $inc: {
+        seq: 1,
+      },
+    },
+    {
+      new: true,
+      upsert: true,
+      setDefaultsOnInsert: true,
+    },
+  )
+    .select("seq")
+    .lean();
 
-    if (!counter) {
-      throw new Error(
-        `Unable to increment counter "${normalizedId}"`,
-      );
-    }
+  if (!counter) {
+    throw new Error(`Unable to increment counter "${normalizedId}"`);
+  }
 
-    return counter.seq;
-  };
+  return counter.seq;
+};

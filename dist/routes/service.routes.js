@@ -1,5 +1,5 @@
 import { Router, } from "express";
-import { body, param, query, validationResult, } from "express-validator";
+import { body, param, query, validationResult } from "express-validator";
 import { getAllServices, createService, updateService, getServiceById, toggleServiceStatus, getFullService, updateServiceLocations, removeServiceLocation, updateServiceTiers, removeServiceTier, getServicesByLocation, getFullServiceByCities, getServiceDiagnostics, } from "../controllers/service.controllers.js";
 import { authenticate } from "../middleware/authenticate.js";
 const router = Router();
@@ -16,9 +16,7 @@ const validate = (req, res, next) => {
     next();
 };
 const serviceIdValidation = [
-    param("serviceId")
-        .isMongoId()
-        .withMessage("Invalid service ID"),
+    param("serviceId").isMongoId().withMessage("Invalid service ID"),
     validate,
 ];
 const serviceValidation = [
@@ -56,10 +54,7 @@ const serviceValidation = [
         .optional({ values: "falsy" })
         .isURL()
         .withMessage("Banner image must be valid URL"),
-    body("locations")
-        .optional()
-        .isArray()
-        .withMessage("locations must be array"),
+    body("locations").optional().isArray().withMessage("locations must be array"),
     body("locations.*.name")
         .optional()
         .isString()
@@ -75,10 +70,7 @@ const serviceValidation = [
         .optional()
         .isBoolean()
         .withMessage("Location isActive must be boolean"),
-    body("tiers")
-        .optional()
-        .isArray()
-        .withMessage("tiers must be array"),
+    body("tiers").optional().isArray().withMessage("tiers must be array"),
     body("tiers.*.name")
         .optional()
         .isString()
@@ -86,10 +78,7 @@ const serviceValidation = [
         .trim()
         .notEmpty()
         .withMessage("Tier name cannot be empty"),
-    body("tiers.*.tierId")
-        .optional()
-        .isMongoId()
-        .withMessage("Invalid tier ID"),
+    body("tiers.*.tierId").optional().isMongoId().withMessage("Invalid tier ID"),
     body("isActive")
         .optional()
         .isBoolean()
@@ -97,9 +86,7 @@ const serviceValidation = [
     validate,
 ];
 const updateServiceValidation = [
-    param("serviceId")
-        .isMongoId()
-        .withMessage("Invalid service ID"),
+    param("serviceId").isMongoId().withMessage("Invalid service ID"),
     body().custom((value) => {
         const allowedFields = [
             "name",
@@ -142,10 +129,7 @@ const updateServiceValidation = [
         .trim()
         .notEmpty()
         .withMessage("Full description cannot be empty"),
-    body("categoryId")
-        .optional()
-        .isMongoId()
-        .withMessage("Invalid category ID"),
+    body("categoryId").optional().isMongoId().withMessage("Invalid category ID"),
     body("thumbnailImage")
         .optional()
         .isURL()
@@ -157,9 +141,7 @@ const updateServiceValidation = [
     validate,
 ];
 const serviceStatusValidation = [
-    param("serviceId")
-        .isMongoId()
-        .withMessage("Invalid service ID"),
+    param("serviceId").isMongoId().withMessage("Invalid service ID"),
     body("isActive")
         .exists({ checkNull: true })
         .withMessage("isActive is required")
@@ -172,9 +154,7 @@ const serviceStatusValidation = [
     validate,
 ];
 const updateLocationsValidation = [
-    param("id")
-        .isMongoId()
-        .withMessage("Invalid service ID"),
+    param("id").isMongoId().withMessage("Invalid service ID"),
     body("locations")
         .isArray({ min: 1 })
         .withMessage("locations array is required"),
@@ -195,21 +175,13 @@ const updateLocationsValidation = [
     validate,
 ];
 const removeLocationValidation = [
-    param("id")
-        .isMongoId()
-        .withMessage("Invalid service ID"),
-    param("locationId")
-        .isMongoId()
-        .withMessage("Invalid location ID"),
+    param("id").isMongoId().withMessage("Invalid service ID"),
+    param("locationId").isMongoId().withMessage("Invalid location ID"),
     validate,
 ];
 const updateTiersValidation = [
-    param("id")
-        .isMongoId()
-        .withMessage("Invalid service ID"),
-    body("tiers")
-        .isArray({ min: 1 })
-        .withMessage("tiers array is required"),
+    param("id").isMongoId().withMessage("Invalid service ID"),
+    body("tiers").isArray({ min: 1 }).withMessage("tiers array is required"),
     body("tiers.*.name")
         .optional()
         .isString()
@@ -223,35 +195,21 @@ const updateTiersValidation = [
     validate,
 ];
 const removeTierValidation = [
-    param("id")
-        .isMongoId()
-        .withMessage("Invalid service ID"),
-    param("tierId")
-        .isMongoId()
-        .withMessage("Invalid tier ID"),
+    param("id").isMongoId().withMessage("Invalid service ID"),
+    param("tierId").isMongoId().withMessage("Invalid tier ID"),
     validate,
 ];
 const fullServiceByCitiesValidation = [
-    param("serviceId")
-        .isMongoId()
-        .withMessage("Invalid service ID"),
+    param("serviceId").isMongoId().withMessage("Invalid service ID"),
     body("cityIds")
         .isArray({ min: 1 })
         .withMessage("cityIds must be a non-empty array"),
-    body("cityIds.*")
-        .isMongoId()
-        .withMessage("Each city ID must be valid"),
+    body("cityIds.*").isMongoId().withMessage("Each city ID must be valid"),
     validate,
 ];
 const listValidation = [
-    query("categoryId")
-        .optional()
-        .isMongoId()
-        .withMessage("Invalid category ID"),
-    query("locationId")
-        .optional()
-        .isMongoId()
-        .withMessage("Invalid location ID"),
+    query("categoryId").optional().isMongoId().withMessage("Invalid category ID"),
+    query("locationId").optional().isMongoId().withMessage("Invalid location ID"),
     query("limit")
         .optional()
         .isInt({ min: 1, max: 100 })

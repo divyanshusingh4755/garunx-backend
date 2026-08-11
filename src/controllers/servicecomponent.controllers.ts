@@ -22,39 +22,26 @@ export const bulkUpsertServiceComponents = async (
   res: Response,
 ) => {
   try {
-    const result =
-      await ServiceComponentService.bulkUpsertComponents(
-        req.body,
-      );
+    const result = await ServiceComponentService.bulkUpsertComponents(req.body);
 
     return res.status(200).json(result);
   } catch (error: any) {
     return res.status(getStatusCode(error)).json({
       success: false,
-      message:
-        error.message ||
-        "Failed to assign service components",
+      message: error.message || "Failed to assign service components",
     });
   }
 };
 
-export const replaceServiceComponents = async (
-  req: Request,
-  res: Response,
-) => {
+export const replaceServiceComponents = async (req: Request, res: Response) => {
   try {
-    const result =
-      await ServiceComponentService.replaceComponents(
-        req.body,
-      );
+    const result = await ServiceComponentService.replaceComponents(req.body);
 
     return res.status(200).json(result);
   } catch (error: any) {
     return res.status(getStatusCode(error)).json({
       success: false,
-      message:
-        error.message ||
-        "Failed to replace service components",
+      message: error.message || "Failed to replace service components",
     });
   }
 };
@@ -64,11 +51,10 @@ export const getComponentsByServiceAndTier = async (
   res: Response,
 ) => {
   try {
-    const data =
-      await ServiceComponentService.getComponentsByServiceAndTier(
-        req.params.serviceId as string,
-        req.params.tierId as string,
-      );
+    const data = await ServiceComponentService.getComponentsByServiceAndTier(
+      req.params.serviceId as string,
+      req.params.tierId as string,
+    );
 
     return res.status(200).json({
       success: true,
@@ -77,22 +63,14 @@ export const getComponentsByServiceAndTier = async (
   } catch (error: any) {
     return res.status(getStatusCode(error)).json({
       success: false,
-      message:
-        error.message ||
-        "Failed to fetch service components",
+      message: error.message || "Failed to fetch service components",
     });
   }
 };
 
-export const updateServiceComponent = async (
-  req: Request,
-  res: Response,
-) => {
+export const updateServiceComponent = async (req: Request, res: Response) => {
   try {
-    const result =
-      await ServiceComponentService.patchComponent(
-        req.body,
-      );
+    const result = await ServiceComponentService.patchComponent(req.body);
 
     return res.status(200).json({
       success: true,
@@ -101,9 +79,7 @@ export const updateServiceComponent = async (
   } catch (error: any) {
     return res.status(getStatusCode(error)).json({
       success: false,
-      message:
-        error.message ||
-        "Failed to update service component",
+      message: error.message || "Failed to update service component",
     });
   }
 };

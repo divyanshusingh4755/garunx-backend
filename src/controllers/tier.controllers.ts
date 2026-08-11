@@ -6,10 +6,7 @@ const getErrorStatus = (message: string) => {
     return 404;
   }
 
-  if (
-    message.includes("already exists") ||
-    message.includes("duplicate")
-  ) {
+  if (message.includes("already exists") || message.includes("duplicate")) {
     return 409;
   }
 
@@ -30,10 +27,7 @@ const parsePositiveInteger = (
   return maximum ? Math.min(parsed, maximum) : parsed;
 };
 
-export const createTier = async (
-  req: Request,
-  res: Response,
-) => {
+export const createTier = async (req: Request, res: Response) => {
   try {
     const data = await TierService.createTier(req.body);
 
@@ -50,17 +44,11 @@ export const createTier = async (
   }
 };
 
-export const updateTier = async (
-  req: Request,
-  res: Response,
-) => {
+export const updateTier = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
 
-    const data = await TierService.updateTier(
-      id as string,
-      req.body,
-    );
+    const data = await TierService.updateTier(id as string, req.body);
 
     return res.status(200).json({
       success: true,
@@ -75,16 +63,11 @@ export const updateTier = async (
   }
 };
 
-export const getTierById = async (
-  req: Request,
-  res: Response,
-) => {
+export const getTierById = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
 
-    const data = await TierService.getTierById(
-      id as string,
-    );
+    const data = await TierService.getTierById(id as string);
 
     return res.status(200).json({
       success: true,
@@ -93,16 +76,12 @@ export const getTierById = async (
   } catch (error: any) {
     return res.status(getErrorStatus(error.message)).json({
       success: false,
-      message:
-        error.message || "Error while getting tier by id",
+      message: error.message || "Error while getting tier by id",
     });
   }
 };
 
-export const toggleTierStatus = async (
-  req: Request,
-  res: Response,
-) => {
+export const toggleTierStatus = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { isActive, confirmed = false } = req.body;
@@ -115,39 +94,23 @@ export const toggleTierStatus = async (
 
     return res.status(200).json({
       success: true,
-      requiresConfirmation:
-        data.requiresConfirmation === true,
+      requiresConfirmation: data.requiresConfirmation === true,
       message: data.message,
       data,
     });
   } catch (error: any) {
     return res.status(getErrorStatus(error.message)).json({
       success: false,
-      message:
-        error.message || "Error while toggling tier status",
+      message: error.message || "Error while toggling tier status",
     });
   }
 };
 
-export const getAllTier = async (
-  req: Request,
-  res: Response,
-) => {
+export const getAllTier = async (req: Request, res: Response) => {
   try {
-    const {
-      searchTerm,
-      limit,
-      page,
-      isActive,
-      sortBy,
-      sortOrder,
-    } = req.query;
+    const { searchTerm, limit, page, isActive, sortBy, sortOrder } = req.query;
 
-    const parsedLimit = parsePositiveInteger(
-      limit,
-      40,
-      100,
-    );
+    const parsedLimit = parsePositiveInteger(limit, 40, 100);
 
     const parsedPage = parsePositiveInteger(page, 1);
 
@@ -162,11 +125,7 @@ export const getAllTier = async (
       (sortBy as string) || "createdAt",
       (sortOrder as "asc" | "desc") || "asc",
       searchTerm as string,
-      isActive === "true"
-        ? true
-        : isActive === "false"
-          ? false
-          : undefined,
+      isActive === "true" ? true : isActive === "false" ? false : undefined,
     );
 
     return res.status(200).json({

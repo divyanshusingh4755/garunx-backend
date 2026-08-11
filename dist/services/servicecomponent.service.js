@@ -1,4 +1,4 @@
-import mongoose, { Types, } from "mongoose";
+import mongoose, { Types } from "mongoose";
 import { Service } from "../models/service.model.js";
 import { Component } from "../models/component.model.js";
 import { ComponentItem } from "../models/componentitem.model.js";
@@ -12,14 +12,11 @@ const createHttpError = (message, statusCode) => {
 export class ServiceComponentService {
     static normalizeItemIds(items = []) {
         return [
-            ...new Set(items.map((item) => typeof item === "string"
-                ? item
-                : item.itemId)),
+            ...new Set(items.map((item) => (typeof item === "string" ? item : item.itemId))),
         ];
     }
     static async validateServiceTier(serviceId, tierId, session) {
-        const query = Service.findById(serviceId)
-            .select("_id tiers");
+        const query = Service.findById(serviceId).select("_id tiers");
         if (session) {
             query.session(session);
         }
@@ -51,14 +48,10 @@ export class ServiceComponentService {
             componentQuery.session(session);
         }
         const dbComponents = await componentQuery.lean();
-        if (dbComponents.length !==
-            objectIds.length) {
+        if (dbComponents.length !== objectIds.length) {
             throw createHttpError("One or more components are invalid or inactive", 400);
         }
-        const componentMap = new Map(dbComponents.map((component) => [
-            component._id.toString(),
-            component,
-        ]));
+        const componentMap = new Map(dbComponents.map((component) => [component._id.toString(), component]));
         const allItemIds = new Set();
         for (const component of components) {
             const dbComponent = componentMap.get(component.componentId);
@@ -66,21 +59,17 @@ export class ServiceComponentService {
                 throw createHttpError("Invalid component", 400);
             }
             const itemIds = this.normalizeItemIds(component.items);
-            if (dbComponent.isBundled &&
-                itemIds.length === 0) {
+            if (dbComponent.isBundled && itemIds.length === 0) {
                 throw createHttpError(`Component ${dbComponent.name} requires items`, 400);
             }
-            if (!dbComponent.isBundled &&
-                itemIds.length > 0) {
+            if (!dbComponent.isBundled && itemIds.length > 0) {
                 throw createHttpError(`Component ${dbComponent.name} is not bundled`, 400);
             }
             for (const itemId of itemIds) {
                 allItemIds.add(itemId);
             }
         }
-        const itemObjectIds = [
-            ...allItemIds,
-        ].map((id) => new Types.ObjectId(id));
+        const itemObjectIds = [...allItemIds].map((id) => new Types.ObjectId(id));
         const itemQuery = ComponentItem.find({
             _id: {
                 $in: itemObjectIds,
@@ -91,14 +80,10 @@ export class ServiceComponentService {
             itemQuery.session(session);
         }
         const dbItems = await itemQuery.lean();
-        if (dbItems.length !==
-            itemObjectIds.length) {
+        if (dbItems.length !== itemObjectIds.length) {
             throw createHttpError("One or more component items are invalid or inactive", 400);
         }
-        const itemMap = new Map(dbItems.map((item) => [
-            item._id.toString(),
-            item,
-        ]));
+        const itemMap = new Map(dbItems.map((item) => [item._id.toString(), item]));
         return components.map((component) => {
             const dbComponent = componentMap.get(component.componentId);
             const formattedItems = this.normalizeItemIds(component.items).map((itemId) => {
@@ -263,28 +248,23 @@ export class ServiceComponentService {
         }
         const updateData = {};
         if (payload.isRequired !== undefined) {
-            updateData.isRequired =
-                payload.isRequired;
+            updateData.isRequired = payload.isRequired;
         }
         if (payload.name !== undefined) {
-            updateData.name =
-                payload.name.trim();
+            updateData.name = payload.name.trim();
         }
         if (payload.items !== undefined) {
             const baseComponent = await Component.findById(payload.componentId)
                 .select("_id name isBundled isActive")
                 .lean();
-            if (!baseComponent ||
-                !baseComponent.isActive) {
+            if (!baseComponent || !baseComponent.isActive) {
                 throw createHttpError("Invalid or inactive base component", 400);
             }
             const itemIds = this.normalizeItemIds(payload.items);
-            if (baseComponent.isBundled &&
-                itemIds.length === 0) {
+            if (baseComponent.isBundled && itemIds.length === 0) {
                 throw createHttpError(`Component ${baseComponent.name} requires items`, 400);
             }
-            if (!baseComponent.isBundled &&
-                itemIds.length > 0) {
+            if (!baseComponent.isBundled && itemIds.length > 0) {
                 throw createHttpError("Non-bundled component cannot have items", 400);
             }
             const objectIds = itemIds.map((id) => new Types.ObjectId(id));
@@ -296,15 +276,13 @@ export class ServiceComponentService {
             })
                 .select("_id name")
                 .lean();
-            if (dbItems.length !==
-                objectIds.length) {
+            if (dbItems.length !== objectIds.length) {
                 throw createHttpError("One or more component items are invalid or inactive", 400);
             }
-            updateData.items =
-                dbItems.map((item) => ({
-                    itemId: item._id,
-                    name: item.name,
-                }));
+            updateData.items = dbItems.map((item) => ({
+                itemId: item._id,
+                name: item.name,
+            }));
         }
         const updatedComponent = await ServiceComponent.findOneAndUpdate(filter, {
             $set: updateData,

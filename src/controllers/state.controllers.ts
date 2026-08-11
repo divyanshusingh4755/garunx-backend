@@ -17,19 +17,9 @@ const getStatusCode = (error: any): number => {
   return 500;
 };
 
-export const createState = async (
-  req: Request,
-  res: Response,
-) => {
+export const createState = async (req: Request, res: Response) => {
   try {
-    const {
-      name,
-      country,
-      gstCode,
-      image,
-      description,
-      location,
-    } = req.body;
+    const { name, country, gstCode, image, description, location } = req.body;
 
     const state = await StateService.createState({
       name,
@@ -53,10 +43,7 @@ export const createState = async (
   }
 };
 
-export const updateState = async (
-  req: Request,
-  res: Response,
-) => {
+export const updateState = async (req: Request, res: Response) => {
   try {
     const result = await StateService.updateState(
       req.params.id as string,
@@ -75,10 +62,7 @@ export const updateState = async (
   }
 };
 
-export const getAllState = async (
-  req: Request,
-  res: Response,
-) => {
+export const getAllState = async (req: Request, res: Response) => {
   try {
     const {
       searchTerm,
@@ -92,25 +76,16 @@ export const getAllState = async (
     } = req.query;
 
     const activeStatus =
-      isActive === "true"
-        ? true
-        : isActive === "false"
-          ? false
-          : undefined;
+      isActive === "true" ? true : isActive === "false" ? false : undefined;
 
     const result = await StateService.findState({
       limit: limit ? Number(limit) : 40,
       page: page ? Number(page) : 1,
 
-      sortBy:
-        typeof sortBy === "string"
-          ? sortBy
-          : "createdAt",
+      sortBy: typeof sortBy === "string" ? sortBy : "createdAt",
 
       sortOrder:
-        sortOrder === "asc" || sortOrder === "desc"
-          ? sortOrder
-          : "desc",
+        sortOrder === "asc" || sortOrder === "desc" ? sortOrder : "desc",
 
       ...(typeof searchTerm === "string" && {
         searchTerm,
@@ -144,14 +119,9 @@ export const getAllState = async (
   }
 };
 
-export const getStateById = async (
-  req: Request,
-  res: Response,
-) => {
+export const getStateById = async (req: Request, res: Response) => {
   try {
-    const state = await StateService.getStateById(
-      req.params.id as string,
-    );
+    const state = await StateService.getStateById(req.params.id as string);
 
     return res.status(200).json({
       success: true,
@@ -165,10 +135,7 @@ export const getStateById = async (
   }
 };
 
-export const deleteState = async (
-  req: Request,
-  res: Response,
-) => {
+export const deleteState = async (req: Request, res: Response) => {
   try {
     const { status } = req.body;
 
@@ -179,16 +146,13 @@ export const deleteState = async (
 
     return res.status(200).json({
       success: true,
-      message: `State ${
-        status ? "activated" : "deactivated"
-      } successfully`,
+      message: `State ${status ? "activated" : "deactivated"} successfully`,
       data: state,
     });
   } catch (error: any) {
     return res.status(getStatusCode(error)).json({
       success: false,
-      message:
-        error.message || "Failed to change state status",
+      message: error.message || "Failed to change state status",
     });
   }
 };

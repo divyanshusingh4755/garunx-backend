@@ -4,12 +4,7 @@ import {
   type Response,
   type NextFunction,
 } from "express";
-import {
-  body,
-  param,
-  query,
-  validationResult,
-} from "express-validator";
+import { body, param, query, validationResult } from "express-validator";
 import { authenticate } from "../middleware/authenticate.js";
 import {
   createComponentItem,
@@ -21,11 +16,7 @@ import {
 
 const router = Router();
 
-const validate = (
-  req: Request,
-  res: Response,
-  next: NextFunction,
-) => {
+const validate = (req: Request, res: Response, next: NextFunction) => {
   const errors = validationResult(req);
 
   if (!errors.isEmpty()) {
@@ -63,16 +54,10 @@ export const componentItemValidation = [
 ];
 
 export const updateComponentItemValidation = [
-  param("componentItemId")
-    .isMongoId()
-    .withMessage("Invalid component item ID"),
+  param("componentItemId").isMongoId().withMessage("Invalid component item ID"),
 
   body().custom((value) => {
-    const allowedFields = [
-      "name",
-      "price",
-      "isActive",
-    ];
+    const allowedFields = ["name", "price", "isActive"];
 
     const suppliedFields = Object.keys(value ?? {});
 
@@ -85,9 +70,7 @@ export const updateComponentItemValidation = [
     );
 
     if (invalidFields.length > 0) {
-      throw new Error(
-        `Invalid update fields: ${invalidFields.join(", ")}`,
-      );
+      throw new Error(`Invalid update fields: ${invalidFields.join(", ")}`);
     }
 
     return true;
@@ -115,17 +98,13 @@ export const updateComponentItemValidation = [
 ];
 
 const componentItemIdValidation = [
-  param("componentItemId")
-    .isMongoId()
-    .withMessage("Invalid component item ID"),
+  param("componentItemId").isMongoId().withMessage("Invalid component item ID"),
 
   validate,
 ];
 
 const componentItemStatusValidation = [
-  param("componentItemId")
-    .isMongoId()
-    .withMessage("Invalid component item ID"),
+  param("componentItemId").isMongoId().withMessage("Invalid component item ID"),
 
   body("isActive")
     .exists({ checkNull: true })
@@ -159,14 +138,7 @@ const listValidation = [
 
   query("sortBy")
     .optional()
-    .isIn([
-      "name",
-      "price",
-      "isActive",
-      "createdAt",
-      "updatedAt",
-      "relevance",
-    ])
+    .isIn(["name", "price", "isActive", "createdAt", "updatedAt", "relevance"])
     .withMessage("Invalid sortBy value"),
 
   query("sortOrder")
@@ -177,18 +149,9 @@ const listValidation = [
   validate,
 ];
 
-router.get(
-  "/",
-  listValidation,
-  getAllComponentItems,
-);
+router.get("/", listValidation, getAllComponentItems);
 
-router.post(
-  "/",
-  authenticate,
-  componentItemValidation,
-  createComponentItem,
-);
+router.post("/", authenticate, componentItemValidation, createComponentItem);
 
 router.put(
   "/:componentItemId",

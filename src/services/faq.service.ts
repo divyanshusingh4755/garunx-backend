@@ -1,41 +1,21 @@
 import { Types } from "mongoose";
 
-import {
-  FAQ,
-  type IFAQ,
-} from "../models/faq.model.js";
+import { FAQ, type IFAQ } from "../models/faq.model.js";
 
-import {
-  escapeRegex,
-} from "../utils/escapeRegex.js";
+import { escapeRegex } from "../utils/escapeRegex.js";
 
-type FaqType =
-  | "User"
-  | "Coordinator"
-  | "User_Query"
-  | "Coordinator_Query";
+type FaqType = "User" | "Coordinator" | "User_Query" | "Coordinator_Query";
 
 type FaqUpdateData = Partial<
   Pick<
     IFAQ,
-    | "name"
-    | "question"
-    | "answer"
-    | "faqType"
-    | "displayOrder"
-    | "isActive"
+    "name" | "question" | "answer" | "faqType" | "displayOrder" | "isActive"
   >
 >;
 
-type SortSpecification = Record<
-  string,
-  1 | -1 | { $meta: "textScore" }
->;
+type SortSpecification = Record<string, 1 | -1 | { $meta: "textScore" }>;
 
-type ProjectionSpecification = Record<
-  string,
-  0 | 1 | { $meta: "textScore" }
->;
+type ProjectionSpecification = Record<string, 0 | 1 | { $meta: "textScore" }>;
 
 export class FAQService {
   private static ensureValidId(id: string): void {
@@ -44,9 +24,7 @@ export class FAQService {
     }
   }
 
-  static async createFaq(
-    faqData: Partial<IFAQ>,
-  ) {
+  static async createFaq(faqData: Partial<IFAQ>) {
     if (!faqData.name?.trim()) {
       throw new Error("Name is required");
     }
@@ -64,10 +42,7 @@ export class FAQService {
     return faq.save();
   }
 
-  static async updateFaq(
-    id: string,
-    updateData: FaqUpdateData,
-  ) {
+  static async updateFaq(id: string, updateData: FaqUpdateData) {
     this.ensureValidId(id);
 
     const faq = await FAQ.findById(id);
@@ -76,11 +51,7 @@ export class FAQService {
       throw new Error("FAQ not found");
     }
 
-    for (
-      const [field, value] of Object.entries(
-        updateData,
-      )
-    ) {
+    for (const [field, value] of Object.entries(updateData)) {
       faq.set(field, value);
     }
 
@@ -90,8 +61,7 @@ export class FAQService {
   static async getFaqById(id: string) {
     this.ensureValidId(id);
 
-    const faq = await FAQ.findById(id)
-      .lean();
+    const faq = await FAQ.findById(id).lean();
 
     if (!faq) {
       throw new Error("FAQ not found");
@@ -103,8 +73,7 @@ export class FAQService {
   static async deleteFaq(id: string) {
     this.ensureValidId(id);
 
-    const faq =
-      await FAQ.findByIdAndDelete(id);
+    const faq = await FAQ.findByIdAndDelete(id);
 
     if (!faq) {
       throw new Error("FAQ not found");
@@ -137,17 +106,11 @@ export class FAQService {
     sortOrder: "asc" | "desc" = "asc",
   ) {
     const safeLimit =
-      Number.isInteger(limit) && limit > 0
-        ? Math.min(limit, 100)
-        : 20;
+      Number.isInteger(limit) && limit > 0 ? Math.min(limit, 100) : 20;
 
-    const safePage =
-      Number.isInteger(page) && page > 0
-        ? page
-        : 1;
+    const safePage = Number.isInteger(page) && page > 0 ? page : 1;
 
-    const skip =
-      safeLimit * (safePage - 1);
+    const skip = safeLimit * (safePage - 1);
 
     const query: Record<string, unknown> = {};
 
@@ -159,14 +122,11 @@ export class FAQService {
       query.isActive = isActive;
     }
 
-    const normalizedSearch =
-      searchTerm?.trim();
+    const normalizedSearch = searchTerm?.trim();
 
-    const isTextSearch =
-      Boolean(
-        normalizedSearch &&
-        normalizedSearch.length > 4,
-      );
+    const isTextSearch = Boolean(
+      normalizedSearch && normalizedSearch.length > 4,
+    );
 
     if (normalizedSearch) {
       if (isTextSearch) {
@@ -175,8 +135,7 @@ export class FAQService {
         };
       } else {
         query.name = {
-          $regex:
-            `^${escapeRegex(normalizedSearch)}`,
+          $regex: `^${escapeRegex(normalizedSearch)}`,
           $options: "i",
         };
       }
@@ -192,18 +151,12 @@ export class FAQService {
       "relevance",
     ]);
 
-    const safeSortBy =
-      allowedSortFields.has(sortBy)
-        ? sortBy
-        : "displayOrder";
+    const safeSortBy = allowedSortFields.has(sortBy) ? sortBy : "displayOrder";
 
     let projection: ProjectionSpecification = {};
     let sortCriteria: SortSpecification;
 
-    if (
-      isTextSearch &&
-      safeSortBy === "relevance"
-    ) {
+    if (isTextSearch && safeSortBy === "relevance") {
       projection = {
         score: {
           $meta: "textScore",
@@ -217,15 +170,10 @@ export class FAQService {
       };
     } else {
       const actualSortField =
-        safeSortBy === "relevance"
-          ? "displayOrder"
-          : safeSortBy;
+        safeSortBy === "relevance" ? "displayOrder" : safeSortBy;
 
       sortCriteria = {
-        [actualSortField]:
-          sortOrder === "desc"
-            ? -1
-            : 1,
+        [actualSortField]: sortOrder === "desc" ? -1 : 1,
       };
 
       if (actualSortField !== "createdAt") {
@@ -234,34 +182,27 @@ export class FAQService {
     }
 
     try {
-      const [data, total] =
-        await Promise.all([
-          FAQ.find(query, projection)
-            .sort(sortCriteria)
-            .skip(skip)
-            .limit(safeLimit)
-            .lean(),
+      const [data, total] = await Promise.all([
+        FAQ.find(query, projection)
+          .sort(sortCriteria)
+          .skip(skip)
+          .limit(safeLimit)
+          .lean(),
 
-          FAQ.countDocuments(query),
-        ]);
+        FAQ.countDocuments(query),
+      ]);
 
       return {
         data,
         total,
         page: safePage,
         limit: safeLimit,
-        totalPages:
-          Math.ceil(total / safeLimit),
+        totalPages: Math.ceil(total / safeLimit),
       };
     } catch (error: unknown) {
-      const message =
-        error instanceof Error
-          ? error.message
-          : "Unknown error";
+      const message = error instanceof Error ? error.message : "Unknown error";
 
-      throw new Error(
-        `FAQ fetch failed: ${message}`,
-      );
+      throw new Error(`FAQ fetch failed: ${message}`);
     }
   }
 }

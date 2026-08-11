@@ -1,34 +1,18 @@
-import {
-  Types,
-  type QueryFilter,
-  type SortOrder,
-} from "mongoose";
-import {
-  City,
-  type ICity,
-  type IGeoPoint,
-} from "../models/city.model.js";
+import { Types, type QueryFilter, type SortOrder } from "mongoose";
+import { City, type ICity, type IGeoPoint } from "../models/city.model.js";
 import { State } from "../models/state.model.js";
 import { escapeRegex } from "../utils/escapeRegex.js";
 
 type CityUpdate = Partial<
   Pick<
     ICity,
-    | "name"
-    | "country"
-    | "image"
-    | "description"
-    | "isActive"
-    | "location"
+    "name" | "country" | "image" | "description" | "isActive" | "location"
   >
 > & {
   stateId?: string;
 };
 
-const createHttpError = (
-  message: string,
-  statusCode: number,
-) => {
+const createHttpError = (message: string, statusCode: number) => {
   const error = new Error(message) as Error & {
     statusCode: number;
   };
@@ -73,14 +57,7 @@ export class CityService {
     description?: string;
     location?: IGeoPoint;
   }) {
-    const {
-      name,
-      country,
-      stateId,
-      image,
-      description,
-      location,
-    } = params;
+    const { name, country, stateId, image, description, location } = params;
 
     const validState = await State.exists({
       _id: stateId,
@@ -88,10 +65,7 @@ export class CityService {
     });
 
     if (!validState) {
-      throw createHttpError(
-        "State does not belong to country",
-        400,
-      );
+      throw createHttpError("State does not belong to country", 400);
     }
 
     return City.create({
@@ -146,12 +120,9 @@ export class CityService {
       query.isActive = isActive;
     }
 
-    const cityQuery =
-      this.applyStringFilter(cityFilter);
-    const stateQuery =
-      this.applyObjectIdFilter(stateIdFilter);
-    const countryQuery =
-      this.applyStringFilter(countryFilter);
+    const cityQuery = this.applyStringFilter(cityFilter);
+    const stateQuery = this.applyObjectIdFilter(stateIdFilter);
+    const countryQuery = this.applyStringFilter(countryFilter);
 
     if (cityQuery) query.name = cityQuery;
     if (stateQuery) query.stateId = stateQuery;
@@ -173,14 +144,9 @@ export class CityService {
       }
     }
 
-    let projection:
-      | Record<string, unknown>
-      | undefined;
+    let projection: Record<string, unknown> | undefined;
 
-    let sortCriteria: Record<
-      string,
-      SortOrder | { $meta: "textScore" }
-    >;
+    let sortCriteria: Record<string, SortOrder | { $meta: "textScore" }>;
 
     if (isTextSearch && sortBy === "relevance") {
       projection = {
@@ -202,9 +168,7 @@ export class CityService {
         "updatedAt",
       ]);
 
-      const safeSortBy = allowedSortFields.has(sortBy)
-        ? sortBy
-        : "createdAt";
+      const safeSortBy = allowedSortFields.has(sortBy) ? sortBy : "createdAt";
 
       sortCriteria = {
         [safeSortBy]: sortOrder === "asc" ? 1 : -1,
@@ -234,10 +198,7 @@ export class CityService {
     };
   }
 
-  static async updateCity(
-    cityId: string,
-    updateData: CityUpdate,
-  ) {
+  static async updateCity(cityId: string, updateData: CityUpdate) {
     const existingCity = await City.findById(cityId)
       .select("country stateId")
       .lean();
@@ -246,27 +207,18 @@ export class CityService {
       throw createHttpError("City not found", 404);
     }
 
-    const country =
-      updateData.country ?? existingCity.country;
+    const country = updateData.country ?? existingCity.country;
 
-    const stateId =
-      updateData.stateId ??
-      existingCity.stateId.toString();
+    const stateId = updateData.stateId ?? existingCity.stateId.toString();
 
-    if (
-      updateData.country !== undefined ||
-      updateData.stateId !== undefined
-    ) {
+    if (updateData.country !== undefined || updateData.stateId !== undefined) {
       const validState = await State.exists({
         _id: stateId,
         country,
       });
 
       if (!validState) {
-        throw createHttpError(
-          "State does not belong to country",
-          400,
-        );
+        throw createHttpError("State does not belong to country", 400);
       }
     }
 
@@ -290,10 +242,7 @@ export class CityService {
     return updatedCity;
   }
 
-  static async softDeleteCity(
-    cityId: string,
-    status: boolean,
-  ) {
+  static async softDeleteCity(cityId: string, status: boolean) {
     const updatedCity = await City.findByIdAndUpdate(
       cityId,
       {
@@ -315,9 +264,7 @@ export class CityService {
   }
 
   static async getCityById(cityId: string) {
-    const city = await City.findById(cityId)
-      .populate("stateId", "name")
-      .lean();
+    const city = await City.findById(cityId).populate("stateId", "name").lean();
 
     if (!city) {
       throw createHttpError("City not found", 404);

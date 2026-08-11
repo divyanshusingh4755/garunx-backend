@@ -1,8 +1,4 @@
-import mongoose, {
-  Types,
-  type QueryFilter,
-  type SortOrder,
-} from "mongoose";
+import mongoose, { Types, type QueryFilter, type SortOrder } from "mongoose";
 import {
   Location,
   type ILocation,
@@ -29,10 +25,7 @@ type LocationUpdate = Partial<
   cityId?: string;
 };
 
-const createHttpError = (
-  message: string,
-  statusCode: number,
-) => {
+const createHttpError = (message: string, statusCode: number) => {
   const error = new Error(message) as Error & {
     statusCode: number;
   };
@@ -118,14 +111,10 @@ export class LocationService {
       query.isActive = isActive;
     }
 
-    const countryQuery =
-      this.applyStringFilter(countryFilter);
-    const stateQuery =
-      this.applyObjectIdFilter(stateIdFilter);
-    const cityQuery =
-      this.applyObjectIdFilter(cityIdFilter);
-    const pincodeQuery =
-      this.applyStringFilter(pincodeFilter);
+    const countryQuery = this.applyStringFilter(countryFilter);
+    const stateQuery = this.applyObjectIdFilter(stateIdFilter);
+    const cityQuery = this.applyObjectIdFilter(cityIdFilter);
+    const pincodeQuery = this.applyStringFilter(pincodeFilter);
 
     if (countryQuery) query.country = countryQuery;
     if (stateQuery) query.stateId = stateQuery;
@@ -163,19 +152,14 @@ export class LocationService {
       "updatedAt",
     ]);
 
-    let sortCriteria: Record<
-      string,
-      SortOrder | { $meta: "textScore" }
-    >;
+    let sortCriteria: Record<string, SortOrder | { $meta: "textScore" }>;
 
     if (isTextSearch && sortBy === "relevance") {
       sortCriteria = {
         score: { $meta: "textScore" },
       };
     } else {
-      const safeSortBy = allowedSortFields.has(sortBy)
-        ? sortBy
-        : "createdAt";
+      const safeSortBy = allowedSortFields.has(sortBy) ? sortBy : "createdAt";
 
       sortCriteria = {
         [safeSortBy]: sortOrder === "asc" ? 1 : -1,
@@ -226,19 +210,15 @@ export class LocationService {
     };
   }
 
-  static async updateLocation(
-    locationId: string,
-    updateData: LocationUpdate,
-  ) {
-    const updatedLocation =
-      await Location.findByIdAndUpdate(
-        locationId,
-        { $set: updateData },
-        {
-          new: true,
-          runValidators: true,
-        },
-      ).lean();
+  static async updateLocation(locationId: string, updateData: LocationUpdate) {
+    const updatedLocation = await Location.findByIdAndUpdate(
+      locationId,
+      { $set: updateData },
+      {
+        new: true,
+        runValidators: true,
+      },
+    ).lean();
 
     if (!updatedLocation) {
       throw createHttpError("Location not found", 404);
@@ -247,9 +227,7 @@ export class LocationService {
     return updatedLocation;
   }
 
-  static async getDeactivationImpact(
-    locationId: string,
-  ) {
+  static async getDeactivationImpact(locationId: string) {
     const targetId = new Types.ObjectId(locationId);
 
     const linkedLocationQuery = {
@@ -302,13 +280,9 @@ export class LocationService {
     }
 
     if (!status && !confirmed) {
-      const impact =
-        await this.getDeactivationImpact(locationId);
+      const impact = await this.getDeactivationImpact(locationId);
 
-      if (
-        impact.servicesCount > 0 ||
-        impact.packagesCount > 0
-      ) {
+      if (impact.servicesCount > 0 || impact.packagesCount > 0) {
         return {
           requiresConfirmation: true,
           impact,
@@ -321,15 +295,14 @@ export class LocationService {
     try {
       session.startTransaction();
 
-      const updatedLocation =
-        await Location.findByIdAndUpdate(
-          locationId,
-          { $set: { isActive: status } },
-          {
-            new: true,
-            session,
-          },
-        ).lean();
+      const updatedLocation = await Location.findByIdAndUpdate(
+        locationId,
+        { $set: { isActive: status } },
+        {
+          new: true,
+          session,
+        },
+      ).lean();
 
       if (!updatedLocation) {
         throw createHttpError("Location not found", 404);
@@ -400,9 +373,7 @@ export class LocationService {
     }
   }
 
-  static async getLocationById(
-    locationId: string,
-  ) {
+  static async getLocationById(locationId: string) {
     const location = await Location.findById(locationId)
       .populate("stateId", "name")
       .populate("cityId", "name")
@@ -415,12 +386,8 @@ export class LocationService {
     return location;
   }
 
-  static async getLocationByIds(
-    locationIds: string[],
-  ) {
-    const objectIds = locationIds.map(
-      (id) => new Types.ObjectId(id),
-    );
+  static async getLocationByIds(locationIds: string[]) {
+    const objectIds = locationIds.map((id) => new Types.ObjectId(id));
 
     const locations = await Location.find({
       _id: { $in: objectIds },

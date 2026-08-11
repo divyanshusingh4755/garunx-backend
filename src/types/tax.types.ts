@@ -1,6 +1,4 @@
-import type {
-  Types,
-} from "mongoose";
+import type { Types } from "mongoose";
 
 export enum TaxPriceMode {
   EXCLUSIVE = "EXCLUSIVE",
@@ -25,30 +23,24 @@ export enum TaxTreatment {
 }
 
 export interface ITaxProfileSnapshot {
-  taxProfileId:
-    Types.ObjectId;
+  taxProfileId: Types.ObjectId;
 
   name: string;
   code: string;
 
-  treatment:
-    TaxTreatment;
+  treatment: TaxTreatment;
 
   totalRate: number;
 
-  priceMode:
-    TaxPriceMode;
+  priceMode: TaxPriceMode;
 
-  source:
-    TaxSource;
+  source: TaxSource;
 }
 
 export interface ILineTax {
-  profile:
-    ITaxProfileSnapshot;
+  profile: ITaxProfileSnapshot;
 
-  jurisdiction:
-    TaxJurisdiction;
+  jurisdiction: TaxJurisdiction;
 
   taxableAmount: number;
 

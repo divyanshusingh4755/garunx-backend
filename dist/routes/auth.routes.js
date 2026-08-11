@@ -1,13 +1,13 @@
-import { Router } from 'express';
-import { body, param, query } from 'express-validator';
-import { Role } from '../types/rbac.js';
-import { login, register, resendOtp, verifyOtp, refreshToken, logout, forgotPassword, resetPassword, getUserById, getAllUsers, deactivateUser, completeProfile, updateProfile, uploadSingle, uploadMutliple, getUserByEmailOrPhone, submitVerificationDocuments, approveOrRejectDocs, changePassword, socialAuth, updateCoordinatorAvailability, getCurrentUser, updateCoordinatorSettings, updateServiceableLocations, getCoordinators, getCoordinatorById, updateCoordinatorApproval } from '../controllers/auth.controllers.js';
-import { authRateLimiter, otpRateLimiter, passwordResetRateLimiter } from '../utils/rateLimiter.js';
-import { authenticate } from '../middleware/authenticate.js';
-import { upload } from '../middleware/upload.js';
-import { ApprovalStatus, AvailabilityStatus, Caste, Gender, Gotra, VerificationStatus } from '../types/enums.js';
-import { validate } from '../utils/validate.js';
-import { authorizeRoles } from '../middleware/authorizeRoles.js';
+import { Router } from "express";
+import { body, param, query } from "express-validator";
+import { Role } from "../types/rbac.js";
+import { login, register, resendOtp, verifyOtp, refreshToken, logout, forgotPassword, resetPassword, getUserById, getAllUsers, deactivateUser, completeProfile, updateProfile, uploadSingle, uploadMutliple, getUserByEmailOrPhone, submitVerificationDocuments, approveOrRejectDocs, changePassword, socialAuth, updateCoordinatorAvailability, getCurrentUser, updateCoordinatorSettings, updateServiceableLocations, getCoordinators, getCoordinatorById, updateCoordinatorApproval, } from "../controllers/auth.controllers.js";
+import { authRateLimiter, otpRateLimiter, passwordResetRateLimiter, } from "../utils/rateLimiter.js";
+import { authenticate } from "../middleware/authenticate.js";
+import { upload } from "../middleware/upload.js";
+import { ApprovalStatus, AvailabilityStatus, Caste, Gender, Gotra, VerificationStatus, } from "../types/enums.js";
+import { validate } from "../utils/validate.js";
+import { authorizeRoles } from "../middleware/authorizeRoles.js";
 const router = Router();
 // Validation Middleware
 const registerValidation = [
@@ -53,9 +53,7 @@ const socialRegisterValidation = [
         .withMessage("Role is required")
         .isIn(Object.values(Role))
         .withMessage("Invalid user type"),
-    body("idToken")
-        .notEmpty()
-        .withMessage("Token is missing"),
+    body("idToken").notEmpty().withMessage("Token is missing"),
     validate,
 ];
 const profileValidation = [
@@ -107,11 +105,7 @@ const profileValidation = [
         .optional()
         .isIn(Object.values(Gotra))
         .withMessage("Invalid gotra"),
-    body("referralCode")
-        .optional()
-        .isString()
-        .trim()
-        .toUpperCase(),
+    body("referralCode").optional().isString().trim().toUpperCase(),
     validate,
 ];
 const updateProfileValidation = [
@@ -147,9 +141,7 @@ const updateProfileValidation = [
 ];
 const documentUploadValidation = [
     body().custom((value) => {
-        if (!value.aadharCard &&
-            !value.panCard &&
-            !value.bankPassbook) {
+        if (!value.aadharCard && !value.panCard && !value.bankPassbook) {
             throw new Error("At least one document must be provided");
         }
         return true;
@@ -158,10 +150,7 @@ const documentUploadValidation = [
         .optional()
         .isString()
         .withMessage("Invalid Aadhar document"),
-    body("panCard")
-        .optional()
-        .isString()
-        .withMessage("Invalid PAN document"),
+    body("panCard").optional().isString().withMessage("Invalid PAN document"),
     body("bankPassbook")
         .optional()
         .isString()
@@ -201,10 +190,7 @@ const verificationStatusValidation = [
         .isIn(["document", "bank"])
         .withMessage("Type must be document or bank"),
     body("status")
-        .isIn([
-        VerificationStatus.APPROVED,
-        VerificationStatus.REJECTED,
-    ])
+        .isIn([VerificationStatus.APPROVED, VerificationStatus.REJECTED])
         .withMessage("Status must be APPROVED or REJECTED"),
     body("rejectionReason")
         .if(body("status").equals(VerificationStatus.REJECTED))
@@ -324,10 +310,7 @@ export const coordinatorListValidation = [
         .optional()
         .isIn(Object.values(AvailabilityStatus))
         .withMessage("Invalid availability status"),
-    query("locationId")
-        .optional()
-        .isMongoId()
-        .withMessage("Invalid location ID"),
+    query("locationId").optional().isMongoId().withMessage("Invalid location ID"),
     query("caste")
         .optional()
         .isIn(Object.values(Caste))
@@ -369,7 +352,11 @@ export const coordinatorListValidation = [
     validate,
 ];
 const verifyOtpValidation = [
-    body("otp").notEmpty().withMessage("OTP is required").isLength({ min: 6, max: 6 }).withMessage("OTP must be 6 digits"),
+    body("otp")
+        .notEmpty()
+        .withMessage("OTP is required")
+        .isLength({ min: 6, max: 6 })
+        .withMessage("OTP must be 6 digits"),
     body().custom(({ userId, email }) => {
         if (!userId && !email)
             throw new Error("User ID or email is required");
@@ -397,25 +384,54 @@ const resendOtpValidation = [
     validate,
 ];
 const loginValidation = [
-    body("identifier").notEmpty().withMessage("Email or phone number is required").isString().trim(),
+    body("identifier")
+        .notEmpty()
+        .withMessage("Email or phone number is required")
+        .isString()
+        .trim(),
     body("password").notEmpty().withMessage("Password is required"),
-    body("role").notEmpty().withMessage("Role is required").isIn(Object.values(Role)).withMessage("Invalid role"),
+    body("role")
+        .notEmpty()
+        .withMessage("Role is required")
+        .isIn(Object.values(Role))
+        .withMessage("Invalid role"),
     validate,
 ];
 const forgotPasswordValidation = [
-    body("email").isEmail().withMessage("Valid email is required").normalizeEmail(),
-    body("role").notEmpty().withMessage("Role is required").isIn(Object.values(Role)).withMessage("Invalid role"),
+    body("email")
+        .isEmail()
+        .withMessage("Valid email is required")
+        .normalizeEmail(),
+    body("role")
+        .notEmpty()
+        .withMessage("Role is required")
+        .isIn(Object.values(Role))
+        .withMessage("Invalid role"),
     validate,
 ];
 const resetPasswordValidation = [
     body("userId").isMongoId().withMessage("Invalid User ID"),
-    body("newPassword").isStrongPassword({ minLength: 8, minLowercase: 1, minUppercase: 1, minNumbers: 1, minSymbols: 0 })
+    body("newPassword")
+        .isStrongPassword({
+        minLength: 8,
+        minLowercase: 1,
+        minUppercase: 1,
+        minNumbers: 1,
+        minSymbols: 0,
+    })
         .withMessage("Password must be at least 8 characters and include uppercase, lowercase, and a number"),
     validate,
 ];
 const changePasswordValidation = [
     body("oldPassword").notEmpty().withMessage("Current password is required"),
-    body("newPassword").isStrongPassword({ minLength: 8, minLowercase: 1, minUppercase: 1, minNumbers: 1, minSymbols: 0 })
+    body("newPassword")
+        .isStrongPassword({
+        minLength: 8,
+        minLowercase: 1,
+        minUppercase: 1,
+        minNumbers: 1,
+        minSymbols: 0,
+    })
         .withMessage("Password must be at least 8 characters and include uppercase, lowercase, and a number"),
     validate,
 ];
@@ -430,7 +446,7 @@ router.post("/logout", logout);
 // PASSWORD RECOVERY
 router.post("/forgot-password", passwordResetRateLimiter, forgotPasswordValidation, forgotPassword);
 router.post("/reset-password", passwordResetRateLimiter, resetPasswordValidation, resetPassword);
-// PROFILE COMPLETION 
+// PROFILE COMPLETION
 router.patch("/complete-profile", profileValidation, completeProfile);
 // CURRENT USER
 router.get("/me", authenticate, getCurrentUser);
@@ -444,10 +460,7 @@ router.put("/coordinator/serviceable-locations", authenticate, authorizeRoles(Ro
 router.get("/get-all-user", authenticate, authorizeRoles(Role.ADMIN), getAllUsers);
 router.get("/get-user-by-email-or-phone/:identifier", authenticate, authorizeRoles(Role.ADMIN), getUserByEmailOrPhone);
 router.get("/get-user-by-id/:id", authenticate, authorizeRoles(Role.ADMIN), getUserById);
-router.patch("/deactivate-user/:id", authenticate, authorizeRoles(Role.ADMIN), body("status")
-    .isBoolean()
-    .withMessage("Status must be boolean")
-    .toBoolean(), validate, deactivateUser);
+router.patch("/deactivate-user/:id", authenticate, authorizeRoles(Role.ADMIN), body("status").isBoolean().withMessage("Status must be boolean").toBoolean(), validate, deactivateUser);
 router.patch("/verify-documents", authenticate, authorizeRoles(Role.ADMIN), verificationStatusValidation, approveOrRejectDocs);
 // ADMIN COORDINATORS
 router.get("/coordinators", authenticate, authorizeRoles(Role.ADMIN), coordinatorListValidation, getCoordinators);

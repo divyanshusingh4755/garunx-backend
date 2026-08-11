@@ -37,7 +37,4 @@ tierSchema.index({
   tierReference: "text",
 });
 
-export const Tier = model<ITier>(
-  "Tier",
-  tierSchema,
-);
+export const Tier = model<ITier>("Tier", tierSchema);

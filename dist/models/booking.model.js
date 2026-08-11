@@ -1,6 +1,6 @@
 import { model, Schema, Types, Document, Model } from "mongoose";
 import { Counter } from "./counter.model.js";
-import { lineTaxSchema, } from "./tax.schema.js";
+import { lineTaxSchema } from "./tax.schema.js";
 const pendingRescheduleSchema = new Schema({
     previousScheduledAt: {
         type: Date,
@@ -446,11 +446,7 @@ const bookingRescheduleSchema = new Schema({
     },
     rescheduledByRole: {
         type: String,
-        enum: [
-            "USER",
-            "ADMIN",
-            "SUBADMIN",
-        ],
+        enum: ["USER", "ADMIN", "SUBADMIN"],
         required: true,
     },
     rescheduledAt: {
@@ -700,12 +696,7 @@ const bookingSchema = new Schema({
         otpVerification: {
             status: {
                 type: String,
-                enum: [
-                    "PENDING",
-                    "VERIFIED",
-                    "FAILED",
-                    "EXPIRED",
-                ],
+                enum: ["PENDING", "VERIFIED", "FAILED", "EXPIRED"],
                 default: "PENDING",
             },
             otpHash: {
@@ -789,14 +780,12 @@ bookingEntrySchema.pre("validate", function () {
     const hasServiceConfiguration = Boolean(this.serviceConfiguration);
     const hasPackageConfiguration = Boolean(this.packageConfiguration);
     if (this.entryType === "SERVICE") {
-        if (!hasServiceConfiguration ||
-            hasPackageConfiguration) {
+        if (!hasServiceConfiguration || hasPackageConfiguration) {
             throw new Error("SERVICE entry must contain only serviceConfiguration");
         }
     }
     if (this.entryType === "PACKAGE") {
-        if (!hasPackageConfiguration ||
-            hasServiceConfiguration) {
+        if (!hasPackageConfiguration || hasServiceConfiguration) {
             throw new Error("PACKAGE entry must contain only packageConfiguration");
         }
     }
@@ -835,9 +824,17 @@ bookingSchema.index({ userId: 1, isDeleted: 1, "customerDetails.email": 1 });
 // Index for searching by main customer details phone
 bookingSchema.index({ userId: 1, isDeleted: 1, "customerDetails.phone": 1 });
 // Index for searching by snapshot email
-bookingSchema.index({ userId: 1, isDeleted: 1, "cartSnapshot.customerDetails.email": 1 });
+bookingSchema.index({
+    userId: 1,
+    isDeleted: 1,
+    "cartSnapshot.customerDetails.email": 1,
+});
 // Index for searching by snapshot phone
-bookingSchema.index({ userId: 1, isDeleted: 1, "cartSnapshot.customerDetails.phone": 1 });
+bookingSchema.index({
+    userId: 1,
+    isDeleted: 1,
+    "cartSnapshot.customerDetails.phone": 1,
+});
 bookingSchema.index({
     bookingReference: "text",
     "customerDetails.name": "text",

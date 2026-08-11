@@ -1,4 +1,4 @@
-import { model, Schema, Types, } from "mongoose";
+import { model, Schema, Types } from "mongoose";
 const bannerSchema = new Schema({
     version: {
         type: Number,
@@ -25,22 +25,12 @@ const bannerSchema = new Schema({
     placement: {
         type: String,
         required: true,
-        enum: [
-            "HOME_TOP",
-            "HOME_MIDDLE",
-            "HOME_BOTTOM",
-            "CATEGORY",
-            "PRODUCT",
-        ],
+        enum: ["HOME_TOP", "HOME_MIDDLE", "HOME_BOTTOM", "CATEGORY", "PRODUCT"],
     },
     format: {
         type: String,
         required: true,
-        enum: [
-            "WEB",
-            "MOBILE",
-            "BOTH",
-        ],
+        enum: ["WEB", "MOBILE", "BOTH"],
     },
     isActive: {
         type: Boolean,
@@ -59,14 +49,7 @@ const bannerSchema = new Schema({
     redirect: {
         type: {
             type: String,
-            enum: [
-                "NONE",
-                "SERVICE",
-                "PACKAGE",
-                "CATEGORY",
-                "PRODUCT",
-                "URL",
-            ],
+            enum: ["NONE", "SERVICE", "PACKAGE", "CATEGORY", "PRODUCT", "URL"],
             default: "NONE",
             required: true,
         },
@@ -88,8 +71,7 @@ bannerSchema.pre("validate", function () {
     this.redirect ??= {
         type: "NONE",
     };
-    if (["SERVICE", "PACKAGE", "CATEGORY", "PRODUCT"]
-        .includes(redirectType)) {
+    if (["SERVICE", "PACKAGE", "CATEGORY", "PRODUCT"].includes(redirectType)) {
         if (!this.redirect.refId) {
             throw new Error("refId is required for this redirect type");
         }

@@ -1,5 +1,5 @@
-import mongoose, { Types, } from "mongoose";
-import { Content, } from "../models/policy.model.js";
+import mongoose, { Types } from "mongoose";
+import { Content } from "../models/policy.model.js";
 export class PolicyService {
     static ensureValidId(id) {
         if (!Types.ObjectId.isValid(id)) {
@@ -47,12 +47,8 @@ export class PolicyService {
         return policy.save();
     }
     static async getAllPolicies(page = 1, limit = 20, isActive, type, userType) {
-        const safePage = Number.isInteger(page) && page > 0
-            ? page
-            : 1;
-        const safeLimit = Number.isInteger(limit) && limit > 0
-            ? Math.min(limit, 100)
-            : 20;
+        const safePage = Number.isInteger(page) && page > 0 ? page : 1;
+        const safeLimit = Number.isInteger(limit) && limit > 0 ? Math.min(limit, 100) : 20;
         const skip = (safePage - 1) * safeLimit;
         const query = {};
         if (type) {
@@ -90,8 +86,7 @@ export class PolicyService {
         try {
             let updatedPolicy = null;
             await session.withTransaction(async () => {
-                const policy = await Content.findById(id)
-                    .session(session);
+                const policy = await Content.findById(id).session(session);
                 if (!policy) {
                     throw new Error("Policy not found");
                 }
@@ -109,16 +104,14 @@ export class PolicyService {
                         },
                     }, { session });
                     policy.isActive = true;
-                    policy.publishedAt =
-                        new Date();
+                    policy.publishedAt = new Date();
                 }
                 else {
                     policy.isActive = false;
                 }
-                updatedPolicy =
-                    await policy.save({
-                        session,
-                    });
+                updatedPolicy = await policy.save({
+                    session,
+                });
             });
             if (!updatedPolicy) {
                 throw new Error("Policy status update failed");

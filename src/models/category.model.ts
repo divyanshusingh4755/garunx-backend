@@ -1,8 +1,4 @@
-import {
-  model,
-  Schema,
-  type Document,
-} from "mongoose";
+import { model, Schema, type Document } from "mongoose";
 
 export interface ICategory extends Document {
   label: string;
@@ -79,7 +75,4 @@ categorySchema.index(
   },
 );
 
-export const Category = model<ICategory>(
-  "Category",
-  categorySchema,
-);
+export const Category = model<ICategory>("Category", categorySchema);

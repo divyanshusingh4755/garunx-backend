@@ -1,16 +1,11 @@
 import { Router, } from "express";
-import { body, param, query, validationResult, } from "express-validator";
-import { TaxProfileController, } from "../controllers/taxprofile.controller.js";
-import { authenticate, } from "../middleware/authenticate.js";
-import { authorizeRoles, } from "../middleware/authorizeRoles.js";
-import { Role, } from "../types/rbac.js";
+import { body, param, query, validationResult } from "express-validator";
+import { TaxProfileController } from "../controllers/taxprofile.controller.js";
+import { authenticate } from "../middleware/authenticate.js";
+import { authorizeRoles } from "../middleware/authorizeRoles.js";
+import { Role } from "../types/rbac.js";
 const router = Router();
-const TAX_TREATMENTS = [
-    "TAXABLE",
-    "EXEMPT",
-    "NIL_RATED",
-    "NON_GST",
-];
+const TAX_TREATMENTS = ["TAXABLE", "EXEMPT", "NIL_RATED", "NON_GST"];
 const handleValidationErrors = (req, res, next) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -26,9 +21,7 @@ const handleValidationErrors = (req, res, next) => {
     return next();
 };
 const taxProfileIdValidation = [
-    param("taxProfileId")
-        .isMongoId()
-        .withMessage("Invalid taxProfileId"),
+    param("taxProfileId").isMongoId().withMessage("Invalid taxProfileId"),
     handleValidationErrors,
 ];
 const createTaxProfileValidation = [
@@ -80,18 +73,14 @@ const createTaxProfileValidation = [
         .isLength({ max: 500 })
         .withMessage("description cannot exceed 500 characters"),
     body().custom((value) => {
-        if (!value ||
-            typeof value !== "object" ||
-            Array.isArray(value)) {
+        if (!value || typeof value !== "object" || Array.isArray(value)) {
             throw new Error("Request body must be an object");
         }
-        const { treatment, totalRate, } = value;
-        if (treatment === "TAXABLE" &&
-            Number(totalRate) <= 0) {
+        const { treatment, totalRate } = value;
+        if (treatment === "TAXABLE" && Number(totalRate) <= 0) {
             throw new Error("Taxable profile must have totalRate greater than zero");
         }
-        if (treatment !== "TAXABLE" &&
-            Number(totalRate) !== 0) {
+        if (treatment !== "TAXABLE" && Number(totalRate) !== 0) {
             throw new Error("EXEMPT, NIL_RATED and NON_GST profiles must have totalRate equal to zero");
         }
         return true;
@@ -100,17 +89,10 @@ const createTaxProfileValidation = [
 ];
 const updateTaxProfileValidation = [
     body().custom((value) => {
-        if (!value ||
-            typeof value !== "object" ||
-            Array.isArray(value)) {
+        if (!value || typeof value !== "object" || Array.isArray(value)) {
             throw new Error("Request body must be an object");
         }
-        const allowedFields = [
-            "name",
-            "treatment",
-            "totalRate",
-            "description",
-        ];
+        const allowedFields = ["name", "treatment", "totalRate", "description"];
         const hasEditableField = allowedFields.some((field) => Object.prototype.hasOwnProperty.call(value, field));
         if (!hasEditableField) {
             throw new Error("At least one editable field is required");
@@ -149,7 +131,7 @@ const updateTaxProfileValidation = [
         return true;
     }),
     body().custom((value) => {
-        const { treatment, totalRate, } = value;
+        const { treatment, totalRate } = value;
         if (treatment === "TAXABLE" &&
             totalRate !== undefined &&
             Number(totalRate) <= 0) {

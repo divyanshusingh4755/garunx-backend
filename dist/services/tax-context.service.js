@@ -1,7 +1,7 @@
-import { Types, } from "mongoose";
-import { Location, } from "../models/location.model.js";
-import { State, } from "../models/state.model.js";
-import { taxConfig, } from "../config/tax.config.js";
+import { Types } from "mongoose";
+import { Location } from "../models/location.model.js";
+import { State } from "../models/state.model.js";
+import { taxConfig } from "../config/tax.config.js";
 export class TaxContextService {
     static normalizeStateCode(fieldName, value) {
         if (typeof value !== "string") {
@@ -43,12 +43,10 @@ export class TaxContextService {
         if (!state.isActive) {
             throw new Error("State configured for this location is inactive");
         }
-        const stateName = state.name ??
-            "selected state";
+        const stateName = state.name ?? "selected state";
         let placeOfSupplyStateCode;
         try {
-            placeOfSupplyStateCode =
-                this.normalizeStateCode("State GST code", state.gstCode);
+            placeOfSupplyStateCode = this.normalizeStateCode("State GST code", state.gstCode);
         }
         catch {
             throw new Error(`Invalid or missing GST code configured for state ${stateName}`);

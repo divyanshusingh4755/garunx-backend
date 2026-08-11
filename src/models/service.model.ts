@@ -1,8 +1,4 @@
-import {
-  model,
-  Schema,
-  type Types,
-} from "mongoose";
+import { model, Schema, type Types } from "mongoose";
 
 export interface ILocationService {
   name: string;
@@ -33,53 +29,51 @@ export interface IService {
   updatedAt: Date;
 }
 
-const locationSchema =
-  new Schema<ILocationService>(
-    {
-      name: {
-        type: String,
-        required: true,
-        trim: true,
-      },
-
-      isActive: {
-        type: Boolean,
-        required: true,
-        default: true,
-      },
-
-      locationId: {
-        type: Schema.Types.ObjectId,
-        required: true,
-        index: true,
-        ref: "Location",
-      },
+const locationSchema = new Schema<ILocationService>(
+  {
+    name: {
+      type: String,
+      required: true,
+      trim: true,
     },
-    {
-      _id: false,
-    },
-  );
 
-const tierSchema =
-  new Schema<IServiceTier>(
-    {
-      name: {
-        type: String,
-        required: true,
-        trim: true,
-      },
+    isActive: {
+      type: Boolean,
+      required: true,
+      default: true,
+    },
 
-      tierId: {
-        type: Schema.Types.ObjectId,
-        required: true,
-        index: true,
-        ref: "Tier",
-      },
+    locationId: {
+      type: Schema.Types.ObjectId,
+      required: true,
+      index: true,
+      ref: "Location",
     },
-    {
-      _id: false,
+  },
+  {
+    _id: false,
+  },
+);
+
+const tierSchema = new Schema<IServiceTier>(
+  {
+    name: {
+      type: String,
+      required: true,
+      trim: true,
     },
-  );
+
+    tierId: {
+      type: Schema.Types.ObjectId,
+      required: true,
+      index: true,
+      ref: "Tier",
+    },
+  },
+  {
+    _id: false,
+  },
+);
 
 const serviceSchema = new Schema<IService>(
   {
@@ -169,14 +163,11 @@ const serviceSchema = new Schema<IService>(
   },
 );
 
-serviceSchema.virtual(
-  "subServiceComponents",
-  {
-    ref: "SubServiceComponent",
-    localField: "_id",
-    foreignField: "serviceId",
-  },
-);
+serviceSchema.virtual("subServiceComponents", {
+  ref: "SubServiceComponent",
+  localField: "_id",
+  foreignField: "serviceId",
+});
 
 serviceSchema.index({
   categoryId: 1,
@@ -203,7 +194,4 @@ serviceSchema.index({
   categoryId: 1,
 });
 
-export const Service = model<IService>(
-  "Service",
-  serviceSchema,
-);
+export const Service = model<IService>("Service", serviceSchema);

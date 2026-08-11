@@ -1,5 +1,5 @@
 import { Router, } from "express";
-import { body, param, query, validationResult, } from "express-validator";
+import { body, param, query, validationResult } from "express-validator";
 import { authenticate } from "../middleware/authenticate.js";
 import { createComponentItem, getAllComponentItems, getComponentItemById, updateComponentItem, updateComponentItemStatus, } from "../controllers/componentItem.controllers.js";
 const router = Router();
@@ -33,15 +33,9 @@ export const componentItemValidation = [
     validate,
 ];
 export const updateComponentItemValidation = [
-    param("componentItemId")
-        .isMongoId()
-        .withMessage("Invalid component item ID"),
+    param("componentItemId").isMongoId().withMessage("Invalid component item ID"),
     body().custom((value) => {
-        const allowedFields = [
-            "name",
-            "price",
-            "isActive",
-        ];
+        const allowedFields = ["name", "price", "isActive"];
         const suppliedFields = Object.keys(value ?? {});
         if (suppliedFields.length === 0) {
             throw new Error("At least one update field is required");
@@ -70,15 +64,11 @@ export const updateComponentItemValidation = [
     validate,
 ];
 const componentItemIdValidation = [
-    param("componentItemId")
-        .isMongoId()
-        .withMessage("Invalid component item ID"),
+    param("componentItemId").isMongoId().withMessage("Invalid component item ID"),
     validate,
 ];
 const componentItemStatusValidation = [
-    param("componentItemId")
-        .isMongoId()
-        .withMessage("Invalid component item ID"),
+    param("componentItemId").isMongoId().withMessage("Invalid component item ID"),
     body("isActive")
         .exists({ checkNull: true })
         .withMessage("isActive is required")
@@ -105,14 +95,7 @@ const listValidation = [
         .withMessage("isActive must be true or false"),
     query("sortBy")
         .optional()
-        .isIn([
-        "name",
-        "price",
-        "isActive",
-        "createdAt",
-        "updatedAt",
-        "relevance",
-    ])
+        .isIn(["name", "price", "isActive", "createdAt", "updatedAt", "relevance"])
         .withMessage("Invalid sortBy value"),
     query("sortOrder")
         .optional()

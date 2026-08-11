@@ -1,8 +1,8 @@
-import mongoose, { Types, } from "mongoose";
-import { Service, } from "../models/service.model.js";
-import { ServiceComponent, } from "../models/servicecomponent.model.js";
-import { ServicePricing, } from "../models/servicepricing.model.js";
-import { ServiceService, } from "./service.service.js";
+import mongoose, { Types } from "mongoose";
+import { Service } from "../models/service.model.js";
+import { ServiceComponent } from "../models/servicecomponent.model.js";
+import { ServicePricing } from "../models/servicepricing.model.js";
+import { ServiceService } from "./service.service.js";
 export class ServiceCascadingEngine {
     static async run(serviceId) {
         if (!Types.ObjectId.isValid(serviceId)) {
@@ -24,16 +24,13 @@ export class ServiceCascadingEngine {
                     throw new Error("Service lost during cleanup");
                 }
                 const isComplete = await this.computeIsComplete(refreshed, session);
-                refreshed.isComplete =
-                    isComplete;
-                refreshed.isActive =
-                    isComplete;
+                refreshed.isComplete = isComplete;
+                refreshed.isActive = isComplete;
                 await refreshed.save({
                     session,
                 });
             });
-            await ServiceService
-                .updateServiceStartingPrice(serviceId);
+            await ServiceService.updateServiceStartingPrice(serviceId);
         }
         finally {
             await session.endSession();
@@ -177,12 +174,9 @@ export class ServiceCascadingEngine {
             .lean();
         const deleteIds = [];
         for (const pricingRow of pricing) {
-            const tierId = pricingRow.tierId
-                .toString();
-            const locationId = pricingRow.locationId
-                .toString();
-            const componentId = pricingRow.componentId
-                .toString();
+            const tierId = pricingRow.tierId.toString();
+            const locationId = pricingRow.locationId.toString();
+            const componentId = pricingRow.componentId.toString();
             const componentKey = `${tierId}_${componentId}`;
             if (!validTierIds.has(tierId) ||
                 !validLocationIds.has(locationId) ||
@@ -214,8 +208,7 @@ export class ServiceCascadingEngine {
             .select("tierId locationId componentId")
             .lean();
         const activeLocations = service.locations.filter((location) => location.isActive);
-        if (activeLocations.length === 0 ||
-            service.tiers.length === 0) {
+        if (activeLocations.length === 0 || service.tiers.length === 0) {
             return false;
         }
         const requiredComponents = components.filter((component) => component.isRequired);
@@ -225,21 +218,17 @@ export class ServiceCascadingEngine {
         const priceSet = new Set(pricing.map((pricingRow) => `${pricingRow.tierId.toString()}_${pricingRow.locationId.toString()}_${pricingRow.componentId.toString()}`));
         for (const tier of service.tiers) {
             const tierId = tier.tierId.toString();
-            const tierRequiredComponents = requiredComponents.filter((component) => component.tierId
-                .toString() ===
-                tierId);
+            const tierRequiredComponents = requiredComponents.filter((component) => component.tierId.toString() === tierId);
             /*
              * Every configured tier must have at least one
              * required component. Skipping an empty tier would
              * incorrectly mark the service complete.
              */
-            if (tierRequiredComponents.length ===
-                0) {
+            if (tierRequiredComponents.length === 0) {
                 return false;
             }
             for (const location of activeLocations) {
-                const locationId = location.locationId
-                    .toString();
+                const locationId = location.locationId.toString();
                 for (const component of tierRequiredComponents) {
                     const key = `${tierId}_${locationId}_${component.componentId.toString()}`;
                     if (!priceSet.has(key)) {

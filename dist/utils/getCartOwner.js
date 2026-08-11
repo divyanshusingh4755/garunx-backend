@@ -1,11 +1,10 @@
-import { HttpError, } from "../utils/httpError.js";
+import { HttpError } from "../utils/httpError.js";
 const getSingleHeaderValue = (value) => {
     if (typeof value !== "string") {
         return undefined;
     }
     const normalized = value.trim();
-    return normalized ||
-        undefined;
+    return normalized || undefined;
 };
 export const getCartOwner = (req) => {
     const userId = req.user?.userId;

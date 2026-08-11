@@ -9,7 +9,14 @@ import { Counter } from "../models/counter.model.js";
 import crypto from "crypto";
 import nodemailer from "nodemailer";
 import { generateUniqueCode } from "../utils/generateUniqueCode.js";
-import { ApprovalStatus, AvailabilityStatus, VerificationStatus, type Caste, type Gender, type Gotra } from "../types/enums.js";
+import {
+  ApprovalStatus,
+  AvailabilityStatus,
+  VerificationStatus,
+  type Caste,
+  type Gender,
+  type Gotra,
+} from "../types/enums.js";
 import { escapeRegex } from "../utils/escapeRegex.js";
 
 class AuthService {
@@ -43,9 +50,7 @@ class AuthService {
       },
     );
 
-    const expiresAt = new Date(
-      Date.now() + 30 * 24 * 60 * 60 * 1000,
-    );
+    const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
 
     const query = Session.findOneAndUpdate(
       {
@@ -237,23 +242,16 @@ class AuthService {
       }
 
       if (!user.otp) {
-        throw new Error(
-          "No OTP was requested for this account.",
-        );
+        throw new Error("No OTP was requested for this account.");
       }
 
-      if (
-        user.otpExpiresAt &&
-        new Date() > user.otpExpiresAt
-      ) {
+      if (user.otpExpiresAt && new Date() > user.otpExpiresAt) {
         user.otp = null;
         user.otpExpiresAt = null;
 
         await user.save();
 
-        throw new Error(
-          "OTP has expired. Please request a new one.",
-        );
+        throw new Error("OTP has expired. Please request a new one.");
       }
 
       if (user.otp !== otp) {
@@ -271,10 +269,7 @@ class AuthService {
 
     // Forgot-password OTP verification
     if (email) {
-      const hashedToken = crypto
-        .createHash("sha256")
-        .update(otp)
-        .digest("hex");
+      const hashedToken = crypto.createHash("sha256").update(otp).digest("hex");
 
       const user = await User.findOne({
         email: email.toLowerCase(),
@@ -285,9 +280,7 @@ class AuthService {
       });
 
       if (!user) {
-        throw new Error(
-          "OTP is invalid or has expired",
-        );
+        throw new Error("OTP is invalid or has expired");
       }
 
       user.isResetVerified = true;
@@ -338,7 +331,9 @@ class AuthService {
 
     if (email) {
       if (!role) {
-        throw new Error("Role is required when resending a password reset OTP.");
+        throw new Error(
+          "Role is required when resending a password reset OTP.",
+        );
       }
 
       const user = await User.findOne({ email: email.toLowerCase(), role });
@@ -414,7 +409,10 @@ class AuthService {
 
     const user = (await User.findOne({
       role,
-      $or: [{ email: normalizedIdentifier.toLowerCase() }, { phoneNumber: normalizedIdentifier }],
+      $or: [
+        { email: normalizedIdentifier.toLowerCase() },
+        { phoneNumber: normalizedIdentifier },
+      ],
     }).select("+password")) as HydratedDocument<IUser> | null;
 
     if (!user || !user.password) throw new Error("Invalid Credentials");
@@ -764,10 +762,7 @@ class AuthService {
     }
   }
 
-  static async deactivateUser(
-    userId: string,
-    status: boolean,
-  ) {
+  static async deactivateUser(userId: string, status: boolean) {
     const session = await mongoose.startSession();
     session.startTransaction();
 
@@ -791,10 +786,7 @@ class AuthService {
       }
 
       if (!status) {
-        await Session.deleteMany(
-          { userId },
-          { session },
-        );
+        await Session.deleteMany({ userId }, { session });
       }
 
       await session.commitTransaction();
@@ -821,7 +813,7 @@ class AuthService {
     email?: string,
     phoneNumber?: string,
     caste?: Caste,
-    gotra?: Gotra
+    gotra?: Gotra,
   ) {
     const session = await mongoose.startSession();
     session.startTransaction();
@@ -1025,11 +1017,9 @@ class AuthService {
     const updatePayload: Record<string, unknown> = {};
 
     const isIdentityDocumentSubmitted =
-      docs.aadharCard !== undefined ||
-      docs.panCard !== undefined;
+      docs.aadharCard !== undefined || docs.panCard !== undefined;
 
-    const isBankDocumentSubmitted =
-      docs.bankPassbook !== undefined;
+    const isBankDocumentSubmitted = docs.bankPassbook !== undefined;
 
     /*
      * IDENTITY DOCUMENTS
@@ -1037,22 +1027,18 @@ class AuthService {
      * Every new Aadhaar or PAN submission must be verified again.
      */
     if (isIdentityDocumentSubmitted) {
-      updatePayload["documentVerification.status"] =
-        VerificationStatus.PENDING;
+      updatePayload["documentVerification.status"] = VerificationStatus.PENDING;
 
-      updatePayload["documentVerification.rejectionReason"] =
-        null;
+      updatePayload["documentVerification.rejectionReason"] = null;
 
       updatePayload.isDocumentVerified = false;
 
       if (docs.aadharCard !== undefined) {
-        updatePayload["documentVerification.aadharCard"] =
-          docs.aadharCard;
+        updatePayload["documentVerification.aadharCard"] = docs.aadharCard;
       }
 
       if (docs.panCard !== undefined) {
-        updatePayload["documentVerification.panCard"] =
-          docs.panCard;
+        updatePayload["documentVerification.panCard"] = docs.panCard;
       }
 
       /*
@@ -1060,21 +1046,13 @@ class AuthService {
        * documents, so identity re-submission requires coordinator
        * approval again.
        */
-      if (
-        user.role === Role.COORDINATOR &&
-        user.coordinatorProfile
-      ) {
-        updatePayload[
-          "coordinatorProfile.approvalStatus"
-        ] = ApprovalStatus.PENDING;
+      if (user.role === Role.COORDINATOR && user.coordinatorProfile) {
+        updatePayload["coordinatorProfile.approvalStatus"] =
+          ApprovalStatus.PENDING;
 
-        updatePayload[
-          "coordinatorProfile.approvalRejectionReason"
-        ] = null;
+        updatePayload["coordinatorProfile.approvalRejectionReason"] = null;
 
-        updatePayload[
-          "coordinatorProfile.autoAssignmentEnabled"
-        ] = false;
+        updatePayload["coordinatorProfile.autoAssignmentEnabled"] = false;
       }
     }
 
@@ -1088,37 +1066,25 @@ class AuthService {
       updatePayload["bankDocumentVerification.status"] =
         VerificationStatus.PENDING;
 
-      updatePayload[
-        "bankDocumentVerification.rejectionReason"
-      ] = null;
+      updatePayload["bankDocumentVerification.rejectionReason"] = null;
 
       updatePayload.isBankDocumentVerified = false;
 
-      updatePayload[
-        "bankDocumentVerification.bankPassbook"
-      ] = docs.bankPassbook;
+      updatePayload["bankDocumentVerification.bankPassbook"] =
+        docs.bankPassbook;
 
-      updatePayload[
-        "bankDocumentVerification.accountNumber"
-      ] = docs.accountNumber;
+      updatePayload["bankDocumentVerification.accountNumber"] =
+        docs.accountNumber;
 
-      updatePayload[
-        "bankDocumentVerification.accountName"
-      ] = docs.accountName;
+      updatePayload["bankDocumentVerification.accountName"] = docs.accountName;
 
-      updatePayload[
-        "bankDocumentVerification.bankName"
-      ] = docs.bankName;
+      updatePayload["bankDocumentVerification.bankName"] = docs.bankName;
 
-      updatePayload[
-        "bankDocumentVerification.ifscCode"
-      ] = docs.ifscCode;
+      updatePayload["bankDocumentVerification.ifscCode"] = docs.ifscCode;
     }
 
     if (Object.keys(updatePayload).length === 0) {
-      throw new Error(
-        "No valid verification documents provided",
-      );
+      throw new Error("No valid verification documents provided");
     }
 
     const updatedUser = await User.findByIdAndUpdate(
@@ -1132,7 +1098,7 @@ class AuthService {
       },
     ).select(
       "-password -otp -otpExpiresAt " +
-      "-resetPasswordToken -resetPasswordExpires",
+        "-resetPasswordToken -resetPasswordExpires",
     );
 
     if (!updatedUser) {
@@ -1154,10 +1120,7 @@ class AuthService {
       throw new Error("User not found");
     }
 
-    if (
-      status === VerificationStatus.REJECTED &&
-      !rejectionReason?.trim()
-    ) {
+    if (status === VerificationStatus.REJECTED && !rejectionReason?.trim()) {
       throw new Error(
         "Rejection reason is required when rejecting verification",
       );
@@ -1168,10 +1131,7 @@ class AuthService {
         Boolean(user.documentVerification?.aadharCard) ||
         Boolean(user.documentVerification?.panCard);
 
-      if (
-        status === VerificationStatus.APPROVED &&
-        !hasIdentityDocument
-      ) {
+      if (status === VerificationStatus.APPROVED && !hasIdentityDocument) {
         throw new Error(
           "Identity verification cannot be approved because no Aadhaar or PAN document has been submitted",
         );
@@ -1180,12 +1140,9 @@ class AuthService {
       user.documentVerification.status = status;
 
       user.documentVerification.rejectionReason =
-        status === VerificationStatus.REJECTED
-          ? rejectionReason!.trim()
-          : null;
+        status === VerificationStatus.REJECTED ? rejectionReason!.trim() : null;
 
-      user.isDocumentVerified =
-        status === VerificationStatus.APPROVED;
+      user.isDocumentVerified = status === VerificationStatus.APPROVED;
 
       /*
        * Verifying identity documents does not automatically approve
@@ -1197,36 +1154,21 @@ class AuthService {
         user.role === Role.COORDINATOR &&
         user.coordinatorProfile
       ) {
-        user.coordinatorProfile.approvalStatus =
-          ApprovalStatus.PENDING;
+        user.coordinatorProfile.approvalStatus = ApprovalStatus.PENDING;
 
-        user.coordinatorProfile.autoAssignmentEnabled =
-          false;
+        user.coordinatorProfile.autoAssignmentEnabled = false;
       }
     }
 
     if (type === "bank") {
       const hasCompleteBankDetails =
-        Boolean(
-          user.bankDocumentVerification?.bankPassbook,
-        ) &&
-        Boolean(
-          user.bankDocumentVerification?.accountNumber,
-        ) &&
-        Boolean(
-          user.bankDocumentVerification?.accountName,
-        ) &&
-        Boolean(
-          user.bankDocumentVerification?.bankName,
-        ) &&
-        Boolean(
-          user.bankDocumentVerification?.ifscCode,
-        );
+        Boolean(user.bankDocumentVerification?.bankPassbook) &&
+        Boolean(user.bankDocumentVerification?.accountNumber) &&
+        Boolean(user.bankDocumentVerification?.accountName) &&
+        Boolean(user.bankDocumentVerification?.bankName) &&
+        Boolean(user.bankDocumentVerification?.ifscCode);
 
-      if (
-        status === VerificationStatus.APPROVED &&
-        !hasCompleteBankDetails
-      ) {
+      if (status === VerificationStatus.APPROVED && !hasCompleteBankDetails) {
         throw new Error(
           "Bank verification cannot be approved because complete bank details have not been submitted",
         );
@@ -1235,12 +1177,9 @@ class AuthService {
       user.bankDocumentVerification.status = status;
 
       user.bankDocumentVerification.rejectionReason =
-        status === VerificationStatus.REJECTED
-          ? rejectionReason!.trim()
-          : null;
+        status === VerificationStatus.REJECTED ? rejectionReason!.trim() : null;
 
-      user.isBankDocumentVerified =
-        status === VerificationStatus.APPROVED;
+      user.isBankDocumentVerified = status === VerificationStatus.APPROVED;
 
       /*
        * Do not change coordinator approval here.
@@ -1254,7 +1193,7 @@ class AuthService {
     return User.findById(userId)
       .select(
         "-password -otp -otpExpiresAt " +
-        "-resetPasswordToken -resetPasswordExpires",
+          "-resetPasswordToken -resetPasswordExpires",
       )
       .lean();
   }
@@ -1289,15 +1228,10 @@ class AuthService {
     }
 
     if (!coordinator.coordinatorProfile) {
-      throw new Error(
-        "Coordinator profile has not been created",
-      );
+      throw new Error("Coordinator profile has not been created");
     }
 
-    if (
-      status === ApprovalStatus.REJECTED &&
-      !rejectionReason?.trim()
-    ) {
+    if (status === ApprovalStatus.REJECTED && !rejectionReason?.trim()) {
       throw new Error(
         "Rejection reason is required when rejecting a coordinator",
       );
@@ -1321,9 +1255,7 @@ class AuthService {
       }
 
       if (!coordinator.isActive) {
-        throw new Error(
-          "Inactive coordinator cannot be approved",
-        );
+        throw new Error("Inactive coordinator cannot be approved");
       }
 
       if (!coordinator.isDocumentVerified) {
@@ -1333,21 +1265,17 @@ class AuthService {
       }
     }
 
-    coordinator.coordinatorProfile.approvalStatus =
-      status;
+    coordinator.coordinatorProfile.approvalStatus = status;
 
     coordinator.coordinatorProfile.approvalRejectionReason =
-      status === ApprovalStatus.REJECTED
-        ? rejectionReason!.trim()
-        : null;
+      status === ApprovalStatus.REJECTED ? rejectionReason!.trim() : null;
 
     /*
      * Pending or rejected coordinators cannot receive automatic
      * assignments.
      */
     if (status !== ApprovalStatus.APPROVED) {
-      coordinator.coordinatorProfile.autoAssignmentEnabled =
-        false;
+      coordinator.coordinatorProfile.autoAssignmentEnabled = false;
     }
 
     await coordinator.save();
@@ -1355,11 +1283,9 @@ class AuthService {
     return User.findById(coordinatorId)
       .select(
         "-password -otp -otpExpiresAt " +
-        "-resetPasswordToken -resetPasswordExpires",
+          "-resetPasswordToken -resetPasswordExpires",
       )
-      .populate(
-        "coordinatorProfile.serviceableLocations.locationId",
-      )
+      .populate("coordinatorProfile.serviceableLocations.locationId")
       .lean();
   }
 
@@ -1394,8 +1320,7 @@ class AuthService {
     await coordinator.save();
 
     return {
-      availabilityStatus:
-        coordinator.coordinatorProfile.availabilityStatus,
+      availabilityStatus: coordinator.coordinatorProfile.availabilityStatus,
       lastAvailabilityChangedAt:
         coordinator.coordinatorProfile.lastAvailabilityChangedAt,
     };
@@ -1430,7 +1355,7 @@ class AuthService {
       if (
         settings.autoAssignmentEnabled &&
         coordinator.coordinatorProfile.approvalStatus !==
-        ApprovalStatus.APPROVED
+          ApprovalStatus.APPROVED
       ) {
         throw new Error(
           "Auto-assignment cannot be enabled until the coordinator is approved",
@@ -1444,8 +1369,7 @@ class AuthService {
     await coordinator.save();
 
     return {
-      maxDailyBookings:
-        coordinator.coordinatorProfile.maxDailyBookings,
+      maxDailyBookings: coordinator.coordinatorProfile.maxDailyBookings,
       autoAssignmentEnabled:
         coordinator.coordinatorProfile.autoAssignmentEnabled,
     };
@@ -1549,8 +1473,7 @@ class AuthService {
     }
 
     if (availabilityStatus) {
-      query["coordinatorProfile.availabilityStatus"] =
-        availabilityStatus;
+      query["coordinatorProfile.availabilityStatus"] = availabilityStatus;
     }
 
     if (locationId || caste || gotra) {
@@ -1572,8 +1495,7 @@ class AuthService {
     }
 
     if (typeof autoAssignmentEnabled === "boolean") {
-      query["coordinatorProfile.autoAssignmentEnabled"] =
-        autoAssignmentEnabled;
+      query["coordinatorProfile.autoAssignmentEnabled"] = autoAssignmentEnabled;
     }
 
     if (minimumRating !== undefined) {
@@ -1617,13 +1539,11 @@ class AuthService {
       createdAt: "createdAt",
       fullName: "fullName",
       averageRating: "coordinatorProfile.averageRating",
-      totalCompletedBookings:
-        "coordinatorProfile.totalCompletedBookings",
+      totalCompletedBookings: "coordinatorProfile.totalCompletedBookings",
       acceptanceRate: "coordinatorProfile.acceptanceRate",
     };
 
-    const selectedSortField =
-      sortFieldMap[sortBy] ?? "createdAt";
+    const selectedSortField = sortFieldMap[sortBy] ?? "createdAt";
 
     const sort: Record<string, 1 | -1> = {
       [selectedSortField]: sortOrder === "asc" ? 1 : -1,

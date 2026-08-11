@@ -6,8 +6,9 @@ export const bulkUpsertPackageTierPricing = async (
   res: Response,
 ) => {
   try {
-    const result =
-      await PackageTierPricingService.bulkUpsertTierPricing(req.body);
+    const result = await PackageTierPricingService.bulkUpsertTierPricing(
+      req.body,
+    );
 
     return res.status(200).json(result);
   } catch (error: any) {
@@ -18,10 +19,7 @@ export const bulkUpsertPackageTierPricing = async (
   }
 };
 
-export const resolvePackagePricing = async (
-  req: Request,
-  res: Response,
-) => {
+export const resolvePackagePricing = async (req: Request, res: Response) => {
   try {
     const { packageId, tierId, locationId } = req.query;
 

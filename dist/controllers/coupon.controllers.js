@@ -1,14 +1,10 @@
-import { CouponService, } from "../services/coupon.service.js";
-const getErrorMessage = (error, fallback) => error instanceof Error
-    ? error.message
-    : fallback;
+import { CouponService } from "../services/coupon.service.js";
+const getErrorMessage = (error, fallback) => error instanceof Error ? error.message : fallback;
 const getErrorStatus = (error) => {
-    if (error instanceof Error &&
-        error.message === "Coupon not found") {
+    if (error instanceof Error && error.message === "Coupon not found") {
         return 404;
     }
-    if (error instanceof Error &&
-        error.message.includes("already exists")) {
+    if (error instanceof Error && error.message.includes("already exists")) {
         return 409;
     }
     return 400;
@@ -30,20 +26,16 @@ export const createCoupon = async (req, res) => {
             isActive: isActive ?? true,
         };
         if (assignedUserId !== undefined) {
-            couponData.assignedUserId =
-                assignedUserId;
+            couponData.assignedUserId = assignedUserId;
         }
         if (validFrom !== undefined) {
-            couponData.validFrom =
-                new Date(validFrom);
+            couponData.validFrom = new Date(validFrom);
         }
         if (validTill !== undefined) {
-            couponData.validTill =
-                new Date(validTill);
+            couponData.validTill = new Date(validTill);
         }
         if (maxDiscountAmount !== undefined) {
-            couponData.maxDiscountAmount =
-                maxDiscountAmount;
+            couponData.maxDiscountAmount = maxDiscountAmount;
         }
         const coupon = await CouponService.createCoupon(couponData);
         return res.status(201).json({
@@ -53,9 +45,7 @@ export const createCoupon = async (req, res) => {
         });
     }
     catch (error) {
-        return res
-            .status(getErrorStatus(error))
-            .json({
+        return res.status(getErrorStatus(error)).json({
             success: false,
             message: getErrorMessage(error, "Failed to create coupon"),
         });
@@ -88,12 +78,10 @@ export const updateCoupon = async (req, res) => {
             }
         }
         if (Object.prototype.hasOwnProperty.call(req.body, "validFrom")) {
-            updateData.validFrom =
-                new Date(req.body.validFrom);
+            updateData.validFrom = new Date(req.body.validFrom);
         }
         if (Object.prototype.hasOwnProperty.call(req.body, "validTill")) {
-            updateData.validTill =
-                new Date(req.body.validTill);
+            updateData.validTill = new Date(req.body.validTill);
         }
         const coupon = await CouponService.updateCoupon(id, updateData);
         return res.status(200).json({
@@ -103,9 +91,7 @@ export const updateCoupon = async (req, res) => {
         });
     }
     catch (error) {
-        return res
-            .status(getErrorStatus(error))
-            .json({
+        return res.status(getErrorStatus(error)).json({
             success: false,
             message: getErrorMessage(error, "Failed to update coupon"),
         });
@@ -120,18 +106,14 @@ export const validateCoupon = async (req, res) => {
                 message: "Unauthorized access",
             });
         }
-        const { couponCode, serviceId, packageId, amount, isFirstOrder, } = req.body;
+        const { couponCode, serviceId, packageId, amount, isFirstOrder } = req.body;
         const input = {
             couponCode,
             orderAmount: amount,
             userId,
             isFirstOrder: isFirstOrder ?? false,
-            ...(serviceId !== undefined
-                ? { serviceId }
-                : {}),
-            ...(packageId !== undefined
-                ? { packageId }
-                : {}),
+            ...(serviceId !== undefined ? { serviceId } : {}),
+            ...(packageId !== undefined ? { packageId } : {}),
         };
         const result = await CouponService.validateCoupon(input);
         return res.status(200).json({
@@ -155,9 +137,7 @@ export const getCouponById = async (req, res) => {
         });
     }
     catch (error) {
-        return res
-            .status(getErrorStatus(error))
-            .json({
+        return res.status(getErrorStatus(error)).json({
             success: false,
             message: getErrorMessage(error, "Failed to fetch coupon"),
         });
@@ -172,9 +152,7 @@ export const deleteCoupon = async (req, res) => {
         });
     }
     catch (error) {
-        return res
-            .status(getErrorStatus(error))
-            .json({
+        return res.status(getErrorStatus(error)).json({
             success: false,
             message: getErrorMessage(error, "Failed to delete coupon"),
         });
@@ -185,16 +163,12 @@ export const toggleCouponStatus = async (req, res) => {
         const coupon = await CouponService.toggleCouponStatus(req.params.id);
         return res.status(200).json({
             success: true,
-            message: `Coupon ${coupon.isActive
-                ? "activated"
-                : "deactivated"} successfully`,
+            message: `Coupon ${coupon.isActive ? "activated" : "deactivated"} successfully`,
             data: coupon,
         });
     }
     catch (error) {
-        return res
-            .status(getErrorStatus(error))
-            .json({
+        return res.status(getErrorStatus(error)).json({
             success: false,
             message: getErrorMessage(error, "Failed to update coupon status"),
         });
@@ -203,34 +177,13 @@ export const toggleCouponStatus = async (req, res) => {
 export const getAllCoupons = async (req, res) => {
     try {
         const { searchTerm, isActive, assignedUserId, applicableOn, limit, page, sortBy, sortOrder, } = req.query;
-        const parsedLimit = typeof limit === "number"
-            ? limit
-            : Number(limit);
-        const parsedPage = typeof page === "number"
-            ? page
-            : Number(page);
-        const result = await CouponService.findCoupons(typeof searchTerm === "string"
-            ? searchTerm
-            : undefined, Number.isInteger(parsedLimit) &&
-            parsedLimit > 0
+        const parsedLimit = typeof limit === "number" ? limit : Number(limit);
+        const parsedPage = typeof page === "number" ? page : Number(page);
+        const result = await CouponService.findCoupons(typeof searchTerm === "string" ? searchTerm : undefined, Number.isInteger(parsedLimit) && parsedLimit > 0
             ? Math.min(parsedLimit, 100)
-            : 20, Number.isInteger(parsedPage) &&
-            parsedPage > 0
-            ? parsedPage
-            : 1, isActive === "true"
-            ? true
-            : isActive === "false"
-                ? false
-                : undefined, typeof assignedUserId === "string"
-            ? assignedUserId
-            : undefined, typeof applicableOn === "string" ||
-            Array.isArray(applicableOn)
+            : 20, Number.isInteger(parsedPage) && parsedPage > 0 ? parsedPage : 1, isActive === "true" ? true : isActive === "false" ? false : undefined, typeof assignedUserId === "string" ? assignedUserId : undefined, typeof applicableOn === "string" || Array.isArray(applicableOn)
             ? applicableOn
-            : undefined, typeof sortBy === "string"
-            ? sortBy
-            : "createdAt", sortOrder === "asc"
-            ? "asc"
-            : "desc");
+            : undefined, typeof sortBy === "string" ? sortBy : "createdAt", sortOrder === "asc" ? "asc" : "desc");
         return res.status(200).json({
             success: true,
             ...result,

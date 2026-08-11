@@ -2,19 +2,11 @@ import { model, Schema, Types, Document, Model } from "mongoose";
 import { Counter } from "./counter.model.js";
 import type { ICart } from "./cart.model.js";
 
-import type {
-  ILineTax,
-  ITaxSummary,
-} from "../types/tax.types.js";
+import type { ILineTax, ITaxSummary } from "../types/tax.types.js";
 
-import {
-  lineTaxSchema,
-} from "./tax.schema.js";
+import { lineTaxSchema } from "./tax.schema.js";
 
-export type RescheduledByRole =
-  | "USER"
-  | "ADMIN"
-  | "SUBADMIN";
+export type RescheduledByRole = "USER" | "ADMIN" | "SUBADMIN";
 
 export type BookingStatus =
   | "PENDING_PAYMENT"
@@ -184,47 +176,46 @@ export interface IPendingReschedule {
   assignmentRound: number;
 }
 
-const pendingRescheduleSchema =
-  new Schema<IPendingReschedule>(
-    {
-      previousScheduledAt: {
-        type: Date,
-      },
-
-      requestedScheduledAt: {
-        type: Date,
-        required: true,
-      },
-
-      reason: {
-        type: String,
-        required: true,
-        trim: true,
-        maxlength: 500,
-      },
-
-      requestedBy: {
-        type: Schema.Types.ObjectId,
-        ref: "User",
-        required: true,
-      },
-
-      requestedAt: {
-        type: Date,
-        required: true,
-        default: Date.now,
-      },
-
-      assignmentRound: {
-        type: Number,
-        required: true,
-        min: 1,
-      },
+const pendingRescheduleSchema = new Schema<IPendingReschedule>(
+  {
+    previousScheduledAt: {
+      type: Date,
     },
-    {
-      _id: false,
+
+    requestedScheduledAt: {
+      type: Date,
+      required: true,
     },
-  );
+
+    reason: {
+      type: String,
+      required: true,
+      trim: true,
+      maxlength: 500,
+    },
+
+    requestedBy: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+    },
+
+    requestedAt: {
+      type: Date,
+      required: true,
+      default: Date.now,
+    },
+
+    assignmentRound: {
+      type: Number,
+      required: true,
+      min: 1,
+    },
+  },
+  {
+    _id: false,
+  },
+);
 
 const assignmentRequestSchema = new Schema<IAssignmentRequest>(
   {
@@ -424,55 +415,54 @@ const bookingRefundSchema = new Schema<IBookingRefund>(
   { _id: false },
 );
 
-const bookingTaxSummarySchema =
-  new Schema<IBookingTaxSummary>(
-    {
-      taxableAmount: {
-        type: Number,
-        default: 0,
-        min: 0,
-      },
-
-      cgstAmount: {
-        type: Number,
-        default: 0,
-        min: 0,
-      },
-
-      sgstAmount: {
-        type: Number,
-        default: 0,
-        min: 0,
-      },
-
-      igstAmount: {
-        type: Number,
-        default: 0,
-        min: 0,
-      },
-
-      totalTax: {
-        type: Number,
-        default: 0,
-        min: 0,
-      },
-
-      supplierStateCode: {
-        type: String,
-        trim: true,
-        match: /^\d{2}$/,
-      },
-
-      placeOfSupplyStateCode: {
-        type: String,
-        trim: true,
-        match: /^\d{2}$/,
-      },
+const bookingTaxSummarySchema = new Schema<IBookingTaxSummary>(
+  {
+    taxableAmount: {
+      type: Number,
+      default: 0,
+      min: 0,
     },
-    {
-      _id: false,
+
+    cgstAmount: {
+      type: Number,
+      default: 0,
+      min: 0,
     },
-  );
+
+    sgstAmount: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+
+    igstAmount: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+
+    totalTax: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+
+    supplierStateCode: {
+      type: String,
+      trim: true,
+      match: /^\d{2}$/,
+    },
+
+    placeOfSupplyStateCode: {
+      type: String,
+      trim: true,
+      match: /^\d{2}$/,
+    },
+  },
+  {
+    _id: false,
+  },
+);
 
 const bookingComponentSchema = new Schema<IBookingComponent>(
   {
@@ -812,49 +802,44 @@ const bookingMilestoneSchema = new Schema<IBookingMilestone>(
   { _id: false },
 );
 
-const bookingRescheduleSchema =
-  new Schema<IBookingReschedule>(
-    {
-      previousScheduledAt: Date,
+const bookingRescheduleSchema = new Schema<IBookingReschedule>(
+  {
+    previousScheduledAt: Date,
 
-      newScheduledAt: {
-        type: Date,
-        required: true,
-      },
-
-      reason: {
-        type: String,
-        required: true,
-        trim: true,
-        maxlength: 500,
-      },
-
-      rescheduledBy: {
-        type: Schema.Types.ObjectId,
-        ref: "User",
-        required: true,
-      },
-
-      rescheduledByRole: {
-        type: String,
-        enum: [
-          "USER",
-          "ADMIN",
-          "SUBADMIN",
-        ],
-        required: true,
-      },
-
-      rescheduledAt: {
-        type: Date,
-        default: Date.now,
-        required: true,
-      },
+    newScheduledAt: {
+      type: Date,
+      required: true,
     },
-    {
-      _id: false,
+
+    reason: {
+      type: String,
+      required: true,
+      trim: true,
+      maxlength: 500,
     },
-  );
+
+    rescheduledBy: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+    },
+
+    rescheduledByRole: {
+      type: String,
+      enum: ["USER", "ADMIN", "SUBADMIN"],
+      required: true,
+    },
+
+    rescheduledAt: {
+      type: Date,
+      default: Date.now,
+      required: true,
+    },
+  },
+  {
+    _id: false,
+  },
+);
 
 export interface IBooking extends Document {
   userId?: Types.ObjectId;
@@ -1255,12 +1240,7 @@ const bookingSchema = new Schema<IBooking>(
       otpVerification: {
         status: {
           type: String,
-          enum: [
-            "PENDING",
-            "VERIFIED",
-            "FAILED",
-            "EXPIRED",
-          ],
+          enum: ["PENDING", "VERIFIED", "FAILED", "EXPIRED"],
           default: "PENDING",
         },
 
@@ -1367,31 +1347,19 @@ bookingSchema.pre("save", async function () {
 });
 
 bookingEntrySchema.pre("validate", function () {
-  const hasServiceConfiguration =
-    Boolean(this.serviceConfiguration);
+  const hasServiceConfiguration = Boolean(this.serviceConfiguration);
 
-  const hasPackageConfiguration =
-    Boolean(this.packageConfiguration);
+  const hasPackageConfiguration = Boolean(this.packageConfiguration);
 
   if (this.entryType === "SERVICE") {
-    if (
-      !hasServiceConfiguration ||
-      hasPackageConfiguration
-    ) {
-      throw new Error(
-        "SERVICE entry must contain only serviceConfiguration",
-      );
+    if (!hasServiceConfiguration || hasPackageConfiguration) {
+      throw new Error("SERVICE entry must contain only serviceConfiguration");
     }
   }
 
   if (this.entryType === "PACKAGE") {
-    if (
-      !hasPackageConfiguration ||
-      hasServiceConfiguration
-    ) {
-      throw new Error(
-        "PACKAGE entry must contain only packageConfiguration",
-      );
+    if (!hasPackageConfiguration || hasServiceConfiguration) {
+      throw new Error("PACKAGE entry must contain only packageConfiguration");
     }
   }
 });
@@ -1417,7 +1385,6 @@ bookingSchema.index({
   status: 1,
   paymentExpiresAt: 1,
 });
-
 
 bookingSchema.index(
   { cartId: 1 },
@@ -1446,10 +1413,18 @@ bookingSchema.index({ userId: 1, isDeleted: 1, "customerDetails.email": 1 });
 bookingSchema.index({ userId: 1, isDeleted: 1, "customerDetails.phone": 1 });
 
 // Index for searching by snapshot email
-bookingSchema.index({ userId: 1, isDeleted: 1, "cartSnapshot.customerDetails.email": 1 });
+bookingSchema.index({
+  userId: 1,
+  isDeleted: 1,
+  "cartSnapshot.customerDetails.email": 1,
+});
 
 // Index for searching by snapshot phone
-bookingSchema.index({ userId: 1, isDeleted: 1, "cartSnapshot.customerDetails.phone": 1 });
+bookingSchema.index({
+  userId: 1,
+  isDeleted: 1,
+  "cartSnapshot.customerDetails.phone": 1,
+});
 
 bookingSchema.index(
   {

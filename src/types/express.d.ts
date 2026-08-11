@@ -1,6 +1,4 @@
-import type {
-  Role,
-} from "./rbac.js";
+import type { Role } from "./rbac.js";
 
 declare global {
   namespace Express {

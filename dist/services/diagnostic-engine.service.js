@@ -1,17 +1,16 @@
-import { Types, } from "mongoose";
-import { Service, } from "../models/service.model.js";
-import { ServiceComponent, } from "../models/servicecomponent.model.js";
-import { ServicePricing, } from "../models/servicepricing.model.js";
-import { Category, } from "../models/category.model.js";
-import { Location, } from "../models/location.model.js";
-import { Tier, } from "../models/tier.model.js";
+import { Types } from "mongoose";
+import { Service } from "../models/service.model.js";
+import { ServiceComponent } from "../models/servicecomponent.model.js";
+import { ServicePricing } from "../models/servicepricing.model.js";
+import { Category } from "../models/category.model.js";
+import { Location } from "../models/location.model.js";
+import { Tier } from "../models/tier.model.js";
 export class ServiceDiagnosticsEngine {
     static safeObjectIdString(value) {
         if (value instanceof Types.ObjectId) {
             return value.toString();
         }
-        if (typeof value === "string" &&
-            Types.ObjectId.isValid(value)) {
+        if (typeof value === "string" && Types.ObjectId.isValid(value)) {
             return value;
         }
         return null;
@@ -43,7 +42,7 @@ export class ServiceDiagnosticsEngine {
         const serviceLocationIds = service.locations
             .map((location) => this.safeObjectIdString(location.locationId))
             .filter((id) => id !== null);
-        const [category, components, pricing, tiers, locations,] = await Promise.all([
+        const [category, components, pricing, tiers, locations] = await Promise.all([
             Category.findById(service.categoryId).lean(),
             ServiceComponent.find({
                 serviceId: service._id,
@@ -66,17 +65,10 @@ export class ServiceDiagnosticsEngine {
                 }).lean()
                 : Promise.resolve([]),
         ]);
-        const tierMap = new Map(tiers.map((tier) => [
-            tier._id.toString(),
-            tier.name,
-        ]));
-        const locationMap = new Map(locations.map((location) => [
-            location._id.toString(),
-            location,
-        ]));
+        const tierMap = new Map(tiers.map((tier) => [tier._id.toString(), tier.name]));
+        const locationMap = new Map(locations.map((location) => [location._id.toString(), location]));
         const componentMap = new Map(components.map((component) => [
-            component.componentId
-                .toString(),
+            component.componentId.toString(),
             component.name,
         ]));
         const issues = [];
@@ -121,8 +113,7 @@ export class ServiceDiagnosticsEngine {
                 },
             });
         }
-        if (service.locations.length ===
-            0) {
+        if (service.locations.length === 0) {
             issues.push({
                 code: "NO_LOCATIONS",
                 message: `No locations configured for "${service.name}"`,
@@ -130,8 +121,7 @@ export class ServiceDiagnosticsEngine {
             });
         }
         const malformedLocations = service.locations.filter((location) => this.safeObjectIdString(location.locationId) === null);
-        if (malformedLocations.length >
-            0) {
+        if (malformedLocations.length > 0) {
             issues.push({
                 code: "MALFORMED_LOCATIONS",
                 message: "Some service locations contain invalid IDs",
@@ -142,16 +132,14 @@ export class ServiceDiagnosticsEngine {
             });
         }
         const duplicateLocationIds = this.findDuplicates(serviceLocationIds);
-        if (duplicateLocationIds.length >
-            0) {
+        if (duplicateLocationIds.length > 0) {
             issues.push({
                 code: "DUPLICATE_LOCATIONS",
                 message: "Some locations are configured more than once",
                 severity: "blocking",
                 meta: duplicateLocationIds.map((locationId) => ({
                     locationId,
-                    locationName: locationMap.get(locationId)?.name ??
-                        "UNKNOWN",
+                    locationName: locationMap.get(locationId)?.name ?? "UNKNOWN",
                 })),
             });
         }
@@ -173,27 +161,22 @@ export class ServiceDiagnosticsEngine {
             .filter((id) => id !== null)
             .filter((locationId) => {
             const location = locationMap.get(locationId);
-            return (location !== undefined &&
-                location.isActive ===
-                    false);
+            return location !== undefined && location.isActive === false;
         });
-        if (inactiveConfiguredLocations.length >
-            0) {
+        if (inactiveConfiguredLocations.length > 0) {
             issues.push({
                 code: "INACTIVE_MASTER_LOCATIONS",
                 message: "Some active service locations are inactive in the location master",
                 severity: "blocking",
                 meta: inactiveConfiguredLocations.map((locationId) => ({
                     locationId,
-                    locationName: locationMap.get(locationId)?.name ??
-                        "UNKNOWN",
+                    locationName: locationMap.get(locationId)?.name ?? "UNKNOWN",
                 })),
             });
         }
         const activeServiceLocations = service.locations.filter((location) => location.isActive &&
             this.safeObjectIdString(location.locationId) !== null);
-        if (activeServiceLocations.length ===
-            0) {
+        if (activeServiceLocations.length === 0) {
             issues.push({
                 code: "NO_ACTIVE_LOCATIONS",
                 message: "No active service locations configured",
@@ -226,8 +209,7 @@ export class ServiceDiagnosticsEngine {
                 severity: "blocking",
                 meta: duplicateTierIds.map((tierId) => ({
                     tierId,
-                    tierName: tierMap.get(tierId) ??
-                        "UNKNOWN",
+                    tierName: tierMap.get(tierId) ?? "UNKNOWN",
                 })),
             });
         }
@@ -243,45 +225,31 @@ export class ServiceDiagnosticsEngine {
                 })),
             });
         }
-        const orphanComponents = components.filter((component) => !serviceTierIds.includes(component.tierId
-            .toString()));
+        const orphanComponents = components.filter((component) => !serviceTierIds.includes(component.tierId.toString()));
         if (orphanComponents.length > 0) {
             issues.push({
                 code: "ORPHAN_COMPONENTS",
                 message: `${orphanComponents.length} components belong to deleted tiers`,
                 severity: "warning",
-                meta: orphanComponents
-                    .slice(0, 10)
-                    .map((component) => ({
-                    componentId: component.componentId
-                        .toString(),
-                    componentName: componentMap.get(component.componentId
-                        .toString()) ??
-                        "UNKNOWN",
-                    tierId: component.tierId
-                        .toString(),
-                    tierName: tierMap.get(component.tierId
-                        .toString()) ??
-                        "UNKNOWN",
+                meta: orphanComponents.slice(0, 10).map((component) => ({
+                    componentId: component.componentId.toString(),
+                    componentName: componentMap.get(component.componentId.toString()) ?? "UNKNOWN",
+                    tierId: component.tierId.toString(),
+                    tierName: tierMap.get(component.tierId.toString()) ?? "UNKNOWN",
                 })),
             });
         }
         const requiredComponents = components.filter((component) => component.isRequired &&
-            serviceTierIds.includes(component.tierId
-                .toString()));
-        const tiersWithoutRequiredComponents = serviceTierIds.filter((tierId) => !requiredComponents.some((component) => component.tierId
-            .toString() ===
-            tierId));
-        if (tiersWithoutRequiredComponents
-            .length > 0) {
+            serviceTierIds.includes(component.tierId.toString()));
+        const tiersWithoutRequiredComponents = serviceTierIds.filter((tierId) => !requiredComponents.some((component) => component.tierId.toString() === tierId));
+        if (tiersWithoutRequiredComponents.length > 0) {
             issues.push({
                 code: "TIERS_WITHOUT_REQUIRED_COMPONENTS",
                 message: "Some configured tiers have no required components",
                 severity: "blocking",
                 meta: tiersWithoutRequiredComponents.map((tierId) => ({
                     tierId,
-                    tierName: tierMap.get(tierId) ??
-                        "UNKNOWN",
+                    tierName: tierMap.get(tierId) ?? "UNKNOWN",
                 })),
             });
         }
@@ -305,34 +273,28 @@ export class ServiceDiagnosticsEngine {
             if (!tierId) {
                 continue;
             }
-            const tierComponents = requiredComponents.filter((component) => component.tierId
-                .toString() ===
-                tierId);
+            const tierComponents = requiredComponents.filter((component) => component.tierId.toString() === tierId);
             for (const location of activeServiceLocations) {
                 const locationId = this.safeObjectIdString(location.locationId);
                 if (!locationId) {
                     continue;
                 }
                 for (const component of tierComponents) {
-                    const componentId = component.componentId
-                        .toString();
+                    const componentId = component.componentId.toString();
                     const key = `${tierId}_${locationId}_${componentId}`;
                     if (!priceSet.has(key)) {
                         missingPricing.push({
                             tier: {
                                 id: tierId,
-                                name: tierMap.get(tierId) ??
-                                    "UNKNOWN",
+                                name: tierMap.get(tierId) ?? "UNKNOWN",
                             },
                             location: {
                                 id: locationId,
-                                name: locationMap.get(locationId)?.name ??
-                                    "UNKNOWN",
+                                name: locationMap.get(locationId)?.name ?? "UNKNOWN",
                             },
                             component: {
                                 id: componentId,
-                                name: componentMap.get(componentId) ??
-                                    "UNKNOWN",
+                                name: componentMap.get(componentId) ?? "UNKNOWN",
                             },
                         });
                     }
@@ -350,12 +312,9 @@ export class ServiceDiagnosticsEngine {
                 },
             });
         }
-        const blockingIssues = issues.filter((issue) => issue.severity ===
-            "blocking");
-        const warnings = issues.filter((issue) => issue.severity ===
-            "warning");
-        const info = issues.filter((issue) => issue.severity ===
-            "info");
+        const blockingIssues = issues.filter((issue) => issue.severity === "blocking");
+        const warnings = issues.filter((issue) => issue.severity === "warning");
+        const info = issues.filter((issue) => issue.severity === "info");
         const isComplete = blockingIssues.length === 0;
         return {
             serviceId,

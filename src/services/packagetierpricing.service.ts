@@ -34,9 +34,7 @@ export class PackageTierPricingService {
     return Math.round((value + Number.EPSILON) * 100) / 100;
   }
 
-  static async bulkUpsertTierPricing(
-    payload: BulkUpsertPackagePricingPayload,
-  ) {
+  static async bulkUpsertTierPricing(payload: BulkUpsertPackagePricingPayload) {
     const { packageId, tierId, pricing } = payload;
 
     if (!Types.ObjectId.isValid(packageId)) {
@@ -77,21 +75,15 @@ export class PackageTierPricingService {
       const locationId = locationPricing.locationId?.toString();
 
       if (!Types.ObjectId.isValid(locationId)) {
-        throw new Error(
-          `Invalid locationId: ${locationPricing.locationId}`,
-        );
+        throw new Error(`Invalid locationId: ${locationPricing.locationId}`);
       }
 
       if (!packageLocationIds.has(locationId)) {
-        throw new Error(
-          `Location ${locationId} does not belong to package`,
-        );
+        throw new Error(`Location ${locationId} does not belong to package`);
       }
 
       if (requestLocationIds.has(locationId)) {
-        throw new Error(
-          `Duplicate location found in pricing: ${locationId}`,
-        );
+        throw new Error(`Duplicate location found in pricing: ${locationId}`);
       }
 
       requestLocationIds.add(locationId);
@@ -112,9 +104,7 @@ export class PackageTierPricingService {
         const taxProfileId = servicePricing.taxProfileId?.toString();
 
         if (!Types.ObjectId.isValid(serviceId)) {
-          throw new Error(
-            `Invalid serviceId: ${servicePricing.serviceId}`,
-          );
+          throw new Error(`Invalid serviceId: ${servicePricing.serviceId}`);
         }
 
         if (locationServiceIds.has(serviceId)) {
@@ -127,24 +117,18 @@ export class PackageTierPricingService {
         allServiceIds.add(serviceId);
 
         if (!Types.ObjectId.isValid(taxProfileId)) {
-          throw new Error(
-            `Invalid taxProfileId for service ${serviceId}`,
-          );
+          throw new Error(`Invalid taxProfileId for service ${serviceId}`);
         }
 
         allTaxProfileIds.add(taxProfileId);
 
-        const taxPriceMode =
-          servicePricing.taxPriceMode ?? "EXCLUSIVE";
+        const taxPriceMode = servicePricing.taxPriceMode ?? "EXCLUSIVE";
 
         if (!["EXCLUSIVE", "INCLUSIVE"].includes(taxPriceMode)) {
-          throw new Error(
-            `Invalid taxPriceMode for service ${serviceId}`,
-          );
+          throw new Error(`Invalid taxPriceMode for service ${serviceId}`);
         }
 
-        const hasFixedPrice =
-          typeof servicePricing.fixedPrice === "number";
+        const hasFixedPrice = typeof servicePricing.fixedPrice === "number";
 
         const hasDiscountPercent =
           typeof servicePricing.discountPercent === "number";
@@ -195,9 +179,7 @@ export class PackageTierPricingService {
       .lean();
 
     if (!packageTierMap) {
-      throw new Error(
-        "Package tier service mapping is not configured",
-      );
+      throw new Error("Package tier service mapping is not configured");
     }
 
     const validServiceIds = new Set(
@@ -222,9 +204,7 @@ export class PackageTierPricingService {
       .lean();
 
     if (taxProfiles.length !== taxProfileObjectIds.length) {
-      throw new Error(
-        "One or more tax profiles are invalid or inactive",
-      );
+      throw new Error("One or more tax profiles are invalid or inactive");
     }
 
     const basePricingRows = await ServicePricing.find({
@@ -248,10 +228,7 @@ export class PackageTierPricingService {
 
       const currentTotal = basePriceMap.get(key) ?? 0;
 
-      basePriceMap.set(
-        key,
-        this.roundMoney(currentTotal + pricingRow.price),
-      );
+      basePriceMap.set(key, this.roundMoney(currentTotal + pricingRow.price));
     }
 
     const bulkOperations: any[] = [];
@@ -261,15 +238,10 @@ export class PackageTierPricingService {
       const locationId = locationPricing.locationId.toString();
 
       for (const servicePricing of locationPricing.services) {
-        const {
-          serviceId,
-          fixedPrice,
-          discountPercent,
-          taxProfileId,
-        } = servicePricing;
+        const { serviceId, fixedPrice, discountPercent, taxProfileId } =
+          servicePricing;
 
-        const taxPriceMode =
-          servicePricing.taxPriceMode ?? "EXCLUSIVE";
+        const taxPriceMode = servicePricing.taxPriceMode ?? "EXCLUSIVE";
 
         const requestKey = `${locationId}_${serviceId}`;
         const basePrice = basePriceMap.get(requestKey);
@@ -285,16 +257,13 @@ export class PackageTierPricingService {
         if (typeof fixedPrice === "number") {
           finalPrice = fixedPrice;
         } else if (typeof discountPercent === "number") {
-          finalPrice =
-            basePrice - (basePrice * discountPercent) / 100;
+          finalPrice = basePrice - (basePrice * discountPercent) / 100;
         }
 
         finalPrice = this.roundMoney(finalPrice);
 
         if (finalPrice < 0) {
-          throw new Error(
-            `Invalid final price for service ${serviceId}`,
-          );
+          throw new Error(`Invalid final price for service ${serviceId}`);
         }
 
         requestKeys.add(requestKey);
@@ -310,12 +279,9 @@ export class PackageTierPricingService {
             update: {
               $set: {
                 basePrice,
-                fixedPrice:
-                  typeof fixedPrice === "number" ? fixedPrice : null,
+                fixedPrice: typeof fixedPrice === "number" ? fixedPrice : null,
                 discountPercent:
-                  typeof discountPercent === "number"
-                    ? discountPercent
-                    : null,
+                  typeof discountPercent === "number" ? discountPercent : null,
                 finalPrice,
                 taxProfileId: new Types.ObjectId(taxProfileId),
                 taxPriceMode,
@@ -405,9 +371,7 @@ export class PackageTierPricingService {
       throw new Error("Package is inactive");
     }
 
-    const tier = pkg.tiers.find(
-      (item) => item.tierId.toString() === tierId,
-    );
+    const tier = pkg.tiers.find((item) => item.tierId.toString() === tierId);
 
     if (!tier) {
       throw new Error("Tier does not belong to package");
@@ -431,15 +395,12 @@ export class PackageTierPricingService {
     })
       .populate({
         path: "services.serviceId",
-        select:
-          "name shortDescription thumbnailImage isActive isComplete",
+        select: "name shortDescription thumbnailImage isActive isComplete",
       })
       .lean();
 
     if (!packageTierMap) {
-      throw new Error(
-        "Package tier service mapping is not configured",
-      );
+      throw new Error("Package tier service mapping is not configured");
     }
 
     const serviceList = (packageTierMap.services ?? [])
@@ -453,10 +414,8 @@ export class PackageTierPricingService {
       .map((mappedService: any) => ({
         serviceId: mappedService.serviceId._id.toString(),
         name: mappedService.serviceId.name,
-        shortDescription:
-          mappedService.serviceId.shortDescription,
-        thumbnailImage:
-          mappedService.serviceId.thumbnailImage,
+        shortDescription: mappedService.serviceId.shortDescription,
+        thumbnailImage: mappedService.serviceId.thumbnailImage,
         isRequired: mappedService.isRequired,
         isRelated: mappedService.isRelated,
       }));
@@ -527,8 +486,7 @@ export class PackageTierPricingService {
         ...service,
         basePrice,
         fixedPrice: packagePricing?.fixedPrice ?? null,
-        discountPercent:
-          packagePricing?.discountPercent ?? null,
+        discountPercent: packagePricing?.discountPercent ?? null,
         price: packagePricing?.finalPrice ?? basePrice,
         taxConfiguration: packagePricing
           ? {
@@ -538,8 +496,7 @@ export class PackageTierPricingService {
           : null,
         isPriceConfigured,
         isTaxConfigured,
-        isFullyConfigured:
-          isPriceConfigured && isTaxConfigured,
+        isFullyConfigured: isPriceConfigured && isTaxConfigured,
       };
     });
 
@@ -558,9 +515,7 @@ export class PackageTierPricingService {
 
     const isAvailable =
       requiredServices.length > 0 &&
-      requiredServices.every(
-        (service) => service.isFullyConfigured,
-      );
+      requiredServices.every((service) => service.isFullyConfigured);
 
     return {
       package: {

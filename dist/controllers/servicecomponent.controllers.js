@@ -19,8 +19,7 @@ export const bulkUpsertServiceComponents = async (req, res) => {
     catch (error) {
         return res.status(getStatusCode(error)).json({
             success: false,
-            message: error.message ||
-                "Failed to assign service components",
+            message: error.message || "Failed to assign service components",
         });
     }
 };
@@ -32,8 +31,7 @@ export const replaceServiceComponents = async (req, res) => {
     catch (error) {
         return res.status(getStatusCode(error)).json({
             success: false,
-            message: error.message ||
-                "Failed to replace service components",
+            message: error.message || "Failed to replace service components",
         });
     }
 };
@@ -48,8 +46,7 @@ export const getComponentsByServiceAndTier = async (req, res) => {
     catch (error) {
         return res.status(getStatusCode(error)).json({
             success: false,
-            message: error.message ||
-                "Failed to fetch service components",
+            message: error.message || "Failed to fetch service components",
         });
     }
 };
@@ -64,8 +61,7 @@ export const updateServiceComponent = async (req, res) => {
     catch (error) {
         return res.status(getStatusCode(error)).json({
             success: false,
-            message: error.message ||
-                "Failed to update service component",
+            message: error.message || "Failed to update service component",
         });
     }
 };

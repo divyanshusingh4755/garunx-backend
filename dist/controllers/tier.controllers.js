@@ -3,8 +3,7 @@ const getErrorStatus = (message) => {
     if (message === "Tier not found") {
         return 404;
     }
-    if (message.includes("already exists") ||
-        message.includes("duplicate")) {
+    if (message.includes("already exists") || message.includes("duplicate")) {
         return 409;
     }
     return 400;
@@ -86,14 +85,10 @@ export const toggleTierStatus = async (req, res) => {
 };
 export const getAllTier = async (req, res) => {
     try {
-        const { searchTerm, limit, page, isActive, sortBy, sortOrder, } = req.query;
+        const { searchTerm, limit, page, isActive, sortBy, sortOrder } = req.query;
         const parsedLimit = parsePositiveInteger(limit, 40, 100);
         const parsedPage = parsePositiveInteger(page, 1);
-        const { data, total, page: currentPage, totalPages, } = await TierService.findTiers(parsedLimit, parsedPage, sortBy || "createdAt", sortOrder || "asc", searchTerm, isActive === "true"
-            ? true
-            : isActive === "false"
-                ? false
-                : undefined);
+        const { data, total, page: currentPage, totalPages, } = await TierService.findTiers(parsedLimit, parsedPage, sortBy || "createdAt", sortOrder || "asc", searchTerm, isActive === "true" ? true : isActive === "false" ? false : undefined);
         return res.status(200).json({
             success: true,
             data,

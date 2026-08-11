@@ -1,19 +1,8 @@
-export class HttpError
-  extends Error {
-  public readonly statusCode:
-    number;
+export class HttpError extends Error {
+  public readonly statusCode: number;
 
-  public constructor(
-    statusCode: number,
-    message: string,
-  ) {
-    if (
-      !Number.isInteger(
-        statusCode,
-      ) ||
-      statusCode < 400 ||
-      statusCode > 599
-    ) {
+  public constructor(statusCode: number, message: string) {
+    if (!Number.isInteger(statusCode) || statusCode < 400 || statusCode > 599) {
       throw new RangeError(
         "HTTP status code must be an integer between 400 and 599",
       );
@@ -21,15 +10,10 @@ export class HttpError
 
     super(message);
 
-    this.name =
-      "HttpError";
+    this.name = "HttpError";
 
-    this.statusCode =
-      statusCode;
+    this.statusCode = statusCode;
 
-    Error.captureStackTrace?.(
-      this,
-      HttpError,
-    );
+    Error.captureStackTrace?.(this, HttpError);
   }
 }

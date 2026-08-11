@@ -57,20 +57,12 @@ export const updateLocation = async (req, res) => {
 export const getAllLocation = async (req, res) => {
     try {
         const { searchTerm, countryFilter, stateIdFilter, cityIdFilter, pincodeFilter, limit, page, isActive, sortBy, sortOrder, } = req.query;
-        const activeStatus = isActive === "true"
-            ? true
-            : isActive === "false"
-                ? false
-                : undefined;
+        const activeStatus = isActive === "true" ? true : isActive === "false" ? false : undefined;
         const result = await LocationService.findLocation({
             limit: limit ? Number(limit) : 40,
             page: page ? Number(page) : 1,
-            sortBy: typeof sortBy === "string"
-                ? sortBy
-                : "createdAt",
-            sortOrder: sortOrder === "asc" || sortOrder === "desc"
-                ? sortOrder
-                : "desc",
+            sortBy: typeof sortBy === "string" ? sortBy : "createdAt",
+            sortOrder: sortOrder === "asc" || sortOrder === "desc" ? sortOrder : "desc",
             ...(typeof searchTerm === "string" && {
                 searchTerm,
             }),

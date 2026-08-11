@@ -178,8 +178,7 @@ export class PackageTierMapService {
         if (!Types.ObjectId.isValid(serviceId)) {
             throw new Error("Invalid serviceId");
         }
-        if (typeof isRequired !== "boolean" &&
-            typeof isRelated !== "boolean") {
+        if (typeof isRequired !== "boolean" && typeof isRelated !== "boolean") {
             throw new Error("isRequired or isRelated is required");
         }
         const mapping = await PackageTierMap.findOne({

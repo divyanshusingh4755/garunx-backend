@@ -1,7 +1,7 @@
 import { Router, } from "express";
-import { query, validationResult, } from "express-validator";
+import { query, validationResult } from "express-validator";
 import { getReferralInfo, getReferralHistory, getReferralRewards, getReferralStats, } from "../controllers/referralreward.controllers.js";
-import { authenticate, } from "../middleware/authenticate.js";
+import { authenticate } from "../middleware/authenticate.js";
 const router = Router();
 const validate = (req, res, next) => {
     const errors = validationResult(req);
@@ -31,16 +31,9 @@ const paginationValidation = [
 const rewardsValidation = [
     query("status")
         .optional()
-        .isIn([
-        "PENDING",
-        "AWARDED",
-        "FAILED",
-    ])
+        .isIn(["PENDING", "AWARDED", "FAILED"])
         .withMessage("Invalid reward status"),
-    query("userId")
-        .optional()
-        .isMongoId()
-        .withMessage("Invalid userId"),
+    query("userId").optional().isMongoId().withMessage("Invalid userId"),
     query("page")
         .optional()
         .isInt({ min: 1 })

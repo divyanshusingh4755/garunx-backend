@@ -17,19 +17,9 @@ const getStatusCode = (error: any): number => {
   return 500;
 };
 
-export const createCity = async (
-  req: Request,
-  res: Response,
-) => {
+export const createCity = async (req: Request, res: Response) => {
   try {
-    const {
-      name,
-      country,
-      stateId,
-      image,
-      description,
-      location,
-    } = req.body;
+    const { name, country, stateId, image, description, location } = req.body;
 
     const city = await CityService.createCity({
       name,
@@ -53,10 +43,7 @@ export const createCity = async (
   }
 };
 
-export const updateCity = async (
-  req: Request,
-  res: Response,
-) => {
+export const updateCity = async (req: Request, res: Response) => {
   try {
     const city = await CityService.updateCity(
       req.params.id as string,
@@ -75,10 +62,7 @@ export const updateCity = async (
   }
 };
 
-export const getAllCity = async (
-  req: Request,
-  res: Response,
-) => {
+export const getAllCity = async (req: Request, res: Response) => {
   try {
     const {
       searchTerm,
@@ -93,25 +77,16 @@ export const getAllCity = async (
     } = req.query;
 
     const activeStatus =
-      isActive === "true"
-        ? true
-        : isActive === "false"
-          ? false
-          : undefined;
+      isActive === "true" ? true : isActive === "false" ? false : undefined;
 
     const result = await CityService.findCity({
       limit: limit ? Number(limit) : 40,
       page: page ? Number(page) : 1,
 
-      sortBy:
-        typeof sortBy === "string"
-          ? sortBy
-          : "createdAt",
+      sortBy: typeof sortBy === "string" ? sortBy : "createdAt",
 
       sortOrder:
-        sortOrder === "asc" || sortOrder === "desc"
-          ? sortOrder
-          : "desc",
+        sortOrder === "asc" || sortOrder === "desc" ? sortOrder : "desc",
 
       ...(typeof searchTerm === "string" && {
         searchTerm,
@@ -149,14 +124,9 @@ export const getAllCity = async (
   }
 };
 
-export const getCityById = async (
-  req: Request,
-  res: Response,
-) => {
+export const getCityById = async (req: Request, res: Response) => {
   try {
-    const city = await CityService.getCityById(
-      req.params.id as string,
-    );
+    const city = await CityService.getCityById(req.params.id as string);
 
     return res.status(200).json({
       success: true,
@@ -170,10 +140,7 @@ export const getCityById = async (
   }
 };
 
-export const deleteCity = async (
-  req: Request,
-  res: Response,
-) => {
+export const deleteCity = async (req: Request, res: Response) => {
   try {
     const { status } = req.body;
 
@@ -184,16 +151,13 @@ export const deleteCity = async (
 
     return res.status(200).json({
       success: true,
-      message: `City ${
-        status ? "activated" : "deactivated"
-      } successfully`,
+      message: `City ${status ? "activated" : "deactivated"} successfully`,
       data: city,
     });
   } catch (error: any) {
     return res.status(getStatusCode(error)).json({
       success: false,
-      message:
-        error.message || "Failed to change city status",
+      message: error.message || "Failed to change city status",
     });
   }
 };

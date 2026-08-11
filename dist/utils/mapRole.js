@@ -1,4 +1,4 @@
-import { Role, } from "../types/rbac.js";
+import { Role } from "../types/rbac.js";
 export const mapRoleToReassignmentRole = (role) => {
     switch (role) {
         case Role.USER:

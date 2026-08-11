@@ -4,12 +4,7 @@ import {
   type Response,
   type NextFunction,
 } from "express";
-import {
-  body,
-  param,
-  query,
-  validationResult,
-} from "express-validator";
+import { body, param, query, validationResult } from "express-validator";
 import {
   createTier,
   getAllTier,
@@ -21,11 +16,7 @@ import { authenticate } from "../middleware/authenticate.js";
 
 const router = Router();
 
-const validate = (
-  req: Request,
-  res: Response,
-  next: NextFunction,
-) => {
+const validate = (req: Request, res: Response, next: NextFunction) => {
   const errors = validationResult(req);
 
   if (!errors.isEmpty()) {
@@ -93,11 +84,7 @@ const updateTierValidation = [
     .toBoolean(),
 
   body().custom((payload) => {
-    const allowedFields = [
-      "name",
-      "tierReference",
-      "isActive",
-    ];
+    const allowedFields = ["name", "tierReference", "isActive"];
 
     const hasUpdate = allowedFields.some(
       (field) => payload[field] !== undefined,
@@ -158,26 +145,11 @@ const listTierValidation = [
 
 router.get("/", listTierValidation, getAllTier);
 
-router.get(
-  "/:id",
-  authenticate,
-  tierIdValidation,
-  getTierById,
-);
+router.get("/:id", authenticate, tierIdValidation, getTierById);
 
-router.post(
-  "/",
-  authenticate,
-  createTierValidation,
-  createTier,
-);
+router.post("/", authenticate, createTierValidation, createTier);
 
-router.put(
-  "/:id",
-  authenticate,
-  updateTierValidation,
-  updateTier,
-);
+router.put("/:id", authenticate, updateTierValidation, updateTier);
 
 router.patch(
   "/:id/status",

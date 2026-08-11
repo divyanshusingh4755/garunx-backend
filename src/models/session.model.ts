@@ -1,12 +1,6 @@
-import {
-  model,
-  Schema,
-  Types,
-  type Document,
-} from "mongoose";
+import { model, Schema, Types, type Document } from "mongoose";
 
-export interface ISession
-  extends Document {
+export interface ISession extends Document {
   userId: Types.ObjectId;
   refreshToken: string;
   deviceInfo?: string;
@@ -17,48 +11,46 @@ export interface ISession
   updatedAt: Date;
 }
 
-const sessionSchema =
-  new Schema<ISession>(
-    {
-      userId: {
-        type:
-          Schema.Types.ObjectId,
-        ref: "User",
-        required: true,
-        index: true,
-      },
-
-      refreshToken: {
-        type: String,
-        required: true,
-      },
-
-      familyId: {
-        type: String,
-        required: true,
-        index: true,
-        trim: true,
-      },
-
-      deviceInfo: {
-        type: String,
-        trim: true,
-      },
-
-      ipAddress: {
-        type: String,
-        trim: true,
-      },
-
-      expiresAt: {
-        type: Date,
-        required: true,
-      },
+const sessionSchema = new Schema<ISession>(
+  {
+    userId: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+      index: true,
     },
-    {
-      timestamps: true,
+
+    refreshToken: {
+      type: String,
+      required: true,
     },
-  );
+
+    familyId: {
+      type: String,
+      required: true,
+      index: true,
+      trim: true,
+    },
+
+    deviceInfo: {
+      type: String,
+      trim: true,
+    },
+
+    ipAddress: {
+      type: String,
+      trim: true,
+    },
+
+    expiresAt: {
+      type: Date,
+      required: true,
+    },
+  },
+  {
+    timestamps: true,
+  },
+);
 
 // Auto-delete the session after its refresh token expires.
 sessionSchema.index(
@@ -75,8 +67,4 @@ sessionSchema.index({
   familyId: 1,
 });
 
-export const Session =
-  model<ISession>(
-    "Session",
-    sessionSchema,
-  );
+export const Session = model<ISession>("Session", sessionSchema);

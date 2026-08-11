@@ -1,7 +1,7 @@
-import mongoose, { Types, } from "mongoose";
-import { Package, } from "../models/package.model.js";
-import { PackageTierMap, } from "../models/packagetiermap.model.js";
-import { PackageTierPricing, } from "../models/packagetierpricing.model.js";
+import mongoose, { Types } from "mongoose";
+import { Package } from "../models/package.model.js";
+import { PackageTierMap } from "../models/packagetiermap.model.js";
+import { PackageTierPricing } from "../models/packagetierpricing.model.js";
 export class PackageCascadingEngine {
     static async run(packageId) {
         if (!Types.ObjectId.isValid(packageId)) {
@@ -26,12 +26,9 @@ export class PackageCascadingEngine {
                     this.computeIsComplete(refreshed, session),
                     this.computeStartingPrice(refreshed._id, session),
                 ]);
-                refreshed.isComplete =
-                    isComplete;
-                refreshed.isActive =
-                    isComplete;
-                refreshed.startingPrice =
-                    startingPrice;
+                refreshed.isComplete = isComplete;
+                refreshed.isActive = isComplete;
+                refreshed.startingPrice = startingPrice;
                 await refreshed.save({
                     session,
                 });
@@ -164,17 +161,14 @@ export class PackageCascadingEngine {
             .lean();
         const serviceMapByTier = new Map();
         for (const mapping of mappings) {
-            const tierId = mapping.tierId
-                .toString();
+            const tierId = mapping.tierId.toString();
             let serviceSet = serviceMapByTier.get(tierId);
             if (!serviceSet) {
-                serviceSet =
-                    new Set();
+                serviceSet = new Set();
                 serviceMapByTier.set(tierId, serviceSet);
             }
             for (const service of mapping.services ?? []) {
-                serviceSet.add(service.serviceId
-                    .toString());
+                serviceSet.add(service.serviceId.toString());
             }
         }
         const pricing = await PackageTierPricing.find({
@@ -185,12 +179,9 @@ export class PackageCascadingEngine {
             .lean();
         const deleteIds = [];
         for (const pricingRow of pricing) {
-            const tierId = pricingRow.tierId
-                .toString();
-            const locationId = pricingRow.locationId
-                .toString();
-            const serviceId = pricingRow.serviceId
-                .toString();
+            const tierId = pricingRow.tierId.toString();
+            const locationId = pricingRow.locationId.toString();
+            const serviceId = pricingRow.serviceId.toString();
             const serviceSet = serviceMapByTier.get(tierId);
             if (!validTierIds.has(tierId) ||
                 !validLocationIds.has(locationId) ||
@@ -245,8 +236,7 @@ export class PackageCascadingEngine {
             const key = `${tierId}_${locationId}`;
             let servicePrices = pricingByTierLocation.get(key);
             if (!servicePrices) {
-                servicePrices =
-                    new Map();
+                servicePrices = new Map();
                 pricingByTierLocation.set(key, servicePrices);
             }
             servicePrices.set(serviceId, pricing.finalPrice);
@@ -260,18 +250,15 @@ export class PackageCascadingEngine {
              * Your resolvePricing() considers only
              * isRequired services for starting price.
              */
-            if (!requiredServiceIds ||
-                requiredServiceIds.size === 0) {
+            if (!requiredServiceIds || requiredServiceIds.size === 0) {
                 continue;
             }
             const hasAllRequiredPrices = [...requiredServiceIds].every((serviceId) => servicePrices.has(serviceId));
             if (!hasAllRequiredPrices) {
                 continue;
             }
-            const totalPrice = [...requiredServiceIds].reduce((total, serviceId) => total +
-                (servicePrices.get(serviceId) ?? 0), 0);
-            availableStartingPrices.push(Math.round((totalPrice + Number.EPSILON) *
-                100) / 100);
+            const totalPrice = [...requiredServiceIds].reduce((total, serviceId) => total + (servicePrices.get(serviceId) ?? 0), 0);
+            availableStartingPrices.push(Math.round((totalPrice + Number.EPSILON) * 100) / 100);
         }
         if (availableStartingPrices.length === 0) {
             return 0;
@@ -291,28 +278,22 @@ export class PackageCascadingEngine {
             .session(session)
             .select("tierId locationId serviceId")
             .lean();
-        const activeLocations = packageDocument
-            .locations
-            .filter((location) => location.isActive);
+        const activeLocations = packageDocument.locations.filter((location) => location.isActive);
         if (activeLocations.length === 0 ||
-            packageDocument.tiers.length ===
-                0 ||
+            packageDocument.tiers.length === 0 ||
             mappings.length === 0) {
             return false;
         }
         const mappingsByTier = new Map();
         for (const mapping of mappings) {
-            const tierId = mapping.tierId
-                .toString();
+            const tierId = mapping.tierId.toString();
             let services = mappingsByTier.get(tierId);
             if (!services) {
-                services =
-                    new Set();
+                services = new Set();
                 mappingsByTier.set(tierId, services);
             }
             for (const service of mapping.services ?? []) {
-                services.add(service.serviceId
-                    .toString());
+                services.add(service.serviceId.toString());
             }
         }
         const priceSet = new Set(pricing.map((pricingRow) => `${pricingRow.tierId.toString()}_${pricingRow.locationId.toString()}_${pricingRow.serviceId.toString()}`));
@@ -324,13 +305,11 @@ export class PackageCascadingEngine {
              * one service. Skipping an empty tier would allow
              * an incomplete package to become active.
              */
-            if (!tierServices ||
-                tierServices.size === 0) {
+            if (!tierServices || tierServices.size === 0) {
                 return false;
             }
             for (const location of activeLocations) {
-                const locationId = location.locationId
-                    .toString();
+                const locationId = location.locationId.toString();
                 for (const serviceId of tierServices) {
                     const key = `${tierId}_${locationId}_${serviceId}`;
                     if (!priceSet.has(key)) {

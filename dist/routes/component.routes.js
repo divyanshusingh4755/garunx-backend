@@ -1,5 +1,5 @@
 import { Router, } from "express";
-import { body, param, query, validationResult, } from "express-validator";
+import { body, param, query, validationResult } from "express-validator";
 import { createComponent, getAllComponents, getComponentById, updateComponent, toggleComponentStatus, } from "../controllers/component.controllers.js";
 import { authenticate } from "../middleware/authenticate.js";
 const router = Router();
@@ -52,9 +52,7 @@ const createComponentValidation = [
     validate,
 ];
 const updateComponentValidation = [
-    param("componentId")
-        .isMongoId()
-        .withMessage("Invalid component ID"),
+    param("componentId").isMongoId().withMessage("Invalid component ID"),
     body().custom((value) => {
         const allowedFields = [
             "name",
@@ -82,10 +80,7 @@ const updateComponentValidation = [
         .trim()
         .notEmpty()
         .withMessage("name cannot be empty"),
-    body("categoryId")
-        .optional()
-        .isMongoId()
-        .withMessage("Invalid category ID"),
+    body("categoryId").optional().isMongoId().withMessage("Invalid category ID"),
     body("description")
         .optional()
         .isString()
@@ -112,15 +107,11 @@ const updateComponentValidation = [
     validate,
 ];
 const componentIdValidation = [
-    param("componentId")
-        .isMongoId()
-        .withMessage("Invalid component ID"),
+    param("componentId").isMongoId().withMessage("Invalid component ID"),
     validate,
 ];
 const componentStatusValidation = [
-    param("componentId")
-        .isMongoId()
-        .withMessage("Invalid component ID"),
+    param("componentId").isMongoId().withMessage("Invalid component ID"),
     body("isActive")
         .exists({ checkNull: true })
         .withMessage("isActive is required")
@@ -133,10 +124,7 @@ const componentStatusValidation = [
     validate,
 ];
 const listValidation = [
-    query("categoryId")
-        .optional()
-        .isMongoId()
-        .withMessage("Invalid category ID"),
+    query("categoryId").optional().isMongoId().withMessage("Invalid category ID"),
     query("limit")
         .optional()
         .isInt({ min: 1, max: 100 })

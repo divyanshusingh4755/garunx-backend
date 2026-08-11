@@ -1,10 +1,6 @@
-import {
-  Role,
-} from "../types/rbac.js";
+import { Role } from "../types/rbac.js";
 
-import type {
-  ReassignmentRequestedByRole,
-} from "../models/booking.model.js";
+import type { ReassignmentRequestedByRole } from "../models/booking.model.js";
 
 export const mapRoleToReassignmentRole = (
   role: Role,

@@ -1,5 +1,9 @@
 import type { Request, Response } from "express";
-import { BookingService, type CoordinatorBookingView, type CoordinatorFilters } from "../services/booking.service.js";
+import {
+  BookingService,
+  type CoordinatorBookingView,
+  type CoordinatorFilters,
+} from "../services/booking.service.js";
 import { mapRoleToReassignmentRole } from "../utils/mapRole.js";
 
 export const paymentWebhooks = async (req: Request, res: Response) => {
@@ -119,9 +123,7 @@ export const getAllBookings = async (req: Request, res: Response) => {
           ? Math.min(Number(limit), 100)
           : 20,
       page:
-        Number.isInteger(Number(page)) && Number(page) > 0
-          ? Number(page)
-          : 1,
+        Number.isInteger(Number(page)) && Number(page) > 0 ? Number(page) : 1,
       sortBy: (sortBy as string) || "createdAt",
       sortOrder: (sortOrder as "asc" | "desc") || "desc",
     });
@@ -201,9 +203,7 @@ export const searchBookings = async (req: Request, res: Response) => {
       });
     }
 
-    const result = await BookingService.searchBookings(
-      query as string
-    );
+    const result = await BookingService.searchBookings(query as string);
 
     return res.status(200).json({
       success: true,
@@ -249,23 +249,15 @@ export const updateBookingNotes = async (req: Request, res: Response) => {
   }
 };
 
-export const rescheduleBooking = async (
-  req: Request,
-  res: Response,
-) => {
+export const rescheduleBooking = async (req: Request, res: Response) => {
   try {
     const { bookingId } = req.params;
 
-    const {
-      scheduledAt,
-      reason,
-    } = req.body;
+    const { scheduledAt, reason } = req.body;
 
-    const userId =
-      req.user?.userId;
+    const userId = req.user?.userId;
 
-    const role =
-      req.user?.role;
+    const role = req.user?.role;
 
     if (!userId || !role) {
       return res.status(401).json({
@@ -274,57 +266,44 @@ export const rescheduleBooking = async (
       });
     }
 
-    if (
-      !bookingId ||
-      Array.isArray(bookingId)
-    ) {
+    if (!bookingId || Array.isArray(bookingId)) {
       return res.status(400).json({
         success: false,
-        message:
-          "Valid booking ID is required",
+        message: "Valid booking ID is required",
       });
     }
 
     if (!scheduledAt) {
       return res.status(400).json({
         success: false,
-        message:
-          "New scheduled date is required",
+        message: "New scheduled date is required",
       });
     }
 
-    if (
-      typeof reason !== "string" ||
-      !reason.trim()
-    ) {
+    if (typeof reason !== "string" || !reason.trim()) {
       return res.status(400).json({
         success: false,
-        message:
-          "Reschedule reason is required",
+        message: "Reschedule reason is required",
       });
     }
 
-    const result =
-      await BookingService.rescheduleBooking({
-        bookingId,
-        scheduledAt,
-        reason: reason.trim(),
-        userId,
-        role,
-      });
+    const result = await BookingService.rescheduleBooking({
+      bookingId,
+      scheduledAt,
+      reason: reason.trim(),
+      userId,
+      role,
+    });
 
     return res.status(200).json({
       success: true,
-      message:
-        result.message,
+      message: result.message,
       data: result,
     });
   } catch (error: any) {
     return res.status(400).json({
       success: false,
-      message:
-        error.message ||
-        "Failed to reschedule booking",
+      message: error.message || "Failed to reschedule booking",
     });
   }
 };
@@ -408,7 +387,6 @@ export const expirePayments = async (req: Request, res: Response) => {
   }
 };
 
-
 export const getMyBookings = async (req: Request, res: Response) => {
   try {
     const userId = req.user?.userId;
@@ -420,13 +398,7 @@ export const getMyBookings = async (req: Request, res: Response) => {
       });
     }
 
-    const {
-      status,
-      page,
-      limit,
-      sortBy,
-      sortOrder,
-    } = req.query;
+    const { status, page, limit, sortBy, sortOrder } = req.query;
 
     const result = await BookingService.getMyBookings({
       userId,
@@ -519,10 +491,7 @@ export const cancelBooking = async (req: Request, res: Response) => {
 /**
  * Get coordinators eligible for a specific booking.
  */
-export const getAvailableCoordinators = async (
-  req: Request,
-  res: Response,
-) => {
+export const getAvailableCoordinators = async (req: Request, res: Response) => {
   try {
     const { bookingId } = req.params;
     const userId = req.user?.userId;
@@ -561,20 +530,12 @@ export const getAvailableCoordinators = async (
 
     const filters: CoordinatorFilters = {};
 
-    if (
-      matchCaste === "true" ||
-      matchCaste === "false"
-    ) {
-      filters.matchCaste =
-        matchCaste === "true";
+    if (matchCaste === "true" || matchCaste === "false") {
+      filters.matchCaste = matchCaste === "true";
     }
 
-    if (
-      matchGotra === "true" ||
-      matchGotra === "false"
-    ) {
-      filters.matchGotra =
-        matchGotra === "true";
+    if (matchGotra === "true" || matchGotra === "false") {
+      filters.matchGotra = matchGotra === "true";
     }
 
     if (typeof minRating === "string") {
@@ -585,26 +546,16 @@ export const getAvailableCoordinators = async (
       }
     }
 
-    if (
-      typeof minCompletedBookings ===
-      "string"
-    ) {
-      const value = Number(
-        minCompletedBookings,
-      );
+    if (typeof minCompletedBookings === "string") {
+      const value = Number(minCompletedBookings);
 
       if (!Number.isNaN(value)) {
-        filters.minCompletedBookings =
-          value;
+        filters.minCompletedBookings = value;
       }
     }
 
-    if (
-      autoAssignmentEnabled === "true" ||
-      autoAssignmentEnabled === "false"
-    ) {
-      filters.autoAssignmentEnabled =
-        autoAssignmentEnabled === "true";
+    if (autoAssignmentEnabled === "true" || autoAssignmentEnabled === "false") {
+      filters.autoAssignmentEnabled = autoAssignmentEnabled === "true";
     }
 
     if (
@@ -615,24 +566,19 @@ export const getAvailableCoordinators = async (
       filters.sortBy = sortBy;
     }
 
-    if (
-      sortOrder === "asc" ||
-      sortOrder === "desc"
-    ) {
+    if (sortOrder === "asc" || sortOrder === "desc") {
       filters.sortOrder = sortOrder;
     }
 
     if (typeof scheduledAt === "string") {
-      filters.scheduledAt =
-        scheduledAt;
+      filters.scheduledAt = scheduledAt;
     }
 
-    const result =
-      await BookingService.getAvailableCoordinators(
-        bookingId,
-        userId,
-        filters,
-      );
+    const result = await BookingService.getAvailableCoordinators(
+      bookingId,
+      userId,
+      filters,
+    );
 
     return res.status(200).json({
       success: true,
@@ -641,9 +587,7 @@ export const getAvailableCoordinators = async (
   } catch (error: any) {
     return res.status(400).json({
       success: false,
-      message:
-        error.message ||
-        "Failed to fetch available coordinators",
+      message: error.message || "Failed to fetch available coordinators",
     });
   }
 };
@@ -651,17 +595,10 @@ export const getAvailableCoordinators = async (
 /**
  * Customer selects a coordinator for the booking.
  */
-export const selectCoordinator = async (
-  req: Request,
-  res: Response,
-) => {
+export const selectCoordinator = async (req: Request, res: Response) => {
   try {
     const { bookingId } = req.params;
-    const {
-      coordinatorId,
-      scheduledAt,
-      rescheduleReason,
-    } = req.body;
+    const { coordinatorId, scheduledAt, rescheduleReason } = req.body;
     const userId = req.user?.userId;
 
     if (!userId) {
@@ -694,10 +631,7 @@ export const selectCoordinator = async (
 
     if (
       scheduledAt &&
-      (
-        typeof rescheduleReason !== "string" ||
-        !rescheduleReason.trim()
-      )
+      (typeof rescheduleReason !== "string" || !rescheduleReason.trim())
     ) {
       return res.status(400).json({
         success: false,
@@ -706,21 +640,20 @@ export const selectCoordinator = async (
       });
     }
 
-    const result =
-      await BookingService.selectCoordinator({
-        bookingId,
-        coordinatorId,
-        selectedBy: userId,
-        assignmentType: "MANUAL",
+    const result = await BookingService.selectCoordinator({
+      bookingId,
+      coordinatorId,
+      selectedBy: userId,
+      assignmentType: "MANUAL",
 
-        ...(scheduledAt && {
-          scheduledAt,
-        }),
+      ...(scheduledAt && {
+        scheduledAt,
+      }),
 
-        ...(rescheduleReason && {
-          rescheduleReason,
-        }),
-      });
+      ...(rescheduleReason && {
+        rescheduleReason,
+      }),
+    });
 
     return res.status(200).json({
       success: true,
@@ -738,10 +671,7 @@ export const selectCoordinator = async (
 /**
  * Coordinator accepts or rejects the assignment request.
  */
-export const respondToAssignment = async (
-  req: Request,
-  res: Response,
-) => {
+export const respondToAssignment = async (req: Request, res: Response) => {
   try {
     const { bookingId } = req.params;
     const { action, reason } = req.body;
@@ -781,11 +711,10 @@ export const respondToAssignment = async (
       coordinatorId,
       action: normalizedAction,
 
-      ...(typeof reason === "string" &&
-        reason.trim()
+      ...(typeof reason === "string" && reason.trim()
         ? {
-          reason: reason.trim(),
-        }
+            reason: reason.trim(),
+          }
         : {}),
     });
 
@@ -808,10 +737,7 @@ export const respondToAssignment = async (
 /**
  * Customer or coordinator requests reassignment.
  */
-export const requestReassignment = async (
-  req: Request,
-  res: Response,
-) => {
+export const requestReassignment = async (req: Request, res: Response) => {
   try {
     const bookingId = req.params.bookingId;
     const { reason } = req.body;
@@ -840,10 +766,7 @@ export const requestReassignment = async (
       });
     }
 
-    if (
-      typeof reason !== "string" ||
-      !reason.trim()
-    ) {
+    if (typeof reason !== "string" || !reason.trim()) {
       return res.status(400).json({
         success: false,
         message: "Reassignment reason is required",
@@ -884,8 +807,7 @@ export const getCoordinatorBookingList = async (
   res: Response,
 ) => {
   try {
-    const coordinatorId =
-      req.user?.userId;
+    const coordinatorId = req.user?.userId;
 
     if (!coordinatorId) {
       return res.status(401).json({
@@ -894,69 +816,46 @@ export const getCoordinatorBookingList = async (
       });
     }
 
-    const {
-      view,
-      status,
-      page,
-      limit,
-      sortBy,
-      sortOrder,
-    } = req.query;
+    const { view, status, page, limit, sortBy, sortOrder } = req.query;
 
-    const normalizedView =
-      String(view ?? "")
-        .trim()
-        .toUpperCase() as CoordinatorBookingView;
+    const normalizedView = String(view ?? "")
+      .trim()
+      .toUpperCase() as CoordinatorBookingView;
 
-    if (
-      ![
-        "REQUESTS",
-        "BOOKINGS",
-      ].includes(normalizedView)
-    ) {
+    if (!["REQUESTS", "BOOKINGS"].includes(normalizedView)) {
       return res.status(400).json({
         success: false,
-        message:
-          "Invalid view. Allowed values are REQUESTS and BOOKINGS",
+        message: "Invalid view. Allowed values are REQUESTS and BOOKINGS",
       });
     }
 
     const normalizedSortOrder =
-      sortOrder === "asc" ||
-        sortOrder === "desc"
+      sortOrder === "asc" || sortOrder === "desc"
         ? sortOrder
         : normalizedView === "REQUESTS"
           ? "desc"
           : "asc";
 
-    const result =
-      await BookingService.getCoordinatorBookingList({
-        coordinatorId,
-        view: normalizedView,
+    const result = await BookingService.getCoordinatorBookingList({
+      coordinatorId,
+      view: normalizedView,
 
-        ...(typeof status === "string" &&
-          status.trim() && {
+      ...(typeof status === "string" &&
+        status.trim() && {
           status: status.trim(),
         }),
 
-        page:
-          typeof page === "string"
-            ? Number(page)
-            : 1,
+      page: typeof page === "string" ? Number(page) : 1,
 
-        limit:
-          typeof limit === "string"
-            ? Number(limit)
-            : 20,
+      limit: typeof limit === "string" ? Number(limit) : 20,
 
-        ...(typeof sortBy === "string" &&
-          sortBy.trim() && {
+      ...(typeof sortBy === "string" &&
+        sortBy.trim() && {
           sortBy: sortBy.trim(),
         }),
 
-        sortOrder:
-          normalizedSortOrder,
-      });
+      sortOrder: normalizedSortOrder,
+    });
 
     return res.status(200).json({
       success: true,
@@ -966,16 +865,13 @@ export const getCoordinatorBookingList = async (
         total: result.total,
         currentPage: result.page,
         limit: result.limit,
-        totalPages:
-          result.totalPages,
+        totalPages: result.totalPages,
       },
     });
   } catch (error: any) {
     return res.status(400).json({
       success: false,
-      message:
-        error.message ||
-        "Failed to fetch coordinator booking list",
+      message: error.message || "Failed to fetch coordinator booking list",
     });
   }
 };
@@ -1006,10 +902,7 @@ export const processAssignmentTimeouts = async (
 /**
  * Return only the operational execution details of a booking.
  */
-export const getBookingExecution = async (
-  req: Request,
-  res: Response,
-) => {
+export const getBookingExecution = async (req: Request, res: Response) => {
   try {
     const { bookingId } = req.params;
 
@@ -1044,10 +937,7 @@ export const getBookingExecution = async (
 /**
  * Coordinator marks arrival at the service location.
  */
-export const markCoordinatorArrived = async (
-  req: Request,
-  res: Response,
-) => {
+export const markCoordinatorArrived = async (req: Request, res: Response) => {
   try {
     const { bookingId } = req.params;
     const coordinatorId = req.user?.userId;
@@ -1094,10 +984,7 @@ export const markCoordinatorArrived = async (
 /**
  * Verify the customer OTP before beginning service execution.
  */
-export const verifyBookingOtp = async (
-  req: Request,
-  res: Response,
-) => {
+export const verifyBookingOtp = async (req: Request, res: Response) => {
   try {
     const { bookingId } = req.params;
     const { otp } = req.body;
@@ -1153,10 +1040,7 @@ export const verifyBookingOtp = async (
 /**
  * Start one service execution.
  */
-export const startBookingService = async (
-  req: Request,
-  res: Response,
-) => {
+export const startBookingService = async (req: Request, res: Response) => {
   try {
     const { bookingId, executionId } = req.params;
     const startedBy = req.user?.userId;
@@ -1211,10 +1095,7 @@ export const startBookingService = async (
 /**
  * Complete one service execution.
  */
-export const completeBookingService = async (
-  req: Request,
-  res: Response,
-) => {
+export const completeBookingService = async (req: Request, res: Response) => {
   try {
     const { bookingId, executionId } = req.params;
     const { notes } = req.body;
@@ -1271,10 +1152,7 @@ export const completeBookingService = async (
 /**
  * Skip one service execution.
  */
-export const skipBookingService = async (
-  req: Request,
-  res: Response,
-) => {
+export const skipBookingService = async (req: Request, res: Response) => {
   try {
     const bookingId = req.params.bookingId;
     const executionId = req.params.executionId;
@@ -1309,10 +1187,7 @@ export const skipBookingService = async (
       });
     }
 
-    if (
-      typeof reason !== "string" ||
-      !reason.trim()
-    ) {
+    if (typeof reason !== "string" || !reason.trim()) {
       return res.status(400).json({
         success: false,
         message: "Skip reason is required",
@@ -1342,10 +1217,7 @@ export const skipBookingService = async (
 /**
  * Add a completed milestone to booking execution.
  */
-export const addBookingMilestone = async (
-  req: Request,
-  res: Response,
-) => {
+export const addBookingMilestone = async (req: Request, res: Response) => {
   try {
     const { bookingId } = req.params;
     const { code, notes } = req.body;
@@ -1402,89 +1274,56 @@ export const addBookingMilestone = async (
 /**
  * Complete the complete booking execution workflow.
  */
-export const completeBookingExecution =
-  async (
-    req: Request,
-    res: Response,
-  ) => {
-    try {
-      const bookingId =
-        req.params.bookingId;
+export const completeBookingExecution = async (req: Request, res: Response) => {
+  try {
+    const bookingId = req.params.bookingId;
 
-      const {
-        notes,
-        proofUrls,
-      } = req.body;
+    const { notes, proofUrls } = req.body;
 
-      const completedBy =
-        req.user?.userId;
+    const completedBy = req.user?.userId;
 
-      if (!completedBy) {
-        return res
-          .status(401)
-          .json({
-            success: false,
-            message: "Unauthorized",
-          });
-      }
-
-      if (
-        !bookingId ||
-        Array.isArray(bookingId)
-      ) {
-        return res
-          .status(400)
-          .json({
-            success: false,
-            message:
-              "Valid booking ID is required",
-          });
-      }
-
-      if (
-        !Array.isArray(proofUrls) ||
-        proofUrls.length === 0
-      ) {
-        return res
-          .status(400)
-          .json({
-            success: false,
-            message:
-              "At least one completion proof is required",
-          });
-      }
-
-      const result =
-        await BookingService
-          .completeBookingExecution({
-            bookingId,
-            completedBy,
-            notes,
-            proofUrls,
-          });
-
-      return res.status(200).json({
-        success: true,
-        message:
-          "Booking completed successfully",
-        data: result,
+    if (!completedBy) {
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized",
       });
-    } catch (error: any) {
-      return res
-        .status(400)
-        .json({
-          success: false,
-          message:
-            error.message ||
-            "Failed to complete booking",
-        });
     }
-  };
 
-export const generateBookingOtp = async (
-  req: Request,
-  res: Response,
-) => {
+    if (!bookingId || Array.isArray(bookingId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Valid booking ID is required",
+      });
+    }
+
+    if (!Array.isArray(proofUrls) || proofUrls.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "At least one completion proof is required",
+      });
+    }
+
+    const result = await BookingService.completeBookingExecution({
+      bookingId,
+      completedBy,
+      notes,
+      proofUrls,
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Booking completed successfully",
+      data: result,
+    });
+  } catch (error: any) {
+    return res.status(400).json({
+      success: false,
+      message: error.message || "Failed to complete booking",
+    });
+  }
+};
+
+export const generateBookingOtp = async (req: Request, res: Response) => {
   try {
     const { bookingId } = req.params;
     const coordinatorId = req.user?.userId;
@@ -1496,21 +1335,17 @@ export const generateBookingOtp = async (
       });
     }
 
-    if (
-      !bookingId ||
-      Array.isArray(bookingId)
-    ) {
+    if (!bookingId || Array.isArray(bookingId)) {
       return res.status(400).json({
         success: false,
         message: "Valid booking ID is required",
       });
     }
 
-    const result =
-      await BookingService.generateBookingOtp({
-        bookingId,
-        coordinatorId,
-      });
+    const result = await BookingService.generateBookingOtp({
+      bookingId,
+      coordinatorId,
+    });
 
     return res.status(200).json({
       success: true,
@@ -1520,9 +1355,7 @@ export const generateBookingOtp = async (
   } catch (error: any) {
     return res.status(400).json({
       success: false,
-      message:
-        error.message ||
-        "Failed to generate booking OTP",
+      message: error.message || "Failed to generate booking OTP",
     });
   }
 };

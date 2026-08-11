@@ -4,11 +4,7 @@ import {
   type Response,
   type NextFunction,
 } from "express";
-import {
-  param,
-  body,
-  validationResult,
-} from "express-validator";
+import { param, body, validationResult } from "express-validator";
 
 import {
   bulkUpsertServiceComponents,
@@ -21,11 +17,7 @@ import { authenticate } from "../middleware/authenticate.js";
 
 const router = Router();
 
-const validate = (
-  req: Request,
-  res: Response,
-  next: NextFunction,
-) => {
+const validate = (req: Request, res: Response, next: NextFunction) => {
   const errors = validationResult(req);
 
   if (!errors.isEmpty()) {
@@ -42,9 +34,7 @@ const validate = (
 };
 
 const componentEntryValidation = [
-  body("components")
-    .isArray()
-    .withMessage("components must be an array"),
+  body("components").isArray().withMessage("components must be an array"),
 
   body("components.*.componentId")
     .notEmpty()
@@ -65,15 +55,9 @@ const componentEntryValidation = [
   body("components.*.items.*")
     .optional()
     .custom((value) => {
-      const itemId =
-        typeof value === "string"
-          ? value
-          : value?.itemId;
+      const itemId = typeof value === "string" ? value : value?.itemId;
 
-      if (
-        typeof itemId !== "string" ||
-        !/^[a-f\d]{24}$/i.test(itemId)
-      ) {
+      if (typeof itemId !== "string" || !/^[a-f\d]{24}$/i.test(itemId)) {
         throw new Error("Invalid itemId");
       }
 
@@ -100,13 +84,9 @@ const bulkValidation = [
 ];
 
 const serviceTierValidation = [
-  param("serviceId")
-    .isMongoId()
-    .withMessage("Invalid serviceId"),
+  param("serviceId").isMongoId().withMessage("Invalid serviceId"),
 
-  param("tierId")
-    .isMongoId()
-    .withMessage("Invalid tierId"),
+  param("tierId").isMongoId().withMessage("Invalid tierId"),
 
   validate,
 ];
@@ -147,14 +127,11 @@ const patchValidation = [
     );
 
     if (invalidFields.length > 0) {
-      throw new Error(
-        `Invalid update fields: ${invalidFields.join(", ")}`,
-      );
+      throw new Error(`Invalid update fields: ${invalidFields.join(", ")}`);
     }
 
     const updateFields = suppliedFields.filter(
-      (field) =>
-        !["serviceId", "tierId", "componentId"].includes(field),
+      (field) => !["serviceId", "tierId", "componentId"].includes(field),
     );
 
     if (updateFields.length === 0) {
@@ -177,23 +154,14 @@ const patchValidation = [
     .notEmpty()
     .withMessage("name cannot be empty"),
 
-  body("items")
-    .optional()
-    .isArray()
-    .withMessage("items must be an array"),
+  body("items").optional().isArray().withMessage("items must be an array"),
 
   body("items.*")
     .optional()
     .custom((value) => {
-      const itemId =
-        typeof value === "string"
-          ? value
-          : value?.itemId;
+      const itemId = typeof value === "string" ? value : value?.itemId;
 
-      if (
-        typeof itemId !== "string" ||
-        !/^[a-f\d]{24}$/i.test(itemId)
-      ) {
+      if (typeof itemId !== "string" || !/^[a-f\d]{24}$/i.test(itemId)) {
         throw new Error("Invalid itemId");
       }
 
@@ -203,19 +171,9 @@ const patchValidation = [
   validate,
 ];
 
-router.post(
-  "/bulk",
-  authenticate,
-  bulkValidation,
-  bulkUpsertServiceComponents,
-);
+router.post("/bulk", authenticate, bulkValidation, bulkUpsertServiceComponents);
 
-router.put(
-  "/replace",
-  authenticate,
-  bulkValidation,
-  replaceServiceComponents,
-);
+router.put("/replace", authenticate, bulkValidation, replaceServiceComponents);
 
 router.get(
   "/:serviceId/:tierId",
@@ -224,11 +182,6 @@ router.get(
   getComponentsByServiceAndTier,
 );
 
-router.patch(
-  "/",
-  authenticate,
-  patchValidation,
-  updateServiceComponent,
-);
+router.patch("/", authenticate, patchValidation, updateServiceComponent);
 
 export default router;

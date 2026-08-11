@@ -1,4 +1,4 @@
-import { model, Schema, Types, } from "mongoose";
+import { model, Schema, Types } from "mongoose";
 import { TaxTreatment } from "../types/tax.types.js";
 const taxProfileSchema = new Schema({
     name: {
@@ -53,12 +53,10 @@ const taxProfileSchema = new Schema({
     timestamps: true,
 });
 taxProfileSchema.pre("validate", function () {
-    if (this.treatment === "TAXABLE" &&
-        this.totalRate <= 0) {
+    if (this.treatment === "TAXABLE" && this.totalRate <= 0) {
         throw new Error("Taxable tax profile must have a rate greater than zero");
     }
-    if (this.treatment !== "TAXABLE" &&
-        this.totalRate !== 0) {
+    if (this.treatment !== "TAXABLE" && this.totalRate !== 0) {
         throw new Error("Non-taxable tax profiles must have a rate equal to zero");
     }
 });

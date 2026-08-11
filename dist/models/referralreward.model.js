@@ -1,4 +1,4 @@
-import { model, Schema, Types, } from "mongoose";
+import { model, Schema, Types } from "mongoose";
 const referralRewardSchema = new Schema({
     referrerUserId: {
         type: Schema.Types.ObjectId,
@@ -38,11 +38,7 @@ const referralRewardSchema = new Schema({
     },
     status: {
         type: String,
-        enum: [
-            "PENDING",
-            "AWARDED",
-            "FAILED",
-        ],
+        enum: ["PENDING", "AWARDED", "FAILED"],
         default: "PENDING",
         required: true,
         index: true,
@@ -51,13 +47,11 @@ const referralRewardSchema = new Schema({
     timestamps: true,
 });
 referralRewardSchema.pre("validate", function () {
-    if (this.referrerUserId.toString() ===
-        this.referredUserId.toString()) {
+    if (this.referrerUserId.toString() === this.referredUserId.toString()) {
         throw new Error("Referrer and referred user cannot be the same");
     }
     if (this.status === "AWARDED" &&
-        (!this.referrerCouponId ||
-            !this.referredCouponId)) {
+        (!this.referrerCouponId || !this.referredCouponId)) {
         throw new Error("Awarded referral rewards require both coupon IDs");
     }
 });

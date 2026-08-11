@@ -1,7 +1,4 @@
-import {
-  Schema,
-  model,
-} from "mongoose";
+import { Schema, model } from "mongoose";
 
 export interface IGeoPoint {
   type: "Point";
@@ -56,10 +53,7 @@ const stateSchema = new Schema<IState>(
       type: String,
       required: true,
       trim: true,
-      match: [
-        /^\d{2}$/,
-        "GST code must be exactly 2 digits",
-      ],
+      match: [/^\d{2}$/, "GST code must be exactly 2 digits"],
     },
 
     location: {
@@ -73,9 +67,7 @@ const stateSchema = new Schema<IState>(
         type: [Number],
         required: true,
         validate: {
-          validator: (
-            coordinates: number[],
-          ): boolean =>
+          validator: (coordinates: number[]): boolean =>
             coordinates.length === 2 &&
             coordinates.every(Number.isFinite) &&
             coordinates[0]! >= -180 &&
@@ -83,8 +75,7 @@ const stateSchema = new Schema<IState>(
             coordinates[1]! >= -90 &&
             coordinates[1]! <= 90,
 
-          message:
-            "Coordinates must be valid [longitude, latitude]",
+          message: "Coordinates must be valid [longitude, latitude]",
         },
       },
     },
@@ -121,7 +112,4 @@ stateSchema.index({
   gstCode: 1,
 });
 
-export const State = model<IState>(
-  "State",
-  stateSchema,
-);
+export const State = model<IState>("State", stateSchema);

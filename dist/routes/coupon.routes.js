@@ -1,17 +1,9 @@
 import { Router, } from "express";
-import { body, param, query, validationResult, } from "express-validator";
+import { body, param, query, validationResult } from "express-validator";
 import { authenticate } from "../middleware/authenticate.js";
 import { getAllCoupons, getCouponById, createCoupon, updateCoupon, toggleCouponStatus, deleteCoupon, validateCoupon, } from "../controllers/coupon.controllers.js";
-const APPLICABLE_TYPES = [
-    "ALL",
-    "SERVICE",
-    "PACKAGE",
-    "REFERRAL",
-];
-const DISCOUNT_TYPES = [
-    "PERCENTAGE",
-    "FIXED",
-];
+const APPLICABLE_TYPES = ["ALL", "SERVICE", "PACKAGE", "REFERRAL"];
+const DISCOUNT_TYPES = ["PERCENTAGE", "FIXED"];
 const SORT_FIELDS = [
     "createdAt",
     "updatedAt",
@@ -39,9 +31,7 @@ const validateRequest = (req, res, next) => {
     return next();
 };
 const couponIdValidation = [
-    param("id")
-        .isMongoId()
-        .withMessage("Invalid coupon ID"),
+    param("id").isMongoId().withMessage("Invalid coupon ID"),
     validateRequest,
 ];
 const commonCouponFieldValidation = [
@@ -132,42 +122,33 @@ const commonCouponFieldValidation = [
 const validateCouponCombination = body().custom((_, { req }) => {
     const { applicableOn, services, packages, assignedUserId, discount, discountType, maxDiscountAmount, validFrom, validTill, } = req.body;
     if (applicableOn === "SERVICE") {
-        if (!Array.isArray(services) ||
-            services.length === 0) {
+        if (!Array.isArray(services) || services.length === 0) {
             throw new Error("At least one service is required for SERVICE coupons");
         }
-        if (Array.isArray(packages) &&
-            packages.length > 0) {
+        if (Array.isArray(packages) && packages.length > 0) {
             throw new Error("Packages are not allowed for SERVICE coupons");
         }
     }
     if (applicableOn === "PACKAGE") {
-        if (!Array.isArray(packages) ||
-            packages.length === 0) {
+        if (!Array.isArray(packages) || packages.length === 0) {
             throw new Error("At least one package is required for PACKAGE coupons");
         }
-        if (Array.isArray(services) &&
-            services.length > 0) {
+        if (Array.isArray(services) && services.length > 0) {
             throw new Error("Services are not allowed for PACKAGE coupons");
         }
     }
-    if (applicableOn === "ALL" ||
-        applicableOn === "REFERRAL") {
-        if ((Array.isArray(services) &&
-            services.length > 0) ||
-            (Array.isArray(packages) &&
-                packages.length > 0)) {
+    if (applicableOn === "ALL" || applicableOn === "REFERRAL") {
+        if ((Array.isArray(services) && services.length > 0) ||
+            (Array.isArray(packages) && packages.length > 0)) {
             throw new Error("Services and packages are not allowed for this coupon type");
         }
     }
-    if (applicableOn === "REFERRAL" &&
-        !assignedUserId) {
+    if (applicableOn === "REFERRAL" && !assignedUserId) {
         throw new Error("assignedUserId is required for REFERRAL coupons");
     }
     if (discountType === "PERCENTAGE" &&
         discount !== undefined &&
-        (Number(discount) <= 0 ||
-            Number(discount) > 100)) {
+        (Number(discount) <= 0 || Number(discount) > 100)) {
         throw new Error("Percentage discount must be between 1 and 100");
     }
     if (discountType === "FIXED" &&
@@ -175,37 +156,23 @@ const validateCouponCombination = body().custom((_, { req }) => {
         maxDiscountAmount !== null) {
         throw new Error("maxDiscountAmount is allowed only for percentage coupons");
     }
-    if (validFrom &&
-        validTill &&
-        new Date(validTill) < new Date(validFrom)) {
+    if (validFrom && validTill && new Date(validTill) < new Date(validFrom)) {
         throw new Error("validTill must be greater than or equal to validFrom");
     }
     return true;
 });
 const createCouponValidation = [
-    body("name")
-        .exists()
-        .withMessage("Name is required"),
-    body("couponCode")
-        .exists()
-        .withMessage("Coupon code is required"),
-    body("applicableOn")
-        .exists()
-        .withMessage("Applicable type is required"),
-    body("discount")
-        .exists()
-        .withMessage("Discount is required"),
-    body("discountType")
-        .exists()
-        .withMessage("Discount type is required"),
+    body("name").exists().withMessage("Name is required"),
+    body("couponCode").exists().withMessage("Coupon code is required"),
+    body("applicableOn").exists().withMessage("Applicable type is required"),
+    body("discount").exists().withMessage("Discount is required"),
+    body("discountType").exists().withMessage("Discount type is required"),
     ...commonCouponFieldValidation,
     validateCouponCombination,
     validateRequest,
 ];
 const updateCouponValidation = [
-    param("id")
-        .isMongoId()
-        .withMessage("Invalid coupon ID"),
+    param("id").isMongoId().withMessage("Invalid coupon ID"),
     body().custom((value) => {
         if (!value ||
             typeof value !== "object" ||
@@ -226,14 +193,8 @@ const couponLookupValidation = [
         .notEmpty()
         .withMessage("Coupon code is required")
         .toUpperCase(),
-    body("serviceId")
-        .optional()
-        .isMongoId()
-        .withMessage("Invalid service ID"),
-    body("packageId")
-        .optional()
-        .isMongoId()
-        .withMessage("Invalid package ID"),
+    body("serviceId").optional().isMongoId().withMessage("Invalid service ID"),
+    body("packageId").optional().isMongoId().withMessage("Invalid package ID"),
     body("amount")
         .isFloat({ min: 0 })
         .withMessage("Amount must be a non-negative number")
@@ -257,10 +218,10 @@ const listCouponValidation = [
     query("applicableOn")
         .optional()
         .custom((value) => {
-        const values = Array.isArray(value)
-            ? value
-            : String(value).split(",");
-        return values.every((item) => APPLICABLE_TYPES.includes(String(item).trim().toUpperCase()));
+        const values = Array.isArray(value) ? value : String(value).split(",");
+        return values.every((item) => APPLICABLE_TYPES.includes(String(item)
+            .trim()
+            .toUpperCase()));
     })
         .withMessage("Invalid applicable type"),
     query("page")

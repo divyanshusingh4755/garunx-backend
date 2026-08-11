@@ -1,10 +1,6 @@
-import type {
-  Request,
-} from "express";
+import type { Request } from "express";
 
-import {
-  HttpError,
-} from "../utils/httpError.js";
+import { HttpError } from "../utils/httpError.js";
 
 export type CartOwner =
   | {
@@ -17,29 +13,19 @@ export type CartOwner =
     };
 
 const getSingleHeaderValue = (
-  value:
-    | string
-    | string[]
-    | undefined,
+  value: string | string[] | undefined,
 ): string | undefined => {
-  if (
-    typeof value !== "string"
-  ) {
+  if (typeof value !== "string") {
     return undefined;
   }
 
-  const normalized =
-    value.trim();
+  const normalized = value.trim();
 
-  return normalized ||
-    undefined;
+  return normalized || undefined;
 };
 
-export const getCartOwner = (
-  req: Request,
-): CartOwner => {
-  const userId =
-    req.user?.userId;
+export const getCartOwner = (req: Request): CartOwner => {
+  const userId = req.user?.userId;
 
   /*
    * An authenticated user always owns their authenticated cart.
@@ -52,18 +38,10 @@ export const getCartOwner = (
     };
   }
 
-  const guestId =
-    getSingleHeaderValue(
-      req.headers[
-        "x-guest-id"
-      ],
-    );
+  const guestId = getSingleHeaderValue(req.headers["x-guest-id"]);
 
   if (!guestId) {
-    throw new HttpError(
-      401,
-      "Authentication or guestId is required",
-    );
+    throw new HttpError(401, "Authentication or guestId is required");
   }
 
   return {

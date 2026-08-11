@@ -1,12 +1,6 @@
-import {
-  model,
-  Schema,
-  type Types,
-} from "mongoose";
+import { model, Schema, type Types } from "mongoose";
 
-export type TaxPriceMode =
-  | "EXCLUSIVE"
-  | "INCLUSIVE";
+export type TaxPriceMode = "EXCLUSIVE" | "INCLUSIVE";
 
 export interface IServicePricing {
   serviceId: Types.ObjectId;
@@ -21,82 +15,74 @@ export interface IServicePricing {
   updatedAt: Date;
 }
 
-const servicePricingSchema =
-  new Schema<IServicePricing>(
-    {
-      serviceId: {
-        type: Schema.Types.ObjectId,
-        ref: "Service",
-        required: true,
-        index: true,
-      },
-
-      componentId: {
-        type: Schema.Types.ObjectId,
-        ref: "Component",
-        required: true,
-        index: true,
-      },
-
-      tierId: {
-        type: Schema.Types.ObjectId,
-        ref: "Tier",
-        required: true,
-        index: true,
-      },
-
-      locationId: {
-        type: Schema.Types.ObjectId,
-        ref: "Location",
-        required: true,
-        index: true,
-      },
-
-      price: {
-        type: Number,
-        required: true,
-        min: 0,
-      },
-
-      taxProfileId: {
-        type: Schema.Types.ObjectId,
-        ref: "TaxProfile",
-        default: null,
-        index: true,
-      },
-
-      taxPriceMode: {
-        type: String,
-        enum: [
-          "EXCLUSIVE",
-          "INCLUSIVE",
-        ],
-        default: "EXCLUSIVE",
-        required: true,
-      },
-
-      isActive: {
-        type: Boolean,
-        required: true,
-        default: true,
-        index: true,
-      },
+const servicePricingSchema = new Schema<IServicePricing>(
+  {
+    serviceId: {
+      type: Schema.Types.ObjectId,
+      ref: "Service",
+      required: true,
+      index: true,
     },
-    {
-      timestamps: true,
-    },
-  );
 
-servicePricingSchema.pre(
-  "validate",
-  function () {
-    if (!this.taxProfileId) {
-      this.taxProfileId = null;
-      this.taxPriceMode =
-        "EXCLUSIVE";
-    }
+    componentId: {
+      type: Schema.Types.ObjectId,
+      ref: "Component",
+      required: true,
+      index: true,
+    },
+
+    tierId: {
+      type: Schema.Types.ObjectId,
+      ref: "Tier",
+      required: true,
+      index: true,
+    },
+
+    locationId: {
+      type: Schema.Types.ObjectId,
+      ref: "Location",
+      required: true,
+      index: true,
+    },
+
+    price: {
+      type: Number,
+      required: true,
+      min: 0,
+    },
+
+    taxProfileId: {
+      type: Schema.Types.ObjectId,
+      ref: "TaxProfile",
+      default: null,
+      index: true,
+    },
+
+    taxPriceMode: {
+      type: String,
+      enum: ["EXCLUSIVE", "INCLUSIVE"],
+      default: "EXCLUSIVE",
+      required: true,
+    },
+
+    isActive: {
+      type: Boolean,
+      required: true,
+      default: true,
+      index: true,
+    },
+  },
+  {
+    timestamps: true,
   },
 );
+
+servicePricingSchema.pre("validate", function () {
+  if (!this.taxProfileId) {
+    this.taxProfileId = null;
+    this.taxPriceMode = "EXCLUSIVE";
+  }
+});
 
 servicePricingSchema.index(
   {
@@ -117,8 +103,7 @@ servicePricingSchema.index({
   isActive: 1,
 });
 
-export const ServicePricing =
-  model<IServicePricing>(
-    "ServicePricing",
-    servicePricingSchema,
-  );
+export const ServicePricing = model<IServicePricing>(
+  "ServicePricing",
+  servicePricingSchema,
+);

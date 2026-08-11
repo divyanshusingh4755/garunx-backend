@@ -4,12 +4,7 @@ import {
   type NextFunction,
   Router,
 } from "express";
-import {
-  body,
-  param,
-  query,
-  validationResult,
-} from "express-validator";
+import { body, param, query, validationResult } from "express-validator";
 
 import { authenticate } from "../middleware/authenticate.js";
 
@@ -23,17 +18,9 @@ import {
   validateCoupon,
 } from "../controllers/coupon.controllers.js";
 
-const APPLICABLE_TYPES = [
-  "ALL",
-  "SERVICE",
-  "PACKAGE",
-  "REFERRAL",
-] as const;
+const APPLICABLE_TYPES = ["ALL", "SERVICE", "PACKAGE", "REFERRAL"] as const;
 
-const DISCOUNT_TYPES = [
-  "PERCENTAGE",
-  "FIXED",
-] as const;
+const DISCOUNT_TYPES = ["PERCENTAGE", "FIXED"] as const;
 
 const SORT_FIELDS = [
   "createdAt",
@@ -50,11 +37,7 @@ const SORT_FIELDS = [
   "relevance",
 ] as const;
 
-const validateRequest = (
-  req: Request,
-  res: Response,
-  next: NextFunction,
-) => {
+const validateRequest = (req: Request, res: Response, next: NextFunction) => {
   const errors = validationResult(req);
 
   if (!errors.isEmpty()) {
@@ -71,9 +54,7 @@ const validateRequest = (
 };
 
 const couponIdValidation = [
-  param("id")
-    .isMongoId()
-    .withMessage("Invalid coupon ID"),
+  param("id").isMongoId().withMessage("Invalid coupon ID"),
 
   validateRequest,
 ];
@@ -109,9 +90,7 @@ const commonCouponFieldValidation = [
   body("services.*")
     .optional()
     .isMongoId()
-    .withMessage(
-      "Each service must be a valid service ID",
-    ),
+    .withMessage("Each service must be a valid service ID"),
 
   body("packages")
     .optional()
@@ -121,16 +100,12 @@ const commonCouponFieldValidation = [
   body("packages.*")
     .optional()
     .isMongoId()
-    .withMessage(
-      "Each package must be a valid package ID",
-    ),
+    .withMessage("Each package must be a valid package ID"),
 
   body("assignedUserId")
     .optional({ nullable: true })
     .isMongoId()
-    .withMessage(
-      "assignedUserId must be a valid user ID",
-    ),
+    .withMessage("assignedUserId must be a valid user ID"),
 
   body("discount")
     .optional()
@@ -146,9 +121,7 @@ const commonCouponFieldValidation = [
   body("usageLimit")
     .optional()
     .isInt({ min: 0 })
-    .withMessage(
-      "Usage limit must be a non-negative integer",
-    )
+    .withMessage("Usage limit must be a non-negative integer")
     .toInt(),
 
   body("validFrom")
@@ -166,25 +139,19 @@ const commonCouponFieldValidation = [
   body("minOrderAmount")
     .optional()
     .isFloat({ min: 0 })
-    .withMessage(
-      "Minimum order amount must be greater than or equal to 0",
-    )
+    .withMessage("Minimum order amount must be greater than or equal to 0")
     .toFloat(),
 
   body("maxDiscountAmount")
     .optional({ nullable: true })
     .isFloat({ min: 0 })
-    .withMessage(
-      "Maximum discount amount must be greater than or equal to 0",
-    )
+    .withMessage("Maximum discount amount must be greater than or equal to 0")
     .toFloat(),
 
   body("isFirstOrderOnly")
     .optional()
     .isBoolean()
-    .withMessage(
-      "isFirstOrderOnly must be a boolean",
-    )
+    .withMessage("isFirstOrderOnly must be a boolean")
     .toBoolean(),
 
   body("isActive")
@@ -194,140 +161,87 @@ const commonCouponFieldValidation = [
     .toBoolean(),
 ];
 
-const validateCouponCombination = body().custom(
-  (_, { req }) => {
-    const {
-      applicableOn,
-      services,
-      packages,
-      assignedUserId,
-      discount,
-      discountType,
-      maxDiscountAmount,
-      validFrom,
-      validTill,
-    } = req.body;
+const validateCouponCombination = body().custom((_, { req }) => {
+  const {
+    applicableOn,
+    services,
+    packages,
+    assignedUserId,
+    discount,
+    discountType,
+    maxDiscountAmount,
+    validFrom,
+    validTill,
+  } = req.body;
 
-    if (applicableOn === "SERVICE") {
-      if (
-        !Array.isArray(services) ||
-        services.length === 0
-      ) {
-        throw new Error(
-          "At least one service is required for SERVICE coupons",
-        );
-      }
-
-      if (
-        Array.isArray(packages) &&
-        packages.length > 0
-      ) {
-        throw new Error(
-          "Packages are not allowed for SERVICE coupons",
-        );
-      }
+  if (applicableOn === "SERVICE") {
+    if (!Array.isArray(services) || services.length === 0) {
+      throw new Error("At least one service is required for SERVICE coupons");
     }
 
-    if (applicableOn === "PACKAGE") {
-      if (
-        !Array.isArray(packages) ||
-        packages.length === 0
-      ) {
-        throw new Error(
-          "At least one package is required for PACKAGE coupons",
-        );
-      }
+    if (Array.isArray(packages) && packages.length > 0) {
+      throw new Error("Packages are not allowed for SERVICE coupons");
+    }
+  }
 
-      if (
-        Array.isArray(services) &&
-        services.length > 0
-      ) {
-        throw new Error(
-          "Services are not allowed for PACKAGE coupons",
-        );
-      }
+  if (applicableOn === "PACKAGE") {
+    if (!Array.isArray(packages) || packages.length === 0) {
+      throw new Error("At least one package is required for PACKAGE coupons");
     }
 
+    if (Array.isArray(services) && services.length > 0) {
+      throw new Error("Services are not allowed for PACKAGE coupons");
+    }
+  }
+
+  if (applicableOn === "ALL" || applicableOn === "REFERRAL") {
     if (
-      applicableOn === "ALL" ||
-      applicableOn === "REFERRAL"
-    ) {
-      if (
-        (Array.isArray(services) &&
-          services.length > 0) ||
-        (Array.isArray(packages) &&
-          packages.length > 0)
-      ) {
-        throw new Error(
-          "Services and packages are not allowed for this coupon type",
-        );
-      }
-    }
-
-    if (
-      applicableOn === "REFERRAL" &&
-      !assignedUserId
+      (Array.isArray(services) && services.length > 0) ||
+      (Array.isArray(packages) && packages.length > 0)
     ) {
       throw new Error(
-        "assignedUserId is required for REFERRAL coupons",
+        "Services and packages are not allowed for this coupon type",
       );
     }
+  }
 
-    if (
-      discountType === "PERCENTAGE" &&
-      discount !== undefined &&
-      (Number(discount) <= 0 ||
-        Number(discount) > 100)
-    ) {
-      throw new Error(
-        "Percentage discount must be between 1 and 100",
-      );
-    }
+  if (applicableOn === "REFERRAL" && !assignedUserId) {
+    throw new Error("assignedUserId is required for REFERRAL coupons");
+  }
 
-    if (
-      discountType === "FIXED" &&
-      maxDiscountAmount !== undefined &&
-      maxDiscountAmount !== null
-    ) {
-      throw new Error(
-        "maxDiscountAmount is allowed only for percentage coupons",
-      );
-    }
+  if (
+    discountType === "PERCENTAGE" &&
+    discount !== undefined &&
+    (Number(discount) <= 0 || Number(discount) > 100)
+  ) {
+    throw new Error("Percentage discount must be between 1 and 100");
+  }
 
-    if (
-      validFrom &&
-      validTill &&
-      new Date(validTill) < new Date(validFrom)
-    ) {
-      throw new Error(
-        "validTill must be greater than or equal to validFrom",
-      );
-    }
+  if (
+    discountType === "FIXED" &&
+    maxDiscountAmount !== undefined &&
+    maxDiscountAmount !== null
+  ) {
+    throw new Error("maxDiscountAmount is allowed only for percentage coupons");
+  }
 
-    return true;
-  },
-);
+  if (validFrom && validTill && new Date(validTill) < new Date(validFrom)) {
+    throw new Error("validTill must be greater than or equal to validFrom");
+  }
+
+  return true;
+});
 
 const createCouponValidation = [
-  body("name")
-    .exists()
-    .withMessage("Name is required"),
+  body("name").exists().withMessage("Name is required"),
 
-  body("couponCode")
-    .exists()
-    .withMessage("Coupon code is required"),
+  body("couponCode").exists().withMessage("Coupon code is required"),
 
-  body("applicableOn")
-    .exists()
-    .withMessage("Applicable type is required"),
+  body("applicableOn").exists().withMessage("Applicable type is required"),
 
-  body("discount")
-    .exists()
-    .withMessage("Discount is required"),
+  body("discount").exists().withMessage("Discount is required"),
 
-  body("discountType")
-    .exists()
-    .withMessage("Discount type is required"),
+  body("discountType").exists().withMessage("Discount type is required"),
 
   ...commonCouponFieldValidation,
   validateCouponCombination,
@@ -335,9 +249,7 @@ const createCouponValidation = [
 ];
 
 const updateCouponValidation = [
-  param("id")
-    .isMongoId()
-    .withMessage("Invalid coupon ID"),
+  param("id").isMongoId().withMessage("Invalid coupon ID"),
 
   body().custom((value) => {
     if (
@@ -346,9 +258,7 @@ const updateCouponValidation = [
       Array.isArray(value) ||
       Object.keys(value).length === 0
     ) {
-      throw new Error(
-        "At least one field is required for update",
-      );
+      throw new Error("At least one field is required for update");
     }
 
     return true;
@@ -367,21 +277,13 @@ const couponLookupValidation = [
     .withMessage("Coupon code is required")
     .toUpperCase(),
 
-  body("serviceId")
-    .optional()
-    .isMongoId()
-    .withMessage("Invalid service ID"),
+  body("serviceId").optional().isMongoId().withMessage("Invalid service ID"),
 
-  body("packageId")
-    .optional()
-    .isMongoId()
-    .withMessage("Invalid package ID"),
+  body("packageId").optional().isMongoId().withMessage("Invalid package ID"),
 
   body("amount")
     .isFloat({ min: 0 })
-    .withMessage(
-      "Amount must be a non-negative number",
-    )
+    .withMessage("Amount must be a non-negative number")
     .toFloat(),
 
   body("isFirstOrder")
@@ -407,14 +309,13 @@ const listCouponValidation = [
   query("applicableOn")
     .optional()
     .custom((value) => {
-      const values = Array.isArray(value)
-        ? value
-        : String(value).split(",");
+      const values = Array.isArray(value) ? value : String(value).split(",");
 
       return values.every((item) =>
         APPLICABLE_TYPES.includes(
-          String(item).trim().toUpperCase() as
-            (typeof APPLICABLE_TYPES)[number],
+          String(item)
+            .trim()
+            .toUpperCase() as (typeof APPLICABLE_TYPES)[number],
         ),
       );
     })
@@ -447,39 +348,15 @@ const listCouponValidation = [
 
 const router = Router();
 
-router.get(
-  "/",
-  listCouponValidation,
-  getAllCoupons,
-);
+router.get("/", listCouponValidation, getAllCoupons);
 
-router.post(
-  "/validate",
-  authenticate,
-  couponLookupValidation,
-  validateCoupon,
-);
+router.post("/validate", authenticate, couponLookupValidation, validateCoupon);
 
-router.get(
-  "/:id",
-  authenticate,
-  couponIdValidation,
-  getCouponById,
-);
+router.get("/:id", authenticate, couponIdValidation, getCouponById);
 
-router.post(
-  "/",
-  authenticate,
-  createCouponValidation,
-  createCoupon,
-);
+router.post("/", authenticate, createCouponValidation, createCoupon);
 
-router.put(
-  "/:id",
-  authenticate,
-  updateCouponValidation,
-  updateCoupon,
-);
+router.put("/:id", authenticate, updateCouponValidation, updateCoupon);
 
 router.patch(
   "/:id/status",
@@ -488,11 +365,6 @@ router.patch(
   toggleCouponStatus,
 );
 
-router.delete(
-  "/:id",
-  authenticate,
-  couponIdValidation,
-  deleteCoupon,
-);
+router.delete("/:id", authenticate, couponIdValidation, deleteCoupon);
 
 export default router;

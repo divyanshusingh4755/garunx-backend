@@ -1,23 +1,12 @@
-import mongoose, {
-  Types,
-  type ClientSession,
-} from "mongoose";
+import mongoose, { Types, type ClientSession } from "mongoose";
 
-import {
-  Service,
-} from "../models/service.model.js";
+import { Service } from "../models/service.model.js";
 
-import {
-  ServiceComponent,
-} from "../models/servicecomponent.model.js";
+import { ServiceComponent } from "../models/servicecomponent.model.js";
 
-import {
-  ServicePricing,
-} from "../models/servicepricing.model.js";
+import { ServicePricing } from "../models/servicepricing.model.js";
 
-import {
-  ServiceService,
-} from "./service.service.js";
+import { ServiceService } from "./service.service.js";
 
 interface ServiceTierReference {
   tierId: Types.ObjectId;
@@ -34,9 +23,7 @@ interface ServiceCascadeDocument {
   locations: ServiceLocationReference[];
   isComplete: boolean;
   isActive: boolean;
-  save(options: {
-    session: ClientSession;
-  }): Promise<unknown>;
+  save(options: { session: ClientSession }): Promise<unknown>;
 }
 
 interface ServiceComponentReference {
@@ -54,89 +41,47 @@ interface ServicePricingReference {
 }
 
 export class ServiceCascadingEngine {
-  static async run(
-    serviceId: string,
-  ): Promise<void> {
-    if (
-      !Types.ObjectId.isValid(
-        serviceId,
-      )
-    ) {
-      throw new Error(
-        "Invalid serviceId",
-      );
+  static async run(serviceId: string): Promise<void> {
+    if (!Types.ObjectId.isValid(serviceId)) {
+      throw new Error("Invalid serviceId");
     }
 
-    const session =
-      await mongoose.startSession();
+    const session = await mongoose.startSession();
 
     try {
-      await session.withTransaction(
-        async () => {
-          const service =
-            await Service.findById(
-              serviceId,
-            ).session(session);
+      await session.withTransaction(async () => {
+        const service = await Service.findById(serviceId).session(session);
 
-          if (!service) {
-            throw new Error(
-              "Service not found",
-            );
-          }
+        if (!service) {
+          throw new Error("Service not found");
+        }
 
-          await this.cleanupTierOrphans(
-            service,
-            session,
-          );
+        await this.cleanupTierOrphans(service, session);
 
-          await this.cleanupLocationOrphans(
-            service,
-            session,
-          );
+        await this.cleanupLocationOrphans(service, session);
 
-          await this.cleanupComponentOrphans(
-            service,
-            session,
-          );
+        await this.cleanupComponentOrphans(service, session);
 
-          await this.cleanupPricing(
-            service,
-            session,
-          );
+        await this.cleanupPricing(service, session);
 
-          const refreshed =
-            await Service.findById(
-              serviceId,
-            ).session(session);
+        const refreshed = await Service.findById(serviceId).session(session);
 
-          if (!refreshed) {
-            throw new Error(
-              "Service lost during cleanup",
-            );
-          }
+        if (!refreshed) {
+          throw new Error("Service lost during cleanup");
+        }
 
-          const isComplete =
-            await this.computeIsComplete(
-              refreshed,
-              session,
-            );
+        const isComplete = await this.computeIsComplete(refreshed, session);
 
-          refreshed.isComplete =
-            isComplete;
+        refreshed.isComplete = isComplete;
 
-          refreshed.isActive =
-            isComplete;
+        refreshed.isActive = isComplete;
 
-          await refreshed.save({
-            session,
-          });
-        },
-      );
+        await refreshed.save({
+          session,
+        });
+      });
 
-      await ServiceService
-        .updateServiceStartingPrice(
-          serviceId,
-        );
+      await ServiceService.updateServiceStartingPrice(serviceId);
     } finally {
       await session.endSession();
     }
@@ -148,12 +93,8 @@ export class ServiceCascadingEngine {
     return values.map((value) => {
       const id = value.toString();
 
-      if (
-        !Types.ObjectId.isValid(id)
-      ) {
-        throw new Error(
-          `Invalid ObjectId: ${id}`,
-        );
+      if (!Types.ObjectId.isValid(id)) {
+        throw new Error(`Invalid ObjectId: ${id}`);
       }
 
       return id;
@@ -164,21 +105,15 @@ export class ServiceCascadingEngine {
     service: ServiceCascadeDocument,
     session: ClientSession,
   ): Promise<void> {
-    const validTierIds =
-      this.getValidIdStrings(
-        service.tiers.map(
-          (tier) => tier.tierId,
-        ),
-      );
+    const validTierIds = this.getValidIdStrings(
+      service.tiers.map((tier) => tier.tierId),
+    );
 
-    if (
-      validTierIds.length === 0
-    ) {
+    if (validTierIds.length === 0) {
       await Promise.all([
         ServiceComponent.deleteMany(
           {
-            serviceId:
-              service._id,
+            serviceId: service._id,
           },
           {
             session,
@@ -187,8 +122,7 @@ export class ServiceCascadingEngine {
 
         ServicePricing.deleteMany(
           {
-            serviceId:
-              service._id,
+            serviceId: service._id,
           },
           {
             session,
@@ -202,8 +136,7 @@ export class ServiceCascadingEngine {
     await Promise.all([
       ServiceComponent.deleteMany(
         {
-          serviceId:
-            service._id,
+          serviceId: service._id,
           tierId: {
             $nin: validTierIds,
           },
@@ -215,8 +148,7 @@ export class ServiceCascadingEngine {
 
       ServicePricing.deleteMany(
         {
-          serviceId:
-            service._id,
+          serviceId: service._id,
           tierId: {
             $nin: validTierIds,
           },
@@ -232,21 +164,14 @@ export class ServiceCascadingEngine {
     service: ServiceCascadeDocument,
     session: ClientSession,
   ): Promise<void> {
-    const validLocationIds =
-      this.getValidIdStrings(
-        service.locations.map(
-          (location) =>
-            location.locationId,
-        ),
-      );
+    const validLocationIds = this.getValidIdStrings(
+      service.locations.map((location) => location.locationId),
+    );
 
-    if (
-      validLocationIds.length === 0
-    ) {
+    if (validLocationIds.length === 0) {
       await ServicePricing.deleteMany(
         {
-          serviceId:
-            service._id,
+          serviceId: service._id,
         },
         {
           session,
@@ -258,8 +183,7 @@ export class ServiceCascadingEngine {
 
     await ServicePricing.deleteMany(
       {
-        serviceId:
-          service._id,
+        serviceId: service._id,
         locationId: {
           $nin: validLocationIds,
         },
@@ -276,8 +200,7 @@ export class ServiceCascadingEngine {
   ): Promise<void> {
     await ServiceComponent.deleteMany(
       {
-        serviceId:
-          service._id,
+        serviceId: service._id,
         $or: [
           {
             tierId: {
@@ -307,29 +230,19 @@ export class ServiceCascadingEngine {
     service: ServiceCascadeDocument,
     session: ClientSession,
   ): Promise<void> {
-    const validTierIds =
-      new Set(
-        this.getValidIdStrings(
-          service.tiers.map(
-            (tier) => tier.tierId,
-          ),
-        ),
-      );
+    const validTierIds = new Set(
+      this.getValidIdStrings(service.tiers.map((tier) => tier.tierId)),
+    );
 
-    const validLocationIds =
-      new Set(
-        this.getValidIdStrings(
-          service.locations.map(
-            (location) =>
-              location.locationId,
-          ),
-        ),
-      );
+    const validLocationIds = new Set(
+      this.getValidIdStrings(
+        service.locations.map((location) => location.locationId),
+      ),
+    );
 
     await ServicePricing.deleteMany(
       {
-        serviceId:
-          service._id,
+        serviceId: service._id,
         $or: [
           {
             tierId: {
@@ -362,85 +275,48 @@ export class ServiceCascadingEngine {
       },
     );
 
-    const components =
-      await ServiceComponent.find(
-        {
-          serviceId:
-            service._id,
-        },
-      )
-        .session(session)
-        .select(
-          "tierId componentId",
-        )
-        .lean<
-          ServiceComponentReference[]
-        >();
+    const components = await ServiceComponent.find({
+      serviceId: service._id,
+    })
+      .session(session)
+      .select("tierId componentId")
+      .lean<ServiceComponentReference[]>();
 
-    const validComponentKeys =
-      new Set(
-        components.map(
-          (component) =>
-            `${component.tierId.toString()}_${component.componentId.toString()}`,
-        ),
-      );
+    const validComponentKeys = new Set(
+      components.map(
+        (component) =>
+          `${component.tierId.toString()}_${component.componentId.toString()}`,
+      ),
+    );
 
-    const pricing =
-      await ServicePricing.find(
-        {
-          serviceId:
-            service._id,
-        },
-      )
-        .session(session)
-        .select(
-          "tierId locationId componentId",
-        )
-        .lean<
-          ServicePricingReference[]
-        >();
+    const pricing = await ServicePricing.find({
+      serviceId: service._id,
+    })
+      .session(session)
+      .select("tierId locationId componentId")
+      .lean<ServicePricingReference[]>();
 
-    const deleteIds:
-      Types.ObjectId[] = [];
+    const deleteIds: Types.ObjectId[] = [];
 
-    for (
-      const pricingRow of pricing
-    ) {
-      const tierId =
-        pricingRow.tierId
-          .toString();
+    for (const pricingRow of pricing) {
+      const tierId = pricingRow.tierId.toString();
 
-      const locationId =
-        pricingRow.locationId
-          .toString();
+      const locationId = pricingRow.locationId.toString();
 
-      const componentId =
-        pricingRow.componentId
-          .toString();
+      const componentId = pricingRow.componentId.toString();
 
-      const componentKey =
-        `${tierId}_${componentId}`;
+      const componentKey = `${tierId}_${componentId}`;
 
       if (
-        !validTierIds.has(
-          tierId,
-        ) ||
-        !validLocationIds.has(
-          locationId,
-        ) ||
-        !validComponentKeys.has(
-          componentKey,
-        )
+        !validTierIds.has(tierId) ||
+        !validLocationIds.has(locationId) ||
+        !validComponentKeys.has(componentKey)
       ) {
-        deleteIds.push(
-          pricingRow._id,
-        );
+        deleteIds.push(pricingRow._id);
       }
     }
 
-    if (
-      deleteIds.length > 0
-    ) {
+    if (deleteIds.length > 0) {
       await ServicePricing.deleteMany(
         {
           _id: {
@@ -458,114 +334,66 @@ export class ServiceCascadingEngine {
     service: ServiceCascadeDocument,
     session: ClientSession,
   ): Promise<boolean> {
-    const components =
-      await ServiceComponent.find(
-        {
-          serviceId:
-            service._id,
-        },
-      )
-        .session(session)
-        .select(
-          "tierId componentId isRequired",
-        )
-        .lean<
-          ServiceComponentReference[]
-        >();
+    const components = await ServiceComponent.find({
+      serviceId: service._id,
+    })
+      .session(session)
+      .select("tierId componentId isRequired")
+      .lean<ServiceComponentReference[]>();
 
-    const pricing =
-      await ServicePricing.find(
-        {
-          serviceId:
-            service._id,
-        },
-      )
-        .session(session)
-        .select(
-          "tierId locationId componentId",
-        )
-        .lean<
-          ServicePricingReference[]
-        >();
+    const pricing = await ServicePricing.find({
+      serviceId: service._id,
+    })
+      .session(session)
+      .select("tierId locationId componentId")
+      .lean<ServicePricingReference[]>();
 
-    const activeLocations =
-      service.locations.filter(
-        (location) =>
-          location.isActive,
-      );
+    const activeLocations = service.locations.filter(
+      (location) => location.isActive,
+    );
 
-    if (
-      activeLocations.length === 0 ||
-      service.tiers.length === 0
-    ) {
+    if (activeLocations.length === 0 || service.tiers.length === 0) {
       return false;
     }
 
-    const requiredComponents =
-      components.filter(
-        (component) =>
-          component.isRequired,
-      );
+    const requiredComponents = components.filter(
+      (component) => component.isRequired,
+    );
 
-    if (
-      requiredComponents.length === 0
-    ) {
+    if (requiredComponents.length === 0) {
       return false;
     }
 
-    const priceSet =
-      new Set(
-        pricing.map(
-          (pricingRow) =>
-            `${pricingRow.tierId.toString()}_${pricingRow.locationId.toString()}_${pricingRow.componentId.toString()}`,
-        ),
+    const priceSet = new Set(
+      pricing.map(
+        (pricingRow) =>
+          `${pricingRow.tierId.toString()}_${pricingRow.locationId.toString()}_${pricingRow.componentId.toString()}`,
+      ),
+    );
+
+    for (const tier of service.tiers) {
+      const tierId = tier.tierId.toString();
+
+      const tierRequiredComponents = requiredComponents.filter(
+        (component) => component.tierId.toString() === tierId,
       );
-
-    for (
-      const tier of
-      service.tiers
-    ) {
-      const tierId =
-        tier.tierId.toString();
-
-      const tierRequiredComponents =
-        requiredComponents.filter(
-          (component) =>
-            component.tierId
-              .toString() ===
-            tierId,
-        );
 
       /*
        * Every configured tier must have at least one
        * required component. Skipping an empty tier would
        * incorrectly mark the service complete.
        */
-      if (
-        tierRequiredComponents.length ===
-        0
-      ) {
+      if (tierRequiredComponents.length === 0) {
         return false;
       }
 
-      for (
-        const location of
-        activeLocations
-      ) {
-        const locationId =
-          location.locationId
-            .toString();
+      for (const location of activeLocations) {
+        const locationId = location.locationId.toString();
 
-        for (
-          const component of
-          tierRequiredComponents
-        ) {
-          const key =
-            `${tierId}_${locationId}_${component.componentId.toString()}`;
+        for (const component of tierRequiredComponents) {
+          const key = `${tierId}_${locationId}_${component.componentId.toString()}`;
 
-          if (
-            !priceSet.has(key)
-          ) {
+          if (!priceSet.has(key)) {
             return false;
           }
         }

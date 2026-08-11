@@ -1,4 +1,4 @@
-import mongoose, { Types, } from "mongoose";
+import mongoose, { Types } from "mongoose";
 import { Service } from "../models/service.model.js";
 import { ServicePricing } from "../models/servicepricing.model.js";
 import { ServiceComponent } from "../models/servicecomponent.model.js";
@@ -11,13 +11,12 @@ const createHttpError = (message, statusCode) => {
 };
 export class ServicePricingService {
     static async bulkUpsertTierPricing(payload) {
-        const { serviceId, tierId, pricing, } = payload;
+        const { serviceId, tierId, pricing } = payload;
         const service = await Service.findById(serviceId).lean();
         if (!service) {
             throw createHttpError("Service not found", 404);
         }
-        const tierExists = service.tiers.some((tier) => tier.tierId.toString() ===
-            tierId);
+        const tierExists = service.tiers.some((tier) => tier.tierId.toString() === tierId);
         if (!tierExists) {
             throw createHttpError("Tier does not belong to service", 400);
         }
@@ -42,8 +41,7 @@ export class ServicePricingService {
                 }
                 componentIdsSeen.add(componentId);
                 allComponentIds.add(componentId);
-                if (typeof componentPricing.price !==
-                    "number" ||
+                if (typeof componentPricing.price !== "number" ||
                     !Number.isFinite(componentPricing.price) ||
                     componentPricing.price < 0) {
                     throw createHttpError(`Invalid price for component ${componentId}`, 400);
@@ -52,19 +50,14 @@ export class ServicePricingService {
                 if (taxProfileId) {
                     allTaxProfileIds.add(taxProfileId);
                 }
-                if (componentPricing.taxPriceMode !==
-                    undefined &&
-                    componentPricing.taxPriceMode !==
-                        "EXCLUSIVE" &&
-                    componentPricing.taxPriceMode !==
-                        "INCLUSIVE") {
+                if (componentPricing.taxPriceMode !== undefined &&
+                    componentPricing.taxPriceMode !== "EXCLUSIVE" &&
+                    componentPricing.taxPriceMode !== "INCLUSIVE") {
                     throw createHttpError(`Invalid taxPriceMode for component ${componentId}`, 400);
                 }
             }
         }
-        const componentObjectIds = [
-            ...allComponentIds,
-        ].map((id) => new Types.ObjectId(id));
+        const componentObjectIds = [...allComponentIds].map((id) => new Types.ObjectId(id));
         const validComponents = await ServiceComponent.find({
             serviceId: new Types.ObjectId(serviceId),
             tierId: new Types.ObjectId(tierId),
@@ -75,15 +68,11 @@ export class ServicePricingService {
             .select("componentId")
             .lean();
         const validComponentSet = new Set(validComponents.map((component) => component.componentId.toString()));
-        const invalidComponentIds = [
-            ...allComponentIds,
-        ].filter((componentId) => !validComponentSet.has(componentId));
+        const invalidComponentIds = [...allComponentIds].filter((componentId) => !validComponentSet.has(componentId));
         if (invalidComponentIds.length > 0) {
             throw createHttpError(`Components do not belong to this service tier: ${invalidComponentIds.join(", ")}`, 400);
         }
-        const taxProfileIds = [
-            ...allTaxProfileIds,
-        ];
+        const taxProfileIds = [...allTaxProfileIds];
         if (taxProfileIds.length > 0) {
             const validTaxProfiles = await TaxProfile.find({
                 _id: {
@@ -107,11 +96,9 @@ export class ServicePricingService {
             const locationObjectId = new Types.ObjectId(locationPricing.locationId);
             for (const componentPricing of locationPricing.components) {
                 const componentObjectId = new Types.ObjectId(componentPricing.componentId);
-                const taxProfileId = componentPricing.taxProfileId ??
-                    null;
+                const taxProfileId = componentPricing.taxProfileId ?? null;
                 const taxPriceMode = taxProfileId
-                    ? componentPricing.taxPriceMode ??
-                        "EXCLUSIVE"
+                    ? (componentPricing.taxPriceMode ?? "EXCLUSIVE")
                     : "EXCLUSIVE";
                 requestedPairs.push({
                     locationId: locationObjectId,
@@ -186,13 +173,11 @@ export class ServicePricingService {
         if (!service.isActive) {
             throw createHttpError("Service is inactive", 400);
         }
-        const tier = service.tiers.find((item) => item.tierId.toString() ===
-            tierId);
+        const tier = service.tiers.find((item) => item.tierId.toString() === tierId);
         if (!tier) {
             throw createHttpError("Tier does not belong to service", 400);
         }
-        const location = service.locations.find((item) => item.locationId.toString() ===
-            locationId);
+        const location = service.locations.find((item) => item.locationId.toString() === locationId);
         if (!location) {
             throw createHttpError("Location does not belong to service", 400);
         }
@@ -243,26 +228,18 @@ export class ServicePricingService {
                 {
                     componentId: componentData._id,
                     name: componentData.name,
-                    description: componentData.description ??
-                        "",
-                    imageUrl: componentData.imageUrl ??
-                        null,
+                    description: componentData.description ?? "",
+                    imageUrl: componentData.imageUrl ?? null,
                     isRequired: component.isRequired,
-                    price: pricingRecord?.price ??
-                        null,
+                    price: pricingRecord?.price ?? null,
                     isPriceConfigured: Boolean(pricingRecord),
                     tax: pricingRecord
                         ? {
-                            taxProfileId: taxProfile?._id ??
-                                null,
-                            profileName: taxProfile?.name ??
-                                null,
-                            profileCode: taxProfile?.code ??
-                                null,
-                            treatment: taxProfile?.treatment ??
-                                null,
-                            totalRate: taxProfile?.totalRate ??
-                                0,
+                            taxProfileId: taxProfile?._id ?? null,
+                            profileName: taxProfile?.name ?? null,
+                            profileCode: taxProfile?.code ?? null,
+                            treatment: taxProfile?.treatment ?? null,
+                            totalRate: taxProfile?.totalRate ?? 0,
                             priceMode: taxProfile
                                 ? pricingRecord.taxPriceMode
                                 : "EXCLUSIVE",
@@ -275,8 +252,7 @@ export class ServicePricingService {
         });
         const requiredComponents = resolvedComponents.filter((component) => component.isRequired);
         const optionalComponents = resolvedComponents.filter((component) => !component.isRequired);
-        const startingPrice = requiredComponents.reduce((sum, component) => sum +
-            (component.price ?? 0), 0);
+        const startingPrice = requiredComponents.reduce((sum, component) => sum + (component.price ?? 0), 0);
         const isAvailable = requiredComponents.length > 0 &&
             requiredComponents.every((component) => component.isPriceConfigured);
         return {

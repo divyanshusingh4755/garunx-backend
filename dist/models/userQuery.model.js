@@ -1,4 +1,4 @@
-import { Schema, Types, model, } from "mongoose";
+import { Schema, Types, model } from "mongoose";
 const userQuerySchema = new Schema({
     requesterId: {
         type: Schema.Types.ObjectId,
@@ -8,10 +8,7 @@ const userQuerySchema = new Schema({
     },
     requesterType: {
         type: String,
-        enum: [
-            "USER",
-            "COORDINATOR",
-        ],
+        enum: ["USER", "COORDINATOR"],
         required: true,
         index: true,
     },
@@ -47,12 +44,7 @@ const userQuerySchema = new Schema({
     },
     priority: {
         type: String,
-        enum: [
-            "LOW",
-            "NORMAL",
-            "HIGH",
-            "URGENT",
-        ],
+        enum: ["LOW", "NORMAL", "HIGH", "URGENT"],
         default: "NORMAL",
         required: true,
         index: true,
@@ -158,21 +150,15 @@ const userQuerySchema = new Schema({
     timestamps: true,
 });
 userQuerySchema.pre("validate", function () {
-    if (this.status === "RESOLVED" &&
-        (!this.resolvedAt ||
-            !this.resolvedBy)) {
+    if (this.status === "RESOLVED" && (!this.resolvedAt || !this.resolvedBy)) {
         throw new Error("Resolved query requires resolvedAt and resolvedBy");
     }
     if (this.status === "REJECTED" &&
-        (!this.rejectedAt ||
-            !this.rejectedBy ||
-            !this.rejectionReason?.trim())) {
+        (!this.rejectedAt || !this.rejectedBy || !this.rejectionReason?.trim())) {
         throw new Error("Rejected query requires rejection details");
     }
     if (this.isDeleted &&
-        (!this.deletedAt ||
-            !this.deletedBy ||
-            !this.deletionReason?.trim())) {
+        (!this.deletedAt || !this.deletedBy || !this.deletionReason?.trim())) {
         throw new Error("Deleted query requires deletion details");
     }
 });

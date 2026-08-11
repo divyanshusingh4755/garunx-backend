@@ -20,11 +20,7 @@ import { authenticate } from "../middleware/authenticate.js";
 
 const router = Router();
 
-const validate = (
-  req: Request,
-  res: Response,
-  next: NextFunction,
-) => {
+const validate = (req: Request, res: Response, next: NextFunction) => {
   const errors = validationResult(req);
 
   if (!errors.isEmpty()) {
@@ -32,9 +28,7 @@ const validate = (
 
     return res.status(400).json({
       success: false,
-      message:
-        firstError?.msg ??
-        "Validation failed",
+      message: firstError?.msg ?? "Validation failed",
       error: firstError,
     });
   }
@@ -42,74 +36,58 @@ const validate = (
   next();
 };
 
-const bulkPricingValidation:
-  ValidationChain[] = [
-    body("serviceId")
-      .notEmpty()
-      .withMessage("serviceId is required")
-      .isMongoId()
-      .withMessage("Invalid serviceId"),
+const bulkPricingValidation: ValidationChain[] = [
+  body("serviceId")
+    .notEmpty()
+    .withMessage("serviceId is required")
+    .isMongoId()
+    .withMessage("Invalid serviceId"),
 
-    body("tierId")
-      .notEmpty()
-      .withMessage("tierId is required")
-      .isMongoId()
-      .withMessage("Invalid tierId"),
+  body("tierId")
+    .notEmpty()
+    .withMessage("tierId is required")
+    .isMongoId()
+    .withMessage("Invalid tierId"),
 
-    body("pricing")
-      .isArray({ min: 1 })
-      .withMessage(
-        "pricing must contain at least one location",
-      ),
+  body("pricing")
+    .isArray({ min: 1 })
+    .withMessage("pricing must contain at least one location"),
 
-    body("pricing.*.locationId")
-      .notEmpty()
-      .withMessage("locationId is required")
-      .isMongoId()
-      .withMessage("Invalid locationId"),
+  body("pricing.*.locationId")
+    .notEmpty()
+    .withMessage("locationId is required")
+    .isMongoId()
+    .withMessage("Invalid locationId"),
 
-    body("pricing.*.components")
-      .isArray({ min: 1 })
-      .withMessage(
-        "Each location must contain at least one component",
-      ),
+  body("pricing.*.components")
+    .isArray({ min: 1 })
+    .withMessage("Each location must contain at least one component"),
 
-    body("pricing.*.components.*.componentId")
-      .notEmpty()
-      .withMessage("componentId is required")
-      .isMongoId()
-      .withMessage("Invalid componentId"),
+  body("pricing.*.components.*.componentId")
+    .notEmpty()
+    .withMessage("componentId is required")
+    .isMongoId()
+    .withMessage("Invalid componentId"),
 
-    body("pricing.*.components.*.price")
-      .exists({ checkNull: true })
-      .withMessage("price is required")
-      .isFloat({ min: 0 })
-      .withMessage(
-        "price must be a non-negative number",
-      )
-      .toFloat(),
+  body("pricing.*.components.*.price")
+    .exists({ checkNull: true })
+    .withMessage("price is required")
+    .isFloat({ min: 0 })
+    .withMessage("price must be a non-negative number")
+    .toFloat(),
 
-    body(
-      "pricing.*.components.*.taxProfileId",
-    )
-      .optional({
-        values: "null",
-      })
-      .isMongoId()
-      .withMessage("Invalid taxProfileId"),
+  body("pricing.*.components.*.taxProfileId")
+    .optional({
+      values: "null",
+    })
+    .isMongoId()
+    .withMessage("Invalid taxProfileId"),
 
-    body(
-      "pricing.*.components.*.taxPriceMode",
-    )
-      .optional()
-      .isIn([
-        "EXCLUSIVE",
-        "INCLUSIVE",
-      ])
-      .withMessage(
-        "taxPriceMode must be EXCLUSIVE or INCLUSIVE",
-      ),
-  ];
+  body("pricing.*.components.*.taxPriceMode")
+    .optional()
+    .isIn(["EXCLUSIVE", "INCLUSIVE"])
+    .withMessage("taxPriceMode must be EXCLUSIVE or INCLUSIVE"),
+];
 
 router.post(
   "/bulk",

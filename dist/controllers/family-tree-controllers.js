@@ -1,5 +1,5 @@
 import FamilyTreeService, {} from "../services/family-tree.service.js";
-import { FamilyRelation, Gender, MemberLifeStatus, } from "../types/enums.js";
+import { FamilyRelation, Gender, MemberLifeStatus } from "../types/enums.js";
 import { resolveFamilyTreeOwnerId, } from "../services/access.service.js";
 const getAuthenticatedUser = (req) => {
     const userId = req.user?.userId;
@@ -26,9 +26,7 @@ const getRequiredStringParam = (value, fieldName) => {
     return parsedValue.trim();
 };
 const getSourceFromRole = (role) => {
-    const normalizedRole = role
-        .trim()
-        .toUpperCase();
+    const normalizedRole = role.trim().toUpperCase();
     switch (normalizedRole) {
         case "USER":
         case "USER":
@@ -103,13 +101,11 @@ const getErrorStatusCode = (error, defaultStatusCode = 400) => {
     return defaultStatusCode;
 };
 const getErrorMessage = (error, fallbackMessage) => {
-    return error instanceof Error
-        ? error.message
-        : fallbackMessage;
+    return error instanceof Error ? error.message : fallbackMessage;
 };
 export const addFamilyMember = async (req, res) => {
     try {
-        const { authenticatedUser, access, } = await resolveTreeAccess(req);
+        const { authenticatedUser, access } = await resolveTreeAccess(req);
         const context = buildActorContext(authenticatedUser, access);
         const familyMember = await FamilyTreeService.addFamilyMember(context, req.body);
         return res.status(201).json({
@@ -119,9 +115,7 @@ export const addFamilyMember = async (req, res) => {
         });
     }
     catch (error) {
-        return res
-            .status(getErrorStatusCode(error, 400))
-            .json({
+        return res.status(getErrorStatusCode(error, 400)).json({
             success: false,
             message: getErrorMessage(error, "Failed to add family member"),
         });
@@ -140,9 +134,7 @@ export const getFamilyTree = async (req, res) => {
         });
     }
     catch (error) {
-        return res
-            .status(getErrorStatusCode(error, 500))
-            .json({
+        return res.status(getErrorStatusCode(error, 500)).json({
             success: false,
             message: getErrorMessage(error, "Failed to fetch family tree"),
         });
@@ -151,7 +143,7 @@ export const getFamilyTree = async (req, res) => {
 export const getFamilyMembers = async (req, res) => {
     try {
         const { access } = await resolveTreeAccess(req);
-        const { search, relation, gender, lifeStatus, page, limit, } = req.query;
+        const { search, relation, gender, lifeStatus, page, limit } = req.query;
         const filters = {
             page: typeof page === "number"
                 ? page
@@ -165,20 +157,16 @@ export const getFamilyMembers = async (req, res) => {
                     : 20,
         };
         if (typeof search === "string") {
-            filters.search =
-                search.trim();
+            filters.search = search.trim();
         }
         if (typeof relation === "string") {
-            filters.relation =
-                relation;
+            filters.relation = relation;
         }
         if (typeof gender === "string") {
-            filters.gender =
-                gender;
+            filters.gender = gender;
         }
         if (typeof lifeStatus === "string") {
-            filters.lifeStatus =
-                lifeStatus;
+            filters.lifeStatus = lifeStatus;
         }
         const result = await FamilyTreeService.getFamilyMembers(access.ownerId, filters);
         return res.status(200).json({
@@ -188,9 +176,7 @@ export const getFamilyMembers = async (req, res) => {
         });
     }
     catch (error) {
-        return res
-            .status(getErrorStatusCode(error, 500))
-            .json({
+        return res.status(getErrorStatusCode(error, 500)).json({
             success: false,
             message: getErrorMessage(error, "Failed to fetch family members"),
         });
@@ -208,9 +194,7 @@ export const getFamilyMemberById = async (req, res) => {
         });
     }
     catch (error) {
-        return res
-            .status(getErrorStatusCode(error, 500))
-            .json({
+        return res.status(getErrorStatusCode(error, 500)).json({
             success: false,
             message: getErrorMessage(error, "Failed to fetch family member"),
         });
@@ -218,7 +202,7 @@ export const getFamilyMemberById = async (req, res) => {
 };
 export const updateFamilyMember = async (req, res) => {
     try {
-        const { authenticatedUser, access, } = await resolveTreeAccess(req);
+        const { authenticatedUser, access } = await resolveTreeAccess(req);
         const familyMemberId = getRequiredStringParam(req.params.id, "Family member ID");
         const context = buildActorContext(authenticatedUser, access);
         const familyMember = await FamilyTreeService.updateFamilyMember(context, familyMemberId, req.body);
@@ -229,9 +213,7 @@ export const updateFamilyMember = async (req, res) => {
         });
     }
     catch (error) {
-        return res
-            .status(getErrorStatusCode(error, 400))
-            .json({
+        return res.status(getErrorStatusCode(error, 400)).json({
             success: false,
             message: getErrorMessage(error, "Failed to update family member"),
         });
@@ -239,11 +221,9 @@ export const updateFamilyMember = async (req, res) => {
 };
 export const deleteFamilyMember = async (req, res) => {
     try {
-        const { authenticatedUser, access, } = await resolveTreeAccess(req);
+        const { authenticatedUser, access } = await resolveTreeAccess(req);
         const familyMemberId = getRequiredStringParam(req.params.id, "Family member ID");
-        const reason = typeof req.body?.reason === "string"
-            ? req.body.reason.trim()
-            : "";
+        const reason = typeof req.body?.reason === "string" ? req.body.reason.trim() : "";
         if (reason.length < 3) {
             return res.status(400).json({
                 success: false,
@@ -259,9 +239,7 @@ export const deleteFamilyMember = async (req, res) => {
         });
     }
     catch (error) {
-        return res
-            .status(getErrorStatusCode(error, 400))
-            .json({
+        return res.status(getErrorStatusCode(error, 400)).json({
             success: false,
             message: getErrorMessage(error, "Failed to delete family member"),
         });
@@ -270,22 +248,18 @@ export const deleteFamilyMember = async (req, res) => {
 export const getFamilyTreeActivities = async (req, res) => {
     try {
         const { access } = await resolveTreeAccess(req);
-        const { action, familyMemberId, performedBy, bookingId, page, limit, } = req.query;
+        const { action, familyMemberId, performedBy, bookingId, page, limit } = req.query;
         const result = await FamilyTreeService.getFamilyTreeActivities(access.ownerId, {
-            ...(typeof action ===
-                "string" && {
+            ...(typeof action === "string" && {
                 action,
             }),
-            ...(typeof familyMemberId ===
-                "string" && {
+            ...(typeof familyMemberId === "string" && {
                 familyMemberId,
             }),
-            ...(typeof performedBy ===
-                "string" && {
+            ...(typeof performedBy === "string" && {
                 performedBy,
             }),
-            ...(typeof bookingId ===
-                "string" && {
+            ...(typeof bookingId === "string" && {
                 bookingId,
             }),
             page: typeof page === "number"
@@ -306,9 +280,7 @@ export const getFamilyTreeActivities = async (req, res) => {
         });
     }
     catch (error) {
-        return res
-            .status(getErrorStatusCode(error, 500))
-            .json({
+        return res.status(getErrorStatusCode(error, 500)).json({
             success: false,
             message: getErrorMessage(error, "Failed to fetch family tree activities"),
         });
@@ -318,7 +290,7 @@ export const getFamilyMemberActivities = async (req, res) => {
     try {
         const { access } = await resolveTreeAccess(req);
         const familyMemberId = getRequiredStringParam(req.params.id, "Family member ID");
-        const { page, limit, } = req.query;
+        const { page, limit } = req.query;
         const result = await FamilyTreeService.getFamilyMemberActivities(access.ownerId, familyMemberId, {
             page: typeof page === "number"
                 ? page
@@ -338,9 +310,7 @@ export const getFamilyMemberActivities = async (req, res) => {
         });
     }
     catch (error) {
-        return res
-            .status(getErrorStatusCode(error, 500))
-            .json({
+        return res.status(getErrorStatusCode(error, 500)).json({
             success: false,
             message: getErrorMessage(error, "Failed to fetch family member activities"),
         });
@@ -348,11 +318,9 @@ export const getFamilyMemberActivities = async (req, res) => {
 };
 export const restoreFamilyMember = async (req, res) => {
     try {
-        const { authenticatedUser, access, } = await resolveTreeAccess(req);
+        const { authenticatedUser, access } = await resolveTreeAccess(req);
         const familyMemberId = getRequiredStringParam(req.params.id, "Family member ID");
-        const reason = typeof req.body?.reason === "string"
-            ? req.body.reason.trim()
-            : undefined;
+        const reason = typeof req.body?.reason === "string" ? req.body.reason.trim() : undefined;
         const context = buildActorContext(authenticatedUser, access);
         const restoredMember = await FamilyTreeService.restoreFamilyMember(context, familyMemberId, reason);
         return res.status(200).json({
@@ -362,9 +330,7 @@ export const restoreFamilyMember = async (req, res) => {
         });
     }
     catch (error) {
-        return res
-            .status(getErrorStatusCode(error, 400))
-            .json({
+        return res.status(getErrorStatusCode(error, 400)).json({
             success: false,
             message: getErrorMessage(error, "Failed to restore family member"),
         });

@@ -1,5 +1,6 @@
 import express, {} from "express";
-import cors, {} from "cors";
+import cors from "cors";
+import { corsOptions } from "./config/cors.js";
 import helmet from "helmet";
 import authRoutes from "./routes/auth.routes.js";
 import brandingRoutes from "./routes/branding.routes.js";
@@ -28,38 +29,10 @@ import policyRoutes from "./routes/policy.routes.js";
 import reviewRoutes from "./routes/review.routes.js";
 import queriesRoutes from "./routes/userQuery.routes.js";
 import taxRoutes from "./routes/taxprofile.routes.js";
-import { paymentWebhooks, } from "./controllers/booking.controllers.js";
+import chatRoutes from "./routes/chat.routes.js";
+import { paymentWebhooks } from "./controllers/booking.controllers.js";
 import { HttpError } from "./utils/httpError.js";
 const app = express();
-const allowedOrigins = new Set([
-    "https://heartfelt-gelato-d455e0.netlify.app",
-    "http://localhost:3001",
-]);
-const corsOptions = {
-    origin: (origin, callback) => {
-        if (origin === undefined ||
-            allowedOrigins.has(origin)) {
-            callback(null, true);
-            return;
-        }
-        callback(new Error("Not allowed by CORS"));
-    },
-    credentials: true,
-    methods: [
-        "GET",
-        "POST",
-        "PUT",
-        "PATCH",
-        "DELETE",
-        "OPTIONS",
-    ],
-    allowedHeaders: [
-        "Content-Type",
-        "Authorization",
-        "X-Requested-With",
-        "Accept",
-    ],
-};
 app.set("trust proxy", 1);
 app.use(cors(corsOptions));
 app.options("/*splat", cors(corsOptions));
@@ -106,6 +79,7 @@ app.use("/api/policy", policyRoutes);
 app.use("/api/review", reviewRoutes);
 app.use("/api/queries", queriesRoutes);
 app.use("/api/branding", brandingRoutes);
+app.use("/api/chat", chatRoutes);
 app.get("/health", (_req, res) => {
     res.status(200).json({
         status: "ok",
@@ -119,22 +93,15 @@ app.use((_req, res) => {
     });
 });
 app.use((error, _req, res, _next) => {
-    const status = error instanceof HttpError
-        ? error.statusCode
-        : 500;
-    const errorMessage = error instanceof Error
-        ? error.message
-        : "Unknown server error";
+    const status = error instanceof HttpError ? error.statusCode : 500;
+    const errorMessage = error instanceof Error ? error.message : "Unknown server error";
     if (error instanceof Error) {
-        console.error(error.stack ??
-            error.message);
+        console.error(error.stack ?? error.message);
     }
     else {
         console.error(error);
     }
-    const message = process.env.NODE_ENV ===
-        "production" &&
-        status === 500
+    const message = process.env.NODE_ENV === "production" && status === 500
         ? "Internal server error"
         : errorMessage;
     res.status(status).json({

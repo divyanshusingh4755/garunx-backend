@@ -1,17 +1,8 @@
-import {
-  model,
-  Schema,
-  type Document,
-  Types,
-} from "mongoose";
+import { model, Schema, type Document, Types } from "mongoose";
 
-export type ReferralRewardStatus =
-  | "PENDING"
-  | "AWARDED"
-  | "FAILED";
+export type ReferralRewardStatus = "PENDING" | "AWARDED" | "FAILED";
 
-export interface IReferralReward
-  extends Document {
+export interface IReferralReward extends Document {
   referrerUserId: Types.ObjectId;
   referredUserId: Types.ObjectId;
 
@@ -29,92 +20,76 @@ export interface IReferralReward
   updatedAt: Date;
 }
 
-const referralRewardSchema =
-  new Schema<IReferralReward>(
-    {
-      referrerUserId: {
-        type: Schema.Types.ObjectId,
-        ref: "User",
-        required: true,
-        index: true,
-      },
-
-      referredUserId: {
-        type: Schema.Types.ObjectId,
-        ref: "User",
-        required: true,
-        index: true,
-      },
-
-      bookingId: {
-        type: Schema.Types.ObjectId,
-        ref: "Booking",
-        required: true,
-        index: true,
-      },
-
-      referrerCouponId: {
-        type: Schema.Types.ObjectId,
-        ref: "Coupon",
-      },
-
-      referredCouponId: {
-        type: Schema.Types.ObjectId,
-        ref: "Coupon",
-      },
-
-      referrerRewardAmount: {
-        type: Number,
-        required: true,
-        min: 0,
-      },
-
-      referredRewardAmount: {
-        type: Number,
-        required: true,
-        min: 0,
-      },
-
-      status: {
-        type: String,
-        enum: [
-          "PENDING",
-          "AWARDED",
-          "FAILED",
-        ],
-        default: "PENDING",
-        required: true,
-        index: true,
-      },
+const referralRewardSchema = new Schema<IReferralReward>(
+  {
+    referrerUserId: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+      index: true,
     },
-    {
-      timestamps: true,
+
+    referredUserId: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+      index: true,
     },
-  );
 
-referralRewardSchema.pre(
-  "validate",
-  function () {
-    if (
-      this.referrerUserId.toString() ===
-      this.referredUserId.toString()
-    ) {
-      throw new Error(
-        "Referrer and referred user cannot be the same",
-      );
-    }
+    bookingId: {
+      type: Schema.Types.ObjectId,
+      ref: "Booking",
+      required: true,
+      index: true,
+    },
 
-    if (
-      this.status === "AWARDED" &&
-      (!this.referrerCouponId ||
-        !this.referredCouponId)
-    ) {
-      throw new Error(
-        "Awarded referral rewards require both coupon IDs",
-      );
-    }
+    referrerCouponId: {
+      type: Schema.Types.ObjectId,
+      ref: "Coupon",
+    },
+
+    referredCouponId: {
+      type: Schema.Types.ObjectId,
+      ref: "Coupon",
+    },
+
+    referrerRewardAmount: {
+      type: Number,
+      required: true,
+      min: 0,
+    },
+
+    referredRewardAmount: {
+      type: Number,
+      required: true,
+      min: 0,
+    },
+
+    status: {
+      type: String,
+      enum: ["PENDING", "AWARDED", "FAILED"],
+      default: "PENDING",
+      required: true,
+      index: true,
+    },
+  },
+  {
+    timestamps: true,
   },
 );
+
+referralRewardSchema.pre("validate", function () {
+  if (this.referrerUserId.toString() === this.referredUserId.toString()) {
+    throw new Error("Referrer and referred user cannot be the same");
+  }
+
+  if (
+    this.status === "AWARDED" &&
+    (!this.referrerCouponId || !this.referredCouponId)
+  ) {
+    throw new Error("Awarded referral rewards require both coupon IDs");
+  }
+});
 
 referralRewardSchema.index(
   {
@@ -122,8 +97,7 @@ referralRewardSchema.index(
   },
   {
     unique: true,
-    name:
-      "UniqueReferralRewardPerReferredUser",
+    name: "UniqueReferralRewardPerReferredUser",
   },
 );
 
@@ -137,8 +111,7 @@ referralRewardSchema.index({
   createdAt: -1,
 });
 
-export const ReferralReward =
-  model<IReferralReward>(
-    "ReferralReward",
-    referralRewardSchema,
-  );
+export const ReferralReward = model<IReferralReward>(
+  "ReferralReward",
+  referralRewardSchema,
+);

@@ -1,5 +1,5 @@
 import { Router, } from "express";
-import { body, param, query, validationResult, } from "express-validator";
+import { body, param, query, validationResult } from "express-validator";
 import { createTier, getAllTier, getTierById, toggleTierStatus, updateTier, } from "../controllers/tier.controllers.js";
 import { authenticate } from "../middleware/authenticate.js";
 const router = Router();
@@ -58,11 +58,7 @@ const updateTierValidation = [
         .withMessage("isActive must be boolean")
         .toBoolean(),
     body().custom((payload) => {
-        const allowedFields = [
-            "name",
-            "tierReference",
-            "isActive",
-        ];
+        const allowedFields = ["name", "tierReference", "isActive"];
         const hasUpdate = allowedFields.some((field) => payload[field] !== undefined);
         if (!hasUpdate) {
             throw new Error("At least one field is required");

@@ -1,18 +1,10 @@
-import {
-  Types,
-} from "mongoose";
+import { Types } from "mongoose";
 
-import {
-  Location,
-} from "../models/location.model.js";
+import { Location } from "../models/location.model.js";
 
-import {
-  State,
-} from "../models/state.model.js";
+import { State } from "../models/state.model.js";
 
-import {
-  taxConfig,
-} from "../config/tax.config.js";
+import { taxConfig } from "../config/tax.config.js";
 
 export interface ITaxContext {
   supplierStateCode: string;
@@ -20,115 +12,75 @@ export interface ITaxContext {
 }
 
 export class TaxContextService {
-  private static normalizeStateCode(
-    fieldName: string,
-    value: unknown,
-  ): string {
-    if (
-      typeof value !== "string"
-    ) {
-      throw new Error(
-        `${fieldName} must be a string`,
-      );
+  private static normalizeStateCode(fieldName: string, value: unknown): string {
+    if (typeof value !== "string") {
+      throw new Error(`${fieldName} must be a string`);
     }
 
-    const normalized =
-      value.trim();
+    const normalized = value.trim();
 
     if (!/^\d{2}$/.test(normalized)) {
-      throw new Error(
-        `${fieldName} must contain exactly two digits`,
-      );
+      throw new Error(`${fieldName} must contain exactly two digits`);
     }
 
     return normalized;
   }
 
   static async resolveByLocationId(
-    locationId:
-      | string
-      | Types.ObjectId,
+    locationId: string | Types.ObjectId,
   ): Promise<ITaxContext> {
-    const id =
-      locationId.toString();
+    const id = locationId.toString();
 
     if (!Types.ObjectId.isValid(id)) {
-      throw new Error(
-        "Invalid locationId",
-      );
+      throw new Error("Invalid locationId");
     }
 
     if (!taxConfig.enabled) {
-      throw new Error(
-        "GST is disabled",
-      );
+      throw new Error("GST is disabled");
     }
 
-    const supplierStateCode =
-      this.normalizeStateCode(
-        "Supplier GST state code",
-        taxConfig.supplierStateCode,
-      );
+    const supplierStateCode = this.normalizeStateCode(
+      "Supplier GST state code",
+      taxConfig.supplierStateCode,
+    );
 
-    const location =
-      await Location.findById(id)
-        .select(
-          "stateId isActive",
-        )
-        .lean();
+    const location = await Location.findById(id)
+      .select("stateId isActive")
+      .lean();
 
     if (!location) {
-      throw new Error(
-        "Location not found",
-      );
+      throw new Error("Location not found");
     }
 
     if (!location.isActive) {
-      throw new Error(
-        "Location is inactive",
-      );
+      throw new Error("Location is inactive");
     }
 
     if (!location.stateId) {
-      throw new Error(
-        "State is not configured for this location",
-      );
+      throw new Error("State is not configured for this location");
     }
 
-    const state =
-      await State.findById(
-        location.stateId,
-      )
-        .select(
-          "gstCode isActive name",
-        )
-        .lean();
+    const state = await State.findById(location.stateId)
+      .select("gstCode isActive name")
+      .lean();
 
     if (!state) {
-      throw new Error(
-        "State not found for this location",
-      );
+      throw new Error("State not found for this location");
     }
 
     if (!state.isActive) {
-      throw new Error(
-        "State configured for this location is inactive",
-      );
+      throw new Error("State configured for this location is inactive");
     }
 
-    const stateName =
-      state.name ??
-      "selected state";
+    const stateName = state.name ?? "selected state";
 
-    let placeOfSupplyStateCode:
-      string;
+    let placeOfSupplyStateCode: string;
 
     try {
-      placeOfSupplyStateCode =
-        this.normalizeStateCode(
-          "State GST code",
-          state.gstCode,
-        );
+      placeOfSupplyStateCode = this.normalizeStateCode(
+        "State GST code",
+        state.gstCode,
+      );
     } catch {
       throw new Error(
         `Invalid or missing GST code configured for state ${stateName}`,

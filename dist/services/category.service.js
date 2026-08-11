@@ -127,9 +127,7 @@ export class CategoryService {
         }
     }
     static async findCategories(searchTerm, typeFilter, limit = 40, page = 1, isActive, sortBy = "displayOrder", sortOrder = "asc") {
-        const safeLimit = Number.isInteger(limit) && limit > 0
-            ? Math.min(limit, 100)
-            : 40;
+        const safeLimit = Number.isInteger(limit) && limit > 0 ? Math.min(limit, 100) : 40;
         const safePage = Number.isInteger(page) && page > 0 ? page : 1;
         const skip = safeLimit * (safePage - 1);
         const query = {};
@@ -140,8 +138,7 @@ export class CategoryService {
             query.type = typeFilter;
         }
         const trimmedSearchTerm = searchTerm?.trim();
-        const isTextSearch = Boolean(trimmedSearchTerm) &&
-            trimmedSearchTerm.length > 4;
+        const isTextSearch = Boolean(trimmedSearchTerm) && trimmedSearchTerm.length > 4;
         if (trimmedSearchTerm) {
             if (isTextSearch) {
                 query.$text = {
@@ -175,9 +172,7 @@ export class CategoryService {
             "updatedAt",
             "relevance",
         ]);
-        const safeSortBy = allowedSortFields.has(sortBy)
-            ? sortBy
-            : "displayOrder";
+        const safeSortBy = allowedSortFields.has(sortBy) ? sortBy : "displayOrder";
         let sortCriteria = {};
         let projection = {};
         if (isTextSearch && safeSortBy === "relevance") {

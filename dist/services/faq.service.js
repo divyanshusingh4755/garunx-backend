@@ -1,6 +1,6 @@
 import { Types } from "mongoose";
-import { FAQ, } from "../models/faq.model.js";
-import { escapeRegex, } from "../utils/escapeRegex.js";
+import { FAQ } from "../models/faq.model.js";
+import { escapeRegex } from "../utils/escapeRegex.js";
 export class FAQService {
     static ensureValidId(id) {
         if (!Types.ObjectId.isValid(id)) {
@@ -33,8 +33,7 @@ export class FAQService {
     }
     static async getFaqById(id) {
         this.ensureValidId(id);
-        const faq = await FAQ.findById(id)
-            .lean();
+        const faq = await FAQ.findById(id).lean();
         if (!faq) {
             throw new Error("FAQ not found");
         }
@@ -58,12 +57,8 @@ export class FAQService {
         return faq.save();
     }
     static async findFaqs(searchTerm, faqType, limit = 20, page = 1, isActive, sortBy = "displayOrder", sortOrder = "asc") {
-        const safeLimit = Number.isInteger(limit) && limit > 0
-            ? Math.min(limit, 100)
-            : 20;
-        const safePage = Number.isInteger(page) && page > 0
-            ? page
-            : 1;
+        const safeLimit = Number.isInteger(limit) && limit > 0 ? Math.min(limit, 100) : 20;
+        const safePage = Number.isInteger(page) && page > 0 ? page : 1;
         const skip = safeLimit * (safePage - 1);
         const query = {};
         if (faqType) {
@@ -73,8 +68,7 @@ export class FAQService {
             query.isActive = isActive;
         }
         const normalizedSearch = searchTerm?.trim();
-        const isTextSearch = Boolean(normalizedSearch &&
-            normalizedSearch.length > 4);
+        const isTextSearch = Boolean(normalizedSearch && normalizedSearch.length > 4);
         if (normalizedSearch) {
             if (isTextSearch) {
                 query.$text = {
@@ -97,13 +91,10 @@ export class FAQService {
             "isActive",
             "relevance",
         ]);
-        const safeSortBy = allowedSortFields.has(sortBy)
-            ? sortBy
-            : "displayOrder";
+        const safeSortBy = allowedSortFields.has(sortBy) ? sortBy : "displayOrder";
         let projection = {};
         let sortCriteria;
-        if (isTextSearch &&
-            safeSortBy === "relevance") {
+        if (isTextSearch && safeSortBy === "relevance") {
             projection = {
                 score: {
                     $meta: "textScore",
@@ -116,13 +107,9 @@ export class FAQService {
             };
         }
         else {
-            const actualSortField = safeSortBy === "relevance"
-                ? "displayOrder"
-                : safeSortBy;
+            const actualSortField = safeSortBy === "relevance" ? "displayOrder" : safeSortBy;
             sortCriteria = {
-                [actualSortField]: sortOrder === "desc"
-                    ? -1
-                    : 1,
+                [actualSortField]: sortOrder === "desc" ? -1 : 1,
             };
             if (actualSortField !== "createdAt") {
                 sortCriteria.createdAt = -1;
@@ -146,9 +133,7 @@ export class FAQService {
             };
         }
         catch (error) {
-            const message = error instanceof Error
-                ? error.message
-                : "Unknown error";
+            const message = error instanceof Error ? error.message : "Unknown error";
             throw new Error(`FAQ fetch failed: ${message}`);
         }
     }

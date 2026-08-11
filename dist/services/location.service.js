@@ -1,4 +1,4 @@
-import mongoose, { Types, } from "mongoose";
+import mongoose, { Types } from "mongoose";
 import { Location, } from "../models/location.model.js";
 import { Service } from "../models/service.model.js";
 import { Package } from "../models/package.model.js";
@@ -88,9 +88,7 @@ export class LocationService {
             };
         }
         else {
-            const safeSortBy = allowedSortFields.has(sortBy)
-                ? sortBy
-                : "createdAt";
+            const safeSortBy = allowedSortFields.has(sortBy) ? sortBy : "createdAt";
             sortCriteria = {
                 [safeSortBy]: sortOrder === "asc" ? 1 : -1,
             };
@@ -186,8 +184,7 @@ export class LocationService {
         }
         if (!status && !confirmed) {
             const impact = await this.getDeactivationImpact(locationId);
-            if (impact.servicesCount > 0 ||
-                impact.packagesCount > 0) {
+            if (impact.servicesCount > 0 || impact.packagesCount > 0) {
                 return {
                     requiresConfirmation: true,
                     impact,

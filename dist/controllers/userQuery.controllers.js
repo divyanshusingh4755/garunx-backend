@@ -1,7 +1,5 @@
-import { UserQueryService, } from "../services/userQuery.services.js";
-const getErrorMessage = (error, fallback) => error instanceof Error
-    ? error.message
-    : fallback;
+import { UserQueryService } from "../services/userQuery.services.js";
+const getErrorMessage = (error, fallback) => error instanceof Error ? error.message : fallback;
 const getErrorStatus = (error) => {
     if (!(error instanceof Error)) {
         return 400;
@@ -19,20 +17,13 @@ const getErrorStatus = (error) => {
     }
     return 400;
 };
-const getUserId = (req) => req.user?.userId
-    ? String(req.user.userId)
-    : null;
+const getUserId = (req) => req.user?.userId ? String(req.user.userId) : null;
 const parsePositiveInteger = (value, fallback, max) => {
-    const parsed = typeof value === "number"
-        ? value
-        : Number(value);
-    if (!Number.isInteger(parsed) ||
-        parsed < 1) {
+    const parsed = typeof value === "number" ? value : Number(value);
+    if (!Number.isInteger(parsed) || parsed < 1) {
         return fallback;
     }
-    return max
-        ? Math.min(parsed, max)
-        : parsed;
+    return max ? Math.min(parsed, max) : parsed;
 };
 export const createUserQuery = async (req, res) => {
     try {
@@ -49,15 +40,12 @@ export const createUserQuery = async (req, res) => {
             category: req.body.category,
         };
         if (Object.prototype.hasOwnProperty.call(req.body, "message")) {
-            input.message =
-                req.body.message;
+            input.message = req.body.message;
         }
         if (Object.prototype.hasOwnProperty.call(req.body, "imageUrls")) {
-            input.imageUrls =
-                req.body.imageUrls;
+            input.imageUrls = req.body.imageUrls;
         }
-        const result = await UserQueryService
-            .createUserQueryService(input);
+        const result = await UserQueryService.createUserQueryService(input);
         return res.status(201).json({
             success: true,
             message: "Query created successfully",
@@ -65,9 +53,7 @@ export const createUserQuery = async (req, res) => {
         });
     }
     catch (error) {
-        return res
-            .status(getErrorStatus(error))
-            .json({
+        return res.status(getErrorStatus(error)).json({
             success: false,
             message: getErrorMessage(error, "Failed to create query"),
         });
@@ -86,26 +72,16 @@ export const getMyQueries = async (req, res) => {
             requesterId,
             limit: parsePositiveInteger(req.query.limit, 20, 100),
             page: parsePositiveInteger(req.query.page, 1),
-            sortBy: typeof req.query.sortBy ===
-                "string"
-                ? req.query.sortBy
-                : "createdAt",
-            sortOrder: req.query.sortOrder === "asc"
-                ? "asc"
-                : "desc",
+            sortBy: typeof req.query.sortBy === "string" ? req.query.sortBy : "createdAt",
+            sortOrder: req.query.sortOrder === "asc" ? "asc" : "desc",
         };
-        if (typeof req.query.status ===
-            "string") {
-            params.status =
-                req.query.status;
+        if (typeof req.query.status === "string") {
+            params.status = req.query.status;
         }
-        if (typeof req.query.category ===
-            "string") {
-            params.category =
-                req.query.category;
+        if (typeof req.query.category === "string") {
+            params.category = req.query.category;
         }
-        const result = await UserQueryService
-            .getMyQueries(params);
+        const result = await UserQueryService.getMyQueries(params);
         return res.status(200).json({
             success: true,
             data: result.data,
@@ -116,9 +92,7 @@ export const getMyQueries = async (req, res) => {
         });
     }
     catch (error) {
-        return res
-            .status(getErrorStatus(error))
-            .json({
+        return res.status(getErrorStatus(error)).json({
             success: false,
             message: getErrorMessage(error, "Failed to fetch queries"),
         });
@@ -133,8 +107,7 @@ export const getUserQueryById = async (req, res) => {
                 message: "Unauthorized",
             });
         }
-        const result = await UserQueryService
-            .getUserQueryById({
+        const result = await UserQueryService.getUserQueryById({
             queryId: req.params.queryId,
             requesterId,
         });
@@ -144,9 +117,7 @@ export const getUserQueryById = async (req, res) => {
         });
     }
     catch (error) {
-        return res
-            .status(getErrorStatus(error))
-            .json({
+        return res.status(getErrorStatus(error)).json({
             success: false,
             message: getErrorMessage(error, "Failed to fetch query"),
         });
@@ -166,15 +137,12 @@ export const sendUserQueryMessage = async (req, res) => {
             requesterId,
         };
         if (Object.prototype.hasOwnProperty.call(req.body, "message")) {
-            input.message =
-                req.body.message;
+            input.message = req.body.message;
         }
         if (Object.prototype.hasOwnProperty.call(req.body, "imageUrls")) {
-            input.imageUrls =
-                req.body.imageUrls;
+            input.imageUrls = req.body.imageUrls;
         }
-        const result = await UserQueryService
-            .sendUserQueryMessage(input);
+        const result = await UserQueryService.sendUserQueryMessage(input);
         return res.status(201).json({
             success: true,
             message: "Message sent successfully",
@@ -182,9 +150,7 @@ export const sendUserQueryMessage = async (req, res) => {
         });
     }
     catch (error) {
-        return res
-            .status(getErrorStatus(error))
-            .json({
+        return res.status(getErrorStatus(error)).json({
             success: false,
             message: getErrorMessage(error, "Failed to send message"),
         });
@@ -199,8 +165,7 @@ export const markUserQueryAsRead = async (req, res) => {
                 message: "Unauthorized",
             });
         }
-        const result = await UserQueryService
-            .markUserQueryAsRead({
+        const result = await UserQueryService.markUserQueryAsRead({
             queryId: req.params.queryId,
             actorId,
         });
@@ -211,9 +176,7 @@ export const markUserQueryAsRead = async (req, res) => {
         });
     }
     catch (error) {
-        return res
-            .status(getErrorStatus(error))
-            .json({
+        return res.status(getErrorStatus(error)).json({
             success: false,
             message: getErrorMessage(error, "Failed to mark query as read"),
         });
@@ -224,48 +187,29 @@ export const getAllUserQueries = async (req, res) => {
         const params = {
             limit: parsePositiveInteger(req.query.limit, 40, 100),
             page: parsePositiveInteger(req.query.page, 1),
-            sortBy: typeof req.query.sortBy ===
-                "string"
-                ? req.query.sortBy
-                : "createdAt",
-            sortOrder: req.query.sortOrder === "asc"
-                ? "asc"
-                : "desc",
+            sortBy: typeof req.query.sortBy === "string" ? req.query.sortBy : "createdAt",
+            sortOrder: req.query.sortOrder === "asc" ? "asc" : "desc",
         };
-        if (typeof req.query.searchTerm ===
-            "string") {
-            params.searchTerm =
-                req.query.searchTerm;
+        if (typeof req.query.searchTerm === "string") {
+            params.searchTerm = req.query.searchTerm;
         }
-        if (typeof req.query.status ===
-            "string") {
-            params.status =
-                req.query.status;
+        if (typeof req.query.status === "string") {
+            params.status = req.query.status;
         }
-        if (typeof req.query.category ===
-            "string") {
-            params.category =
-                req.query.category;
+        if (typeof req.query.category === "string") {
+            params.category = req.query.category;
         }
-        if (typeof req.query.priority ===
-            "string") {
-            params.priority =
-                req.query.priority;
+        if (typeof req.query.priority === "string") {
+            params.priority = req.query.priority;
         }
-        if (typeof req.query.requesterType ===
-            "string") {
-            params.requesterType =
-                req.query.requesterType;
+        if (typeof req.query.requesterType === "string") {
+            params.requesterType = req.query.requesterType;
         }
-        if (typeof req.query.assignedAdminId ===
-            "string") {
-            params.assignedAdminId =
-                req.query.assignedAdminId;
+        if (typeof req.query.assignedAdminId === "string") {
+            params.assignedAdminId = req.query.assignedAdminId;
         }
-        if (typeof req.query.requesterId ===
-            "string") {
-            params.requesterId =
-                req.query.requesterId;
+        if (typeof req.query.requesterId === "string") {
+            params.requesterId = req.query.requesterId;
         }
         if (req.query.isDeleted === "true") {
             params.isDeleted = true;
@@ -273,8 +217,7 @@ export const getAllUserQueries = async (req, res) => {
         else if (req.query.isDeleted === "false") {
             params.isDeleted = false;
         }
-        const result = await UserQueryService
-            .getAllUserQueries(params);
+        const result = await UserQueryService.getAllUserQueries(params);
         return res.status(200).json({
             success: true,
             data: result.data,
@@ -285,9 +228,7 @@ export const getAllUserQueries = async (req, res) => {
         });
     }
     catch (error) {
-        return res
-            .status(getErrorStatus(error))
-            .json({
+        return res.status(getErrorStatus(error)).json({
             success: false,
             message: getErrorMessage(error, "Failed to fetch user queries"),
         });
@@ -302,8 +243,7 @@ export const getAdminUserQueryById = async (req, res) => {
                 message: "Unauthorized",
             });
         }
-        const result = await UserQueryService
-            .getAdminUserQueryById({
+        const result = await UserQueryService.getAdminUserQueryById({
             queryId: req.params.queryId,
             adminId,
         });
@@ -313,9 +253,7 @@ export const getAdminUserQueryById = async (req, res) => {
         });
     }
     catch (error) {
-        return res
-            .status(getErrorStatus(error))
-            .json({
+        return res.status(getErrorStatus(error)).json({
             success: false,
             message: getErrorMessage(error, "Failed to fetch query"),
         });
@@ -335,15 +273,12 @@ export const sendAdminQueryReply = async (req, res) => {
             adminId,
         };
         if (Object.prototype.hasOwnProperty.call(req.body, "message")) {
-            input.message =
-                req.body.message;
+            input.message = req.body.message;
         }
         if (Object.prototype.hasOwnProperty.call(req.body, "imageUrls")) {
-            input.imageUrls =
-                req.body.imageUrls;
+            input.imageUrls = req.body.imageUrls;
         }
-        const result = await UserQueryService
-            .sendAdminQueryReply(input);
+        const result = await UserQueryService.sendAdminQueryReply(input);
         return res.status(201).json({
             success: true,
             message: "Reply sent successfully",
@@ -351,9 +286,7 @@ export const sendAdminQueryReply = async (req, res) => {
         });
     }
     catch (error) {
-        return res
-            .status(getErrorStatus(error))
-            .json({
+        return res.status(getErrorStatus(error)).json({
             success: false,
             message: getErrorMessage(error, "Failed to send reply"),
         });
@@ -374,11 +307,9 @@ export const updateUserQueryStatus = async (req, res) => {
             status: req.body.status,
         };
         if (Object.prototype.hasOwnProperty.call(req.body, "reason")) {
-            input.reason =
-                req.body.reason;
+            input.reason = req.body.reason;
         }
-        const result = await UserQueryService
-            .updateUserQueryStatus(input);
+        const result = await UserQueryService.updateUserQueryStatus(input);
         return res.status(200).json({
             success: true,
             message: "Query status updated successfully",
@@ -386,9 +317,7 @@ export const updateUserQueryStatus = async (req, res) => {
         });
     }
     catch (error) {
-        return res
-            .status(getErrorStatus(error))
-            .json({
+        return res.status(getErrorStatus(error)).json({
             success: false,
             message: getErrorMessage(error, "Failed to update query status"),
         });
@@ -409,11 +338,9 @@ export const updateUserQueryPriority = async (req, res) => {
             priority: req.body.priority,
         };
         if (Object.prototype.hasOwnProperty.call(req.body, "reason")) {
-            input.reason =
-                req.body.reason;
+            input.reason = req.body.reason;
         }
-        const result = await UserQueryService
-            .updateUserQueryPriority(input);
+        const result = await UserQueryService.updateUserQueryPriority(input);
         return res.status(200).json({
             success: true,
             message: "Query priority updated successfully",
@@ -421,9 +348,7 @@ export const updateUserQueryPriority = async (req, res) => {
         });
     }
     catch (error) {
-        return res
-            .status(getErrorStatus(error))
-            .json({
+        return res.status(getErrorStatus(error)).json({
             success: false,
             message: getErrorMessage(error, "Failed to update query priority"),
         });
@@ -444,11 +369,9 @@ export const updateUserQueryCategory = async (req, res) => {
             category: req.body.category,
         };
         if (Object.prototype.hasOwnProperty.call(req.body, "reason")) {
-            input.reason =
-                req.body.reason;
+            input.reason = req.body.reason;
         }
-        const result = await UserQueryService
-            .updateUserQueryCategory(input);
+        const result = await UserQueryService.updateUserQueryCategory(input);
         return res.status(200).json({
             success: true,
             message: "Query category updated successfully",
@@ -456,9 +379,7 @@ export const updateUserQueryCategory = async (req, res) => {
         });
     }
     catch (error) {
-        return res
-            .status(getErrorStatus(error))
-            .json({
+        return res.status(getErrorStatus(error)).json({
             success: false,
             message: getErrorMessage(error, "Failed to update query category"),
         });
@@ -473,8 +394,7 @@ export const assignUserQuery = async (req, res) => {
                 message: "Unauthorized",
             });
         }
-        const result = await UserQueryService
-            .assignUserQuery({
+        const result = await UserQueryService.assignUserQuery({
             queryId: req.params.queryId,
             adminId: req.body.adminId,
             performedBy,
@@ -486,9 +406,7 @@ export const assignUserQuery = async (req, res) => {
         });
     }
     catch (error) {
-        return res
-            .status(getErrorStatus(error))
-            .json({
+        return res.status(getErrorStatus(error)).json({
             success: false,
             message: getErrorMessage(error, "Failed to assign query"),
         });
@@ -503,8 +421,7 @@ export const deleteUserQuery = async (req, res) => {
                 message: "Unauthorized",
             });
         }
-        const result = await UserQueryService
-            .deleteUserQuery({
+        const result = await UserQueryService.deleteUserQuery({
             queryId: req.params.queryId,
             adminId,
             reason: req.body.reason,
@@ -516,9 +433,7 @@ export const deleteUserQuery = async (req, res) => {
         });
     }
     catch (error) {
-        return res
-            .status(getErrorStatus(error))
-            .json({
+        return res.status(getErrorStatus(error)).json({
             success: false,
             message: getErrorMessage(error, "Failed to delete query"),
         });

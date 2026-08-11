@@ -1,8 +1,4 @@
-import {
-  model,
-  Schema,
-  type Types,
-} from "mongoose";
+import { model, Schema, type Types } from "mongoose";
 
 export interface IComponent {
   name: string;
@@ -16,56 +12,55 @@ export interface IComponent {
   updatedAt: Date;
 }
 
-const componentSchema =
-  new Schema<IComponent>(
-    {
-      name: {
-        type: String,
-        required: true,
-        trim: true,
-        index: true,
-      },
-
-      isRemovable: {
-        type: Boolean,
-        required: true,
-        default: true,
-      },
-
-      isBundled: {
-        type: Boolean,
-        required: true,
-        default: true,
-      },
-
-      categoryId: {
-        type: Schema.Types.ObjectId,
-        ref: "Category",
-        required: true,
-      },
-
-      description: {
-        type: String,
-        required: true,
-        trim: true,
-      },
-
-      imageUrl: {
-        type: String,
-        trim: true,
-      },
-
-      isActive: {
-        type: Boolean,
-        required: true,
-        default: true,
-        index: true,
-      },
+const componentSchema = new Schema<IComponent>(
+  {
+    name: {
+      type: String,
+      required: true,
+      trim: true,
+      index: true,
     },
-    {
-      timestamps: true,
+
+    isRemovable: {
+      type: Boolean,
+      required: true,
+      default: true,
     },
-  );
+
+    isBundled: {
+      type: Boolean,
+      required: true,
+      default: true,
+    },
+
+    categoryId: {
+      type: Schema.Types.ObjectId,
+      ref: "Category",
+      required: true,
+    },
+
+    description: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+
+    imageUrl: {
+      type: String,
+      trim: true,
+    },
+
+    isActive: {
+      type: Boolean,
+      required: true,
+      default: true,
+      index: true,
+    },
+  },
+  {
+    timestamps: true,
+  },
+);
 
 componentSchema.index({
   categoryId: 1,
@@ -91,8 +86,4 @@ componentSchema.index({
   createdAt: -1,
 });
 
-export const Component =
-  model<IComponent>(
-    "Component",
-    componentSchema,
-  );
+export const Component = model<IComponent>("Component", componentSchema);

@@ -1,29 +1,17 @@
 import { Router, } from "express";
-import { body, param, query, validationResult, } from "express-validator";
+import { body, param, query, validationResult } from "express-validator";
 import { createReview, editReview, moderateReview, getAllReviews, getMyBookingReview, getMyReviews, getCoordinatorReviews, } from "../controllers/review.controllers.js";
-import { authenticate, } from "../middleware/authenticate.js";
-import { authorizeRoles, } from "../middleware/authorizeRoles.js";
-import { Role, } from "../types/rbac.js";
+import { authenticate } from "../middleware/authenticate.js";
+import { authorizeRoles } from "../middleware/authorizeRoles.js";
+import { Role } from "../types/rbac.js";
 const router = Router();
 const REVIEW_DIRECTIONS = [
     "CUSTOMER_TO_COORDINATOR",
     "COORDINATOR_TO_CUSTOMER",
 ];
-const REVIEW_VISIBILITIES = [
-    "PUBLISHED",
-    "HIDDEN",
-    "UNPUBLISHED",
-];
-const MODERATION_STATUSES = [
-    "CLEAN",
-    "FLAGGED",
-];
-const SORT_FIELDS = [
-    "createdAt",
-    "updatedAt",
-    "rating",
-    "editedAt",
-];
+const REVIEW_VISIBILITIES = ["PUBLISHED", "HIDDEN", "UNPUBLISHED"];
+const MODERATION_STATUSES = ["CLEAN", "FLAGGED"];
+const SORT_FIELDS = ["createdAt", "updatedAt", "rating", "editedAt"];
 const validate = (req, res, next) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -62,9 +50,7 @@ const commonListValidation = [
         .withMessage("Sort order must be asc or desc"),
 ];
 export const createReviewValidation = [
-    param("bookingId")
-        .isMongoId()
-        .withMessage("Invalid booking id"),
+    param("bookingId").isMongoId().withMessage("Invalid booking id"),
     body("rating")
         .exists()
         .withMessage("Rating is required")
@@ -93,20 +79,12 @@ export const createReviewValidation = [
     validate,
 ];
 export const editReviewValidation = [
-    param("reviewId")
-        .isMongoId()
-        .withMessage("Invalid review id"),
+    param("reviewId").isMongoId().withMessage("Invalid review id"),
     body().custom((value) => {
-        if (!value ||
-            typeof value !== "object" ||
-            Array.isArray(value)) {
+        if (!value || typeof value !== "object" || Array.isArray(value)) {
             throw new Error("Request body must be an object");
         }
-        const hasEditableField = [
-            "rating",
-            "review",
-            "imageUrl",
-        ].some((field) => Object.prototype.hasOwnProperty.call(value, field));
+        const hasEditableField = ["rating", "review", "imageUrl"].some((field) => Object.prototype.hasOwnProperty.call(value, field));
         if (!hasEditableField) {
             throw new Error("At least rating, review or imageUrl is required");
         }
@@ -139,20 +117,11 @@ export const editReviewValidation = [
     validate,
 ];
 export const moderateReviewValidation = [
-    param("reviewId")
-        .isMongoId()
-        .withMessage("Invalid review id"),
+    param("reviewId").isMongoId().withMessage("Invalid review id"),
     body("action")
         .exists()
         .withMessage("Moderation action is required")
-        .isIn([
-        "HIDE",
-        "UNPUBLISH",
-        "PUBLISH",
-        "FLAG",
-        "UNFLAG",
-        "DELETE",
-    ])
+        .isIn(["HIDE", "UNPUBLISH", "PUBLISH", "FLAG", "UNFLAG", "DELETE"])
         .withMessage("Invalid moderation action"),
     body("reason")
         .optional({ nullable: true })
@@ -164,9 +133,7 @@ export const moderateReviewValidation = [
     validate,
 ];
 export const getMyBookingReviewValidation = [
-    param("bookingId")
-        .isMongoId()
-        .withMessage("Invalid booking id"),
+    param("bookingId").isMongoId().withMessage("Invalid booking id"),
     validate,
 ];
 export const getMyReviewsValidation = [
@@ -178,9 +145,7 @@ export const getMyReviewsValidation = [
     validate,
 ];
 export const getCoordinatorReviewsValidation = [
-    param("coordinatorId")
-        .isMongoId()
-        .withMessage("Invalid coordinator id"),
+    param("coordinatorId").isMongoId().withMessage("Invalid coordinator id"),
     ...commonListValidation,
     validate,
 ];
@@ -201,18 +166,9 @@ export const getAllReviewsValidation = [
         .optional()
         .isBoolean()
         .withMessage("isDeleted must be true or false"),
-    query("reviewerId")
-        .optional()
-        .isMongoId()
-        .withMessage("Invalid reviewer id"),
-    query("revieweeId")
-        .optional()
-        .isMongoId()
-        .withMessage("Invalid reviewee id"),
-    query("bookingId")
-        .optional()
-        .isMongoId()
-        .withMessage("Invalid booking id"),
+    query("reviewerId").optional().isMongoId().withMessage("Invalid reviewer id"),
+    query("revieweeId").optional().isMongoId().withMessage("Invalid reviewee id"),
+    query("bookingId").optional().isMongoId().withMessage("Invalid booking id"),
     ...commonListValidation,
     validate,
 ];

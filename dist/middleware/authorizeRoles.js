@@ -1,4 +1,4 @@
-import { Role, } from "../types/rbac.js";
+import { Role } from "../types/rbac.js";
 export const authorizeRoles = (...allowedRoles) => {
     const allowedRoleSet = new Set(allowedRoles);
     return (req, res, next) => {

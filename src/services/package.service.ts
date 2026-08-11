@@ -269,8 +269,7 @@ export class PackageService {
       matchQuery["tiers.tierId"] = tierId;
     }
 
-    const useTextSearch =
-      !!searchTerm?.trim() && searchTerm.trim().length > 4;
+    const useTextSearch = !!searchTerm?.trim() && searchTerm.trim().length > 4;
 
     if (searchTerm?.trim()) {
       const term = searchTerm.trim();
@@ -541,8 +540,7 @@ export class PackageService {
           match: {
             isActive: true,
           },
-          select:
-            "name code treatment totalRate isActive",
+          select: "name code treatment totalRate isActive",
         })
         .lean(),
     ]);
@@ -608,15 +606,14 @@ export class PackageService {
         pricingMap.set(key, []);
       }
 
-      const taxProfile =
-        p.taxProfileId as
+      const taxProfile = p.taxProfileId as
         | {
-          _id: Types.ObjectId;
-          name?: string;
-          code?: string;
-          treatment?: string;
-          totalRate?: number;
-        }
+            _id: Types.ObjectId;
+            name?: string;
+            code?: string;
+            treatment?: string;
+            totalRate?: number;
+          }
         | null
         | undefined;
 
@@ -624,34 +621,23 @@ export class PackageService {
         locationId: p.locationId,
         basePrice: p.basePrice,
         fixedPrice: p.fixedPrice,
-        discountPercent:
-          p.discountPercent,
+        discountPercent: p.discountPercent,
         finalPrice: p.finalPrice,
 
         tax: {
-          taxProfileId:
-            taxProfile?._id ?? null,
+          taxProfileId: taxProfile?._id ?? null,
 
-          profileName:
-            taxProfile?.name ?? null,
+          profileName: taxProfile?.name ?? null,
 
-          profileCode:
-            taxProfile?.code ?? null,
+          profileCode: taxProfile?.code ?? null,
 
-          treatment:
-            taxProfile?.treatment ?? null,
+          treatment: taxProfile?.treatment ?? null,
 
-          totalRate:
-            taxProfile?.totalRate ?? 0,
+          totalRate: taxProfile?.totalRate ?? 0,
 
-          priceMode:
-            taxProfile
-              ? p.taxPriceMode ??
-              "EXCLUSIVE"
-              : "EXCLUSIVE",
+          priceMode: taxProfile ? (p.taxPriceMode ?? "EXCLUSIVE") : "EXCLUSIVE",
 
-          isTaxConfigured:
-            Boolean(taxProfile),
+          isTaxConfigured: Boolean(taxProfile),
         },
       });
     }
@@ -688,11 +674,11 @@ export class PackageService {
 
           category: category
             ? {
-              id: category._id,
-              label: category.label,
-              value: category.value,
-              image: category.image,
-            }
+                id: category._id,
+                label: category.label,
+                value: category.value,
+                image: category.image,
+              }
             : null,
 
           pricing: pricingMap.get(pricingKey) || [],
@@ -715,11 +701,11 @@ export class PackageService {
 
         category: packageCategory
           ? {
-            id: packageCategory._id,
-            label: packageCategory.label,
-            value: packageCategory.value,
-            image: packageCategory.image,
-          }
+              id: packageCategory._id,
+              label: packageCategory.label,
+              value: packageCategory.value,
+              image: packageCategory.image,
+            }
           : null,
 
         isActive: pkg.isActive,
@@ -854,11 +840,11 @@ export class PackageService {
 
         category: category
           ? {
-            id: category._id,
-            label: category.label,
-            value: category.value,
-            image: category.image,
-          }
+              id: category._id,
+              label: category.label,
+              value: category.value,
+              image: category.image,
+            }
           : null,
 
         pricing: pricingMap.get(service.serviceId.toString()) || null,
@@ -880,11 +866,11 @@ export class PackageService {
 
         category: packageCategory
           ? {
-            id: packageCategory._id,
-            label: packageCategory.label,
-            value: packageCategory.value,
-            image: packageCategory.image,
-          }
+              id: packageCategory._id,
+              label: packageCategory.label,
+              value: packageCategory.value,
+              image: packageCategory.image,
+            }
           : null,
 
         isActive: pkg.isActive,
@@ -1158,9 +1144,7 @@ export class PackageService {
     const matchQuery: any = {};
 
     if (cityIds?.length) {
-      const invalidIds = cityIds.filter(
-        (id) => !Types.ObjectId.isValid(id),
-      );
+      const invalidIds = cityIds.filter((id) => !Types.ObjectId.isValid(id));
 
       if (invalidIds.length > 0) {
         throw new Error(`Invalid cityIds: ${invalidIds.join(", ")}`);
@@ -1180,7 +1164,6 @@ export class PackageService {
     }
 
     try {
-
       if (cityIds?.length) {
         const locations = await Location.find({
           cityId: {
@@ -1191,24 +1174,18 @@ export class PackageService {
           .select("_id")
           .lean();
 
-
         const locationIds = locations.map((loc) => loc._id);
-
 
         matchQuery["locations.locationId"] = {
           $in: locationIds,
         };
       }
 
-
       if (categoryIds?.length) {
         matchQuery.categoryId = {
-          $in: categoryIds.map(
-            (id) => new Types.ObjectId(id),
-          ),
+          $in: categoryIds.map((id) => new Types.ObjectId(id)),
         };
       }
-
 
       if (isActive !== undefined) {
         matchQuery.isActive = isActive;
@@ -1246,18 +1223,14 @@ export class PackageService {
         Package.countDocuments(matchQuery),
       ]);
 
-
       return {
         data,
         total,
         page,
         totalPages: Math.ceil(total / limit),
       };
-
     } catch (error: any) {
-      throw new Error(
-        `Fetching packages by location failed: ${error.message}`,
-      );
+      throw new Error(`Fetching packages by location failed: ${error.message}`);
     }
   }
 }

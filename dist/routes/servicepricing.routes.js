@@ -9,8 +9,7 @@ const validate = (req, res, next) => {
         const firstError = errors.array()[0];
         return res.status(400).json({
             success: false,
-            message: firstError?.msg ??
-                "Validation failed",
+            message: firstError?.msg ?? "Validation failed",
             error: firstError,
         });
     }
@@ -57,10 +56,7 @@ const bulkPricingValidation = [
         .withMessage("Invalid taxProfileId"),
     body("pricing.*.components.*.taxPriceMode")
         .optional()
-        .isIn([
-        "EXCLUSIVE",
-        "INCLUSIVE",
-    ])
+        .isIn(["EXCLUSIVE", "INCLUSIVE"])
         .withMessage("taxPriceMode must be EXCLUSIVE or INCLUSIVE"),
 ];
 router.post("/bulk", authenticate, ...bulkPricingValidation, validate, bulkUpsertTierPricing);

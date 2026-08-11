@@ -26,10 +26,7 @@ export class CategoryService {
     return category.save();
   }
 
-  static async updateCategory(
-    id: string,
-    updateData: Partial<ICategory>,
-  ) {
+  static async updateCategory(id: string, updateData: Partial<ICategory>) {
     if (!Types.ObjectId.isValid(id)) {
       throw new Error("Invalid category ID");
     }
@@ -85,17 +82,14 @@ export class CategoryService {
       throw new Error("Category not found");
     }
 
-    const [hasComponents, hasServices, hasPackages] =
-      await Promise.all([
-        Component.exists({ categoryId: id }),
-        Service.exists({ categoryId: id }),
-        Package.exists({ categoryId: id }),
-      ]);
+    const [hasComponents, hasServices, hasPackages] = await Promise.all([
+      Component.exists({ categoryId: id }),
+      Service.exists({ categoryId: id }),
+      Package.exists({ categoryId: id }),
+    ]);
 
     if (hasComponents || hasServices || hasPackages) {
-      throw new Error(
-        "Cannot delete category because it is currently in use",
-      );
+      throw new Error("Cannot delete category because it is currently in use");
     }
 
     await Category.findByIdAndDelete(id);
@@ -108,15 +102,9 @@ export class CategoryService {
         { _id: 1, name: 1 },
       ).lean(),
 
-      Service.find(
-        { categoryId, isActive: true },
-        { _id: 1, name: 1 },
-      ).lean(),
+      Service.find({ categoryId, isActive: true }, { _id: 1, name: 1 }).lean(),
 
-      Package.find(
-        { categoryId, isActive: true },
-        { _id: 1, name: 1 },
-      ).lean(),
+      Package.find({ categoryId, isActive: true }, { _id: 1, name: 1 }).lean(),
     ]);
 
     return {
@@ -129,10 +117,7 @@ export class CategoryService {
     };
   }
 
-  static async toggleCategoryStatus(
-    categoryId: string,
-    confirmed = false,
-  ) {
+  static async toggleCategoryStatus(categoryId: string, confirmed = false) {
     if (!Types.ObjectId.isValid(categoryId)) {
       throw new Error("Invalid category ID");
     }
@@ -194,9 +179,7 @@ export class CategoryService {
         }
       });
 
-      const updatedCategory = await Category.findById(
-        categoryId,
-      ).lean();
+      const updatedCategory = await Category.findById(categoryId).lean();
 
       if (!updatedCategory) {
         throw new Error("Category not found");
@@ -221,12 +204,9 @@ export class CategoryService {
     sortOrder: "asc" | "desc" = "asc",
   ) {
     const safeLimit =
-      Number.isInteger(limit) && limit > 0
-        ? Math.min(limit, 100)
-        : 40;
+      Number.isInteger(limit) && limit > 0 ? Math.min(limit, 100) : 40;
 
-    const safePage =
-      Number.isInteger(page) && page > 0 ? page : 1;
+    const safePage = Number.isInteger(page) && page > 0 ? page : 1;
 
     const skip = safeLimit * (safePage - 1);
     const query: Record<string, any> = {};
@@ -241,8 +221,7 @@ export class CategoryService {
 
     const trimmedSearchTerm = searchTerm?.trim();
     const isTextSearch =
-      Boolean(trimmedSearchTerm) &&
-      trimmedSearchTerm!.length > 4;
+      Boolean(trimmedSearchTerm) && trimmedSearchTerm!.length > 4;
 
     if (trimmedSearchTerm) {
       if (isTextSearch) {
@@ -278,9 +257,7 @@ export class CategoryService {
       "relevance",
     ]);
 
-    const safeSortBy = allowedSortFields.has(sortBy)
-      ? sortBy
-      : "displayOrder";
+    const safeSortBy = allowedSortFields.has(sortBy) ? sortBy : "displayOrder";
 
     let sortCriteria: Record<string, any> = {};
     let projection: Record<string, any> = {};
@@ -298,8 +275,7 @@ export class CategoryService {
         },
       };
     } else {
-      const field =
-        safeSortBy === "relevance" ? "displayOrder" : safeSortBy;
+      const field = safeSortBy === "relevance" ? "displayOrder" : safeSortBy;
 
       sortCriteria[field] = sortOrder === "desc" ? -1 : 1;
 

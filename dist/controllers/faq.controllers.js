@@ -1,30 +1,23 @@
 import { FAQService } from "../services/faq.service.js";
 const getErrorMessage = (error, fallback) => {
-    return error instanceof Error
-        ? error.message
-        : fallback;
+    return error instanceof Error ? error.message : fallback;
 };
 const getErrorStatus = (error) => {
-    if (error instanceof Error &&
-        error.message === "FAQ not found") {
+    if (error instanceof Error && error.message === "FAQ not found") {
         return 404;
     }
     return 400;
 };
 export const createFaq = async (req, res) => {
     try {
-        const { name, question, answer, faqType, displayOrder, isActive, } = req.body;
+        const { name, question, answer, faqType, displayOrder, isActive } = req.body;
         const faq = await FAQService.createFaq({
             name,
             question,
             answer,
             faqType,
-            displayOrder: displayOrder === undefined
-                ? 0
-                : displayOrder,
-            isActive: isActive === undefined
-                ? true
-                : isActive,
+            displayOrder: displayOrder === undefined ? 0 : displayOrder,
+            isActive: isActive === undefined ? true : isActive,
         });
         return res.status(201).json({
             success: true,
@@ -66,9 +59,7 @@ export const updateFaq = async (req, res) => {
         });
     }
     catch (error) {
-        return res
-            .status(getErrorStatus(error))
-            .json({
+        return res.status(getErrorStatus(error)).json({
             success: false,
             message: getErrorMessage(error, "Failed to update FAQ"),
         });
@@ -84,9 +75,7 @@ export const getFaqById = async (req, res) => {
         });
     }
     catch (error) {
-        return res
-            .status(getErrorStatus(error))
-            .json({
+        return res.status(getErrorStatus(error)).json({
             success: false,
             message: getErrorMessage(error, "Failed to fetch FAQ"),
         });
@@ -102,9 +91,7 @@ export const deleteFaq = async (req, res) => {
         });
     }
     catch (error) {
-        return res
-            .status(getErrorStatus(error))
-            .json({
+        return res.status(getErrorStatus(error)).json({
             success: false,
             message: getErrorMessage(error, "Failed to delete FAQ"),
         });
@@ -116,16 +103,12 @@ export const toggleFaqStatus = async (req, res) => {
         const faq = await FAQService.toggleFaqStatus(id);
         return res.status(200).json({
             success: true,
-            message: `FAQ ${faq.isActive
-                ? "activated"
-                : "deactivated"} successfully`,
+            message: `FAQ ${faq.isActive ? "activated" : "deactivated"} successfully`,
             data: faq,
         });
     }
     catch (error) {
-        return res
-            .status(getErrorStatus(error))
-            .json({
+        return res.status(getErrorStatus(error)).json({
             success: false,
             message: getErrorMessage(error, "Failed to update FAQ status"),
         });
@@ -133,32 +116,12 @@ export const toggleFaqStatus = async (req, res) => {
 };
 export const getAllFaqs = async (req, res) => {
     try {
-        const { searchTerm, faqType, isActive, limit, page, sortBy, sortOrder, } = req.query;
-        const parsedLimit = typeof limit === "number"
-            ? limit
-            : Number(limit);
-        const parsedPage = typeof page === "number"
-            ? page
-            : Number(page);
-        const result = await FAQService.findFaqs(typeof searchTerm === "string"
-            ? searchTerm
-            : undefined, typeof faqType === "string"
-            ? faqType
-            : undefined, Number.isInteger(parsedLimit) &&
-            parsedLimit > 0
+        const { searchTerm, faqType, isActive, limit, page, sortBy, sortOrder } = req.query;
+        const parsedLimit = typeof limit === "number" ? limit : Number(limit);
+        const parsedPage = typeof page === "number" ? page : Number(page);
+        const result = await FAQService.findFaqs(typeof searchTerm === "string" ? searchTerm : undefined, typeof faqType === "string" ? faqType : undefined, Number.isInteger(parsedLimit) && parsedLimit > 0
             ? Math.min(parsedLimit, 100)
-            : 20, Number.isInteger(parsedPage) &&
-            parsedPage > 0
-            ? parsedPage
-            : 1, isActive === "true"
-            ? true
-            : isActive === "false"
-                ? false
-                : undefined, typeof sortBy === "string"
-            ? sortBy
-            : "displayOrder", sortOrder === "desc"
-            ? "desc"
-            : "asc");
+            : 20, Number.isInteger(parsedPage) && parsedPage > 0 ? parsedPage : 1, isActive === "true" ? true : isActive === "false" ? false : undefined, typeof sortBy === "string" ? sortBy : "displayOrder", sortOrder === "desc" ? "desc" : "asc");
         return res.status(200).json({
             success: true,
             ...result,

@@ -5,12 +5,7 @@ import {
   type NextFunction,
 } from "express";
 
-import {
-  body,
-  param,
-  query,
-  validationResult,
-} from "express-validator";
+import { body, param, query, validationResult } from "express-validator";
 
 import {
   getAllServices,
@@ -32,11 +27,7 @@ import { authenticate } from "../middleware/authenticate.js";
 
 const router = Router();
 
-const validate = (
-  req: Request,
-  res: Response,
-  next: NextFunction,
-) => {
+const validate = (req: Request, res: Response, next: NextFunction) => {
   const errors = validationResult(req);
 
   if (!errors.isEmpty()) {
@@ -53,9 +44,7 @@ const validate = (
 };
 
 const serviceIdValidation = [
-  param("serviceId")
-    .isMongoId()
-    .withMessage("Invalid service ID"),
+  param("serviceId").isMongoId().withMessage("Invalid service ID"),
 
   validate,
 ];
@@ -101,10 +90,7 @@ const serviceValidation = [
     .isURL()
     .withMessage("Banner image must be valid URL"),
 
-  body("locations")
-    .optional()
-    .isArray()
-    .withMessage("locations must be array"),
+  body("locations").optional().isArray().withMessage("locations must be array"),
 
   body("locations.*.name")
     .optional()
@@ -124,10 +110,7 @@ const serviceValidation = [
     .isBoolean()
     .withMessage("Location isActive must be boolean"),
 
-  body("tiers")
-    .optional()
-    .isArray()
-    .withMessage("tiers must be array"),
+  body("tiers").optional().isArray().withMessage("tiers must be array"),
 
   body("tiers.*.name")
     .optional()
@@ -137,10 +120,7 @@ const serviceValidation = [
     .notEmpty()
     .withMessage("Tier name cannot be empty"),
 
-  body("tiers.*.tierId")
-    .optional()
-    .isMongoId()
-    .withMessage("Invalid tier ID"),
+  body("tiers.*.tierId").optional().isMongoId().withMessage("Invalid tier ID"),
 
   body("isActive")
     .optional()
@@ -151,9 +131,7 @@ const serviceValidation = [
 ];
 
 const updateServiceValidation = [
-  param("serviceId")
-    .isMongoId()
-    .withMessage("Invalid service ID"),
+  param("serviceId").isMongoId().withMessage("Invalid service ID"),
 
   body().custom((value) => {
     const allowedFields = [
@@ -176,9 +154,7 @@ const updateServiceValidation = [
     );
 
     if (invalidFields.length > 0) {
-      throw new Error(
-        `Invalid update fields: ${invalidFields.join(", ")}`,
-      );
+      throw new Error(`Invalid update fields: ${invalidFields.join(", ")}`);
     }
 
     return true;
@@ -210,10 +186,7 @@ const updateServiceValidation = [
     .notEmpty()
     .withMessage("Full description cannot be empty"),
 
-  body("categoryId")
-    .optional()
-    .isMongoId()
-    .withMessage("Invalid category ID"),
+  body("categoryId").optional().isMongoId().withMessage("Invalid category ID"),
 
   body("thumbnailImage")
     .optional()
@@ -229,9 +202,7 @@ const updateServiceValidation = [
 ];
 
 const serviceStatusValidation = [
-  param("serviceId")
-    .isMongoId()
-    .withMessage("Invalid service ID"),
+  param("serviceId").isMongoId().withMessage("Invalid service ID"),
 
   body("isActive")
     .exists({ checkNull: true })
@@ -248,9 +219,7 @@ const serviceStatusValidation = [
 ];
 
 const updateLocationsValidation = [
-  param("id")
-    .isMongoId()
-    .withMessage("Invalid service ID"),
+  param("id").isMongoId().withMessage("Invalid service ID"),
 
   body("locations")
     .isArray({ min: 1 })
@@ -277,25 +246,17 @@ const updateLocationsValidation = [
 ];
 
 const removeLocationValidation = [
-  param("id")
-    .isMongoId()
-    .withMessage("Invalid service ID"),
+  param("id").isMongoId().withMessage("Invalid service ID"),
 
-  param("locationId")
-    .isMongoId()
-    .withMessage("Invalid location ID"),
+  param("locationId").isMongoId().withMessage("Invalid location ID"),
 
   validate,
 ];
 
 const updateTiersValidation = [
-  param("id")
-    .isMongoId()
-    .withMessage("Invalid service ID"),
+  param("id").isMongoId().withMessage("Invalid service ID"),
 
-  body("tiers")
-    .isArray({ min: 1 })
-    .withMessage("tiers array is required"),
+  body("tiers").isArray({ min: 1 }).withMessage("tiers array is required"),
 
   body("tiers.*.name")
     .optional()
@@ -313,43 +274,29 @@ const updateTiersValidation = [
 ];
 
 const removeTierValidation = [
-  param("id")
-    .isMongoId()
-    .withMessage("Invalid service ID"),
+  param("id").isMongoId().withMessage("Invalid service ID"),
 
-  param("tierId")
-    .isMongoId()
-    .withMessage("Invalid tier ID"),
+  param("tierId").isMongoId().withMessage("Invalid tier ID"),
 
   validate,
 ];
 
 const fullServiceByCitiesValidation = [
-  param("serviceId")
-    .isMongoId()
-    .withMessage("Invalid service ID"),
+  param("serviceId").isMongoId().withMessage("Invalid service ID"),
 
   body("cityIds")
     .isArray({ min: 1 })
     .withMessage("cityIds must be a non-empty array"),
 
-  body("cityIds.*")
-    .isMongoId()
-    .withMessage("Each city ID must be valid"),
+  body("cityIds.*").isMongoId().withMessage("Each city ID must be valid"),
 
   validate,
 ];
 
 const listValidation = [
-  query("categoryId")
-    .optional()
-    .isMongoId()
-    .withMessage("Invalid category ID"),
+  query("categoryId").optional().isMongoId().withMessage("Invalid category ID"),
 
-  query("locationId")
-    .optional()
-    .isMongoId()
-    .withMessage("Invalid location ID"),
+  query("locationId").optional().isMongoId().withMessage("Invalid location ID"),
 
   query("limit")
     .optional()
@@ -423,18 +370,12 @@ const servicesByLocationValidation = [
       return true;
     }),
 
-  ...listValidation.filter(
-    (validator) => validator !== validate,
-  ),
+  ...listValidation.filter((validator) => validator !== validate),
 
   validate,
 ];
 
-router.get(
-  "/",
-  listValidation,
-  getAllServices,
-);
+router.get("/", listValidation, getAllServices);
 
 router.get(
   "/getServicesByLocation",
@@ -443,11 +384,7 @@ router.get(
   getServicesByLocation,
 );
 
-router.get(
-  "/:serviceId/full",
-  serviceIdValidation,
-  getFullService,
-);
+router.get("/:serviceId/full", serviceIdValidation, getFullService);
 
 router.get(
   "/:serviceId/diagnostics",
@@ -456,18 +393,9 @@ router.get(
   getServiceDiagnostics,
 );
 
-router.get(
-  "/:serviceId",
-  serviceIdValidation,
-  getServiceById,
-);
+router.get("/:serviceId", serviceIdValidation, getServiceById);
 
-router.post(
-  "/",
-  authenticate,
-  serviceValidation,
-  createService,
-);
+router.post("/", authenticate, serviceValidation, createService);
 
 router.post(
   "/:serviceId/getFullServiceByCities",

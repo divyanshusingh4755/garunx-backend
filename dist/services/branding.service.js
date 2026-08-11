@@ -35,16 +35,12 @@ class BrandingService {
             };
             const mergedTheme = {
                 primary: newTheme.primary ?? currentTheme.primary,
-                secondary: newTheme.secondary ??
-                    currentTheme.secondary,
+                secondary: newTheme.secondary ?? currentTheme.secondary,
                 accent: newTheme.accent ?? currentTheme.accent,
-                background: newTheme.background ??
-                    currentTheme.background,
+                background: newTheme.background ?? currentTheme.background,
                 text: newTheme.text ?? currentTheme.text,
             };
-            const nextVersion = latest
-                ? latest.version + 1
-                : 1;
+            const nextVersion = latest ? latest.version + 1 : 1;
             await Branding.updateMany({ isActive: true }, {
                 $set: {
                     isActive: false,

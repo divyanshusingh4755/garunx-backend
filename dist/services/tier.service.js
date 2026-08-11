@@ -43,8 +43,7 @@ export class TierService {
                 $or: duplicateConditions,
             });
             if (existing) {
-                if (tierData.name &&
-                    existing.name === tierData.name) {
+                if (tierData.name && existing.name === tierData.name) {
                     throw new Error(`Tier with name '${tierData.name}' already exists`);
                 }
                 throw new Error(`Tier with reference '${tierData.tierReference}' already exists`);
@@ -70,7 +69,7 @@ export class TierService {
         return tier;
     }
     static async getDeactivationImpact(tierId) {
-        const [serviceComponents, servicePricing, packageMappings, packagePricing,] = await Promise.all([
+        const [serviceComponents, servicePricing, packageMappings, packagePricing] = await Promise.all([
             ServiceComponent.find({ tierId }, {
                 _id: 1,
                 serviceId: 1,
@@ -168,9 +167,7 @@ export class TierService {
         }
     }
     static async findTiers(limit = 40, page = 1, sortBy = "createdAt", sortOrder = "asc", searchTerm, isActive) {
-        const safeLimit = Number.isInteger(limit) && limit > 0
-            ? Math.min(limit, 100)
-            : 40;
+        const safeLimit = Number.isInteger(limit) && limit > 0 ? Math.min(limit, 100) : 40;
         const safePage = Number.isInteger(page) && page > 0 ? page : 1;
         const skip = safeLimit * (safePage - 1);
         const query = {};
@@ -178,8 +175,7 @@ export class TierService {
             query.isActive = isActive;
         }
         const trimmedSearchTerm = searchTerm?.trim();
-        const isTextSearch = Boolean(trimmedSearchTerm) &&
-            trimmedSearchTerm.length > 4;
+        const isTextSearch = Boolean(trimmedSearchTerm) && trimmedSearchTerm.length > 4;
         if (trimmedSearchTerm) {
             if (isTextSearch) {
                 query.$text = {
@@ -201,13 +197,10 @@ export class TierService {
             "updatedAt",
             "relevance",
         ]);
-        const safeSortBy = allowedSortFields.has(sortBy)
-            ? sortBy
-            : "createdAt";
+        const safeSortBy = allowedSortFields.has(sortBy) ? sortBy : "createdAt";
         let sortCriteria = {};
         let projection = {};
-        if (isTextSearch &&
-            safeSortBy === "relevance") {
+        if (isTextSearch && safeSortBy === "relevance") {
             projection = {
                 score: {
                     $meta: "textScore",
@@ -220,11 +213,8 @@ export class TierService {
             };
         }
         else {
-            const field = safeSortBy === "relevance"
-                ? "createdAt"
-                : safeSortBy;
-            sortCriteria[field] =
-                sortOrder === "desc" ? -1 : 1;
+            const field = safeSortBy === "relevance" ? "createdAt" : safeSortBy;
+            sortCriteria[field] = sortOrder === "desc" ? -1 : 1;
             if (field !== "createdAt") {
                 sortCriteria.createdAt = -1;
             }

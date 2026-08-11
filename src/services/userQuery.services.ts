@@ -1,7 +1,4 @@
-import mongoose, {
-  Types,
-  type ClientSession,
-} from "mongoose";
+import mongoose, { Types, type ClientSession } from "mongoose";
 
 import {
   UserQuery,
@@ -21,17 +18,11 @@ import {
   type UserQueryActivityType,
 } from "../models/userQueryActivity.model.js";
 
-import {
-  User,
-} from "../models/user.model.js";
+import { User } from "../models/user.model.js";
 
-import {
-  Role,
-} from "../types/rbac.js";
+import { Role } from "../types/rbac.js";
 
-import {
-  escapeRegex,
-} from "../utils/escapeRegex.js";
+import { escapeRegex } from "../utils/escapeRegex.js";
 
 interface CreateUserQueryInput {
   requesterId: string;
@@ -93,21 +84,14 @@ interface DeleteQueryInput {
   reason: string;
 }
 
-type QueryFilter =
-  Record<string, unknown>;
+type QueryFilter = Record<string, unknown>;
 
-type SortSpecification =
-  Record<string, 1 | -1>;
+type SortSpecification = Record<string, 1 | -1>;
 
 export class UserQueryService {
-  private static validateObjectId(
-    id: string,
-    fieldName: string,
-  ): void {
+  private static validateObjectId(id: string, fieldName: string): void {
     if (!Types.ObjectId.isValid(id)) {
-      throw new Error(
-        `Invalid ${fieldName}`,
-      );
+      throw new Error(`Invalid ${fieldName}`);
     }
   }
 
@@ -116,10 +100,7 @@ export class UserQueryService {
     limit: number,
     defaultLimit: number,
   ) {
-    const safePage =
-      Number.isInteger(page) && page > 0
-        ? page
-        : 1;
+    const safePage = Number.isInteger(page) && page > 0 ? page : 1;
 
     const safeLimit =
       Number.isInteger(limit) && limit > 0
@@ -129,8 +110,7 @@ export class UserQueryService {
     return {
       safePage,
       safeLimit,
-      skip:
-        (safePage - 1) * safeLimit,
+      skip: (safePage - 1) * safeLimit,
     };
   }
 
@@ -144,22 +124,13 @@ export class UserQueryService {
       "updatedAt",
       "latestMessageAt",
       "lastActionAt",
-      ...(allowPriority
-        ? ["priority"]
-        : []),
+      ...(allowPriority ? ["priority"] : []),
     ]);
 
-    const safeSortBy =
-      allowedSortFields.has(sortBy)
-        ? sortBy
-        : "createdAt";
+    const safeSortBy = allowedSortFields.has(sortBy) ? sortBy : "createdAt";
 
-    const sortCriteria:
-      SortSpecification = {
-      [safeSortBy]:
-        sortOrder === "asc"
-          ? 1
-          : -1,
+    const sortCriteria: SortSpecification = {
+      [safeSortBy]: sortOrder === "asc" ? 1 : -1,
     };
 
     if (safeSortBy !== "createdAt") {
@@ -169,26 +140,19 @@ export class UserQueryService {
     return sortCriteria;
   }
 
-  private static generateQueryReference(
-    queryId: Types.ObjectId,
-  ): string {
-    return `QRY-${queryId
-      .toString()
-      .slice(-8)
-      .toUpperCase()}`;
+  private static generateQueryReference(queryId: Types.ObjectId): string {
+    return `QRY-${queryId.toString().slice(-8).toUpperCase()}`;
   }
 
-  private static async createActivity(
-    input: {
-      queryId: Types.ObjectId;
-      performedBy: Types.ObjectId;
-      type: UserQueryActivityType;
-      oldValue?: unknown;
-      newValue?: unknown;
-      note?: string;
-      session: ClientSession;
-    },
-  ): Promise<void> {
+  private static async createActivity(input: {
+    queryId: Types.ObjectId;
+    performedBy: Types.ObjectId;
+    type: UserQueryActivityType;
+    oldValue?: unknown;
+    newValue?: unknown;
+    note?: string;
+    session: ClientSession;
+  }): Promise<void> {
     const activity: {
       queryId: Types.ObjectId;
       performedBy: Types.ObjectId;
@@ -202,70 +166,45 @@ export class UserQueryService {
       type: input.type,
     };
 
-    if (
-      Object.prototype.hasOwnProperty.call(
-        input,
-        "oldValue",
-      )
-    ) {
-      activity.oldValue =
-        input.oldValue;
+    if (Object.prototype.hasOwnProperty.call(input, "oldValue")) {
+      activity.oldValue = input.oldValue;
     }
 
-    if (
-      Object.prototype.hasOwnProperty.call(
-        input,
-        "newValue",
-      )
-    ) {
-      activity.newValue =
-        input.newValue;
+    if (Object.prototype.hasOwnProperty.call(input, "newValue")) {
+      activity.newValue = input.newValue;
     }
 
     if (input.note !== undefined) {
       activity.note = input.note;
     }
 
-    await UserQueryActivity.create(
-      [activity],
-      { session: input.session },
-    );
+    await UserQueryActivity.create([activity], { session: input.session });
   }
 
   private static async ensureAdmin(
     adminId: Types.ObjectId,
     session?: ClientSession,
   ) {
-    let userQuery =
-      User.findById(adminId)
-        .select("_id role");
+    let userQuery = User.findById(adminId).select("_id role");
 
     if (session) {
-      userQuery =
-        userQuery.session(session);
+      userQuery = userQuery.session(session);
     }
 
-    const admin =
-      await userQuery;
+    const admin = await userQuery;
 
     if (!admin) {
-      throw new Error(
-        "Admin not found",
-      );
+      throw new Error("Admin not found");
     }
 
     if (admin.role !== Role.ADMIN) {
-      throw new Error(
-        "Selected user is not an admin",
-      );
+      throw new Error("Selected user is not an admin");
     }
 
     return admin;
   }
 
-  private static resolveRequesterType(
-    role: Role,
-  ): UserQueryRequesterType {
+  private static resolveRequesterType(role: Role): UserQueryRequesterType {
     if (role === Role.USER) {
       return "USER";
     }
@@ -274,42 +213,29 @@ export class UserQueryService {
       return "COORDINATOR";
     }
 
-    throw new Error(
-      "Only customers and coordinators can raise queries",
-    );
+    throw new Error("Only customers and coordinators can raise queries");
   }
 
   private static resolveMessageSenderType(
-    requesterType:
-      UserQueryRequesterType,
+    requesterType: UserQueryRequesterType,
   ): QueryMessageSenderType {
-    return requesterType === "USER"
-      ? "USER"
-      : "COORDINATOR";
+    return requesterType === "USER" ? "USER" : "COORDINATOR";
   }
 
   private static validateMessageContent(
     message?: string | null,
     imageUrls: string[] = [],
   ): void {
-    const hasMessage =
-      typeof message === "string" &&
-      message.trim().length > 0;
+    const hasMessage = typeof message === "string" && message.trim().length > 0;
 
-    const hasImages =
-      Array.isArray(imageUrls) &&
-      imageUrls.length > 0;
+    const hasImages = Array.isArray(imageUrls) && imageUrls.length > 0;
 
     if (!hasMessage && !hasImages) {
-      throw new Error(
-        "Message or at least one image is required",
-      );
+      throw new Error("Message or at least one image is required");
     }
 
     if (imageUrls.length > 5) {
-      throw new Error(
-        "A maximum of 5 images is allowed",
-      );
+      throw new Error("A maximum of 5 images is allowed");
     }
   }
 
@@ -317,8 +243,7 @@ export class UserQueryService {
     message?: string | null,
     imageUrls: string[] = [],
   ): string {
-    const trimmedMessage =
-      message?.trim();
+    const trimmedMessage = message?.trim();
 
     return trimmedMessage
       ? trimmedMessage
@@ -327,170 +252,112 @@ export class UserQueryService {
         : "";
   }
 
-  static async createUserQueryService(
-    input: CreateUserQueryInput,
-  ) {
-    const {
-      requesterId,
-      subject,
-      category,
-      message,
-      imageUrls = [],
-    } = input;
+  static async createUserQueryService(input: CreateUserQueryInput) {
+    const { requesterId, subject, category, message, imageUrls = [] } = input;
 
-    this.validateObjectId(
-      requesterId,
-      "requester id",
-    );
+    this.validateObjectId(requesterId, "requester id");
 
-    this.validateMessageContent(
-      message,
-      imageUrls,
-    );
+    this.validateMessageContent(message, imageUrls);
 
-    const requesterObjectId =
-      new Types.ObjectId(
-        requesterId,
-      );
+    const requesterObjectId = new Types.ObjectId(requesterId);
 
-    const session =
-      await mongoose.startSession();
+    const session = await mongoose.startSession();
 
     try {
       let result = null;
 
-      await session.withTransaction(
-        async () => {
-          const requester =
-            await User.findById(
-              requesterObjectId,
-            )
-              .select("_id role")
-              .session(session);
+      await session.withTransaction(async () => {
+        const requester = await User.findById(requesterObjectId)
+          .select("_id role")
+          .session(session);
 
-          if (!requester) {
-            throw new Error(
-              "Requester not found",
-            );
-          }
+        if (!requester) {
+          throw new Error("Requester not found");
+        }
 
-          const requesterType =
-            this.resolveRequesterType(
-              requester.role,
-            );
+        const requesterType = this.resolveRequesterType(requester.role);
 
-          const senderType =
-            this.resolveMessageSenderType(
+        const senderType = this.resolveMessageSenderType(requesterType);
+
+        const queryObjectId = new Types.ObjectId();
+
+        const now = new Date();
+
+        const [queryDocument] = await UserQuery.create(
+          [
+            {
+              _id: queryObjectId,
+              requesterId: requesterObjectId,
               requesterType,
-            );
-
-          const queryObjectId =
-            new Types.ObjectId();
-
-          const now = new Date();
-
-          const [queryDocument] =
-            await UserQuery.create(
-              [
-                {
-                  _id: queryObjectId,
-                  requesterId:
-                    requesterObjectId,
-                  requesterType,
-                  queryReference:
-                    this.generateQueryReference(
-                      queryObjectId,
-                    ),
-                  subject:
-                    subject.trim(),
-                  category,
-                  priority: "NORMAL",
-                  status: "PENDING",
-                  latestMessage:
-                    this.latestMessageText(
-                      message,
-                      imageUrls,
-                    ),
-                  latestMessageAt: now,
-                  lastAction:
-                    "QUERY_CREATED",
-                  lastActionAt: now,
-                  lastActionBy:
-                    requesterObjectId,
-                  requesterUnreadCount: 0,
-                  adminUnreadCount: 1,
-                  isDeleted: false,
-                },
-              ],
-              { session },
-            );
-
-          if (!queryDocument) {
-            throw new Error(
-              "Failed to create query",
-            );
-          }
-
-          const messagePayload: {
-            queryId: Types.ObjectId;
-            senderId: Types.ObjectId;
-            senderType:
-            QueryMessageSenderType;
-            message?: string;
-            imageUrls: string[];
-          } = {
-            queryId:
-              queryDocument._id,
-            senderId:
-              requesterObjectId,
-            senderType,
-            imageUrls,
-          };
-
-          if (message?.trim()) {
-            messagePayload.message =
-              message.trim();
-          }
-
-          const [messageDocument] =
-            await UserQueryMessage.create(
-              [messagePayload],
-              { session },
-            );
-
-          if (!messageDocument) {
-            throw new Error(
-              "Failed to create query message",
-            );
-          }
-
-          await this.createActivity({
-            queryId:
-              queryDocument._id,
-            performedBy:
-              requesterObjectId,
-            type:
-              "QUERY_CREATED",
-            newValue: {
-              status: "PENDING",
+              queryReference: this.generateQueryReference(queryObjectId),
+              subject: subject.trim(),
               category,
               priority: "NORMAL",
-              requesterType,
+              status: "PENDING",
+              latestMessage: this.latestMessageText(message, imageUrls),
+              latestMessageAt: now,
+              lastAction: "QUERY_CREATED",
+              lastActionAt: now,
+              lastActionBy: requesterObjectId,
+              requesterUnreadCount: 0,
+              adminUnreadCount: 1,
+              isDeleted: false,
             },
-            session,
-          });
+          ],
+          { session },
+        );
 
-          result = {
-            query: queryDocument,
-            message: messageDocument,
-          };
-        },
-      );
+        if (!queryDocument) {
+          throw new Error("Failed to create query");
+        }
+
+        const messagePayload: {
+          queryId: Types.ObjectId;
+          senderId: Types.ObjectId;
+          senderType: QueryMessageSenderType;
+          message?: string;
+          imageUrls: string[];
+        } = {
+          queryId: queryDocument._id,
+          senderId: requesterObjectId,
+          senderType,
+          imageUrls,
+        };
+
+        if (message?.trim()) {
+          messagePayload.message = message.trim();
+        }
+
+        const [messageDocument] = await UserQueryMessage.create(
+          [messagePayload],
+          { session },
+        );
+
+        if (!messageDocument) {
+          throw new Error("Failed to create query message");
+        }
+
+        await this.createActivity({
+          queryId: queryDocument._id,
+          performedBy: requesterObjectId,
+          type: "QUERY_CREATED",
+          newValue: {
+            status: "PENDING",
+            category,
+            priority: "NORMAL",
+            requesterType,
+          },
+          session,
+        });
+
+        result = {
+          query: queryDocument,
+          message: messageDocument,
+        };
+      });
 
       if (!result) {
-        throw new Error(
-          "Failed to create query",
-        );
+        throw new Error("Failed to create query");
       }
 
       return result;
@@ -499,17 +366,15 @@ export class UserQueryService {
     }
   }
 
-  static async getMyQueries(
-    params: {
-      requesterId: string;
-      status?: UserQueryStatus;
-      category?: UserQueryCategory;
-      limit?: number;
-      page?: number;
-      sortBy?: string;
-      sortOrder?: "asc" | "desc";
-    },
-  ) {
+  static async getMyQueries(params: {
+    requesterId: string;
+    status?: UserQueryStatus;
+    category?: UserQueryCategory;
+    limit?: number;
+    page?: number;
+    sortBy?: string;
+    sortOrder?: "asc" | "desc";
+  }) {
     const {
       requesterId,
       status,
@@ -520,26 +385,12 @@ export class UserQueryService {
       sortOrder = "desc",
     } = params;
 
-    this.validateObjectId(
-      requesterId,
-      "requester id",
-    );
+    this.validateObjectId(requesterId, "requester id");
 
-    const {
-      safePage,
-      safeLimit,
-      skip,
-    } = this.safePagination(
-      page,
-      limit,
-      20,
-    );
+    const { safePage, safeLimit, skip } = this.safePagination(page, limit, 20);
 
     const filter: QueryFilter = {
-      requesterId:
-        new Types.ObjectId(
-          requesterId,
-        ),
+      requesterId: new Types.ObjectId(requesterId),
       isDeleted: false,
     };
 
@@ -551,93 +402,56 @@ export class UserQueryService {
       filter.category = category;
     }
 
-    const sortCriteria =
-      this.getSortCriteria(
-        sortBy,
-        sortOrder,
-      );
+    const sortCriteria = this.getSortCriteria(sortBy, sortOrder);
 
-    const [data, total] =
-      await Promise.all([
-        UserQuery.find(filter)
-          .populate(
-            "assignedAdminId",
-            "fullName profileImage role userReference",
-          )
-          .sort(sortCriteria)
-          .skip(skip)
-          .limit(safeLimit)
-          .lean(),
+    const [data, total] = await Promise.all([
+      UserQuery.find(filter)
+        .populate("assignedAdminId", "fullName profileImage role userReference")
+        .sort(sortCriteria)
+        .skip(skip)
+        .limit(safeLimit)
+        .lean(),
 
-        UserQuery.countDocuments(
-          filter,
-        ),
-      ]);
+      UserQuery.countDocuments(filter),
+    ]);
 
     return {
       data,
       total,
       page: safePage,
       limit: safeLimit,
-      totalPages:
-        Math.ceil(
-          total / safeLimit,
-        ),
+      totalPages: Math.ceil(total / safeLimit),
     };
   }
 
-  static async getUserQueryById(
-    input: {
-      queryId: string;
-      requesterId: string;
-    },
-  ) {
-    this.validateObjectId(
-      input.queryId,
-      "query id",
-    );
+  static async getUserQueryById(input: {
+    queryId: string;
+    requesterId: string;
+  }) {
+    this.validateObjectId(input.queryId, "query id");
 
-    this.validateObjectId(
-      input.requesterId,
-      "requester id",
-    );
+    this.validateObjectId(input.requesterId, "requester id");
 
-    const queryObjectId =
-      new Types.ObjectId(
-        input.queryId,
-      );
+    const queryObjectId = new Types.ObjectId(input.queryId);
 
-    const queryDocument =
-      await UserQuery.findOne({
-        _id: queryObjectId,
-        requesterId:
-          new Types.ObjectId(
-            input.requesterId,
-          ),
-        isDeleted: false,
-      })
-        .populate(
-          "assignedAdminId",
-          "fullName profileImage role userReference",
-        )
-        .lean();
+    const queryDocument = await UserQuery.findOne({
+      _id: queryObjectId,
+      requesterId: new Types.ObjectId(input.requesterId),
+      isDeleted: false,
+    })
+      .populate("assignedAdminId", "fullName profileImage role userReference")
+      .lean();
 
     if (!queryDocument) {
-      throw new Error(
-        "Query not found",
-      );
+      throw new Error("Query not found");
     }
 
-    const messages =
-      await UserQueryMessage.find({
-        queryId: queryObjectId,
-      })
-        .populate(
-          "senderId",
-          "fullName profileImage role userReference",
-        )
-        .sort({ createdAt: 1 })
-        .lean();
+    const messages = await UserQueryMessage.find({
+      queryId: queryObjectId,
+    })
+      .populate("senderId", "fullName profileImage role userReference")
+      .sort({ createdAt: 1 })
+      .lean();
 
     return {
       query: queryDocument,
@@ -645,157 +459,103 @@ export class UserQueryService {
     };
   }
 
-  static async sendUserQueryMessage(
-    input: SendUserMessageInput,
-  ) {
-    const {
-      queryId,
-      requesterId,
-      message,
-      imageUrls = [],
-    } = input;
+  static async sendUserQueryMessage(input: SendUserMessageInput) {
+    const { queryId, requesterId, message, imageUrls = [] } = input;
 
-    this.validateObjectId(
-      queryId,
-      "query id",
-    );
+    this.validateObjectId(queryId, "query id");
 
-    this.validateObjectId(
-      requesterId,
-      "requester id",
-    );
+    this.validateObjectId(requesterId, "requester id");
 
-    this.validateMessageContent(
-      message,
-      imageUrls,
-    );
+    this.validateMessageContent(message, imageUrls);
 
-    const queryObjectId =
-      new Types.ObjectId(
-        queryId,
-      );
+    const queryObjectId = new Types.ObjectId(queryId);
 
-    const requesterObjectId =
-      new Types.ObjectId(
-        requesterId,
-      );
+    const requesterObjectId = new Types.ObjectId(requesterId);
 
-    const session =
-      await mongoose.startSession();
+    const session = await mongoose.startSession();
 
     try {
       let result = null;
 
-      await session.withTransaction(
-        async () => {
-          const queryDocument =
-            await UserQuery.findOne({
-              _id: queryObjectId,
-              requesterId:
-                requesterObjectId,
-              isDeleted: false,
-            }).session(session);
+      await session.withTransaction(async () => {
+        const queryDocument = await UserQuery.findOne({
+          _id: queryObjectId,
+          requesterId: requesterObjectId,
+          isDeleted: false,
+        }).session(session);
 
-          if (!queryDocument) {
-            throw new Error(
-              "Query not found",
-            );
-          }
+        if (!queryDocument) {
+          throw new Error("Query not found");
+        }
 
-          if (
-            queryDocument.status ===
-            "RESOLVED" ||
-            queryDocument.status ===
-            "REJECTED"
-          ) {
-            throw new Error(
-              "Closed query cannot receive new messages",
-            );
-          }
+        if (
+          queryDocument.status === "RESOLVED" ||
+          queryDocument.status === "REJECTED"
+        ) {
+          throw new Error("Closed query cannot receive new messages");
+        }
 
-          const messagePayload: {
-            queryId: Types.ObjectId;
-            senderId: Types.ObjectId;
-            senderType:
-            QueryMessageSenderType;
-            message?: string;
-            imageUrls: string[];
-          } = {
-            queryId:
-              queryDocument._id,
-            senderId:
-              requesterObjectId,
-            senderType:
-              this.resolveMessageSenderType(
-                queryDocument
-                  .requesterType,
-              ),
-            imageUrls,
-          };
+        const messagePayload: {
+          queryId: Types.ObjectId;
+          senderId: Types.ObjectId;
+          senderType: QueryMessageSenderType;
+          message?: string;
+          imageUrls: string[];
+        } = {
+          queryId: queryDocument._id,
+          senderId: requesterObjectId,
+          senderType: this.resolveMessageSenderType(
+            queryDocument.requesterType,
+          ),
+          imageUrls,
+        };
 
-          if (message?.trim()) {
-            messagePayload.message =
-              message.trim();
-          }
+        if (message?.trim()) {
+          messagePayload.message = message.trim();
+        }
 
-          const [messageDocument] =
-            await UserQueryMessage.create(
-              [messagePayload],
-              { session },
-            );
+        const [messageDocument] = await UserQueryMessage.create(
+          [messagePayload],
+          { session },
+        );
 
-          if (!messageDocument) {
-            throw new Error(
-              "Failed to send message",
-            );
-          }
+        if (!messageDocument) {
+          throw new Error("Failed to send message");
+        }
 
-          const now = new Date();
+        const now = new Date();
 
-          queryDocument.latestMessage =
-            this.latestMessageText(
-              message,
-              imageUrls,
-            );
+        queryDocument.latestMessage = this.latestMessageText(
+          message,
+          imageUrls,
+        );
 
-          queryDocument.latestMessageAt =
-            now;
+        queryDocument.latestMessageAt = now;
 
-          queryDocument.lastAction =
-            "REQUESTER_REPLIED";
+        queryDocument.lastAction = "REQUESTER_REPLIED";
 
-          queryDocument.lastActionAt =
-            now;
+        queryDocument.lastActionAt = now;
 
-          queryDocument.lastActionBy =
-            requesterObjectId;
+        queryDocument.lastActionBy = requesterObjectId;
 
-          queryDocument.adminUnreadCount =
-            queryDocument
-              .adminUnreadCount + 1;
+        queryDocument.adminUnreadCount = queryDocument.adminUnreadCount + 1;
 
-          await queryDocument.save({
-            session,
-          });
+        await queryDocument.save({
+          session,
+        });
 
-          await this.createActivity({
-            queryId:
-              queryDocument._id,
-            performedBy:
-              requesterObjectId,
-            type:
-              "REQUESTER_REPLIED",
-            session,
-          });
+        await this.createActivity({
+          queryId: queryDocument._id,
+          performedBy: requesterObjectId,
+          type: "REQUESTER_REPLIED",
+          session,
+        });
 
-          result = messageDocument;
-        },
-      );
+        result = messageDocument;
+      });
 
       if (!result) {
-        throw new Error(
-          "Failed to send message",
-        );
+        throw new Error("Failed to send message");
       }
 
       return result;
@@ -804,90 +564,59 @@ export class UserQueryService {
     }
   }
 
-  static async markUserQueryAsRead(
-    input: MarkQueryAsReadInput,
-  ) {
-    this.validateObjectId(
-      input.queryId,
-      "query id",
-    );
+  static async markUserQueryAsRead(input: MarkQueryAsReadInput) {
+    this.validateObjectId(input.queryId, "query id");
 
-    this.validateObjectId(
-      input.actorId,
-      "user id",
-    );
+    this.validateObjectId(input.actorId, "user id");
 
-    const actorObjectId =
-      new Types.ObjectId(
-        input.actorId,
-      );
+    const actorObjectId = new Types.ObjectId(input.actorId);
 
-    const queryDocument =
-      await UserQuery.findOne({
-        _id:
-          new Types.ObjectId(
-            input.queryId,
-          ),
-        isDeleted: false,
-      });
+    const queryDocument = await UserQuery.findOne({
+      _id: new Types.ObjectId(input.queryId),
+      isDeleted: false,
+    });
 
     if (!queryDocument) {
-      throw new Error(
-        "Query not found",
-      );
+      throw new Error("Query not found");
     }
 
-    if (
-      queryDocument.requesterId.equals(
-        actorObjectId,
-      )
-    ) {
-      queryDocument
-        .requesterUnreadCount = 0;
+    if (queryDocument.requesterId.equals(actorObjectId)) {
+      queryDocument.requesterUnreadCount = 0;
 
       await queryDocument.save();
 
       return {
         requesterUnreadCount: 0,
-        adminUnreadCount:
-          queryDocument
-            .adminUnreadCount,
+        adminUnreadCount: queryDocument.adminUnreadCount,
       };
     }
 
-    await this.ensureAdmin(
-      actorObjectId,
-    );
+    await this.ensureAdmin(actorObjectId);
 
     queryDocument.adminUnreadCount = 0;
 
     await queryDocument.save();
 
     return {
-      requesterUnreadCount:
-        queryDocument
-          .requesterUnreadCount,
+      requesterUnreadCount: queryDocument.requesterUnreadCount,
       adminUnreadCount: 0,
     };
   }
 
-  static async getAllUserQueries(
-    params: {
-      searchTerm?: string;
-      status?: UserQueryStatus;
-      category?: UserQueryCategory;
-      priority?: UserQueryPriority;
-      requesterType?:
-      UserQueryRequesterType;
-      assignedAdminId?: string;
-      requesterId?: string;
-      isDeleted?: boolean;
-      limit?: number;
-      page?: number;
-      sortBy?: string;
-      sortOrder?: "asc" | "desc";
-    },
-  ) {
+  static async getAllUserQueries(params: {
+    searchTerm?: string;
+    status?: UserQueryStatus;
+    category?: UserQueryCategory;
+    priority?: UserQueryPriority;
+    requesterType?: UserQueryRequesterType;
+    assignedAdminId?: string;
+    requesterId?: string;
+    isDeleted?: boolean;
+    limit?: number;
+    page?: number;
+    sortBy?: string;
+    sortOrder?: "asc" | "desc";
+  }) {
     const {
       searchTerm,
       status,
@@ -903,15 +632,7 @@ export class UserQueryService {
       sortOrder = "desc",
     } = params;
 
-    const {
-      safePage,
-      safeLimit,
-      skip,
-    } = this.safePagination(
-      page,
-      limit,
-      40,
-    );
+    const { safePage, safeLimit, skip } = this.safePagination(page, limit, 40);
 
     const filter: QueryFilter = {
       isDeleted,
@@ -930,204 +651,113 @@ export class UserQueryService {
     }
 
     if (requesterType) {
-      filter.requesterType =
-        requesterType;
+      filter.requesterType = requesterType;
     }
 
     if (assignedAdminId) {
-      this.validateObjectId(
-        assignedAdminId,
-        "assigned admin id",
-      );
+      this.validateObjectId(assignedAdminId, "assigned admin id");
 
-      filter.assignedAdminId =
-        new Types.ObjectId(
-          assignedAdminId,
-        );
+      filter.assignedAdminId = new Types.ObjectId(assignedAdminId);
     }
 
     if (requesterId) {
-      this.validateObjectId(
-        requesterId,
-        "requester id",
-      );
+      this.validateObjectId(requesterId, "requester id");
 
-      filter.requesterId =
-        new Types.ObjectId(
-          requesterId,
-        );
+      filter.requesterId = new Types.ObjectId(requesterId);
     }
 
     if (searchTerm?.trim()) {
-      const escapedTerm =
-        escapeRegex(
-          searchTerm.trim(),
-        );
+      const escapedTerm = escapeRegex(searchTerm.trim());
 
-      const regex =
-        new RegExp(
-          escapedTerm,
-          "i",
-        );
+      const regex = new RegExp(escapedTerm, "i");
 
-      const matchingUsers =
-        await User.find({
-          $or: [
-            { fullName: regex },
-            { userReference: regex },
-          ],
-        })
-          .select("_id")
-          .lean();
+      const matchingUsers = await User.find({
+        $or: [{ fullName: regex }, { userReference: regex }],
+      })
+        .select("_id")
+        .lean();
 
       filter.$or = [
         {
-          queryReference:
-            regex,
+          queryReference: regex,
         },
         {
           subject: regex,
         },
         {
-          latestMessage:
-            regex,
+          latestMessage: regex,
         },
         {
           requesterId: {
-            $in:
-              matchingUsers.map(
-                (user) =>
-                  user._id,
-              ),
+            $in: matchingUsers.map((user) => user._id),
           },
         },
       ];
     }
 
-    const sortCriteria =
-      this.getSortCriteria(
-        sortBy,
-        sortOrder,
-        true,
-      );
+    const sortCriteria = this.getSortCriteria(sortBy, sortOrder, true);
 
-    const [data, total] =
-      await Promise.all([
-        UserQuery.find(filter)
-          .populate(
-            "requesterId",
-            "fullName profileImage role userReference email",
-          )
-          .populate(
-            "assignedAdminId",
-            "fullName profileImage role userReference",
-          )
-          .populate(
-            "lastActionBy",
-            "fullName role userReference",
-          )
-          .sort(sortCriteria)
-          .skip(skip)
-          .limit(safeLimit)
-          .lean(),
+    const [data, total] = await Promise.all([
+      UserQuery.find(filter)
+        .populate(
+          "requesterId",
+          "fullName profileImage role userReference email",
+        )
+        .populate("assignedAdminId", "fullName profileImage role userReference")
+        .populate("lastActionBy", "fullName role userReference")
+        .sort(sortCriteria)
+        .skip(skip)
+        .limit(safeLimit)
+        .lean(),
 
-        UserQuery.countDocuments(
-          filter,
-        ),
-      ]);
+      UserQuery.countDocuments(filter),
+    ]);
 
     return {
       data,
       total,
       page: safePage,
       limit: safeLimit,
-      totalPages:
-        Math.ceil(
-          total / safeLimit,
-        ),
+      totalPages: Math.ceil(total / safeLimit),
     };
   }
 
-  static async getAdminUserQueryById(
-    input: {
-      queryId: string;
-      adminId: string;
-    },
-  ) {
-    this.validateObjectId(
-      input.queryId,
-      "query id",
-    );
+  static async getAdminUserQueryById(input: {
+    queryId: string;
+    adminId: string;
+  }) {
+    this.validateObjectId(input.queryId, "query id");
 
-    this.validateObjectId(
-      input.adminId,
-      "admin id",
-    );
+    this.validateObjectId(input.adminId, "admin id");
 
-    await this.ensureAdmin(
-      new Types.ObjectId(
-        input.adminId,
-      ),
-    );
+    await this.ensureAdmin(new Types.ObjectId(input.adminId));
 
-    const queryObjectId =
-      new Types.ObjectId(
-        input.queryId,
-      );
+    const queryObjectId = new Types.ObjectId(input.queryId);
 
-    const queryDocument =
-      await UserQuery.findById(
-        queryObjectId,
-      )
-        .populate(
-          "requesterId",
-          "fullName profileImage role userReference email",
-        )
-        .populate(
-          "assignedAdminId",
-          "fullName profileImage role userReference",
-        )
-        .populate(
-          "resolvedBy",
-          "fullName role userReference",
-        )
-        .populate(
-          "rejectedBy",
-          "fullName role userReference",
-        )
-        .populate(
-          "deletedBy",
-          "fullName role userReference",
-        )
-        .lean();
+    const queryDocument = await UserQuery.findById(queryObjectId)
+      .populate("requesterId", "fullName profileImage role userReference email")
+      .populate("assignedAdminId", "fullName profileImage role userReference")
+      .populate("resolvedBy", "fullName role userReference")
+      .populate("rejectedBy", "fullName role userReference")
+      .populate("deletedBy", "fullName role userReference")
+      .lean();
 
     if (!queryDocument) {
-      throw new Error(
-        "Query not found",
-      );
+      throw new Error("Query not found");
     }
 
-    const [
-      messages,
-      activities,
-    ] = await Promise.all([
+    const [messages, activities] = await Promise.all([
       UserQueryMessage.find({
         queryId: queryObjectId,
       })
-        .populate(
-          "senderId",
-          "fullName profileImage role userReference",
-        )
+        .populate("senderId", "fullName profileImage role userReference")
         .sort({ createdAt: 1 })
         .lean(),
 
       UserQueryActivity.find({
         queryId: queryObjectId,
       })
-        .populate(
-          "performedBy",
-          "fullName profileImage role userReference",
-        )
+        .populate("performedBy", "fullName profileImage role userReference")
         .sort({ createdAt: -1 })
         .lean(),
     ]);
@@ -1139,185 +769,123 @@ export class UserQueryService {
     };
   }
 
-  static async sendAdminQueryReply(
-    input: AdminReplyInput,
-  ) {
-    const {
-      queryId,
-      adminId,
-      message,
-      imageUrls = [],
-    } = input;
+  static async sendAdminQueryReply(input: AdminReplyInput) {
+    const { queryId, adminId, message, imageUrls = [] } = input;
 
-    this.validateObjectId(
-      queryId,
-      "query id",
-    );
+    this.validateObjectId(queryId, "query id");
 
-    this.validateObjectId(
-      adminId,
-      "admin id",
-    );
+    this.validateObjectId(adminId, "admin id");
 
-    this.validateMessageContent(
-      message,
-      imageUrls,
-    );
+    this.validateMessageContent(message, imageUrls);
 
-    const queryObjectId =
-      new Types.ObjectId(
-        queryId,
-      );
+    const queryObjectId = new Types.ObjectId(queryId);
 
-    const adminObjectId =
-      new Types.ObjectId(
-        adminId,
-      );
+    const adminObjectId = new Types.ObjectId(adminId);
 
-    const session =
-      await mongoose.startSession();
+    const session = await mongoose.startSession();
 
     try {
       let result = null;
 
-      await session.withTransaction(
-        async () => {
-          await this.ensureAdmin(
-            adminObjectId,
-            session,
-          );
+      await session.withTransaction(async () => {
+        await this.ensureAdmin(adminObjectId, session);
 
-          const queryDocument =
-            await UserQuery.findOne({
-              _id: queryObjectId,
-              isDeleted: false,
-            }).session(session);
+        const queryDocument = await UserQuery.findOne({
+          _id: queryObjectId,
+          isDeleted: false,
+        }).session(session);
 
-          if (!queryDocument) {
-            throw new Error(
-              "Query not found",
-            );
-          }
+        if (!queryDocument) {
+          throw new Error("Query not found");
+        }
 
-          if (
-            queryDocument.status ===
-            "RESOLVED" ||
-            queryDocument.status ===
-            "REJECTED"
-          ) {
-            throw new Error(
-              "Closed query cannot receive new replies",
-            );
-          }
+        if (
+          queryDocument.status === "RESOLVED" ||
+          queryDocument.status === "REJECTED"
+        ) {
+          throw new Error("Closed query cannot receive new replies");
+        }
 
-          const now = new Date();
+        const now = new Date();
 
-          if (
-            queryDocument.status ===
-            "PENDING"
-          ) {
-            queryDocument.status =
-              "ONGOING";
-
-            await this.createActivity({
-              queryId:
-                queryDocument._id,
-              performedBy:
-                adminObjectId,
-              type:
-                "STATUS_CHANGED",
-              oldValue: {
-                status: "PENDING",
-              },
-              newValue: {
-                status: "ONGOING",
-              },
-              note:
-                "Query moved to ongoing after admin reply",
-              session,
-            });
-          }
-
-          const messagePayload: {
-            queryId: Types.ObjectId;
-            senderId: Types.ObjectId;
-            senderType: "ADMIN";
-            message?: string;
-            imageUrls: string[];
-          } = {
-            queryId:
-              queryDocument._id,
-            senderId:
-              adminObjectId,
-            senderType: "ADMIN",
-            imageUrls,
-          };
-
-          if (message?.trim()) {
-            messagePayload.message =
-              message.trim();
-          }
-
-          const [messageDocument] =
-            await UserQueryMessage.create(
-              [messagePayload],
-              { session },
-            );
-
-          if (!messageDocument) {
-            throw new Error(
-              "Failed to send reply",
-            );
-          }
-
-          queryDocument.latestMessage =
-            this.latestMessageText(
-              message,
-              imageUrls,
-            );
-
-          queryDocument.latestMessageAt =
-            now;
-
-          queryDocument.lastAction =
-            "ADMIN_REPLIED";
-
-          queryDocument.lastActionAt =
-            now;
-
-          queryDocument.lastActionBy =
-            adminObjectId;
-
-          queryDocument.adminUnreadCount =
-            0;
-
-          queryDocument
-            .requesterUnreadCount =
-            queryDocument
-              .requesterUnreadCount + 1;
-
-          await queryDocument.save({
-            session,
-          });
+        if (queryDocument.status === "PENDING") {
+          queryDocument.status = "ONGOING";
 
           await this.createActivity({
-            queryId:
-              queryDocument._id,
-            performedBy:
-              adminObjectId,
-            type:
-              "ADMIN_REPLIED",
+            queryId: queryDocument._id,
+            performedBy: adminObjectId,
+            type: "STATUS_CHANGED",
+            oldValue: {
+              status: "PENDING",
+            },
+            newValue: {
+              status: "ONGOING",
+            },
+            note: "Query moved to ongoing after admin reply",
             session,
           });
+        }
 
-          result = messageDocument;
-        },
-      );
+        const messagePayload: {
+          queryId: Types.ObjectId;
+          senderId: Types.ObjectId;
+          senderType: "ADMIN";
+          message?: string;
+          imageUrls: string[];
+        } = {
+          queryId: queryDocument._id,
+          senderId: adminObjectId,
+          senderType: "ADMIN",
+          imageUrls,
+        };
+
+        if (message?.trim()) {
+          messagePayload.message = message.trim();
+        }
+
+        const [messageDocument] = await UserQueryMessage.create(
+          [messagePayload],
+          { session },
+        );
+
+        if (!messageDocument) {
+          throw new Error("Failed to send reply");
+        }
+
+        queryDocument.latestMessage = this.latestMessageText(
+          message,
+          imageUrls,
+        );
+
+        queryDocument.latestMessageAt = now;
+
+        queryDocument.lastAction = "ADMIN_REPLIED";
+
+        queryDocument.lastActionAt = now;
+
+        queryDocument.lastActionBy = adminObjectId;
+
+        queryDocument.adminUnreadCount = 0;
+
+        queryDocument.requesterUnreadCount =
+          queryDocument.requesterUnreadCount + 1;
+
+        await queryDocument.save({
+          session,
+        });
+
+        await this.createActivity({
+          queryId: queryDocument._id,
+          performedBy: adminObjectId,
+          type: "ADMIN_REPLIED",
+          session,
+        });
+
+        result = messageDocument;
+      });
 
       if (!result) {
-        throw new Error(
-          "Failed to send reply",
-        );
+        throw new Error("Failed to send reply");
       }
 
       return result;
@@ -1326,208 +894,128 @@ export class UserQueryService {
     }
   }
 
-  static async updateUserQueryStatus(
-    input: UpdateStatusInput,
-  ) {
-    const {
-      queryId,
-      adminId,
-      status,
-      reason,
-    } = input;
+  static async updateUserQueryStatus(input: UpdateStatusInput) {
+    const { queryId, adminId, status, reason } = input;
 
-    this.validateObjectId(
-      queryId,
-      "query id",
-    );
+    this.validateObjectId(queryId, "query id");
 
-    this.validateObjectId(
-      adminId,
-      "admin id",
-    );
+    this.validateObjectId(adminId, "admin id");
 
-    const allowedTransitions:
-      Record<
-        UserQueryStatus,
-        UserQueryStatus[]
-      > = {
-      PENDING: [
-        "ONGOING",
-        "RESOLVED",
-        "REJECTED",
-      ],
-      ONGOING: [
-        "RESOLVED",
-        "REJECTED",
-      ],
-      RESOLVED: [
-        "ONGOING",
-      ],
+    const allowedTransitions: Record<UserQueryStatus, UserQueryStatus[]> = {
+      PENDING: ["ONGOING", "RESOLVED", "REJECTED"],
+      ONGOING: ["RESOLVED", "REJECTED"],
+      RESOLVED: ["ONGOING"],
       REJECTED: [],
     };
 
-    const queryObjectId =
-      new Types.ObjectId(
-        queryId,
-      );
+    const queryObjectId = new Types.ObjectId(queryId);
 
-    const adminObjectId =
-      new Types.ObjectId(
-        adminId,
-      );
+    const adminObjectId = new Types.ObjectId(adminId);
 
-    const session =
-      await mongoose.startSession();
+    const session = await mongoose.startSession();
 
     try {
       let result = null;
 
-      await session.withTransaction(
-        async () => {
-          await this.ensureAdmin(
-            adminObjectId,
-            session,
+      await session.withTransaction(async () => {
+        await this.ensureAdmin(adminObjectId, session);
+
+        const queryDocument = await UserQuery.findOne({
+          _id: queryObjectId,
+          isDeleted: false,
+        }).session(session);
+
+        if (!queryDocument) {
+          throw new Error("Query not found");
+        }
+
+        const oldStatus = queryDocument.status;
+
+        if (oldStatus === status) {
+          throw new Error(`Query is already ${status.toLowerCase()}`);
+        }
+
+        if (!allowedTransitions[oldStatus].includes(status)) {
+          throw new Error(
+            `Cannot change query status from ${oldStatus} to ${status}`,
           );
+        }
 
-          const queryDocument =
-            await UserQuery.findOne({
-              _id: queryObjectId,
-              isDeleted: false,
-            }).session(session);
+        if (status === "REJECTED" && !reason?.trim()) {
+          throw new Error("Rejection reason is required");
+        }
 
-          if (!queryDocument) {
-            throw new Error(
-              "Query not found",
-            );
-          }
+        const now = new Date();
 
-          const oldStatus =
-            queryDocument.status;
+        queryDocument.status = status;
 
-          if (oldStatus === status) {
-            throw new Error(
-              `Query is already ${status.toLowerCase()}`,
-            );
-          }
+        if (status === "RESOLVED") {
+          queryDocument.resolvedAt = now;
+          queryDocument.resolvedBy = adminObjectId;
 
-          if (
-            !allowedTransitions[
-              oldStatus
-            ].includes(status)
-          ) {
-            throw new Error(
-              `Cannot change query status from ${oldStatus} to ${status}`,
-            );
-          }
+          delete queryDocument.rejectedAt;
+          delete queryDocument.rejectedBy;
+          delete queryDocument.rejectionReason;
+        }
 
-          if (
-            status === "REJECTED" &&
-            !reason?.trim()
-          ) {
-            throw new Error(
-              "Rejection reason is required",
-            );
-          }
+        if (oldStatus === "RESOLVED" && status === "ONGOING") {
+          delete queryDocument.resolvedAt;
+          delete queryDocument.resolvedBy;
+        }
 
-          const now = new Date();
+        if (status === "REJECTED") {
+          queryDocument.rejectedAt = now;
+          queryDocument.rejectedBy = adminObjectId;
+          queryDocument.rejectionReason = reason!.trim();
 
-          queryDocument.status =
-            status;
+          delete queryDocument.resolvedAt;
+          delete queryDocument.resolvedBy;
+        }
 
-          if (status === "RESOLVED") {
-            queryDocument.resolvedAt =
-              now;
-            queryDocument.resolvedBy =
-              adminObjectId;
+        queryDocument.lastAction = "STATUS_CHANGED";
 
-            delete queryDocument.rejectedAt;
-            delete queryDocument.rejectedBy;
-            delete queryDocument
-              .rejectionReason;
-          }
+        queryDocument.lastActionAt = now;
 
-          if (
-            oldStatus === "RESOLVED" &&
-            status === "ONGOING"
-          ) {
-            delete queryDocument.resolvedAt;
-            delete queryDocument.resolvedBy;
-          }
+        queryDocument.lastActionBy = adminObjectId;
 
-          if (status === "REJECTED") {
-            queryDocument.rejectedAt =
-              now;
-            queryDocument.rejectedBy =
-              adminObjectId;
-            queryDocument
-              .rejectionReason =
-              reason!.trim();
+        result = await queryDocument.save({
+          session,
+        });
 
-            delete queryDocument.resolvedAt;
-            delete queryDocument.resolvedBy;
-          }
-
-          queryDocument.lastAction =
-            "STATUS_CHANGED";
-
-          queryDocument.lastActionAt =
-            now;
-
-          queryDocument.lastActionBy =
-            adminObjectId;
-
-          result =
-            await queryDocument.save({
-              session,
-            });
-
-          const activityInput: {
-            queryId: Types.ObjectId;
-            performedBy:
-            Types.ObjectId;
-            type: "STATUS_CHANGED";
-            oldValue: {
-              status:
-              UserQueryStatus;
-            };
-            newValue: {
-              status:
-              UserQueryStatus;
-            };
-            note?: string;
-            session:
-            ClientSession;
-          } = {
-            queryId:
-              queryDocument._id,
-            performedBy:
-              adminObjectId,
-            type:
-              "STATUS_CHANGED",
-            oldValue: {
-              status: oldStatus,
-            },
-            newValue: {
-              status,
-            },
-            session,
+        const activityInput: {
+          queryId: Types.ObjectId;
+          performedBy: Types.ObjectId;
+          type: "STATUS_CHANGED";
+          oldValue: {
+            status: UserQueryStatus;
           };
+          newValue: {
+            status: UserQueryStatus;
+          };
+          note?: string;
+          session: ClientSession;
+        } = {
+          queryId: queryDocument._id,
+          performedBy: adminObjectId,
+          type: "STATUS_CHANGED",
+          oldValue: {
+            status: oldStatus,
+          },
+          newValue: {
+            status,
+          },
+          session,
+        };
 
-          if (reason?.trim()) {
-            activityInput.note =
-              reason.trim();
-          }
+        if (reason?.trim()) {
+          activityInput.note = reason.trim();
+        }
 
-          await this.createActivity(
-            activityInput,
-          );
-        },
-      );
+        await this.createActivity(activityInput);
+      });
 
       if (!result) {
-        throw new Error(
-          "Failed to update query status",
-        );
+        throw new Error("Failed to update query status");
       }
 
       return result;
@@ -1536,184 +1024,122 @@ export class UserQueryService {
     }
   }
 
-  static async updateUserQueryPriority(
-    input: UpdatePriorityInput,
-  ) {
+  static async updateUserQueryPriority(input: UpdatePriorityInput) {
     return this.updateSimpleField({
       queryId: input.queryId,
       adminId: input.adminId,
       field: "priority",
       newValue: input.priority,
       activityType: "PRIORITY_CHANGED",
-      ...(input.reason !== undefined
-        ? { reason: input.reason }
-        : {}),
+      ...(input.reason !== undefined ? { reason: input.reason } : {}),
     });
   }
 
-  static async updateUserQueryCategory(
-    input: UpdateCategoryInput,
-  ) {
+  static async updateUserQueryCategory(input: UpdateCategoryInput) {
     return this.updateSimpleField({
       queryId: input.queryId,
       adminId: input.adminId,
       field: "category",
       newValue: input.category,
       activityType: "CATEGORY_CHANGED",
-      ...(input.reason !== undefined
-        ? { reason: input.reason }
-        : {}),
+      ...(input.reason !== undefined ? { reason: input.reason } : {}),
     });
   }
 
   private static async updateSimpleField(
     input:
       | {
-        queryId: string;
-        adminId: string;
-        field: "priority";
-        newValue:
-        UserQueryPriority;
-        activityType:
-        "PRIORITY_CHANGED";
-        reason?: string | null;
-      }
+          queryId: string;
+          adminId: string;
+          field: "priority";
+          newValue: UserQueryPriority;
+          activityType: "PRIORITY_CHANGED";
+          reason?: string | null;
+        }
       | {
-        queryId: string;
-        adminId: string;
-        field: "category";
-        newValue:
-        UserQueryCategory;
-        activityType:
-        "CATEGORY_CHANGED";
-        reason?: string | null;
-      },
+          queryId: string;
+          adminId: string;
+          field: "category";
+          newValue: UserQueryCategory;
+          activityType: "CATEGORY_CHANGED";
+          reason?: string | null;
+        },
   ) {
-    this.validateObjectId(
-      input.queryId,
-      "query id",
-    );
+    this.validateObjectId(input.queryId, "query id");
 
-    this.validateObjectId(
-      input.adminId,
-      "admin id",
-    );
+    this.validateObjectId(input.adminId, "admin id");
 
-    const queryObjectId =
-      new Types.ObjectId(
-        input.queryId,
-      );
+    const queryObjectId = new Types.ObjectId(input.queryId);
 
-    const adminObjectId =
-      new Types.ObjectId(
-        input.adminId,
-      );
+    const adminObjectId = new Types.ObjectId(input.adminId);
 
-    const session =
-      await mongoose.startSession();
+    const session = await mongoose.startSession();
 
     try {
       let result = null;
 
-      await session.withTransaction(
-        async () => {
-          await this.ensureAdmin(
-            adminObjectId,
-            session,
+      await session.withTransaction(async () => {
+        await this.ensureAdmin(adminObjectId, session);
+
+        const queryDocument = await UserQuery.findOne({
+          _id: queryObjectId,
+          isDeleted: false,
+        }).session(session);
+
+        if (!queryDocument) {
+          throw new Error("Query not found");
+        }
+
+        const oldValue = queryDocument[input.field];
+
+        if (oldValue === input.newValue) {
+          throw new Error(
+            `Query ${input.field} is already ${String(input.newValue).toLowerCase()}`,
           );
+        }
 
-          const queryDocument =
-            await UserQuery.findOne({
-              _id: queryObjectId,
-              isDeleted: false,
-            }).session(session);
+        queryDocument.set(input.field, input.newValue);
 
-          if (!queryDocument) {
-            throw new Error(
-              "Query not found",
-            );
-          }
+        queryDocument.lastAction = input.activityType;
 
-          const oldValue =
-            queryDocument[
-            input.field
-            ];
+        queryDocument.lastActionAt = new Date();
 
-          if (
-            oldValue ===
-            input.newValue
-          ) {
-            throw new Error(
-              `Query ${input.field} is already ${String(input.newValue).toLowerCase()}`,
-            );
-          }
+        queryDocument.lastActionBy = adminObjectId;
 
-          queryDocument.set(
-            input.field,
-            input.newValue,
-          );
+        result = await queryDocument.save({
+          session,
+        });
 
-          queryDocument.lastAction =
-            input.activityType;
+        const activityInput: {
+          queryId: Types.ObjectId;
+          performedBy: Types.ObjectId;
+          type: "PRIORITY_CHANGED" | "CATEGORY_CHANGED";
+          oldValue: Record<string, unknown>;
+          newValue: Record<string, unknown>;
+          note?: string;
+          session: ClientSession;
+        } = {
+          queryId: queryDocument._id,
+          performedBy: adminObjectId,
+          type: input.activityType,
+          oldValue: {
+            [input.field]: oldValue,
+          },
+          newValue: {
+            [input.field]: input.newValue,
+          },
+          session,
+        };
 
-          queryDocument.lastActionAt =
-            new Date();
+        if (input.reason?.trim()) {
+          activityInput.note = input.reason.trim();
+        }
 
-          queryDocument.lastActionBy =
-            adminObjectId;
-
-          result =
-            await queryDocument.save({
-              session,
-            });
-
-          const activityInput: {
-            queryId: Types.ObjectId;
-            performedBy:
-            Types.ObjectId;
-            type:
-            | "PRIORITY_CHANGED"
-            | "CATEGORY_CHANGED";
-            oldValue:
-            Record<string, unknown>;
-            newValue:
-            Record<string, unknown>;
-            note?: string;
-            session:
-            ClientSession;
-          } = {
-            queryId:
-              queryDocument._id,
-            performedBy:
-              adminObjectId,
-            type:
-              input.activityType,
-            oldValue: {
-              [input.field]:
-                oldValue,
-            },
-            newValue: {
-              [input.field]:
-                input.newValue,
-            },
-            session,
-          };
-
-          if (input.reason?.trim()) {
-            activityInput.note =
-              input.reason.trim();
-          }
-
-          await this.createActivity(
-            activityInput,
-          );
-        },
-      );
+        await this.createActivity(activityInput);
+      });
 
       if (!result) {
-        throw new Error(
-          `Failed to update query ${input.field}`,
-        );
+        throw new Error(`Failed to update query ${input.field}`);
       }
 
       return result;
@@ -1722,124 +1148,72 @@ export class UserQueryService {
     }
   }
 
-  static async assignUserQuery(
-    input: AssignQueryInput,
-  ) {
-    this.validateObjectId(
-      input.queryId,
-      "query id",
-    );
+  static async assignUserQuery(input: AssignQueryInput) {
+    this.validateObjectId(input.queryId, "query id");
 
-    this.validateObjectId(
-      input.adminId,
-      "admin id",
-    );
+    this.validateObjectId(input.adminId, "admin id");
 
-    this.validateObjectId(
-      input.performedBy,
-      "performed by id",
-    );
+    this.validateObjectId(input.performedBy, "performed by id");
 
-    const queryObjectId =
-      new Types.ObjectId(
-        input.queryId,
-      );
+    const queryObjectId = new Types.ObjectId(input.queryId);
 
-    const adminObjectId =
-      new Types.ObjectId(
-        input.adminId,
-      );
+    const adminObjectId = new Types.ObjectId(input.adminId);
 
-    const performedByObjectId =
-      new Types.ObjectId(
-        input.performedBy,
-      );
+    const performedByObjectId = new Types.ObjectId(input.performedBy);
 
-    const session =
-      await mongoose.startSession();
+    const session = await mongoose.startSession();
 
     try {
       let result = null;
 
-      await session.withTransaction(
-        async () => {
-          await this.ensureAdmin(
-            performedByObjectId,
-            session,
-          );
+      await session.withTransaction(async () => {
+        await this.ensureAdmin(performedByObjectId, session);
 
-          await this.ensureAdmin(
-            adminObjectId,
-            session,
-          );
+        await this.ensureAdmin(adminObjectId, session);
 
-          const queryDocument =
-            await UserQuery.findOne({
-              _id: queryObjectId,
-              isDeleted: false,
-            }).session(session);
+        const queryDocument = await UserQuery.findOne({
+          _id: queryObjectId,
+          isDeleted: false,
+        }).session(session);
 
-          if (!queryDocument) {
-            throw new Error(
-              "Query not found",
-            );
-          }
+        if (!queryDocument) {
+          throw new Error("Query not found");
+        }
 
-          const oldAdminId =
-            queryDocument
-              .assignedAdminId;
+        const oldAdminId = queryDocument.assignedAdminId;
 
-          if (
-            oldAdminId?.equals(
-              adminObjectId,
-            )
-          ) {
-            throw new Error(
-              "Query is already assigned to this admin",
-            );
-          }
+        if (oldAdminId?.equals(adminObjectId)) {
+          throw new Error("Query is already assigned to this admin");
+        }
 
-          queryDocument
-            .assignedAdminId =
-            adminObjectId;
+        queryDocument.assignedAdminId = adminObjectId;
 
-          queryDocument.lastAction =
-            "ASSIGNED";
+        queryDocument.lastAction = "ASSIGNED";
 
-          queryDocument.lastActionAt =
-            new Date();
+        queryDocument.lastActionAt = new Date();
 
-          queryDocument.lastActionBy =
-            performedByObjectId;
+        queryDocument.lastActionBy = performedByObjectId;
 
-          result =
-            await queryDocument.save({
-              session,
-            });
+        result = await queryDocument.save({
+          session,
+        });
 
-          await this.createActivity({
-            queryId:
-              queryDocument._id,
-            performedBy:
-              performedByObjectId,
-            type: "ASSIGNED",
-            oldValue: {
-              assignedAdminId:
-                oldAdminId ?? null,
-            },
-            newValue: {
-              assignedAdminId:
-                adminObjectId,
-            },
-            session,
-          });
-        },
-      );
+        await this.createActivity({
+          queryId: queryDocument._id,
+          performedBy: performedByObjectId,
+          type: "ASSIGNED",
+          oldValue: {
+            assignedAdminId: oldAdminId ?? null,
+          },
+          newValue: {
+            assignedAdminId: adminObjectId,
+          },
+          session,
+        });
+      });
 
       if (!result) {
-        throw new Error(
-          "Failed to assign query",
-        );
+        throw new Error("Failed to assign query");
       }
 
       return result;
@@ -1848,114 +1222,72 @@ export class UserQueryService {
     }
   }
 
-  static async deleteUserQuery(
-    input: DeleteQueryInput,
-  ) {
-    this.validateObjectId(
-      input.queryId,
-      "query id",
-    );
+  static async deleteUserQuery(input: DeleteQueryInput) {
+    this.validateObjectId(input.queryId, "query id");
 
-    this.validateObjectId(
-      input.adminId,
-      "admin id",
-    );
+    this.validateObjectId(input.adminId, "admin id");
 
     if (!input.reason.trim()) {
-      throw new Error(
-        "Deletion reason is required",
-      );
+      throw new Error("Deletion reason is required");
     }
 
-    const queryObjectId =
-      new Types.ObjectId(
-        input.queryId,
-      );
+    const queryObjectId = new Types.ObjectId(input.queryId);
 
-    const adminObjectId =
-      new Types.ObjectId(
-        input.adminId,
-      );
+    const adminObjectId = new Types.ObjectId(input.adminId);
 
-    const session =
-      await mongoose.startSession();
+    const session = await mongoose.startSession();
 
     try {
       let result = null;
 
-      await session.withTransaction(
-        async () => {
-          await this.ensureAdmin(
-            adminObjectId,
-            session,
-          );
+      await session.withTransaction(async () => {
+        await this.ensureAdmin(adminObjectId, session);
 
-          const queryDocument =
-            await UserQuery.findById(
-              queryObjectId,
-            ).session(session);
+        const queryDocument =
+          await UserQuery.findById(queryObjectId).session(session);
 
-          if (!queryDocument) {
-            throw new Error(
-              "Query not found",
-            );
-          }
+        if (!queryDocument) {
+          throw new Error("Query not found");
+        }
 
-          if (queryDocument.isDeleted) {
-            throw new Error(
-              "Query is already deleted",
-            );
-          }
+        if (queryDocument.isDeleted) {
+          throw new Error("Query is already deleted");
+        }
 
-          const now = new Date();
+        const now = new Date();
 
-          queryDocument.isDeleted =
-            true;
+        queryDocument.isDeleted = true;
 
-          queryDocument.deletedAt =
-            now;
+        queryDocument.deletedAt = now;
 
-          queryDocument.deletedBy =
-            adminObjectId;
+        queryDocument.deletedBy = adminObjectId;
 
-          queryDocument.deletionReason =
-            input.reason.trim();
+        queryDocument.deletionReason = input.reason.trim();
 
-          queryDocument.lastAction =
-            "QUERY_DELETED";
+        queryDocument.lastAction = "QUERY_DELETED";
 
-          queryDocument.lastActionAt =
-            now;
+        queryDocument.lastActionAt = now;
 
-          queryDocument.lastActionBy =
-            adminObjectId;
+        queryDocument.lastActionBy = adminObjectId;
 
-          result =
-            await queryDocument.save({
-              session,
-            });
+        result = await queryDocument.save({
+          session,
+        });
 
-          await this.createActivity({
-            queryId:
-              queryDocument._id,
-            performedBy:
-              adminObjectId,
-            type:
-              "QUERY_DELETED",
-            newValue: {
-              isDeleted: true,
-            },
-            note:
-              input.reason.trim(),
-            session,
-          });
-        },
-      );
+        await this.createActivity({
+          queryId: queryDocument._id,
+          performedBy: adminObjectId,
+          type: "QUERY_DELETED",
+          newValue: {
+            isDeleted: true,
+          },
+          note: input.reason.trim(),
+          session,
+        });
+      });
 
       if (!result) {
-        throw new Error(
-          "Failed to delete query",
-        );
+        throw new Error("Failed to delete query");
       }
 
       return result;

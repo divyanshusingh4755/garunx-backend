@@ -1,5 +1,5 @@
 import {} from "mongoose";
-import { State, } from "../models/state.model.js";
+import { State } from "../models/state.model.js";
 import { escapeRegex } from "../utils/escapeRegex.js";
 const createHttpError = (message, statusCode) => {
     const error = new Error(message);
@@ -17,7 +17,7 @@ export class StateService {
         return values.length > 0 ? { $in: values } : undefined;
     }
     static async createState(params) {
-        const { name, country, gstCode, image, description, location, } = params;
+        const { name, country, gstCode, image, description, location } = params;
         return State.create({
             name: name.trim(),
             country: country.trim(),
@@ -85,9 +85,7 @@ export class StateService {
                 "createdAt",
                 "updatedAt",
             ]);
-            const safeSortBy = allowedSortFields.has(sortBy)
-                ? sortBy
-                : "createdAt";
+            const safeSortBy = allowedSortFields.has(sortBy) ? sortBy : "createdAt";
             sortCriteria = {
                 [safeSortBy]: sortOrder === "asc" ? 1 : -1,
             };
@@ -137,9 +135,7 @@ export class StateService {
         return updatedState;
     }
     static async getStateById(stateId) {
-        const state = await State.findById(stateId)
-            .lean()
-            .exec();
+        const state = await State.findById(stateId).lean().exec();
         if (!state) {
             throw createHttpError("State not found", 404);
         }

@@ -1,6 +1,6 @@
-import { Schema, Types, model, } from "mongoose";
-import { Role, } from "../types/rbac.js";
-import { Counter, } from "./counter.model.js";
+import { Schema, Types, model } from "mongoose";
+import { Role } from "../types/rbac.js";
+import { Counter } from "./counter.model.js";
 import { ApprovalStatus, AvailabilityStatus, Caste, Gender, Gotra, VerificationStatus, } from "../types/enums.js";
 const ratingSummarySchema = new Schema({
     averageRating: {
@@ -172,16 +172,12 @@ const coordinatorProfileSchema = new Schema({
         type: Date,
     },
     serviceableLocations: {
-        type: [
-            serviceableLocationSchema,
-        ],
+        type: [serviceableLocationSchema],
         default: [],
         validate: {
             validator: (locations) => {
-                const ids = locations.map((location) => location.locationId
-                    .toString());
-                return (new Set(ids).size ===
-                    ids.length);
+                const ids = locations.map((location) => location.locationId.toString());
+                return new Set(ids).size === ids.length;
             },
             message: "Duplicate serviceable locations are not allowed",
         },
@@ -325,31 +321,24 @@ const userSchema = new Schema({
     timestamps: true,
 });
 userSchema.pre("validate", function () {
-    if (!this.phoneNumber &&
-        !this.email) {
+    if (!this.phoneNumber && !this.email) {
         throw new Error("Either phoneNumber or email is required");
     }
-    if (this.resetPasswordToken &&
-        !this.resetPasswordExpires) {
+    if (this.resetPasswordToken && !this.resetPasswordExpires) {
         throw new Error("resetPasswordExpires is required when resetPasswordToken is set");
     }
-    if (!this.resetPasswordToken &&
-        this.resetPasswordExpires) {
+    if (!this.resetPasswordToken && this.resetPasswordExpires) {
         throw new Error("resetPasswordToken is required when resetPasswordExpires is set");
     }
-    if (this.role !==
-        Role.COORDINATOR &&
-        this.coordinatorProfile) {
+    if (this.role !== Role.COORDINATOR && this.coordinatorProfile) {
         throw new Error("coordinatorProfile can only be set for coordinator users");
     }
 });
 userSchema.pre("save", async function () {
-    if (!this.isNew ||
-        this.userReference) {
+    if (!this.isNew || this.userReference) {
         return;
     }
-    const counter = await Counter
-        .findOneAndUpdate({
+    const counter = await Counter.findOneAndUpdate({
         id: "userId",
     }, {
         $inc: {
@@ -359,16 +348,12 @@ userSchema.pre("save", async function () {
         new: true,
         upsert: true,
         setDefaultsOnInsert: true,
-    })
-        .lean();
+    }).lean();
     if (!counter) {
         throw new Error("Unable to generate user reference");
     }
-    const seqString = counter.seq
-        .toString()
-        .padStart(4, "0");
-    this.userReference =
-        `GX-${seqString}`;
+    const seqString = counter.seq.toString().padStart(4, "0");
+    this.userReference = `GX-${seqString}`;
 });
 userSchema.index({
     email: 1,

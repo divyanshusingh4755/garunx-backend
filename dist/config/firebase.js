@@ -1,20 +1,14 @@
 import { cert, getApp, getApps, initializeApp, } from "firebase-admin/app";
-import { getAuth, } from "firebase-admin/auth";
-import serviceAccount from "../../serviceAccountKey.json" with {
-    type: "json"
-};
+import { getAuth } from "firebase-admin/auth";
+import serviceAccount from "../../serviceAccountKey.json" with { type: "json" };
 const isServiceAccount = (value) => {
-    if (typeof value !== "object" ||
-        value === null) {
+    if (typeof value !== "object" || value === null) {
         return false;
     }
     const candidate = value;
-    return (typeof candidate.projectId ===
-        "string" &&
-        typeof candidate.clientEmail ===
-            "string" &&
-        typeof candidate.privateKey ===
-            "string");
+    return (typeof candidate.projectId === "string" &&
+        typeof candidate.clientEmail === "string" &&
+        typeof candidate.privateKey === "string");
 };
 if (!isServiceAccount(serviceAccount)) {
     throw new Error("Invalid Firebase service account configuration");

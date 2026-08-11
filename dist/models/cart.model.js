@@ -1,4 +1,4 @@
-import mongoose, { Schema, Types, } from "mongoose";
+import mongoose, { Schema, Types } from "mongoose";
 import { lineTaxSchema } from "./tax.schema.js";
 const cartTaxSummarySchema = new Schema({
     taxableAmount: {

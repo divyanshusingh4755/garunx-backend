@@ -1,4 +1,4 @@
-import { model, Schema, } from "mongoose";
+import { model, Schema } from "mongoose";
 const serviceComponentItemSchema = new Schema({
     itemId: {
         type: Schema.Types.ObjectId,

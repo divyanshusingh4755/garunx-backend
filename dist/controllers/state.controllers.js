@@ -13,7 +13,7 @@ const getStatusCode = (error) => {
 };
 export const createState = async (req, res) => {
     try {
-        const { name, country, gstCode, image, description, location, } = req.body;
+        const { name, country, gstCode, image, description, location } = req.body;
         const state = await StateService.createState({
             name,
             country,
@@ -53,20 +53,12 @@ export const updateState = async (req, res) => {
 export const getAllState = async (req, res) => {
     try {
         const { searchTerm, stateFilter, countryFilter, limit, page, isActive, sortBy, sortOrder, } = req.query;
-        const activeStatus = isActive === "true"
-            ? true
-            : isActive === "false"
-                ? false
-                : undefined;
+        const activeStatus = isActive === "true" ? true : isActive === "false" ? false : undefined;
         const result = await StateService.findState({
             limit: limit ? Number(limit) : 40,
             page: page ? Number(page) : 1,
-            sortBy: typeof sortBy === "string"
-                ? sortBy
-                : "createdAt",
-            sortOrder: sortOrder === "asc" || sortOrder === "desc"
-                ? sortOrder
-                : "desc",
+            sortBy: typeof sortBy === "string" ? sortBy : "createdAt",
+            sortOrder: sortOrder === "asc" || sortOrder === "desc" ? sortOrder : "desc",
             ...(typeof searchTerm === "string" && {
                 searchTerm,
             }),

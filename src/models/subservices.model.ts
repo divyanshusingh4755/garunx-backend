@@ -1,8 +1,4 @@
-import {
-  model,
-  Schema,
-  type Types,
-} from "mongoose";
+import { model, Schema, type Types } from "mongoose";
 
 export interface ISubServiceComponent {
   name: string;
@@ -14,44 +10,43 @@ export interface ISubServiceComponent {
   updatedAt: Date;
 }
 
-const subServiceComponentSchema =
-  new Schema<ISubServiceComponent>(
-    {
-      name: {
-        type: String,
-        required: true,
-        trim: true,
-      },
-
-      description: {
-        type: String,
-        required: true,
-        trim: true,
-      },
-
-      image: {
-        type: String,
-        trim: true,
-      },
-
-      serviceId: {
-        type: Schema.Types.ObjectId,
-        ref: "Service",
-        required: true,
-        index: true,
-      },
-
-      isActive: {
-        type: Boolean,
-        required: true,
-        default: true,
-        index: true,
-      },
+const subServiceComponentSchema = new Schema<ISubServiceComponent>(
+  {
+    name: {
+      type: String,
+      required: true,
+      trim: true,
     },
-    {
-      timestamps: true,
+
+    description: {
+      type: String,
+      required: true,
+      trim: true,
     },
-  );
+
+    image: {
+      type: String,
+      trim: true,
+    },
+
+    serviceId: {
+      type: Schema.Types.ObjectId,
+      ref: "Service",
+      required: true,
+      index: true,
+    },
+
+    isActive: {
+      type: Boolean,
+      required: true,
+      default: true,
+      index: true,
+    },
+  },
+  {
+    timestamps: true,
+  },
+);
 
 subServiceComponentSchema.index({
   name: 1,
@@ -63,13 +58,11 @@ subServiceComponentSchema.index(
     description: "text",
   },
   {
-    name:
-      "SubServiceComponentTextSearchIndex",
+    name: "SubServiceComponentTextSearchIndex",
   },
 );
 
-export const SubServiceComponent =
-  model<ISubServiceComponent>(
-    "SubServiceComponent",
-    subServiceComponentSchema,
-  );
+export const SubServiceComponent = model<ISubServiceComponent>(
+  "SubServiceComponent",
+  subServiceComponentSchema,
+);

@@ -1,11 +1,11 @@
-import { Types, } from "mongoose";
+import { Types } from "mongoose";
 import { TaxProfile } from "../models/tax-profile.model.js";
-import { ServicePricing, } from "../models/servicepricing.model.js";
-import { PackageTierPricing, } from "../models/packagetierpricing.model.js";
-import { escapeRegex, } from "../utils/escapeRegex.js";
+import { ServicePricing } from "../models/servicepricing.model.js";
+import { PackageTierPricing } from "../models/packagetierpricing.model.js";
+import { escapeRegex } from "../utils/escapeRegex.js";
 export class TaxProfileService {
     static async getTaxProfileUsage(taxProfileId) {
-        const [servicePricing, packagePricing,] = await Promise.all([
+        const [servicePricing, packagePricing] = await Promise.all([
             ServicePricing.find({
                 taxProfileId,
                 isActive: true,
@@ -41,8 +41,7 @@ export class TaxProfileService {
             else {
                 serviceMap.set(serviceId, {
                     serviceId,
-                    serviceName: service.name ??
-                        "Unknown service",
+                    serviceName: service.name ?? "Unknown service",
                     pricingCount: 1,
                 });
             }
@@ -61,8 +60,7 @@ export class TaxProfileService {
             else {
                 packageMap.set(packageId, {
                     packageId,
-                    packageName: packageDocument.name ??
-                        "Unknown package",
+                    packageName: packageDocument.name ?? "Unknown package",
                     pricingCount: 1,
                 });
             }
@@ -95,19 +93,15 @@ export class TaxProfileService {
         return normalized || undefined;
     }
     static validateTreatmentRate(treatment, totalRate) {
-        if (treatment === "TAXABLE" &&
-            totalRate <= 0) {
+        if (treatment === "TAXABLE" && totalRate <= 0) {
             throw new Error("Taxable tax profile must have a rate greater than zero");
         }
-        if (treatment !== "TAXABLE" &&
-            totalRate !== 0) {
+        if (treatment !== "TAXABLE" && totalRate !== 0) {
             throw new Error("Non-taxable tax profiles must have a rate equal to zero");
         }
     }
     static async createTaxProfile(payload) {
-        const code = payload.code
-            .trim()
-            .toUpperCase();
+        const code = payload.code.trim().toUpperCase();
         const name = payload.name.trim();
         this.validateTreatmentRate(payload.treatment, payload.totalRate);
         const existingProfile = await TaxProfile.findOne({
@@ -127,15 +121,12 @@ export class TaxProfileService {
             isActive: true,
         };
         if (description) {
-            createPayload.description =
-                description;
+            createPayload.description = description;
         }
         if (payload.createdBy) {
             const createdBy = this.toObjectId(payload.createdBy, "createdBy");
-            createPayload.createdBy =
-                createdBy;
-            createPayload.updatedBy =
-                createdBy;
+            createPayload.createdBy = createdBy;
+            createPayload.updatedBy = createdBy;
         }
         try {
             return await TaxProfile.create(createPayload);
@@ -151,36 +142,28 @@ export class TaxProfileService {
         }
     }
     static async getTaxProfiles(filters = {}) {
-        const page = Number.isInteger(filters.page) &&
-            (filters.page ?? 0) > 0
+        const page = Number.isInteger(filters.page) && (filters.page ?? 0) > 0
             ? filters.page
             : 1;
-        const limit = Number.isInteger(filters.limit) &&
-            (filters.limit ?? 0) > 0
+        const limit = Number.isInteger(filters.limit) && (filters.limit ?? 0) > 0
             ? Math.min(filters.limit, 100)
             : 20;
         const skip = (page - 1) * limit;
         const query = {};
         if (filters.treatment) {
-            query.treatment =
-                filters.treatment;
+            query.treatment = filters.treatment;
         }
-        if (typeof filters.isActive ===
-            "boolean") {
-            query.isActive =
-                filters.isActive;
+        if (typeof filters.isActive === "boolean") {
+            query.isActive = filters.isActive;
         }
         if (filters.search?.trim()) {
             const regex = {
                 $regex: escapeRegex(filters.search.trim()),
                 $options: "i",
             };
-            query.$or = [
-                { name: regex },
-                { code: regex },
-            ];
+            query.$or = [{ name: regex }, { code: regex }];
         }
-        const [taxProfiles, total,] = await Promise.all([
+        const [taxProfiles, total] = await Promise.all([
             TaxProfile.find(query)
                 .populate("createdBy", "fullName email role")
                 .populate("updatedBy", "fullName email role")
@@ -235,36 +218,29 @@ export class TaxProfileService {
         if (!taxProfile) {
             throw new Error("Tax profile not found");
         }
-        const nextTreatment = payload.treatment ??
-            taxProfile.treatment;
-        const nextTotalRate = payload.totalRate ??
-            taxProfile.totalRate;
+        const nextTreatment = payload.treatment ?? taxProfile.treatment;
+        const nextTotalRate = payload.totalRate ?? taxProfile.totalRate;
         this.validateTreatmentRate(nextTreatment, nextTotalRate);
         if (payload.name !== undefined) {
-            taxProfile.name =
-                payload.name.trim();
+            taxProfile.name = payload.name.trim();
         }
         if (payload.treatment !== undefined) {
-            taxProfile.treatment =
-                payload.treatment;
+            taxProfile.treatment = payload.treatment;
         }
         if (payload.totalRate !== undefined) {
-            taxProfile.totalRate =
-                payload.totalRate;
+            taxProfile.totalRate = payload.totalRate;
         }
         if (Object.prototype.hasOwnProperty.call(payload, "description")) {
             const description = this.normalizeOptionalString(payload.description);
             if (description) {
-                taxProfile.description =
-                    description;
+                taxProfile.description = description;
             }
             else {
                 taxProfile.set("description", undefined);
             }
         }
         if (payload.updatedBy) {
-            taxProfile.updatedBy =
-                this.toObjectId(payload.updatedBy, "updatedBy");
+            taxProfile.updatedBy = this.toObjectId(payload.updatedBy, "updatedBy");
         }
         return taxProfile.save();
     }
@@ -274,16 +250,13 @@ export class TaxProfileService {
         if (!taxProfile) {
             throw new Error("Tax profile not found");
         }
-        if (taxProfile.isActive ===
-            isActive) {
+        if (taxProfile.isActive === isActive) {
             return taxProfile;
         }
         if (!isActive) {
             const usage = await this.getTaxProfileUsage(taxProfile._id);
-            const isInUse = usage.summary
-                .servicePricingCount > 0 ||
-                usage.summary
-                    .packagePricingCount > 0;
+            const isInUse = usage.summary.servicePricingCount > 0 ||
+                usage.summary.packagePricingCount > 0;
             if (isInUse) {
                 const error = new Error("Cannot deactivate this tax profile because it is used by active service or package pricing. Reassign those pricing records first.");
                 error.statusCode = 409;
@@ -291,11 +264,9 @@ export class TaxProfileService {
                 throw error;
             }
         }
-        taxProfile.isActive =
-            isActive;
+        taxProfile.isActive = isActive;
         if (updatedBy) {
-            taxProfile.updatedBy =
-                this.toObjectId(updatedBy, "updatedBy");
+            taxProfile.updatedBy = this.toObjectId(updatedBy, "updatedBy");
         }
         return taxProfile.save();
     }

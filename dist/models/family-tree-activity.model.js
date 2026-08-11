@@ -1,4 +1,4 @@
-import { Schema, model, Types, } from "mongoose";
+import { Schema, model, Types } from "mongoose";
 const familyTreeChangeSchema = new Schema({
     field: {
         type: String,
@@ -69,9 +69,7 @@ const familyTreeActivitySchema = new Schema({
         trim: true,
     },
     changes: {
-        type: [
-            familyTreeChangeSchema,
-        ],
+        type: [familyTreeChangeSchema],
         default: [],
     },
     reason: {
@@ -89,22 +87,15 @@ const familyTreeActivitySchema = new Schema({
     },
 });
 familyTreeActivitySchema.pre("validate", function () {
-    if (this.source ===
-        "COORDINATOR_BOOKING" &&
-        !this.bookingId) {
+    if (this.source === "COORDINATOR_BOOKING" && !this.bookingId) {
         throw new Error("bookingId is required for coordinator booking activity");
     }
-    if (this.source !==
-        "COORDINATOR_BOOKING" &&
-        this.bookingId) {
+    if (this.source !== "COORDINATOR_BOOKING" && this.bookingId) {
         throw new Error("bookingId can only be provided for coordinator booking activity");
     }
-    if ((this.action ===
-        "MEMBER_UPDATED" ||
-        this.action ===
-            "RELATIONSHIP_LINKED" ||
-        this.action ===
-            "RELATIONSHIP_UNLINKED") &&
+    if ((this.action === "MEMBER_UPDATED" ||
+        this.action === "RELATIONSHIP_LINKED" ||
+        this.action === "RELATIONSHIP_UNLINKED") &&
         this.changes.length === 0) {
         throw new Error("Changes are required for update and relationship activities");
     }

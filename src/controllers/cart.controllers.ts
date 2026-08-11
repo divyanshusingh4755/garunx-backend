@@ -190,10 +190,7 @@ export const updateCustomerDetails = async (req: Request, res: Response) => {
     const owner = getCartOwner(req);
     const { bookingFor } = req.body;
 
-    if (
-      bookingFor &&
-      !["MYSELF", "OTHER"].includes(bookingFor)
-    ) {
+    if (bookingFor && !["MYSELF", "OTHER"].includes(bookingFor)) {
       return res.status(400).json({
         success: false,
         message: "Invalid bookingFor value",
@@ -276,10 +273,7 @@ export const recalculateCart = async (req: Request, res: Response) => {
 export const validateCart = async (req: Request, res: Response) => {
   try {
     const owner = getCartOwner(req);
-    const persist =
-      req.body.persist === undefined
-        ? false
-        : req.body.persist;
+    const persist = req.body.persist === undefined ? false : req.body.persist;
 
     if (typeof persist !== "boolean") {
       return res.status(400).json({

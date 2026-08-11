@@ -1,10 +1,7 @@
 import type { Request, Response } from "express";
 import BrandingService from "../services/branding.service.js";
 
-export const getTheme = async (
-  req: Request,
-  res: Response,
-) => {
+export const getTheme = async (req: Request, res: Response) => {
   try {
     const theme = await BrandingService.getAppTheme();
 
@@ -13,9 +10,7 @@ export const getTheme = async (
       theme,
     });
   } catch (error: any) {
-    const statusCode = error.message
-      ?.toLowerCase()
-      .includes("not found")
+    const statusCode = error.message?.toLowerCase().includes("not found")
       ? 404
       : 500;
 
@@ -26,14 +21,9 @@ export const getTheme = async (
   }
 };
 
-export const updateTheme = async (
-  req: Request,
-  res: Response,
-) => {
+export const updateTheme = async (req: Request, res: Response) => {
   try {
-    const branding = await BrandingService.updateAppTheme(
-      req.body.theme,
-    );
+    const branding = await BrandingService.updateAppTheme(req.body.theme);
 
     return res.status(200).json({
       success: true,
@@ -44,13 +34,11 @@ export const updateTheme = async (
       },
     });
   } catch (error: any) {
-    const statusCode =
-      error?.code === 11000 ? 409 : 400;
+    const statusCode = error?.code === 11000 ? 409 : 400;
 
     return res.status(statusCode).json({
       success: false,
-      message:
-        error.message || "Failed to update brand theme",
+      message: error.message || "Failed to update brand theme",
     });
   }
 };

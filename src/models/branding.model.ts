@@ -1,7 +1,4 @@
-import {
-  model,
-  Schema,
-} from "mongoose";
+import { model, Schema } from "mongoose";
 
 export interface IBrandTheme {
   primary: string;
@@ -76,10 +73,7 @@ const brandingSchema = new Schema<IBrand>(
   },
 );
 
-brandingSchema.index(
-  { version: 1 },
-  { unique: true },
-);
+brandingSchema.index({ version: 1 }, { unique: true });
 
 brandingSchema.index(
   { isActive: 1 },
@@ -91,7 +85,4 @@ brandingSchema.index(
   },
 );
 
-export const Branding = model<IBrand>(
-  "Branding",
-  brandingSchema,
-);
+export const Branding = model<IBrand>("Branding", brandingSchema);

@@ -1,5 +1,5 @@
 import { Router, } from "express";
-import { param, body, validationResult, } from "express-validator";
+import { param, body, validationResult } from "express-validator";
 import { bulkUpsertServiceComponents, replaceServiceComponents, getComponentsByServiceAndTier, updateServiceComponent, } from "../controllers/servicecomponent.controllers.js";
 import { authenticate } from "../middleware/authenticate.js";
 const router = Router();
@@ -16,9 +16,7 @@ const validate = (req, res, next) => {
     next();
 };
 const componentEntryValidation = [
-    body("components")
-        .isArray()
-        .withMessage("components must be an array"),
+    body("components").isArray().withMessage("components must be an array"),
     body("components.*.componentId")
         .notEmpty()
         .withMessage("componentId is required")
@@ -35,11 +33,8 @@ const componentEntryValidation = [
     body("components.*.items.*")
         .optional()
         .custom((value) => {
-        const itemId = typeof value === "string"
-            ? value
-            : value?.itemId;
-        if (typeof itemId !== "string" ||
-            !/^[a-f\d]{24}$/i.test(itemId)) {
+        const itemId = typeof value === "string" ? value : value?.itemId;
+        if (typeof itemId !== "string" || !/^[a-f\d]{24}$/i.test(itemId)) {
             throw new Error("Invalid itemId");
         }
         return true;
@@ -60,12 +55,8 @@ const bulkValidation = [
     validate,
 ];
 const serviceTierValidation = [
-    param("serviceId")
-        .isMongoId()
-        .withMessage("Invalid serviceId"),
-    param("tierId")
-        .isMongoId()
-        .withMessage("Invalid tierId"),
+    param("serviceId").isMongoId().withMessage("Invalid serviceId"),
+    param("tierId").isMongoId().withMessage("Invalid tierId"),
     validate,
 ];
 const patchValidation = [
@@ -115,18 +106,12 @@ const patchValidation = [
         .trim()
         .notEmpty()
         .withMessage("name cannot be empty"),
-    body("items")
-        .optional()
-        .isArray()
-        .withMessage("items must be an array"),
+    body("items").optional().isArray().withMessage("items must be an array"),
     body("items.*")
         .optional()
         .custom((value) => {
-        const itemId = typeof value === "string"
-            ? value
-            : value?.itemId;
-        if (typeof itemId !== "string" ||
-            !/^[a-f\d]{24}$/i.test(itemId)) {
+        const itemId = typeof value === "string" ? value : value?.itemId;
+        if (typeof itemId !== "string" || !/^[a-f\d]{24}$/i.test(itemId)) {
             throw new Error("Invalid itemId");
         }
         return true;

@@ -1,5 +1,5 @@
 import { Router, } from "express";
-import { body, param, query, validationResult, } from "express-validator";
+import { body, param, query, validationResult } from "express-validator";
 import { authenticate } from "../middleware/authenticate.js";
 import { createLocation, deleteLocation, getAllLocation, getLocationById, getLocationIds, updateLocation, } from "../controllers/location.controllers.js";
 const router = Router();
@@ -30,8 +30,7 @@ const coordinatesValidation = [
         .withMessage("Coordinates must be [longitude, latitude]")
         .custom((coordinates) => {
         if (coordinates.length !== 2 ||
-            !coordinates.every((coordinate) => typeof coordinate === "number" &&
-                Number.isFinite(coordinate))) {
+            !coordinates.every((coordinate) => typeof coordinate === "number" && Number.isFinite(coordinate))) {
             throw new Error("Longitude and latitude must be valid numbers");
         }
         const [longitude, latitude] = coordinates;
@@ -138,14 +137,8 @@ const updateLocationValidation = [
         .trim()
         .notEmpty()
         .withMessage("country cannot be empty"),
-    body("stateId")
-        .optional()
-        .isMongoId()
-        .withMessage("Invalid stateId"),
-    body("cityId")
-        .optional()
-        .isMongoId()
-        .withMessage("Invalid cityId"),
+    body("stateId").optional().isMongoId().withMessage("Invalid stateId"),
+    body("cityId").optional().isMongoId().withMessage("Invalid cityId"),
     body("fullAddress")
         .optional()
         .isString()
@@ -221,14 +214,7 @@ const listValidation = [
         .withMessage("sortOrder must be asc or desc"),
     query("sortBy")
         .optional()
-        .isIn([
-        "name",
-        "country",
-        "pincode",
-        "createdAt",
-        "updatedAt",
-        "relevance",
-    ])
+        .isIn(["name", "country", "pincode", "createdAt", "updatedAt", "relevance"])
         .withMessage("Invalid sortBy value"),
     handleValidationErrors,
 ];

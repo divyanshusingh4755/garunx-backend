@@ -1,4 +1,4 @@
-import { randomBytes, } from "node:crypto";
+import { randomBytes } from "node:crypto";
 const normalizePrefix = (prefix) => {
     const normalized = prefix
         .trim()

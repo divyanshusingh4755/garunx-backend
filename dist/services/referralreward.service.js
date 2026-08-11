@@ -1,9 +1,9 @@
-import mongoose, { Types, } from "mongoose";
-import { User, } from "../models/user.model.js";
-import { ReferralReward, } from "../models/referralreward.model.js";
-import { Booking, } from "../models/booking.model.js";
-import { Coupon, } from "../models/coupon.model.js";
-import { generateCouponCode, } from "../utils/generateCouponCode.js";
+import mongoose, { Types } from "mongoose";
+import { User } from "../models/user.model.js";
+import { ReferralReward } from "../models/referralreward.model.js";
+import { Booking } from "../models/booking.model.js";
+import { Coupon } from "../models/coupon.model.js";
+import { generateCouponCode } from "../utils/generateCouponCode.js";
 export class ReferralRewardService {
     static ensureValidObjectId(value, fieldName) {
         if (!Types.ObjectId.isValid(value)) {
@@ -23,8 +23,7 @@ export class ReferralRewardService {
                 if (!user.referredBy) {
                     return;
                 }
-                if (user.referredBy.toString() ===
-                    user._id.toString()) {
+                if (user.referredBy.toString() === user._id.toString()) {
                     return;
                 }
                 const qualifyingBooking = await Booking.findOne({
@@ -90,8 +89,7 @@ export class ReferralRewardService {
                         isActive: true,
                     },
                 ], { session });
-                if (!referrerCoupon ||
-                    !referredCoupon) {
+                if (!referrerCoupon || !referredCoupon) {
                     throw new Error("Failed to create referral coupons");
                 }
                 await ReferralReward.create([
@@ -114,14 +112,12 @@ export class ReferralRewardService {
     }
     static async getReferralInfo(userId) {
         this.ensureValidObjectId(userId, "userId");
-        const user = await User.findById(userId)
-            .select("name referralCode")
-            .lean();
+        const user = await User.findById(userId).select("name referralCode").lean();
         if (!user) {
             throw new Error("User not found");
         }
         const userObjectId = new Types.ObjectId(userId);
-        const [totalReferrals, successfulReferrals, totalRewards,] = await Promise.all([
+        const [totalReferrals, successfulReferrals, totalRewards] = await Promise.all([
             ReferralReward.countDocuments({
                 referrerUserId: userObjectId,
             }),
@@ -206,12 +202,8 @@ export class ReferralRewardService {
     }
     static async getReferralHistory(userId, page = 1, limit = 20) {
         this.ensureValidObjectId(userId, "userId");
-        const safePage = Number.isInteger(page) && page > 0
-            ? page
-            : 1;
-        const safeLimit = Number.isInteger(limit) && limit > 0
-            ? Math.min(limit, 100)
-            : 20;
+        const safePage = Number.isInteger(page) && page > 0 ? page : 1;
+        const safeLimit = Number.isInteger(limit) && limit > 0 ? Math.min(limit, 100) : 20;
         const skip = (safePage - 1) * safeLimit;
         const query = {
             referrerUserId: new Types.ObjectId(userId),
@@ -249,12 +241,8 @@ export class ReferralRewardService {
         if (userId) {
             this.ensureValidObjectId(userId, "userId");
         }
-        const safePage = Number.isInteger(page) && page > 0
-            ? page
-            : 1;
-        const safeLimit = Number.isInteger(limit) && limit > 0
-            ? Math.min(limit, 100)
-            : 20;
+        const safePage = Number.isInteger(page) && page > 0 ? page : 1;
+        const safeLimit = Number.isInteger(limit) && limit > 0 ? Math.min(limit, 100) : 20;
         const skip = (safePage - 1) * safeLimit;
         const query = {};
         if (userId) {

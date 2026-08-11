@@ -1,4 +1,4 @@
-import { Counter, } from "../models/counter.model.js";
+import { Counter } from "../models/counter.model.js";
 export const getNextSequence = async (id) => {
     const normalizedId = id.trim();
     if (!normalizedId) {

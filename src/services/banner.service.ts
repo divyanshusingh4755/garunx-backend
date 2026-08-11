@@ -1,13 +1,8 @@
 import { Types, type SortOrder } from "mongoose";
 
-import {
-  Banner,
-  type IBanner,
-} from "../models/banner.model.js";
+import { Banner, type IBanner } from "../models/banner.model.js";
 
-import {
-  escapeRegex,
-} from "../utils/escapeRegex.js";
+import { escapeRegex } from "../utils/escapeRegex.js";
 
 type RedirectType =
   | "NONE"
@@ -24,9 +19,7 @@ export class BannerService {
     }
   }
 
-  static async createBanner(
-    bannerData: Partial<IBanner>,
-  ) {
+  static async createBanner(bannerData: Partial<IBanner>) {
     if (!bannerData.name?.trim()) {
       throw new Error("Banner name is required");
     }
@@ -54,10 +47,7 @@ export class BannerService {
     return banner.save();
   }
 
-  static async updateBanner(
-    id: string,
-    updateData: Partial<IBanner>,
-  ) {
+  static async updateBanner(id: string, updateData: Partial<IBanner>) {
     this.ensureValidId(id);
 
     const banner = await Banner.findById(id);
@@ -74,15 +64,10 @@ export class BannerService {
       "__v",
     ]);
 
-    for (
-      const [field, value] of Object.entries(
-        updateData as Record<string, unknown>,
-      )
-    ) {
-      if (
-        protectedFields.has(field) ||
-        field === "redirect"
-      ) {
+    for (const [field, value] of Object.entries(
+      updateData as Record<string, unknown>,
+    )) {
+      if (protectedFields.has(field) || field === "redirect") {
         continue;
       }
 
@@ -90,37 +75,29 @@ export class BannerService {
     }
 
     if (updateData.redirect !== undefined) {
-      const incomingRedirect =
-        updateData.redirect as
+      const incomingRedirect = updateData.redirect as
         | Partial<IBanner["redirect"]>
         | undefined;
 
       const redirectType =
-        incomingRedirect?.type ??
-        banner.redirect?.type ??
-        "NONE";
+        incomingRedirect?.type ?? banner.redirect?.type ?? "NONE";
 
       banner.redirect = {
         type: redirectType,
 
-        ...(
-          ["SERVICE", "PACKAGE", "CATEGORY", "PRODUCT"]
-            .includes(redirectType) &&
-            incomingRedirect?.refId
-            ? {
+        ...(["SERVICE", "PACKAGE", "CATEGORY", "PRODUCT"].includes(
+          redirectType,
+        ) && incomingRedirect?.refId
+          ? {
               refId: incomingRedirect.refId,
             }
-            : {}
-        ),
+          : {}),
 
-        ...(
-          redirectType === "URL" &&
-            incomingRedirect?.url
-            ? {
+        ...(redirectType === "URL" && incomingRedirect?.url
+          ? {
               url: incomingRedirect.url,
             }
-            : {}
-        ),
+          : {}),
       } as IBanner["redirect"];
     }
 
@@ -132,8 +109,7 @@ export class BannerService {
   static async getBannerById(id: string) {
     this.ensureValidId(id);
 
-    const banner = await Banner.findById(id)
-      .lean();
+    const banner = await Banner.findById(id).lean();
 
     if (!banner) {
       throw new Error("Banner not found");
@@ -145,8 +121,7 @@ export class BannerService {
   static async deleteBanner(id: string) {
     this.ensureValidId(id);
 
-    const banner =
-      await Banner.findByIdAndDelete(id);
+    const banner = await Banner.findByIdAndDelete(id);
 
     if (!banner) {
       throw new Error("Banner not found");
@@ -180,18 +155,12 @@ export class BannerService {
     sortBy = "displayOrder",
     sortOrder: "asc" | "desc" = "asc",
   ) {
-    const safePage =
-      Number.isInteger(page) && page > 0
-        ? page
-        : 1;
+    const safePage = Number.isInteger(page) && page > 0 ? page : 1;
 
     const safeLimit =
-      Number.isInteger(limit) && limit > 0
-        ? Math.min(limit, 100)
-        : 20;
+      Number.isInteger(limit) && limit > 0 ? Math.min(limit, 100) : 20;
 
-    const skip =
-      safeLimit * (safePage - 1);
+    const skip = safeLimit * (safePage - 1);
 
     const query: Record<string, unknown> = {};
 
@@ -211,14 +180,11 @@ export class BannerService {
       query["redirect.type"] = redirectType;
     }
 
-    const normalizedSearch =
-      searchTerm?.trim();
+    const normalizedSearch = searchTerm?.trim();
 
-    const isTextSearch =
-      Boolean(
-        normalizedSearch &&
-        normalizedSearch.length > 4,
-      );
+    const isTextSearch = Boolean(
+      normalizedSearch && normalizedSearch.length > 4,
+    );
 
     if (normalizedSearch) {
       if (isTextSearch) {
@@ -227,8 +193,7 @@ export class BannerService {
         };
       } else {
         query.name = {
-          $regex:
-            `^${escapeRegex(normalizedSearch)}`,
+          $regex: `^${escapeRegex(normalizedSearch)}`,
           $options: "i",
         };
       }
@@ -245,21 +210,12 @@ export class BannerService {
       "relevance",
     ]);
 
-    const safeSortBy =
-      allowedSortFields.has(sortBy)
-        ? sortBy
-        : "displayOrder";
+    const safeSortBy = allowedSortFields.has(sortBy) ? sortBy : "displayOrder";
 
     let projection: Record<string, unknown> = {};
-    let sortCriteria: Record<
-      string,
-      SortOrder | { $meta: "textScore" }
-    >;
+    let sortCriteria: Record<string, SortOrder | { $meta: "textScore" }>;
 
-    if (
-      isTextSearch &&
-      safeSortBy === "relevance"
-    ) {
+    if (isTextSearch && safeSortBy === "relevance") {
       sortCriteria = {
         score: {
           $meta: "textScore",
@@ -267,15 +223,10 @@ export class BannerService {
       };
     } else {
       const actualSortField =
-        safeSortBy === "relevance"
-          ? "displayOrder"
-          : safeSortBy;
+        safeSortBy === "relevance" ? "displayOrder" : safeSortBy;
 
       sortCriteria = {
-        [actualSortField]:
-          sortOrder === "desc"
-            ? -1
-            : 1,
+        [actualSortField]: sortOrder === "desc" ? -1 : 1,
       };
 
       if (actualSortField !== "createdAt") {
@@ -284,34 +235,27 @@ export class BannerService {
     }
 
     try {
-      const [data, total] =
-        await Promise.all([
-          Banner.find(query, projection)
-            .sort(sortCriteria)
-            .skip(skip)
-            .limit(safeLimit)
-            .lean(),
+      const [data, total] = await Promise.all([
+        Banner.find(query, projection)
+          .sort(sortCriteria)
+          .skip(skip)
+          .limit(safeLimit)
+          .lean(),
 
-          Banner.countDocuments(query),
-        ]);
+        Banner.countDocuments(query),
+      ]);
 
       return {
         data,
         total,
         page: safePage,
         limit: safeLimit,
-        totalPages:
-          Math.ceil(total / safeLimit),
+        totalPages: Math.ceil(total / safeLimit),
       };
     } catch (error: unknown) {
-      const message =
-        error instanceof Error
-          ? error.message
-          : "Unknown error";
+      const message = error instanceof Error ? error.message : "Unknown error";
 
-      throw new Error(
-        `Banner fetch failed: ${message}`,
-      );
+      throw new Error(`Banner fetch failed: ${message}`);
     }
   }
 }

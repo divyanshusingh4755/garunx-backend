@@ -1,5 +1,5 @@
 import { Router, } from "express";
-import { body, param, query, validationResult, } from "express-validator";
+import { body, param, query, validationResult } from "express-validator";
 import { authenticate } from "../middleware/authenticate.js";
 import { createCity, deleteCity, getAllCity, getCityById, updateCity, } from "../controllers/city.controllers.js";
 const router = Router();
@@ -30,8 +30,7 @@ const locationValidation = [
         .withMessage("Coordinates must be [longitude, latitude]")
         .custom((coordinates) => {
         if (coordinates.length !== 2 ||
-            !coordinates.every((coordinate) => typeof coordinate === "number" &&
-                Number.isFinite(coordinate))) {
+            !coordinates.every((coordinate) => typeof coordinate === "number" && Number.isFinite(coordinate))) {
             throw new Error("Longitude and latitude must be valid numbers");
         }
         const [longitude, latitude] = coordinates;
@@ -83,9 +82,7 @@ const createCityValidation = [
     handleValidationErrors,
 ];
 const updateCityValidation = [
-    param("id")
-        .isMongoId()
-        .withMessage("Invalid city ID"),
+    param("id").isMongoId().withMessage("Invalid city ID"),
     body().custom((value) => {
         const allowedFields = [
             "name",
@@ -106,10 +103,7 @@ const updateCityValidation = [
         }
         return true;
     }),
-    body("stateId")
-        .optional()
-        .isMongoId()
-        .withMessage("Invalid stateId"),
+    body("stateId").optional().isMongoId().withMessage("Invalid stateId"),
     body("name")
         .optional()
         .isString()
@@ -141,15 +135,11 @@ const updateCityValidation = [
     handleValidationErrors,
 ];
 const cityIdValidation = [
-    param("id")
-        .isMongoId()
-        .withMessage("Invalid city ID"),
+    param("id").isMongoId().withMessage("Invalid city ID"),
     handleValidationErrors,
 ];
 const statusValidation = [
-    param("id")
-        .isMongoId()
-        .withMessage("Invalid city ID"),
+    param("id").isMongoId().withMessage("Invalid city ID"),
     body("status")
         .exists({ checkNull: true })
         .withMessage("status is required")
@@ -176,13 +166,7 @@ const listValidation = [
         .withMessage("sortOrder must be asc or desc"),
     query("sortBy")
         .optional()
-        .isIn([
-        "name",
-        "country",
-        "createdAt",
-        "updatedAt",
-        "relevance",
-    ])
+        .isIn(["name", "country", "createdAt", "updatedAt", "relevance"])
         .withMessage("Invalid sortBy value"),
     handleValidationErrors,
 ];

@@ -17,10 +17,7 @@ const getStatusCode = (error: any): number => {
   return 500;
 };
 
-export const createLocation = async (
-  req: Request,
-  res: Response,
-) => {
+export const createLocation = async (req: Request, res: Response) => {
   try {
     const {
       name,
@@ -59,17 +56,11 @@ export const createLocation = async (
   }
 };
 
-export const updateLocation = async (
-  req: Request,
-  res: Response,
-) => {
+export const updateLocation = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
 
-    const result = await LocationService.updateLocation(
-      id as string,
-      req.body,
-    );
+    const result = await LocationService.updateLocation(id as string, req.body);
 
     return res.status(200).json({
       success: true,
@@ -83,10 +74,7 @@ export const updateLocation = async (
   }
 };
 
-export const getAllLocation = async (
-  req: Request,
-  res: Response,
-) => {
+export const getAllLocation = async (req: Request, res: Response) => {
   try {
     const {
       searchTerm,
@@ -102,25 +90,16 @@ export const getAllLocation = async (
     } = req.query;
 
     const activeStatus =
-      isActive === "true"
-        ? true
-        : isActive === "false"
-          ? false
-          : undefined;
+      isActive === "true" ? true : isActive === "false" ? false : undefined;
 
     const result = await LocationService.findLocation({
       limit: limit ? Number(limit) : 40,
       page: page ? Number(page) : 1,
 
-      sortBy:
-        typeof sortBy === "string"
-          ? sortBy
-          : "createdAt",
+      sortBy: typeof sortBy === "string" ? sortBy : "createdAt",
 
       sortOrder:
-        sortOrder === "asc" || sortOrder === "desc"
-          ? sortOrder
-          : "desc",
+        sortOrder === "asc" || sortOrder === "desc" ? sortOrder : "desc",
 
       ...(typeof searchTerm === "string" && {
         searchTerm,
@@ -154,21 +133,16 @@ export const getAllLocation = async (
   } catch (error: any) {
     return res.status(getStatusCode(error)).json({
       success: false,
-      message:
-        error.message || "Failed to fetch locations",
+      message: error.message || "Failed to fetch locations",
     });
   }
 };
 
-export const getLocationById = async (
-  req: Request,
-  res: Response,
-) => {
+export const getLocationById = async (req: Request, res: Response) => {
   try {
-    const location =
-      await LocationService.getLocationById(
-        req.params.id as string,
-      );
+    const location = await LocationService.getLocationById(
+      req.params.id as string,
+    );
 
     return res.status(200).json({
       success: true,
@@ -182,20 +156,16 @@ export const getLocationById = async (
   }
 };
 
-export const deleteLocation = async (
-  req: Request,
-  res: Response,
-) => {
+export const deleteLocation = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { status, confirmed = false } = req.body;
 
-    const result =
-      await LocationService.softDeleteLocation(
-        id as string,
-        status,
-        confirmed,
-      );
+    const result = await LocationService.softDeleteLocation(
+      id as string,
+      status,
+      confirmed,
+    );
 
     if (result.requiresConfirmation) {
       return res.status(200).json({
@@ -209,30 +179,24 @@ export const deleteLocation = async (
 
     return res.status(200).json({
       success: true,
-      message: `Location ${status ? "activated" : "deactivated"
-        } successfully`,
+      message: `Location ${status ? "activated" : "deactivated"} successfully`,
       data: result,
     });
   } catch (error: any) {
     return res.status(getStatusCode(error)).json({
       success: false,
-      message:
-        error.message || "Failed to change location status",
+      message: error.message || "Failed to change location status",
     });
   }
 };
 
-export const getLocationIds = async (
-  req: Request,
-  res: Response,
-) => {
+export const getLocationIds = async (req: Request, res: Response) => {
   try {
     const { locationIds } = req.body as {
       locationIds: string[];
     };
 
-    const locations =
-      await LocationService.getLocationByIds(locationIds);
+    const locations = await LocationService.getLocationByIds(locationIds);
 
     return res.status(200).json({
       success: true,
@@ -241,8 +205,7 @@ export const getLocationIds = async (
   } catch (error: any) {
     return res.status(getStatusCode(error)).json({
       success: false,
-      message:
-        error.message || "Failed to get locations",
+      message: error.message || "Failed to get locations",
     });
   }
 };

@@ -273,10 +273,7 @@ export class PackageTierMapService {
       throw new Error("Invalid serviceId");
     }
 
-    if (
-      typeof isRequired !== "boolean" &&
-      typeof isRelated !== "boolean"
-    ) {
+    if (typeof isRequired !== "boolean" && typeof isRelated !== "boolean") {
       throw new Error("isRequired or isRelated is required");
     }
 

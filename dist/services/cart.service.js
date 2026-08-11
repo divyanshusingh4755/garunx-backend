@@ -50,12 +50,10 @@ class CartService {
     static calculateCouponDiscount(subtotal, coupon) {
         let discountAmount = 0;
         if (coupon.discountType === "PERCENTAGE") {
-            discountAmount =
-                (subtotal * coupon.discount) / 100;
+            discountAmount = (subtotal * coupon.discount) / 100;
             if (coupon.maxDiscountAmount &&
                 discountAmount > coupon.maxDiscountAmount) {
-                discountAmount =
-                    coupon.maxDiscountAmount;
+                discountAmount = coupon.maxDiscountAmount;
             }
         }
         else {
@@ -135,8 +133,7 @@ class CartService {
                 lineDiscount = this.round(totalDiscount - allocatedDiscount);
             }
             else {
-                lineDiscount = this.round((line.amount / totals.subtotal) *
-                    totalDiscount);
+                lineDiscount = this.round((line.amount / totals.subtotal) * totalDiscount);
                 lineDiscount = Math.min(lineDiscount, line.amount);
             }
             allocatedDiscount = this.round(allocatedDiscount + lineDiscount);
@@ -218,9 +215,7 @@ class CartService {
         }
     }
     static formatCartResponse(cart, totals) {
-        const cartType = cart.packageId
-            ? "PACKAGE"
-            : "SERVICE";
+        const cartType = cart.packageId ? "PACKAGE" : "SERVICE";
         return {
             _id: cart._id,
             cartType,
@@ -239,9 +234,7 @@ class CartService {
              * SERVICE → selectedComponents
              * PACKAGE → selectedServices
              */
-            items: cartType === "SERVICE"
-                ? totals.componentItems
-                : totals.serviceItems,
+            items: cartType === "SERVICE" ? totals.componentItems : totals.serviceItems,
             addonComponents: cart.addonComponents ?? [],
             addonServices: cart.addonServices ?? [],
             basePrice: cart.basePrice,
@@ -318,7 +311,7 @@ class CartService {
         return this.formatCartResponse(cart, totals);
     }
     static async createPackageCart(owner, payload) {
-        const { packageId, tierId, locationId, } = payload;
+        const { packageId, tierId, locationId } = payload;
         if (!Types.ObjectId.isValid(packageId) ||
             !Types.ObjectId.isValid(tierId) ||
             !Types.ObjectId.isValid(locationId)) {
@@ -329,8 +322,7 @@ class CartService {
             throw new Error("Package not found or inactive");
         }
         const tier = pkg.tiers.find((item) => item.tierId.toString() === tierId);
-        const location = pkg.locations.find((item) => item.locationId.toString() ===
-            locationId);
+        const location = pkg.locations.find((item) => item.locationId.toString() === locationId);
         if (!tier) {
             throw new Error("Invalid tier");
         }
@@ -351,8 +343,7 @@ class CartService {
          * Include required services automatically.
          * Related services remain addons.
          */
-        const requiredServices = (packageTierMap.services ?? []).filter((service) => service.isRequired &&
-            !service.isRelated);
+        const requiredServices = (packageTierMap.services ?? []).filter((service) => service.isRequired && !service.isRelated);
         if (requiredServices.length === 0) {
             throw new Error("Package has no required services configured");
         }
@@ -365,10 +356,7 @@ class CartService {
                 $in: requiredServiceIds,
             },
         }).lean();
-        const pricingMap = new Map(pricingRows.map((pricing) => [
-            pricing.serviceId.toString(),
-            pricing,
-        ]));
+        const pricingMap = new Map(pricingRows.map((pricing) => [pricing.serviceId.toString(), pricing]));
         /*
          * Every required service must have pricing.
          */
@@ -429,8 +417,7 @@ class CartService {
             },
             status: "ACTIVE",
         });
-        const totals = await CartPricingEngine
-            .calculateCartTotals(cart);
+        const totals = await CartPricingEngine.calculateCartTotals(cart);
         this.applyPricingResults(cart, totals);
         await cart.save();
         return this.formatCartResponse(cart, totals);
@@ -441,9 +428,7 @@ class CartService {
             ...ownerQuery,
         };
         if (filters.status) {
-            const statuses = filters.status
-                .split(",")
-                .map((s) => s.trim());
+            const statuses = filters.status.split(",").map((s) => s.trim());
             query.status = { $in: statuses };
         }
         else {
@@ -453,9 +438,7 @@ class CartService {
         }
         const parsedPage = Number(filters.page);
         const parsedLimit = Number(filters.limit);
-        const page = Number.isInteger(parsedPage) && parsedPage > 0
-            ? parsedPage
-            : 1;
+        const page = Number.isInteger(parsedPage) && parsedPage > 0 ? parsedPage : 1;
         const limit = Number.isInteger(parsedLimit) && parsedLimit > 0
             ? Math.min(parsedLimit, 100)
             : 10;
@@ -755,8 +738,7 @@ class CartService {
                 if (!selectedItemId) {
                     throw new Error(`Invalid item format in ${component.name}`);
                 }
-                const matchedItem = allowedItems.find((item) => item.itemId.toString() ===
-                    selectedItemId.toString());
+                const matchedItem = allowedItems.find((item) => item.itemId.toString() === selectedItemId.toString());
                 if (!matchedItem) {
                     throw new Error(`Invalid item selected for ${component.name}`);
                 }
@@ -928,12 +910,11 @@ class CartService {
         return result.cart;
     }
     static async updateSchedule(owner, cartId, payload) {
-        const { scheduledDate, scheduledTime, } = payload;
+        const { scheduledDate, scheduledTime } = payload;
         if (!mongoose.Types.ObjectId.isValid(cartId)) {
             throw new Error("Invalid cartId");
         }
-        if (typeof scheduledDate !== "string" ||
-            !scheduledDate.trim()) {
+        if (typeof scheduledDate !== "string" || !scheduledDate.trim()) {
             throw new Error("scheduledDate is required");
         }
         if (typeof scheduledTime !== "string" ||
@@ -946,8 +927,7 @@ class CartService {
          * 2026-08-03T00:00:00.000Z
          */
         const datePart = scheduledDate.split("T")[0];
-        if (!datePart ||
-            !/^\d{4}-\d{2}-\d{2}$/.test(datePart)) {
+        if (!datePart || !/^\d{4}-\d{2}-\d{2}$/.test(datePart)) {
             throw new Error("scheduledDate must be in YYYY-MM-DD format");
         }
         /*
@@ -972,8 +952,7 @@ class CartService {
         }
         this.ensureCartEditable(cart);
         cart.scheduledAt = scheduledAt;
-        cart.schedulingTimezone =
-            "Asia/Kolkata";
+        cart.schedulingTimezone = "Asia/Kolkata";
         cart.status = "SCHEDULED";
         await cart.save();
         return cart;
@@ -991,8 +970,7 @@ class CartService {
             throw new Error("Cart not found");
         }
         this.ensureCartEditable(cart);
-        if (bookingFor &&
-            !["MYSELF", "OTHER"].includes(bookingFor)) {
+        if (bookingFor && !["MYSELF", "OTHER"].includes(bookingFor)) {
             throw new Error("Invalid bookingFor value");
         }
         if (email && !email.includes("@")) {
@@ -1017,8 +995,7 @@ class CartService {
     }
     static async updateCartNotes(owner, cartId, payload) {
         const { notes } = payload;
-        if (notes !== undefined &&
-            typeof notes !== "string") {
+        if (notes !== undefined && typeof notes !== "string") {
             throw new Error("notes must be a string");
         }
         if (!mongoose.Types.ObjectId.isValid(cartId)) {
@@ -1052,8 +1029,7 @@ class CartService {
         if (!cart) {
             throw new Error("Cart not found");
         }
-        if (cart.status === "CHECKOUT_PENDING" &&
-            options?.persist) {
+        if (cart.status === "CHECKOUT_PENDING" && options?.persist) {
             throw new Error("Cannot recalculate a cart during checkout");
         }
         const oldValues = {
@@ -1085,27 +1061,22 @@ class CartService {
             }
             else {
                 const now = new Date();
-                const expired = (coupon.validFrom &&
-                    coupon.validFrom > now) ||
-                    (coupon.validTill &&
-                        coupon.validTill < now);
-                if (grossTotals.subtotal <
-                    coupon.minOrderAmount) {
+                const expired = (coupon.validFrom && coupon.validFrom > now) ||
+                    (coupon.validTill && coupon.validTill < now);
+                if (grossTotals.subtotal < coupon.minOrderAmount) {
                     changes.push(`Coupon ${coupon.couponCode} was removed because minimum order amount of ₹${coupon.minOrderAmount} is not met`);
                     delete cart.couponId;
                     delete cart.couponCode;
                 }
                 else if (!coupon.isActive ||
                     expired ||
-                    (coupon.usageLimit > 0 &&
-                        coupon.usedCount >= coupon.usageLimit)) {
+                    (coupon.usageLimit > 0 && coupon.usedCount >= coupon.usageLimit)) {
                     changes.push(`Coupon ${coupon.couponCode} was removed because it is no longer valid`);
                     delete cart.couponId;
                     delete cart.couponCode;
                 }
                 else {
-                    couponDiscountAmount =
-                        this.calculateCouponDiscount(grossTotals.subtotal, coupon);
+                    couponDiscountAmount = this.calculateCouponDiscount(grossTotals.subtotal, coupon);
                 }
             }
         }
@@ -1128,22 +1099,17 @@ class CartService {
         if (oldValues.subtotal !== cart.subtotal) {
             changes.push(`Subtotal changed from ${oldValues.subtotal} to ${cart.subtotal}`);
         }
-        if (oldValues.discountAmount !==
-            cart.discountAmount) {
+        if (oldValues.discountAmount !== cart.discountAmount) {
             changes.push(`Discount changed from ${oldValues.discountAmount} to ${cart.discountAmount}`);
         }
-        if (oldValues.totalTax !==
-            cart.taxSummary.totalTax) {
+        if (oldValues.totalTax !== cart.taxSummary.totalTax) {
             changes.push(`Tax changed from ${oldValues.totalTax} to ${cart.taxSummary.totalTax}`);
         }
-        if (oldValues.totalAmount !==
-            cart.totalAmount) {
+        if (oldValues.totalAmount !== cart.totalAmount) {
             changes.push(`Total amount changed from ${oldValues.totalAmount} to ${cart.totalAmount}`);
         }
         if (options?.persist) {
-            await cart.save(session
-                ? { session }
-                : undefined);
+            await cart.save(session ? { session } : undefined);
         }
         return {
             cart,
@@ -1175,10 +1141,8 @@ class CartService {
                 errors.push("Service is no longer active");
             }
             else {
-                const tierExists = service.tiers.some((tier) => tier.tierId.toString() ===
-                    cart.tierId.toString());
-                const locationExists = service.locations.some((location) => location.locationId.toString() ===
-                    cart.locationId.toString());
+                const tierExists = service.tiers.some((tier) => tier.tierId.toString() === cart.tierId.toString());
+                const locationExists = service.locations.some((location) => location.locationId.toString() === cart.locationId.toString());
                 if (!tierExists) {
                     errors.push("Selected service tier is no longer available");
                 }
@@ -1278,11 +1242,7 @@ class CartService {
                     _id: cartId,
                     userId,
                     status: {
-                        $in: [
-                            "ACTIVE",
-                            "SCHEDULED",
-                            "CHECKOUT_PENDING",
-                        ],
+                        $in: ["ACTIVE", "SCHEDULED", "CHECKOUT_PENDING"],
                     },
                 }, null, { session });
                 if (!cart) {
@@ -1298,9 +1258,7 @@ class CartService {
                         cartId: cart._id,
                         isDeleted: false,
                     }).session(session);
-                    if (existingBooking &&
-                        existingBooking.payment
-                            .status !== "PAID") {
+                    if (existingBooking && existingBooking.payment.status !== "PAID") {
                         return existingBooking;
                     }
                 }
@@ -1311,16 +1269,12 @@ class CartService {
                 if (!validation.isValid) {
                     throw new Error(validation.errors.join(", "));
                 }
-                const expiry = new Date(Date.now() +
-                    30 * 60 * 1000);
+                const expiry = new Date(Date.now() + 30 * 60 * 1000);
                 const lockedCart = await Cart.findOneAndUpdate({
                     _id: cartId,
                     userId,
                     status: {
-                        $in: [
-                            "ACTIVE",
-                            "SCHEDULED",
-                        ],
+                        $in: ["ACTIVE", "SCHEDULED"],
                     },
                 }, {
                     $set: {
@@ -1334,8 +1288,7 @@ class CartService {
                 if (!lockedCart) {
                     throw new Error("Checkout already initiated");
                 }
-                const bookingData = await BookingBuilder
-                    .buildFromCart(lockedCart);
+                const bookingData = await BookingBuilder.buildFromCart(lockedCart);
                 const bookingPayload = {
                     userId: new mongoose.Types.ObjectId(userId),
                     cartId: lockedCart._id,
@@ -1357,7 +1310,9 @@ class CartService {
                         : {}),
                     cartSnapshot: lockedCart.toObject(),
                 };
-                const [createdBooking] = await Booking.create([bookingPayload], { session });
+                const [createdBooking] = await Booking.create([bookingPayload], {
+                    session,
+                });
                 if (!createdBooking) {
                     throw new Error("Failed to create booking");
                 }
@@ -1371,32 +1326,25 @@ class CartService {
                 return createdBooking;
             });
             const finalBooking = result;
-            if (finalBooking.payment.status ===
-                "PAID") {
+            if (finalBooking.payment.status === "PAID") {
                 return {
                     bookingId: finalBooking._id,
                     bookingReference: finalBooking.bookingReference,
-                    totalAmount: finalBooking.pricing
-                        .grandTotal,
+                    totalAmount: finalBooking.pricing.grandTotal,
                     paymentCompleted: true,
                 };
             }
             /**
              * Existing Cashfree order can be reused.
              */
-            if (finalBooking.payment
-                .providerOrderId &&
-                finalBooking.payment
-                    .paymentSessionId) {
+            if (finalBooking.payment.providerOrderId &&
+                finalBooking.payment.paymentSessionId) {
                 return {
                     bookingId: finalBooking._id,
                     bookingReference: finalBooking.bookingReference,
-                    totalAmount: finalBooking.pricing
-                        .grandTotal,
-                    providerOrderId: finalBooking.payment
-                        .providerOrderId,
-                    paymentSessionId: finalBooking.payment
-                        .paymentSessionId,
+                    totalAmount: finalBooking.pricing.grandTotal,
+                    providerOrderId: finalBooking.payment.providerOrderId,
+                    paymentSessionId: finalBooking.payment.paymentSessionId,
                     reusedPaymentSession: true,
                 };
             }
@@ -1409,14 +1357,10 @@ class CartService {
             const providerOrderId = `${finalBooking.bookingReference}-${Date.now()}`;
             const cashfreeOrder = await CashfreeService.createOrder({
                 orderId: providerOrderId,
-                amount: finalBooking.pricing
-                    .grandTotal,
-                customerName: finalBooking.customerDetails
-                    ?.name || "Customer",
-                customerEmail: finalBooking.customerDetails
-                    ?.email || "",
-                customerPhone: finalBooking.customerDetails
-                    ?.phone || "",
+                amount: finalBooking.pricing.grandTotal,
+                customerName: finalBooking.customerDetails?.name || "Customer",
+                customerEmail: finalBooking.customerDetails?.email || "",
+                customerPhone: finalBooking.customerDetails?.phone || "",
                 userId,
             });
             await Booking.updateOne({
@@ -1427,8 +1371,7 @@ class CartService {
             }, {
                 $set: {
                     "payment.providerOrderId": cashfreeOrder.order_id,
-                    "payment.paymentSessionId": cashfreeOrder
-                        .payment_session_id,
+                    "payment.paymentSessionId": cashfreeOrder.payment_session_id,
                     "payment.lastAttemptAt": new Date(),
                     "payment.status": "PENDING",
                 },
@@ -1439,11 +1382,9 @@ class CartService {
             return {
                 bookingId: finalBooking._id,
                 bookingReference: finalBooking.bookingReference,
-                totalAmount: finalBooking.pricing
-                    .grandTotal,
+                totalAmount: finalBooking.pricing.grandTotal,
                 providerOrderId: cashfreeOrder.order_id,
-                paymentSessionId: cashfreeOrder
-                    .payment_session_id,
+                paymentSessionId: cashfreeOrder.payment_session_id,
                 reusedPaymentSession: false,
             };
         }
@@ -1551,8 +1492,7 @@ class CartService {
         if (cart.couponId) {
             throw new Error("A coupon is already applied. Remove it first.");
         }
-        if (typeof cart.subtotal !== "number" ||
-            !Number.isFinite(cart.subtotal)) {
+        if (typeof cart.subtotal !== "number" || !Number.isFinite(cart.subtotal)) {
             throw new Error("Cart subtotal is not calculated");
         }
         const bookingCount = cart.userId
@@ -1614,8 +1554,7 @@ class CartService {
         if (cart.status !== "CHECKOUT_PENDING") {
             throw new Error("Only checkout pending carts can be reopened.");
         }
-        if (cart.checkoutExpiresAt &&
-            cart.checkoutExpiresAt > new Date()) {
+        if (cart.checkoutExpiresAt && cart.checkoutExpiresAt > new Date()) {
             throw new Error("Checkout is still active and cannot be reopened yet");
         }
         cart.status = "ACTIVE";

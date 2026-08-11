@@ -1,5 +1,5 @@
 import { Router, } from "express";
-import { body, param, query, validationResult, } from "express-validator";
+import { body, param, query, validationResult } from "express-validator";
 import { authenticate } from "../middleware/authenticate.js";
 import { createSubServiceComponent, toggleSubServiceComponent, getAllSubServiceComponents, getSubServiceComponentById, updateSubServiceComponent, } from "../controllers/subservices.controllers.js";
 const router = Router();
@@ -44,9 +44,7 @@ const createSubServiceComponentValidation = [
     validate,
 ];
 const updateSubServiceComponentValidation = [
-    param("id")
-        .isMongoId()
-        .withMessage("Invalid ID"),
+    param("id").isMongoId().withMessage("Invalid ID"),
     body().custom((value) => {
         const allowedFields = [
             "name",
@@ -79,10 +77,7 @@ const updateSubServiceComponentValidation = [
         .trim()
         .notEmpty()
         .withMessage("Description cannot be empty"),
-    body("serviceId")
-        .optional()
-        .isMongoId()
-        .withMessage("Invalid Service ID"),
+    body("serviceId").optional().isMongoId().withMessage("Invalid Service ID"),
     body("image")
         .optional({ values: "falsy" })
         .isURL()
@@ -94,15 +89,11 @@ const updateSubServiceComponentValidation = [
     validate,
 ];
 const idValidation = [
-    param("id")
-        .isMongoId()
-        .withMessage("Invalid ID"),
+    param("id").isMongoId().withMessage("Invalid ID"),
     validate,
 ];
 const statusValidation = [
-    param("id")
-        .isMongoId()
-        .withMessage("Invalid ID"),
+    param("id").isMongoId().withMessage("Invalid ID"),
     body("status")
         .exists({ checkNull: true })
         .withMessage("status is required")
@@ -137,13 +128,7 @@ const listValidation = [
         .withMessage("isActive must be true or false"),
     query("sortBy")
         .optional()
-        .isIn([
-        "name",
-        "createdAt",
-        "updatedAt",
-        "isActive",
-        "relevance",
-    ])
+        .isIn(["name", "createdAt", "updatedAt", "isActive", "relevance"])
         .withMessage("Invalid sortBy value"),
     query("sortOrder")
         .optional()

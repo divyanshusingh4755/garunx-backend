@@ -4,12 +4,7 @@ import {
   type NextFunction,
   Router,
 } from "express";
-import {
-  body,
-  param,
-  query,
-  validationResult,
-} from "express-validator";
+import { body, param, query, validationResult } from "express-validator";
 
 import { authenticate } from "../middleware/authenticate.js";
 
@@ -39,11 +34,7 @@ const SORT_FIELDS = [
   "relevance",
 ] as const;
 
-const validateRequest = (
-  req: Request,
-  res: Response,
-  next: NextFunction,
-) => {
+const validateRequest = (req: Request, res: Response, next: NextFunction) => {
   const errors = validationResult(req);
 
   if (!errors.isEmpty()) {
@@ -60,9 +51,7 @@ const validateRequest = (
 };
 
 const faqIdValidation = [
-  param("id")
-    .isMongoId()
-    .withMessage("Invalid FAQ ID"),
+  param("id").isMongoId().withMessage("Invalid FAQ ID"),
 
   validateRequest,
 ];
@@ -95,33 +84,22 @@ const createFaqValidation = [
     .withMessage("isActive must be a boolean")
     .toBoolean(),
 
-  body("faqType")
-    .optional()
-    .isIn(FAQ_TYPES)
-    .withMessage("Invalid FAQ type"),
+  body("faqType").optional().isIn(FAQ_TYPES).withMessage("Invalid FAQ type"),
 
   body("displayOrder")
     .optional()
     .isInt({ min: 0 })
-    .withMessage(
-      "Display order must be a non-negative integer",
-    )
+    .withMessage("Display order must be a non-negative integer")
     .toInt(),
 
   validateRequest,
 ];
 
 const updateFaqValidation = [
-  param("id")
-    .isMongoId()
-    .withMessage("Invalid FAQ ID"),
+  param("id").isMongoId().withMessage("Invalid FAQ ID"),
 
   body().custom((value) => {
-    if (
-      !value ||
-      typeof value !== "object" ||
-      Array.isArray(value)
-    ) {
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
       throw new Error("Request body must be an object");
     }
 
@@ -134,15 +112,12 @@ const updateFaqValidation = [
       "displayOrder",
     ];
 
-    const hasUpdatableField = allowedFields.some(
-      (field) =>
-        Object.prototype.hasOwnProperty.call(value, field),
+    const hasUpdatableField = allowedFields.some((field) =>
+      Object.prototype.hasOwnProperty.call(value, field),
     );
 
     if (!hasUpdatableField) {
-      throw new Error(
-        "At least one valid field is required for update",
-      );
+      throw new Error("At least one valid field is required for update");
     }
 
     return true;
@@ -178,27 +153,19 @@ const updateFaqValidation = [
     .withMessage("isActive must be a boolean")
     .toBoolean(),
 
-  body("faqType")
-    .optional()
-    .isIn(FAQ_TYPES)
-    .withMessage("Invalid FAQ type"),
+  body("faqType").optional().isIn(FAQ_TYPES).withMessage("Invalid FAQ type"),
 
   body("displayOrder")
     .optional()
     .isInt({ min: 0 })
-    .withMessage(
-      "Display order must be a non-negative integer",
-    )
+    .withMessage("Display order must be a non-negative integer")
     .toInt(),
 
   validateRequest,
 ];
 
 const listFaqValidation = [
-  query("faqType")
-    .optional()
-    .isIn(FAQ_TYPES)
-    .withMessage("Invalid FAQ type"),
+  query("faqType").optional().isIn(FAQ_TYPES).withMessage("Invalid FAQ type"),
 
   query("isActive")
     .optional()
@@ -232,45 +199,16 @@ const listFaqValidation = [
 
 const router = Router();
 
-router.get(
-  "/",
-  listFaqValidation,
-  getAllFaqs,
-);
+router.get("/", listFaqValidation, getAllFaqs);
 
-router.get(
-  "/:id",
-  authenticate,
-  faqIdValidation,
-  getFaqById,
-);
+router.get("/:id", authenticate, faqIdValidation, getFaqById);
 
-router.post(
-  "/",
-  authenticate,
-  createFaqValidation,
-  createFaq,
-);
+router.post("/", authenticate, createFaqValidation, createFaq);
 
-router.put(
-  "/:id",
-  authenticate,
-  updateFaqValidation,
-  updateFaq,
-);
+router.put("/:id", authenticate, updateFaqValidation, updateFaq);
 
-router.patch(
-  "/:id/status",
-  authenticate,
-  faqIdValidation,
-  toggleFaqStatus,
-);
+router.patch("/:id/status", authenticate, faqIdValidation, toggleFaqStatus);
 
-router.delete(
-  "/:id",
-  authenticate,
-  faqIdValidation,
-  deleteFaq,
-);
+router.delete("/:id", authenticate, faqIdValidation, deleteFaq);
 
 export default router;

@@ -1,21 +1,17 @@
-import { PolicyService, } from "../services/policy.service.js";
-const getErrorMessage = (error, fallback) => error instanceof Error
-    ? error.message
-    : fallback;
+import { PolicyService } from "../services/policy.service.js";
+const getErrorMessage = (error, fallback) => error instanceof Error ? error.message : fallback;
 const getErrorStatus = (error) => {
-    if (error instanceof Error &&
-        error.message === "Policy not found") {
+    if (error instanceof Error && error.message === "Policy not found") {
         return 404;
     }
-    if (error instanceof Error &&
-        error.message.includes("policy not found")) {
+    if (error instanceof Error && error.message.includes("policy not found")) {
         return 404;
     }
     return 400;
 };
 export const createPolicy = async (req, res) => {
     try {
-        const { type, userType, title, content, } = req.body;
+        const { type, userType, title, content } = req.body;
         const data = await PolicyService.createPolicy({
             type,
             userType,
@@ -50,9 +46,7 @@ export const updatePolicy = async (req, res) => {
         });
     }
     catch (error) {
-        return res
-            .status(getErrorStatus(error))
-            .json({
+        return res.status(getErrorStatus(error)).json({
             success: false,
             message: getErrorMessage(error, "Failed to update policy"),
         });
@@ -60,28 +54,12 @@ export const updatePolicy = async (req, res) => {
 };
 export const getAllPolicies = async (req, res) => {
     try {
-        const { page, isActive, limit, type, userType, } = req.query;
-        const parsedPage = typeof page === "number"
-            ? page
-            : Number(page);
-        const parsedLimit = typeof limit === "number"
-            ? limit
-            : Number(limit);
-        const result = await PolicyService.getAllPolicies(Number.isInteger(parsedPage) &&
-            parsedPage > 0
-            ? parsedPage
-            : 1, Number.isInteger(parsedLimit) &&
-            parsedLimit > 0
+        const { page, isActive, limit, type, userType } = req.query;
+        const parsedPage = typeof page === "number" ? page : Number(page);
+        const parsedLimit = typeof limit === "number" ? limit : Number(limit);
+        const result = await PolicyService.getAllPolicies(Number.isInteger(parsedPage) && parsedPage > 0 ? parsedPage : 1, Number.isInteger(parsedLimit) && parsedLimit > 0
             ? Math.min(parsedLimit, 100)
-            : 20, isActive === "true"
-            ? true
-            : isActive === "false"
-                ? false
-                : undefined, typeof type === "string"
-            ? type
-            : undefined, typeof userType === "string"
-            ? userType
-            : undefined);
+            : 20, isActive === "true" ? true : isActive === "false" ? false : undefined, typeof type === "string" ? type : undefined, typeof userType === "string" ? userType : undefined);
         return res.status(200).json({
             success: true,
             ...result,
@@ -96,17 +74,14 @@ export const getAllPolicies = async (req, res) => {
 };
 export const togglePolicyStatus = async (req, res) => {
     try {
-        const data = await PolicyService
-            .togglePolicyStatus(req.params.id, req.body.isActive);
+        const data = await PolicyService.togglePolicyStatus(req.params.id, req.body.isActive);
         return res.status(200).json({
             success: true,
             data,
         });
     }
     catch (error) {
-        return res
-            .status(getErrorStatus(error))
-            .json({
+        return res.status(getErrorStatus(error)).json({
             success: false,
             message: getErrorMessage(error, "Failed to update policy status"),
         });
@@ -121,9 +96,7 @@ export const getPolicyByType = async (req, res) => {
         });
     }
     catch (error) {
-        return res
-            .status(getErrorStatus(error))
-            .json({
+        return res.status(getErrorStatus(error)).json({
             success: false,
             message: getErrorMessage(error, "Failed to fetch policy"),
         });

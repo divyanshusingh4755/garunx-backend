@@ -1,13 +1,11 @@
-import mongoose, { Types, } from "mongoose";
-import { Booking, } from "../models/booking.model.js";
+import mongoose, { Types } from "mongoose";
+import { Booking } from "../models/booking.model.js";
 import { Review, } from "../models/review.model.js";
-import { User, } from "../models/user.model.js";
-import { escapeRegex, } from "../utils/escapeRegex.js";
+import { User } from "../models/user.model.js";
+import { escapeRegex } from "../utils/escapeRegex.js";
 export class ReviewService {
     static safePagination(page, limit, defaultLimit) {
-        const safePage = Number.isInteger(page) && page > 0
-            ? page
-            : 1;
+        const safePage = Number.isInteger(page) && page > 0 ? page : 1;
         const safeLimit = Number.isInteger(limit) && limit > 0
             ? Math.min(limit, 100)
             : defaultLimit;
@@ -24,13 +22,9 @@ export class ReviewService {
             "rating",
             "editedAt",
         ]);
-        const safeSortBy = allowedSortFields.has(sortBy)
-            ? sortBy
-            : "createdAt";
+        const safeSortBy = allowedSortFields.has(sortBy) ? sortBy : "createdAt";
         const sortCriteria = {
-            [safeSortBy]: sortOrder === "asc"
-                ? 1
-                : -1,
+            [safeSortBy]: sortOrder === "asc" ? 1 : -1,
         };
         if (safeSortBy !== "createdAt") {
             sortCriteria.createdAt = -1;
@@ -38,66 +32,44 @@ export class ReviewService {
         return sortCriteria;
     }
     static async adjustRatingAggregate(input) {
-        const { revieweeId, direction, ratingDelta, countDelta, session, } = input;
+        const { revieweeId, direction, ratingDelta, countDelta, session } = input;
         const reviewee = await User.findById(revieweeId).session(session);
         if (!reviewee) {
             throw new Error("Reviewee not found");
         }
-        if (direction ===
-            "CUSTOMER_TO_COORDINATOR") {
+        if (direction === "CUSTOMER_TO_COORDINATOR") {
             if (!reviewee.coordinatorProfile) {
                 throw new Error("Coordinator profile not found");
             }
-            const currentRatingSum = reviewee.coordinatorProfile
-                .ratingSum ?? 0;
-            const currentTotalRatings = reviewee.coordinatorProfile
-                .totalRatings ?? 0;
+            const currentRatingSum = reviewee.coordinatorProfile.ratingSum ?? 0;
+            const currentTotalRatings = reviewee.coordinatorProfile.totalRatings ?? 0;
             const newRatingSum = currentRatingSum + ratingDelta;
             const newTotalRatings = currentTotalRatings + countDelta;
-            if (newRatingSum < 0 ||
-                newTotalRatings < 0) {
+            if (newRatingSum < 0 || newTotalRatings < 0) {
                 throw new Error("Invalid coordinator rating aggregate state");
             }
-            reviewee.coordinatorProfile
-                .ratingSum =
-                newTotalRatings === 0
-                    ? 0
-                    : newRatingSum;
-            reviewee.coordinatorProfile
-                .totalRatings =
-                newTotalRatings;
-            reviewee.coordinatorProfile
-                .averageRating =
-                newTotalRatings > 0
-                    ? newRatingSum /
-                        newTotalRatings
-                    : 0;
+            reviewee.coordinatorProfile.ratingSum =
+                newTotalRatings === 0 ? 0 : newRatingSum;
+            reviewee.coordinatorProfile.totalRatings = newTotalRatings;
+            reviewee.coordinatorProfile.averageRating =
+                newTotalRatings > 0 ? newRatingSum / newTotalRatings : 0;
             await reviewee.save({
                 session,
             });
             return;
         }
-        if (direction ===
-            "COORDINATOR_TO_CUSTOMER") {
-            const currentRatingSum = reviewee.ratingSummary
-                ?.ratingSum ?? 0;
-            const currentTotalRatings = reviewee.ratingSummary
-                ?.totalRatings ?? 0;
+        if (direction === "COORDINATOR_TO_CUSTOMER") {
+            const currentRatingSum = reviewee.ratingSummary?.ratingSum ?? 0;
+            const currentTotalRatings = reviewee.ratingSummary?.totalRatings ?? 0;
             const newRatingSum = currentRatingSum + ratingDelta;
             const newTotalRatings = currentTotalRatings + countDelta;
-            if (newRatingSum < 0 ||
-                newTotalRatings < 0) {
+            if (newRatingSum < 0 || newTotalRatings < 0) {
                 throw new Error("Invalid customer rating aggregate state");
             }
             reviewee.ratingSummary = {
-                ratingSum: newTotalRatings === 0
-                    ? 0
-                    : newRatingSum,
+                ratingSum: newTotalRatings === 0 ? 0 : newRatingSum,
                 totalRatings: newTotalRatings,
-                averageRating: newTotalRatings > 0
-                    ? newRatingSum /
-                        newTotalRatings
-                    : 0,
+                averageRating: newTotalRatings > 0 ? newRatingSum / newTotalRatings : 0,
             };
             await reviewee.save({
                 session,
@@ -108,8 +80,7 @@ export class ReviewService {
     }
     static resolveReviewParticipants(booking, loggedInUserId) {
         const customerId = booking.userId;
-        const coordinatorId = booking.assignment
-            ?.assignedCoordinatorId;
+        const coordinatorId = booking.assignment?.assignedCoordinatorId;
         if (!customerId) {
             throw new Error("Customer is not associated with this booking");
         }
@@ -134,7 +105,7 @@ export class ReviewService {
     }
     static async getAllReviews(params) {
         const { searchTerm, direction, visibility, moderationStatus, isDeleted, rating, reviewerId, revieweeId, bookingId, limit = 40, page = 1, sortBy = "createdAt", sortOrder = "desc", } = params;
-        const { safePage, safeLimit, skip, } = this.safePagination(page, limit, 40);
+        const { safePage, safeLimit, skip } = this.safePagination(page, limit, 40);
         const query = {};
         if (direction) {
             query.direction = direction;
@@ -143,8 +114,7 @@ export class ReviewService {
             query.visibility = visibility;
         }
         if (moderationStatus) {
-            query.moderationStatus =
-                moderationStatus;
+            query.moderationStatus = moderationStatus;
         }
         if (typeof isDeleted === "boolean") {
             query.isDeleted = isDeleted;
@@ -156,22 +126,19 @@ export class ReviewService {
             if (!Types.ObjectId.isValid(reviewerId)) {
                 throw new Error("Invalid reviewer id");
             }
-            query.reviewerId =
-                new Types.ObjectId(reviewerId);
+            query.reviewerId = new Types.ObjectId(reviewerId);
         }
         if (revieweeId) {
             if (!Types.ObjectId.isValid(revieweeId)) {
                 throw new Error("Invalid reviewee id");
             }
-            query.revieweeId =
-                new Types.ObjectId(revieweeId);
+            query.revieweeId = new Types.ObjectId(revieweeId);
         }
         if (bookingId) {
             if (!Types.ObjectId.isValid(bookingId)) {
                 throw new Error("Invalid booking id");
             }
-            query.bookingId =
-                new Types.ObjectId(bookingId);
+            query.bookingId = new Types.ObjectId(bookingId);
         }
         if (searchTerm?.trim()) {
             query.review = {
@@ -203,23 +170,19 @@ export class ReviewService {
             };
         }
         catch (error) {
-            const message = error instanceof Error
-                ? error.message
-                : "Unknown error";
+            const message = error instanceof Error ? error.message : "Unknown error";
             throw new Error(`Review fetch failed: ${message}`);
         }
     }
     static async createReviewService(input) {
-        const { bookingId, reviewerId, rating, review, imageUrl, } = input;
+        const { bookingId, reviewerId, rating, review, imageUrl } = input;
         if (!Types.ObjectId.isValid(bookingId)) {
             throw new Error("Invalid booking id");
         }
         if (!Types.ObjectId.isValid(reviewerId)) {
             throw new Error("Invalid reviewer id");
         }
-        if (!Number.isInteger(rating) ||
-            rating < 1 ||
-            rating > 5) {
+        if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
             throw new Error("Rating must be between 1 and 5");
         }
         const bookingObjectId = new Types.ObjectId(bookingId);
@@ -235,8 +198,7 @@ export class ReviewService {
                 if (!booking) {
                     throw new Error("Booking not found");
                 }
-                if (booking.status !==
-                    "COMPLETED") {
+                if (booking.status !== "COMPLETED") {
                     throw new Error("Review can only be submitted after booking completion");
                 }
                 const participants = this.resolveReviewParticipants(booking, reviewerObjectId);
@@ -264,16 +226,14 @@ export class ReviewService {
                 if (!reviewDocument) {
                     throw new Error("Failed to create review");
                 }
-                await this
-                    .adjustRatingAggregate({
+                await this.adjustRatingAggregate({
                     revieweeId: participants.revieweeId,
                     direction: participants.direction,
                     ratingDelta: rating,
                     countDelta: 1,
                     session,
                 });
-                createdReview =
-                    reviewDocument;
+                createdReview = reviewDocument;
             });
             if (!createdReview) {
                 throw new Error("Failed to create review");
@@ -294,7 +254,7 @@ export class ReviewService {
         }
     }
     static async editReviewService(input) {
-        const { reviewId, reviewerId, rating, review, imageUrl, } = input;
+        const { reviewId, reviewerId, rating, review, imageUrl } = input;
         if (!Types.ObjectId.isValid(reviewId)) {
             throw new Error("Invalid review id");
         }
@@ -302,20 +262,13 @@ export class ReviewService {
             throw new Error("Invalid reviewer id");
         }
         if (rating !== undefined &&
-            (!Number.isInteger(rating) ||
-                rating < 1 ||
-                rating > 5)) {
+            (!Number.isInteger(rating) || rating < 1 || rating > 5)) {
             throw new Error("Rating must be between 1 and 5");
         }
-        const hasRating = Object.prototype
-            .hasOwnProperty.call(input, "rating");
-        const hasReview = Object.prototype
-            .hasOwnProperty.call(input, "review");
-        const hasImageUrl = Object.prototype
-            .hasOwnProperty.call(input, "imageUrl");
-        if (!hasRating &&
-            !hasReview &&
-            !hasImageUrl) {
+        const hasRating = Object.prototype.hasOwnProperty.call(input, "rating");
+        const hasReview = Object.prototype.hasOwnProperty.call(input, "review");
+        const hasImageUrl = Object.prototype.hasOwnProperty.call(input, "imageUrl");
+        if (!hasRating && !hasReview && !hasImageUrl) {
             throw new Error("At least one field is required to update");
         }
         const reviewObjectId = new Types.ObjectId(reviewId);
@@ -331,51 +284,37 @@ export class ReviewService {
                 if (!reviewDocument) {
                     throw new Error("Review not found");
                 }
-                if (!reviewDocument
-                    .reviewerId
-                    .equals(reviewerObjectId)) {
+                if (!reviewDocument.reviewerId.equals(reviewerObjectId)) {
                     throw new Error("You are not authorized to edit this review");
                 }
                 if (hasRating &&
                     rating !== undefined &&
-                    rating !==
-                        reviewDocument.rating) {
-                    const ratingDelta = rating -
-                        reviewDocument.rating;
-                    const contributesToRating = reviewDocument.visibility ===
-                        "PUBLISHED" &&
+                    rating !== reviewDocument.rating) {
+                    const ratingDelta = rating - reviewDocument.rating;
+                    const contributesToRating = reviewDocument.visibility === "PUBLISHED" &&
                         !reviewDocument.isDeleted;
                     if (contributesToRating) {
-                        await this
-                            .adjustRatingAggregate({
-                            revieweeId: reviewDocument
-                                .revieweeId,
-                            direction: reviewDocument
-                                .direction,
+                        await this.adjustRatingAggregate({
+                            revieweeId: reviewDocument.revieweeId,
+                            direction: reviewDocument.direction,
                             ratingDelta,
                             countDelta: 0,
                             session,
                         });
                     }
-                    reviewDocument.rating =
-                        rating;
+                    reviewDocument.rating = rating;
                 }
                 if (hasReview) {
-                    reviewDocument.review =
-                        review ?? null;
+                    reviewDocument.review = review ?? null;
                 }
                 if (hasImageUrl) {
-                    reviewDocument.imageUrl =
-                        imageUrl ?? null;
+                    reviewDocument.imageUrl = imageUrl ?? null;
                 }
-                reviewDocument.editedAt =
-                    new Date();
-                reviewDocument.editCount =
-                    reviewDocument.editCount + 1;
-                updatedReview =
-                    await reviewDocument.save({
-                        session,
-                    });
+                reviewDocument.editedAt = new Date();
+                reviewDocument.editCount = reviewDocument.editCount + 1;
+                updatedReview = await reviewDocument.save({
+                    session,
+                });
             });
             if (!updatedReview) {
                 throw new Error("Failed to update review");
@@ -387,7 +326,7 @@ export class ReviewService {
         }
     }
     static async moderateReviewService(input) {
-        const { reviewId, adminId, action, reason, } = input;
+        const { reviewId, adminId, action, reason } = input;
         if (!Types.ObjectId.isValid(reviewId)) {
             throw new Error("Invalid review id");
         }
@@ -407,114 +346,81 @@ export class ReviewService {
                 if (reviewDocument.isDeleted) {
                     throw new Error("Deleted review cannot be moderated");
                 }
-                const wasContributing = reviewDocument.visibility ===
-                    "PUBLISHED" &&
+                const wasContributing = reviewDocument.visibility === "PUBLISHED" &&
                     !reviewDocument.isDeleted;
                 switch (action) {
                     case "HIDE":
-                        if (reviewDocument.visibility ===
-                            "HIDDEN") {
+                        if (reviewDocument.visibility === "HIDDEN") {
                             throw new Error("Review is already hidden");
                         }
-                        reviewDocument.visibility =
-                            "HIDDEN";
+                        reviewDocument.visibility = "HIDDEN";
                         break;
                     case "UNPUBLISH":
-                        if (reviewDocument.visibility ===
-                            "UNPUBLISHED") {
+                        if (reviewDocument.visibility === "UNPUBLISHED") {
                             throw new Error("Review is already unpublished");
                         }
-                        reviewDocument.visibility =
-                            "UNPUBLISHED";
+                        reviewDocument.visibility = "UNPUBLISHED";
                         break;
                     case "PUBLISH":
-                        if (reviewDocument.visibility ===
-                            "PUBLISHED") {
+                        if (reviewDocument.visibility === "PUBLISHED") {
                             throw new Error("Review is already published");
                         }
-                        reviewDocument.visibility =
-                            "PUBLISHED";
+                        reviewDocument.visibility = "PUBLISHED";
                         break;
                     case "FLAG":
-                        if (reviewDocument
-                            .moderationStatus ===
-                            "FLAGGED") {
+                        if (reviewDocument.moderationStatus === "FLAGGED") {
                             throw new Error("Review is already flagged");
                         }
-                        reviewDocument
-                            .moderationStatus =
-                            "FLAGGED";
+                        reviewDocument.moderationStatus = "FLAGGED";
                         break;
                     case "UNFLAG":
-                        if (reviewDocument
-                            .moderationStatus ===
-                            "CLEAN") {
+                        if (reviewDocument.moderationStatus === "CLEAN") {
                             throw new Error("Review is not flagged");
                         }
-                        reviewDocument
-                            .moderationStatus =
-                            "CLEAN";
+                        reviewDocument.moderationStatus = "CLEAN";
                         break;
                     case "DELETE":
-                        reviewDocument.isDeleted =
-                            true;
-                        reviewDocument.deletedBy =
-                            adminObjectId;
-                        reviewDocument.deletedAt =
-                            new Date();
+                        reviewDocument.isDeleted = true;
+                        reviewDocument.deletedBy = adminObjectId;
+                        reviewDocument.deletedAt = new Date();
                         if (reason === null) {
                             reviewDocument.set("deletionReason", undefined);
                         }
                         else if (reason !== undefined) {
-                            reviewDocument.deletionReason =
-                                reason;
+                            reviewDocument.deletionReason = reason;
                         }
                         break;
                     default:
                         throw new Error("Invalid moderation action");
                 }
-                const isContributing = reviewDocument.visibility ===
-                    "PUBLISHED" &&
+                const isContributing = reviewDocument.visibility === "PUBLISHED" &&
                     !reviewDocument.isDeleted;
-                if (wasContributing !==
-                    isContributing) {
-                    await this
-                        .adjustRatingAggregate({
-                        revieweeId: reviewDocument
-                            .revieweeId,
-                        direction: reviewDocument
-                            .direction,
+                if (wasContributing !== isContributing) {
+                    await this.adjustRatingAggregate({
+                        revieweeId: reviewDocument.revieweeId,
+                        direction: reviewDocument.direction,
                         ratingDelta: isContributing
-                            ? reviewDocument
-                                .rating
-                            : -reviewDocument
-                                .rating,
-                        countDelta: isContributing
-                            ? 1
-                            : -1,
+                            ? reviewDocument.rating
+                            : -reviewDocument.rating,
+                        countDelta: isContributing ? 1 : -1,
                         session,
                     });
                 }
                 if (action !== "DELETE") {
-                    reviewDocument.moderatedBy =
-                        adminObjectId;
-                    reviewDocument.moderatedAt =
-                        new Date();
+                    reviewDocument.moderatedBy = adminObjectId;
+                    reviewDocument.moderatedAt = new Date();
                     if (reason !== undefined) {
                         if (reason === null) {
                             reviewDocument.set("moderationReason", undefined);
                         }
                         else {
-                            reviewDocument
-                                .moderationReason =
-                                reason;
+                            reviewDocument.moderationReason = reason;
                         }
                     }
                 }
-                moderatedReview =
-                    await reviewDocument.save({
-                        session,
-                    });
+                moderatedReview = await reviewDocument.save({
+                    session,
+                });
             });
             if (!moderatedReview) {
                 throw new Error("Failed to moderate review");
@@ -526,7 +432,7 @@ export class ReviewService {
         }
     }
     static async getMyBookingReview(input) {
-        const { bookingId, userId, } = input;
+        const { bookingId, userId } = input;
         if (!Types.ObjectId.isValid(bookingId)) {
             throw new Error("Invalid booking id");
         }
@@ -545,8 +451,7 @@ export class ReviewService {
             throw new Error("Booking not found");
         }
         const customerId = booking.userId;
-        const coordinatorId = booking.assignment
-            ?.assignedCoordinatorId;
+        const coordinatorId = booking.assignment?.assignedCoordinatorId;
         if (!customerId) {
             throw new Error("Customer is not associated with this booking");
         }
@@ -555,8 +460,7 @@ export class ReviewService {
         }
         const isCustomer = customerId.equals(userObjectId);
         const isCoordinator = coordinatorId.equals(userObjectId);
-        if (!isCustomer &&
-            !isCoordinator) {
+        if (!isCustomer && !isCoordinator) {
             throw new Error("You are not authorized to access review details for this booking");
         }
         const review = await Review.findOne({
@@ -574,12 +478,8 @@ export class ReviewService {
                 status: booking.status,
                 completedAt: booking.completedAt,
             },
-            role: isCustomer
-                ? "USER"
-                : "COORDINATOR",
-            canReview: booking.status ===
-                "COMPLETED" &&
-                !hasReviewed,
+            role: isCustomer ? "USER" : "COORDINATOR",
+            canReview: booking.status === "COMPLETED" && !hasReviewed,
             hasReviewed,
             review: review ?? null,
         };
@@ -589,7 +489,7 @@ export class ReviewService {
         if (!Types.ObjectId.isValid(userId)) {
             throw new Error("Invalid user id");
         }
-        const { safePage, safeLimit, skip, } = this.safePagination(page, limit, 20);
+        const { safePage, safeLimit, skip } = this.safePagination(page, limit, 20);
         const query = {
             reviewerId: new Types.ObjectId(userId),
             isDeleted: false,
@@ -621,9 +521,7 @@ export class ReviewService {
             };
         }
         catch (error) {
-            const message = error instanceof Error
-                ? error.message
-                : "Unknown error";
+            const message = error instanceof Error ? error.message : "Unknown error";
             throw new Error(`My reviews fetch failed: ${message}`);
         }
     }
@@ -632,7 +530,7 @@ export class ReviewService {
         if (!Types.ObjectId.isValid(coordinatorId)) {
             throw new Error("Invalid coordinator id");
         }
-        const { safePage, safeLimit, skip, } = this.safePagination(page, limit, 20);
+        const { safePage, safeLimit, skip } = this.safePagination(page, limit, 20);
         const coordinatorObjectId = new Types.ObjectId(coordinatorId);
         const coordinator = await User.findById(coordinatorObjectId)
             .select("fullName profileImage role userReference coordinatorProfile.averageRating coordinatorProfile.totalRatings")
@@ -670,12 +568,8 @@ export class ReviewService {
                     fullName: coordinator.fullName,
                     profileImage: coordinator.profileImage,
                     userReference: coordinator.userReference,
-                    averageRating: coordinator
-                        .coordinatorProfile
-                        .averageRating,
-                    totalRatings: coordinator
-                        .coordinatorProfile
-                        .totalRatings,
+                    averageRating: coordinator.coordinatorProfile.averageRating,
+                    totalRatings: coordinator.coordinatorProfile.totalRatings,
                 },
                 data,
                 total,
@@ -685,9 +579,7 @@ export class ReviewService {
             };
         }
         catch (error) {
-            const message = error instanceof Error
-                ? error.message
-                : "Unknown error";
+            const message = error instanceof Error ? error.message : "Unknown error";
             throw new Error(`Coordinator reviews fetch failed: ${message}`);
         }
     }

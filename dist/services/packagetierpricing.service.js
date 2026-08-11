@@ -133,7 +133,7 @@ export class PackageTierPricingService {
         for (const locationPricing of pricing) {
             const locationId = locationPricing.locationId.toString();
             for (const servicePricing of locationPricing.services) {
-                const { serviceId, fixedPrice, discountPercent, taxProfileId, } = servicePricing;
+                const { serviceId, fixedPrice, discountPercent, taxProfileId } = servicePricing;
                 const taxPriceMode = servicePricing.taxPriceMode ?? "EXCLUSIVE";
                 const requestKey = `${locationId}_${serviceId}`;
                 const basePrice = basePriceMap.get(requestKey);
@@ -145,8 +145,7 @@ export class PackageTierPricingService {
                     finalPrice = fixedPrice;
                 }
                 else if (typeof discountPercent === "number") {
-                    finalPrice =
-                        basePrice - (basePrice * discountPercent) / 100;
+                    finalPrice = basePrice - (basePrice * discountPercent) / 100;
                 }
                 finalPrice = this.roundMoney(finalPrice);
                 if (finalPrice < 0) {
@@ -165,9 +164,7 @@ export class PackageTierPricingService {
                             $set: {
                                 basePrice,
                                 fixedPrice: typeof fixedPrice === "number" ? fixedPrice : null,
-                                discountPercent: typeof discountPercent === "number"
-                                    ? discountPercent
-                                    : null,
+                                discountPercent: typeof discountPercent === "number" ? discountPercent : null,
                                 finalPrice,
                                 taxProfileId: new Types.ObjectId(taxProfileId),
                                 taxPriceMode,

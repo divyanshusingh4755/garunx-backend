@@ -1,9 +1,4 @@
-import {
-  model,
-  Schema,
-  type Document,
-  Types,
-} from "mongoose";
+import { model, Schema, type Document, Types } from "mongoose";
 
 export type BannerPlacement =
   | "HOME_TOP"
@@ -12,10 +7,7 @@ export type BannerPlacement =
   | "CATEGORY"
   | "PRODUCT";
 
-export type BannerFormat =
-  | "WEB"
-  | "MOBILE"
-  | "BOTH";
+export type BannerFormat = "WEB" | "MOBILE" | "BOTH";
 
 export type BannerRedirectType =
   | "NONE"
@@ -77,23 +69,13 @@ const bannerSchema = new Schema<IBanner>(
     placement: {
       type: String,
       required: true,
-      enum: [
-        "HOME_TOP",
-        "HOME_MIDDLE",
-        "HOME_BOTTOM",
-        "CATEGORY",
-        "PRODUCT",
-      ],
+      enum: ["HOME_TOP", "HOME_MIDDLE", "HOME_BOTTOM", "CATEGORY", "PRODUCT"],
     },
 
     format: {
       type: String,
       required: true,
-      enum: [
-        "WEB",
-        "MOBILE",
-        "BOTH",
-      ],
+      enum: ["WEB", "MOBILE", "BOTH"],
     },
 
     isActive: {
@@ -116,14 +98,7 @@ const bannerSchema = new Schema<IBanner>(
     redirect: {
       type: {
         type: String,
-        enum: [
-          "NONE",
-          "SERVICE",
-          "PACKAGE",
-          "CATEGORY",
-          "PRODUCT",
-          "URL",
-        ],
+        enum: ["NONE", "SERVICE", "PACKAGE", "CATEGORY", "PRODUCT", "URL"],
         default: "NONE",
         required: true,
       },
@@ -146,21 +121,15 @@ const bannerSchema = new Schema<IBanner>(
 );
 
 bannerSchema.pre("validate", function () {
-  const redirectType =
-    this.redirect?.type ?? "NONE";
+  const redirectType = this.redirect?.type ?? "NONE";
 
   this.redirect ??= {
     type: "NONE",
   };
 
-  if (
-    ["SERVICE", "PACKAGE", "CATEGORY", "PRODUCT"]
-      .includes(redirectType)
-  ) {
+  if (["SERVICE", "PACKAGE", "CATEGORY", "PRODUCT"].includes(redirectType)) {
     if (!this.redirect.refId) {
-      throw new Error(
-        "refId is required for this redirect type",
-      );
+      throw new Error("refId is required for this redirect type");
     }
 
     delete this.redirect.url;
@@ -169,9 +138,7 @@ bannerSchema.pre("validate", function () {
 
   if (redirectType === "URL") {
     if (!this.redirect.url?.trim()) {
-      throw new Error(
-        "url is required when redirect type is URL",
-      );
+      throw new Error("url is required when redirect type is URL");
     }
 
     delete this.redirect.refId;
@@ -208,8 +175,4 @@ bannerSchema.index(
   },
 );
 
-export const Banner =
-  model<IBanner>(
-    "Banner",
-    bannerSchema,
-  );
+export const Banner = model<IBanner>("Banner", bannerSchema);

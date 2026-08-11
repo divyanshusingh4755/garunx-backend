@@ -1,12 +1,5 @@
-import {
-  type QueryFilter,
-  type SortOrder,
-} from "mongoose";
-import {
-  State,
-  type IState,
-  type IGeoPoint,
-} from "../models/state.model.js";
+import { type QueryFilter, type SortOrder } from "mongoose";
+import { State, type IState, type IGeoPoint } from "../models/state.model.js";
 import { escapeRegex } from "../utils/escapeRegex.js";
 
 type StateUpdate = Partial<
@@ -22,10 +15,7 @@ type StateUpdate = Partial<
   >
 >;
 
-const createHttpError = (
-  message: string,
-  statusCode: number,
-) => {
+const createHttpError = (message: string, statusCode: number) => {
   const error = new Error(message) as Error & {
     statusCode: number;
   };
@@ -56,14 +46,7 @@ export class StateService {
     description?: string;
     location?: IGeoPoint;
   }) {
-    const {
-      name,
-      country,
-      gstCode,
-      image,
-      description,
-      location,
-    } = params;
+    const { name, country, gstCode, image, description, location } = params;
 
     return State.create({
       name: name.trim(),
@@ -115,10 +98,8 @@ export class StateService {
       query.isActive = isActive;
     }
 
-    const countryQuery =
-      this.applyFilter(countryFilter);
-    const stateQuery =
-      this.applyFilter(stateFilter);
+    const countryQuery = this.applyFilter(countryFilter);
+    const stateQuery = this.applyFilter(stateFilter);
 
     if (countryQuery) query.country = countryQuery;
     if (stateQuery) query.name = stateQuery;
@@ -139,14 +120,9 @@ export class StateService {
       }
     }
 
-    let projection:
-      | Record<string, unknown>
-      | undefined;
+    let projection: Record<string, unknown> | undefined;
 
-    let sortCriteria: Record<
-      string,
-      SortOrder | { $meta: "textScore" }
-    >;
+    let sortCriteria: Record<string, SortOrder | { $meta: "textScore" }>;
 
     if (isTextSearch && sortBy === "relevance") {
       projection = {
@@ -169,9 +145,7 @@ export class StateService {
         "updatedAt",
       ]);
 
-      const safeSortBy = allowedSortFields.has(sortBy)
-        ? sortBy
-        : "createdAt";
+      const safeSortBy = allowedSortFields.has(sortBy) ? sortBy : "createdAt";
 
       sortCriteria = {
         [safeSortBy]: sortOrder === "asc" ? 1 : -1,
@@ -200,21 +174,17 @@ export class StateService {
     };
   }
 
-  static async updateState(
-    stateId: string,
-    updateData: StateUpdate,
-  ) {
-    const updatedState =
-      await State.findByIdAndUpdate(
-        stateId,
-        {
-          $set: updateData,
-        },
-        {
-          new: true,
-          runValidators: true,
-        },
-      ).lean();
+  static async updateState(stateId: string, updateData: StateUpdate) {
+    const updatedState = await State.findByIdAndUpdate(
+      stateId,
+      {
+        $set: updateData,
+      },
+      {
+        new: true,
+        runValidators: true,
+      },
+    ).lean();
 
     if (!updatedState) {
       throw createHttpError("State not found", 404);
@@ -223,23 +193,19 @@ export class StateService {
     return updatedState;
   }
 
-  static async softDeleteState(
-    stateId: string,
-    status: boolean,
-  ) {
-    const updatedState =
-      await State.findByIdAndUpdate(
-        stateId,
-        {
-          $set: {
-            isActive: status,
-          },
+  static async softDeleteState(stateId: string, status: boolean) {
+    const updatedState = await State.findByIdAndUpdate(
+      stateId,
+      {
+        $set: {
+          isActive: status,
         },
-        {
-          new: true,
-          runValidators: true,
-        },
-      ).lean();
+      },
+      {
+        new: true,
+        runValidators: true,
+      },
+    ).lean();
 
     if (!updatedState) {
       throw createHttpError("State not found", 404);
@@ -248,12 +214,8 @@ export class StateService {
     return updatedState;
   }
 
-  static async getStateById(
-    stateId: string,
-  ) {
-    const state = await State.findById(stateId)
-      .lean()
-      .exec();
+  static async getStateById(stateId: string) {
+    const state = await State.findById(stateId).lean().exec();
 
     if (!state) {
       throw createHttpError("State not found", 404);

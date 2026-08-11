@@ -1,6 +1,6 @@
 import { Types } from "mongoose";
-import { Banner, } from "../models/banner.model.js";
-import { escapeRegex, } from "../utils/escapeRegex.js";
+import { Banner } from "../models/banner.model.js";
+import { escapeRegex } from "../utils/escapeRegex.js";
 export class BannerService {
     static ensureValidId(id) {
         if (!Types.ObjectId.isValid(id)) {
@@ -41,28 +41,22 @@ export class BannerService {
             "__v",
         ]);
         for (const [field, value] of Object.entries(updateData)) {
-            if (protectedFields.has(field) ||
-                field === "redirect") {
+            if (protectedFields.has(field) || field === "redirect") {
                 continue;
             }
             banner.set(field, value);
         }
         if (updateData.redirect !== undefined) {
             const incomingRedirect = updateData.redirect;
-            const redirectType = incomingRedirect?.type ??
-                banner.redirect?.type ??
-                "NONE";
+            const redirectType = incomingRedirect?.type ?? banner.redirect?.type ?? "NONE";
             banner.redirect = {
                 type: redirectType,
-                ...(["SERVICE", "PACKAGE", "CATEGORY", "PRODUCT"]
-                    .includes(redirectType) &&
-                    incomingRedirect?.refId
+                ...(["SERVICE", "PACKAGE", "CATEGORY", "PRODUCT"].includes(redirectType) && incomingRedirect?.refId
                     ? {
                         refId: incomingRedirect.refId,
                     }
                     : {}),
-                ...(redirectType === "URL" &&
-                    incomingRedirect?.url
+                ...(redirectType === "URL" && incomingRedirect?.url
                     ? {
                         url: incomingRedirect.url,
                     }
@@ -74,8 +68,7 @@ export class BannerService {
     }
     static async getBannerById(id) {
         this.ensureValidId(id);
-        const banner = await Banner.findById(id)
-            .lean();
+        const banner = await Banner.findById(id).lean();
         if (!banner) {
             throw new Error("Banner not found");
         }
@@ -99,12 +92,8 @@ export class BannerService {
         return banner.save();
     }
     static async findBanners(searchTerm, placement, format, redirectType, limit = 20, page = 1, isActive, sortBy = "displayOrder", sortOrder = "asc") {
-        const safePage = Number.isInteger(page) && page > 0
-            ? page
-            : 1;
-        const safeLimit = Number.isInteger(limit) && limit > 0
-            ? Math.min(limit, 100)
-            : 20;
+        const safePage = Number.isInteger(page) && page > 0 ? page : 1;
+        const safeLimit = Number.isInteger(limit) && limit > 0 ? Math.min(limit, 100) : 20;
         const skip = safeLimit * (safePage - 1);
         const query = {};
         if (typeof isActive === "boolean") {
@@ -120,8 +109,7 @@ export class BannerService {
             query["redirect.type"] = redirectType;
         }
         const normalizedSearch = searchTerm?.trim();
-        const isTextSearch = Boolean(normalizedSearch &&
-            normalizedSearch.length > 4);
+        const isTextSearch = Boolean(normalizedSearch && normalizedSearch.length > 4);
         if (normalizedSearch) {
             if (isTextSearch) {
                 query.$text = {
@@ -145,13 +133,10 @@ export class BannerService {
             "isActive",
             "relevance",
         ]);
-        const safeSortBy = allowedSortFields.has(sortBy)
-            ? sortBy
-            : "displayOrder";
+        const safeSortBy = allowedSortFields.has(sortBy) ? sortBy : "displayOrder";
         let projection = {};
         let sortCriteria;
-        if (isTextSearch &&
-            safeSortBy === "relevance") {
+        if (isTextSearch && safeSortBy === "relevance") {
             sortCriteria = {
                 score: {
                     $meta: "textScore",
@@ -159,13 +144,9 @@ export class BannerService {
             };
         }
         else {
-            const actualSortField = safeSortBy === "relevance"
-                ? "displayOrder"
-                : safeSortBy;
+            const actualSortField = safeSortBy === "relevance" ? "displayOrder" : safeSortBy;
             sortCriteria = {
-                [actualSortField]: sortOrder === "desc"
-                    ? -1
-                    : 1,
+                [actualSortField]: sortOrder === "desc" ? -1 : 1,
             };
             if (actualSortField !== "createdAt") {
                 sortCriteria.createdAt = -1;
@@ -189,9 +170,7 @@ export class BannerService {
             };
         }
         catch (error) {
-            const message = error instanceof Error
-                ? error.message
-                : "Unknown error";
+            const message = error instanceof Error ? error.message : "Unknown error";
             throw new Error(`Banner fetch failed: ${message}`);
         }
     }

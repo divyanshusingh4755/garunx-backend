@@ -4,12 +4,7 @@ import {
   type NextFunction,
   Router,
 } from "express";
-import {
-  body,
-  param,
-  query,
-  validationResult,
-} from "express-validator";
+import { body, param, query, validationResult } from "express-validator";
 
 import { authenticate } from "../middleware/authenticate.js";
 
@@ -41,11 +36,7 @@ const REDIRECT_TYPES = [
   "URL",
 ] as const;
 
-const validateRequest = (
-  req: Request,
-  res: Response,
-  next: NextFunction,
-) => {
+const validateRequest = (req: Request, res: Response, next: NextFunction) => {
   const errors = validationResult(req);
 
   if (!errors.isEmpty()) {
@@ -62,9 +53,7 @@ const validateRequest = (
 };
 
 const bannerIdValidation = [
-  param("id")
-    .isMongoId()
-    .withMessage("Invalid banner ID"),
+  param("id").isMongoId().withMessage("Invalid banner ID"),
 
   validateRequest,
 ];
@@ -86,9 +75,7 @@ const redirectValidation = [
       checkFalsy: true,
     })
     .isMongoId()
-    .withMessage(
-      "redirect.refId must be a valid MongoDB ObjectId",
-    ),
+    .withMessage("redirect.refId must be a valid MongoDB ObjectId"),
 
   body("redirect.url")
     .optional({
@@ -99,9 +86,7 @@ const redirectValidation = [
       protocols: ["http", "https"],
       require_protocol: true,
     })
-    .withMessage(
-      "redirect.url must be a valid HTTP or HTTPS URL",
-    ),
+    .withMessage("redirect.url must be a valid HTTP or HTTPS URL"),
 
   body("redirect").custom((redirect) => {
     if (!redirect) {
@@ -114,15 +99,11 @@ const redirectValidation = [
       ["SERVICE", "PACKAGE", "CATEGORY", "PRODUCT"].includes(type) &&
       !redirect.refId
     ) {
-      throw new Error(
-        "redirect.refId is required for this redirect type",
-      );
+      throw new Error("redirect.refId is required for this redirect type");
     }
 
     if (type === "URL" && !redirect.url) {
-      throw new Error(
-        "redirect.url is required when redirect type is URL",
-      );
+      throw new Error("redirect.url is required when redirect type is URL");
     }
 
     return true;
@@ -189,9 +170,7 @@ const createBannerValidation = [
   body("displayOrder")
     .optional()
     .isInt({ min: 0 })
-    .withMessage(
-      "Display order must be a non-negative integer",
-    )
+    .withMessage("Display order must be a non-negative integer")
     .toInt(),
 
   ...redirectValidation,
@@ -200,9 +179,7 @@ const createBannerValidation = [
 ];
 
 const updateBannerValidation = [
-  param("id")
-    .isMongoId()
-    .withMessage("Invalid banner ID"),
+  param("id").isMongoId().withMessage("Invalid banner ID"),
 
   body().custom((value) => {
     if (
@@ -211,9 +188,7 @@ const updateBannerValidation = [
       Array.isArray(value) ||
       Object.keys(value).length === 0
     ) {
-      throw new Error(
-        "At least one field is required for update",
-      );
+      throw new Error("At least one field is required for update");
     }
 
     return true;
@@ -234,10 +209,7 @@ const updateBannerValidation = [
     .isIn(PLACEMENTS)
     .withMessage("Invalid placement"),
 
-  body("format")
-    .optional()
-    .isIn(FORMATS)
-    .withMessage("Invalid format"),
+  body("format").optional().isIn(FORMATS).withMessage("Invalid format"),
 
   body("image")
     .optional()
@@ -279,9 +251,7 @@ const updateBannerValidation = [
   body("displayOrder")
     .optional()
     .isInt({ min: 0 })
-    .withMessage(
-      "Display order must be a non-negative integer",
-    )
+    .withMessage("Display order must be a non-negative integer")
     .toInt(),
 
   ...redirectValidation,
@@ -295,10 +265,7 @@ const listBannerValidation = [
     .isIn(PLACEMENTS)
     .withMessage("Invalid placement"),
 
-  query("format")
-    .optional()
-    .isIn(FORMATS)
-    .withMessage("Invalid format"),
+  query("format").optional().isIn(FORMATS).withMessage("Invalid format"),
 
   query("redirectType")
     .optional()
@@ -332,32 +299,13 @@ const listBannerValidation = [
 
 const router = Router();
 
-router.get(
-  "/",
-  listBannerValidation,
-  getAllBanners,
-);
+router.get("/", listBannerValidation, getAllBanners);
 
-router.get(
-  "/:id",
-  authenticate,
-  bannerIdValidation,
-  getBannerById,
-);
+router.get("/:id", authenticate, bannerIdValidation, getBannerById);
 
-router.post(
-  "/",
-  authenticate,
-  createBannerValidation,
-  createBanner,
-);
+router.post("/", authenticate, createBannerValidation, createBanner);
 
-router.put(
-  "/:id",
-  authenticate,
-  updateBannerValidation,
-  updateBanner,
-);
+router.put("/:id", authenticate, updateBannerValidation, updateBanner);
 
 router.patch(
   "/:id/status",
@@ -366,11 +314,6 @@ router.patch(
   toggleBannerStatus,
 );
 
-router.delete(
-  "/:id",
-  authenticate,
-  bannerIdValidation,
-  deleteBanner,
-);
+router.delete("/:id", authenticate, bannerIdValidation, deleteBanner);
 
 export default router;

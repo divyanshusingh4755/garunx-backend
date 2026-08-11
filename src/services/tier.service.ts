@@ -19,9 +19,7 @@ export class TierService {
 
     if (existingTier) {
       if (existingTier.name === tierData.name) {
-        throw new Error(
-          `Tier with name '${tierData.name}' already exists`,
-        );
+        throw new Error(`Tier with name '${tierData.name}' already exists`);
       }
 
       throw new Error(
@@ -34,10 +32,7 @@ export class TierService {
     return tier.save();
   }
 
-  static async updateTier(
-    id: string,
-    tierData: Partial<ITier>,
-  ) {
+  static async updateTier(id: string, tierData: Partial<ITier>) {
     if (!Types.ObjectId.isValid(id)) {
       throw new Error("Invalid tier id");
     }
@@ -61,13 +56,8 @@ export class TierService {
       });
 
       if (existing) {
-        if (
-          tierData.name &&
-          existing.name === tierData.name
-        ) {
-          throw new Error(
-            `Tier with name '${tierData.name}' already exists`,
-          );
+        if (tierData.name && existing.name === tierData.name) {
+          throw new Error(`Tier with name '${tierData.name}' already exists`);
         }
 
         throw new Error(
@@ -107,47 +97,43 @@ export class TierService {
   }
 
   static async getDeactivationImpact(tierId: string) {
-    const [
-      serviceComponents,
-      servicePricing,
-      packageMappings,
-      packagePricing,
-    ] = await Promise.all([
-      ServiceComponent.find(
-        { tierId },
-        {
-          _id: 1,
-          serviceId: 1,
-          componentId: 1,
-        },
-      ).lean(),
+    const [serviceComponents, servicePricing, packageMappings, packagePricing] =
+      await Promise.all([
+        ServiceComponent.find(
+          { tierId },
+          {
+            _id: 1,
+            serviceId: 1,
+            componentId: 1,
+          },
+        ).lean(),
 
-      ServicePricing.find(
-        { tierId },
-        {
-          _id: 1,
-          serviceId: 1,
-          componentId: 1,
-        },
-      ).lean(),
+        ServicePricing.find(
+          { tierId },
+          {
+            _id: 1,
+            serviceId: 1,
+            componentId: 1,
+          },
+        ).lean(),
 
-      PackageTierMap.find(
-        { tierId },
-        {
-          _id: 1,
-          packageId: 1,
-        },
-      ).lean(),
+        PackageTierMap.find(
+          { tierId },
+          {
+            _id: 1,
+            packageId: 1,
+          },
+        ).lean(),
 
-      PackageTierPricing.find(
-        { tierId },
-        {
-          _id: 1,
-          packageId: 1,
-          serviceId: 1,
-        },
-      ).lean(),
-    ]);
+        PackageTierPricing.find(
+          { tierId },
+          {
+            _id: 1,
+            packageId: 1,
+            serviceId: 1,
+          },
+        ).lean(),
+      ]);
 
     return {
       serviceComponentCount: serviceComponents.length,
@@ -185,9 +171,7 @@ export class TierService {
         success: true,
         requiresConfirmation: false as const,
         isActive: tier.isActive,
-        message: `Tier already ${
-          isActive ? "active" : "inactive"
-        }`,
+        message: `Tier already ${isActive ? "active" : "inactive"}`,
       };
     }
 
@@ -204,8 +188,7 @@ export class TierService {
         return {
           success: true,
           requiresConfirmation: true as const,
-          message:
-            "Tier is used in services and packages. Are you sure?",
+          message: "Tier is used in services and packages. Are you sure?",
           impact,
         };
       }
@@ -231,25 +214,13 @@ export class TierService {
 
         if (!isActive) {
           await Promise.all([
-            ServiceComponent.deleteMany(
-              { tierId: id },
-              { session },
-            ),
+            ServiceComponent.deleteMany({ tierId: id }, { session }),
 
-            ServicePricing.deleteMany(
-              { tierId: id },
-              { session },
-            ),
+            ServicePricing.deleteMany({ tierId: id }, { session }),
 
-            PackageTierMap.deleteMany(
-              { tierId: id },
-              { session },
-            ),
+            PackageTierMap.deleteMany({ tierId: id }, { session }),
 
-            PackageTierPricing.deleteMany(
-              { tierId: id },
-              { session },
-            ),
+            PackageTierPricing.deleteMany({ tierId: id }, { session }),
           ]);
         }
       });
@@ -258,9 +229,7 @@ export class TierService {
         success: true,
         requiresConfirmation: false as const,
         isActive,
-        message: `Tier ${
-          isActive ? "activated" : "deactivated"
-        } successfully`,
+        message: `Tier ${isActive ? "activated" : "deactivated"} successfully`,
       };
     } finally {
       await session.endSession();
@@ -276,12 +245,9 @@ export class TierService {
     isActive?: boolean,
   ) {
     const safeLimit =
-      Number.isInteger(limit) && limit > 0
-        ? Math.min(limit, 100)
-        : 40;
+      Number.isInteger(limit) && limit > 0 ? Math.min(limit, 100) : 40;
 
-    const safePage =
-      Number.isInteger(page) && page > 0 ? page : 1;
+    const safePage = Number.isInteger(page) && page > 0 ? page : 1;
 
     const skip = safeLimit * (safePage - 1);
     const query: Record<string, any> = {};
@@ -292,8 +258,7 @@ export class TierService {
 
     const trimmedSearchTerm = searchTerm?.trim();
     const isTextSearch =
-      Boolean(trimmedSearchTerm) &&
-      trimmedSearchTerm!.length > 4;
+      Boolean(trimmedSearchTerm) && trimmedSearchTerm!.length > 4;
 
     if (trimmedSearchTerm) {
       if (isTextSearch) {
@@ -317,17 +282,12 @@ export class TierService {
       "relevance",
     ]);
 
-    const safeSortBy = allowedSortFields.has(sortBy)
-      ? sortBy
-      : "createdAt";
+    const safeSortBy = allowedSortFields.has(sortBy) ? sortBy : "createdAt";
 
     let sortCriteria: Record<string, any> = {};
     let projection: Record<string, any> = {};
 
-    if (
-      isTextSearch &&
-      safeSortBy === "relevance"
-    ) {
+    if (isTextSearch && safeSortBy === "relevance") {
       projection = {
         score: {
           $meta: "textScore",
@@ -340,13 +300,9 @@ export class TierService {
         },
       };
     } else {
-      const field =
-        safeSortBy === "relevance"
-          ? "createdAt"
-          : safeSortBy;
+      const field = safeSortBy === "relevance" ? "createdAt" : safeSortBy;
 
-      sortCriteria[field] =
-        sortOrder === "desc" ? -1 : 1;
+      sortCriteria[field] = sortOrder === "desc" ? -1 : 1;
 
       if (field !== "createdAt") {
         sortCriteria.createdAt = -1;
@@ -371,9 +327,7 @@ export class TierService {
         totalPages: Math.ceil(total / safeLimit),
       };
     } catch (error: any) {
-      throw new Error(
-        `Tier fetch failed: ${error.message}`,
-      );
+      throw new Error(`Tier fetch failed: ${error.message}`);
     }
   }
 }

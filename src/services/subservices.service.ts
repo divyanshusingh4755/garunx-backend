@@ -1,8 +1,4 @@
-import {
-  Types,
-  type QueryFilter,
-  type SortOrder,
-} from "mongoose";
+import { Types, type QueryFilter, type SortOrder } from "mongoose";
 import {
   SubServiceComponent,
   type ISubServiceComponent,
@@ -19,21 +15,12 @@ type CreateSubServiceComponentInput = {
 };
 
 type UpdateSubServiceComponentInput = Partial<
-  Pick<
-    ISubServiceComponent,
-    | "name"
-    | "description"
-    | "image"
-    | "isActive"
-  >
+  Pick<ISubServiceComponent, "name" | "description" | "image" | "isActive">
 > & {
   serviceId?: string;
 };
 
-const createHttpError = (
-  message: string,
-  statusCode: number,
-) => {
+const createHttpError = (message: string, statusCode: number) => {
   const error = new Error(message) as Error & {
     statusCode: number;
   };
@@ -71,10 +58,7 @@ export class SubServiceComponentService {
     });
 
     if (!serviceExists) {
-      throw createHttpError(
-        "Service not found",
-        404,
-      );
+      throw createHttpError("Service not found", 404);
     }
 
     return SubServiceComponent.create({
@@ -111,24 +95,18 @@ export class SubServiceComponentService {
       sortOrder = "desc",
     } = params;
 
-    const safeLimit = Math.min(
-      Math.max(limit, 1),
-      100,
-    );
+    const safeLimit = Math.min(Math.max(limit, 1), 100);
 
     const safePage = Math.max(page, 1);
-    const skip =
-      safeLimit * (safePage - 1);
+    const skip = safeLimit * (safePage - 1);
 
-    const query:
-      QueryFilter<ISubServiceComponent> = {};
+    const query: QueryFilter<ISubServiceComponent> = {};
 
     if (typeof isActive === "boolean") {
       query.isActive = isActive;
     }
 
-    const serviceFilter =
-      this.applyServiceFilter(serviceId);
+    const serviceFilter = this.applyServiceFilter(serviceId);
 
     if (serviceFilter) {
       query.serviceId = serviceFilter;
@@ -136,9 +114,7 @@ export class SubServiceComponentService {
 
     const term = searchTerm?.trim();
 
-    const isTextSearch = Boolean(
-      term && term.length > 4,
-    );
+    const isTextSearch = Boolean(term && term.length > 4);
 
     if (term) {
       if (isTextSearch) {
@@ -153,19 +129,11 @@ export class SubServiceComponentService {
       }
     }
 
-    let projection:
-      | Record<string, unknown>
-      | undefined;
+    let projection: Record<string, unknown> | undefined;
 
-    let sortCriteria: Record<
-      string,
-      SortOrder | { $meta: "textScore" }
-    >;
+    let sortCriteria: Record<string, SortOrder | { $meta: "textScore" }>;
 
-    if (
-      isTextSearch &&
-      sortBy === "relevance"
-    ) {
+    if (isTextSearch && sortBy === "relevance") {
       projection = {
         score: {
           $meta: "textScore",
@@ -185,14 +153,10 @@ export class SubServiceComponentService {
         "isActive",
       ]);
 
-      const safeSortBy =
-        allowedSortFields.has(sortBy)
-          ? sortBy
-          : "createdAt";
+      const safeSortBy = allowedSortFields.has(sortBy) ? sortBy : "createdAt";
 
       sortCriteria = {
-        [safeSortBy]:
-          sortOrder === "asc" ? 1 : -1,
+        [safeSortBy]: sortOrder === "asc" ? 1 : -1,
       };
 
       if (safeSortBy !== "createdAt") {
@@ -200,33 +164,22 @@ export class SubServiceComponentService {
       }
     }
 
-    const [data, total] =
-      await Promise.all([
-        SubServiceComponent.find(
-          query,
-          projection,
-        )
-          .populate(
-            "serviceId",
-            "name serviceReference isActive",
-          )
-          .sort(sortCriteria)
-          .skip(skip)
-          .limit(safeLimit)
-          .lean(),
+    const [data, total] = await Promise.all([
+      SubServiceComponent.find(query, projection)
+        .populate("serviceId", "name serviceReference isActive")
+        .sort(sortCriteria)
+        .skip(skip)
+        .limit(safeLimit)
+        .lean(),
 
-        SubServiceComponent.countDocuments(
-          query,
-        ),
-      ]);
+      SubServiceComponent.countDocuments(query),
+    ]);
 
     return {
       data,
       total,
       page: safePage,
-      totalPages: Math.ceil(
-        total / safeLimit,
-      ),
+      totalPages: Math.ceil(total / safeLimit),
     };
   }
 
@@ -240,28 +193,20 @@ export class SubServiceComponentService {
       });
 
       if (!serviceExists) {
-        throw createHttpError(
-          "Service not found",
-          404,
-        );
+        throw createHttpError("Service not found", 404);
       }
     }
 
-    const normalizedUpdate:
-      UpdateSubServiceComponentInput = {
-        ...updateData,
-      };
+    const normalizedUpdate: UpdateSubServiceComponentInput = {
+      ...updateData,
+    };
 
     if (updateData.name !== undefined) {
-      normalizedUpdate.name =
-        updateData.name.trim();
+      normalizedUpdate.name = updateData.name.trim();
     }
 
-    if (
-      updateData.description !== undefined
-    ) {
-      normalizedUpdate.description =
-        updateData.description.trim();
+    if (updateData.description !== undefined) {
+      normalizedUpdate.description = updateData.description.trim();
     }
 
     const updatedSubServiceComponent =
@@ -275,17 +220,11 @@ export class SubServiceComponentService {
           runValidators: true,
         },
       )
-        .populate(
-          "serviceId",
-          "name serviceReference isActive",
-        )
+        .populate("serviceId", "name serviceReference isActive")
         .lean();
 
     if (!updatedSubServiceComponent) {
-      throw createHttpError(
-        "Sub Service Component not found",
-        404,
-      );
+      throw createHttpError("Sub Service Component not found", 404);
     }
 
     return updatedSubServiceComponent;
@@ -295,18 +234,12 @@ export class SubServiceComponentService {
     subServiceComponentId: string,
     status: boolean,
   ) {
-    const existing =
-      await SubServiceComponent.findById(
-        subServiceComponentId,
-      )
-        .select("_id isActive")
-        .lean();
+    const existing = await SubServiceComponent.findById(subServiceComponentId)
+      .select("_id isActive")
+      .lean();
 
     if (!existing) {
-      throw createHttpError(
-        "Sub Service Component not found",
-        404,
-      );
+      throw createHttpError("Sub Service Component not found", 404);
     }
 
     if (existing.isActive === status) {
@@ -329,41 +262,26 @@ export class SubServiceComponentService {
           runValidators: true,
         },
       )
-        .populate(
-          "serviceId",
-          "name serviceReference isActive",
-        )
+        .populate("serviceId", "name serviceReference isActive")
         .lean();
 
     if (!updatedSubServiceComponent) {
-      throw createHttpError(
-        "Sub Service Component not found",
-        404,
-      );
+      throw createHttpError("Sub Service Component not found", 404);
     }
 
     return updatedSubServiceComponent;
   }
 
-  static async getSubServiceComponentById(
-    subServiceComponentId: string,
-  ) {
-    const subServiceComponent =
-      await SubServiceComponent.findById(
-        subServiceComponentId,
-      )
-        .populate(
-          "serviceId",
-          "name serviceReference isActive",
-        )
-        .lean()
-        .exec();
+  static async getSubServiceComponentById(subServiceComponentId: string) {
+    const subServiceComponent = await SubServiceComponent.findById(
+      subServiceComponentId,
+    )
+      .populate("serviceId", "name serviceReference isActive")
+      .lean()
+      .exec();
 
     if (!subServiceComponent) {
-      throw createHttpError(
-        "Sub Service Component not found",
-        404,
-      );
+      throw createHttpError("Sub Service Component not found", 404);
     }
 
     return subServiceComponent;

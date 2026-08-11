@@ -1,1 +1,1 @@
-{"version":3,"file":"escapeRegex.js","sourceRoot":"","sources":["../../src/utils/escapeRegex.ts"],"names":[],"mappings":"AAAA,MAAM,CAAC,MAAM,WAAW,GAAG,CACzB,IAAY,EACJ,EAAE;IACV,OAAO,IAAI,CAAC,OAAO,CACjB,qBAAqB,EACrB,MAAM,CACP,CAAC;AACJ,CAAC,CAAC"}
+{"version":3,"file":"escapeRegex.js","sourceRoot":"","sources":["../../src/utils/escapeRegex.ts"],"names":[],"mappings":"AAAA,MAAM,CAAC,MAAM,WAAW,GAAG,CAAC,IAAY,EAAU,EAAE;IAClD,OAAO,IAAI,CAAC,OAAO,CAAC,qBAAqB,EAAE,MAAM,CAAC,CAAC;AACrD,CAAC,CAAC"}

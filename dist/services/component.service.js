@@ -1,5 +1,5 @@
-import mongoose, { Types, } from "mongoose";
-import { Component, } from "../models/component.model.js";
+import mongoose, { Types } from "mongoose";
+import { Component } from "../models/component.model.js";
 import { Category } from "../models/category.model.js";
 import { ServiceComponent } from "../models/servicecomponent.model.js";
 import { ServicePricing } from "../models/servicepricing.model.js";
@@ -93,8 +93,7 @@ export class ComponentService {
         }
         if (!isActive && !confirmed) {
             const impact = await this.getDeactivationImpact(componentId);
-            if (impact.affectedServicesCount > 0 ||
-                impact.pricingCount > 0) {
+            if (impact.affectedServicesCount > 0 || impact.pricingCount > 0) {
                 return {
                     requiresConfirmation: true,
                     impact,
@@ -166,8 +165,7 @@ export class ComponentService {
             query.isBundled = isBundled;
         }
         if (categoryId) {
-            query.categoryId =
-                new Types.ObjectId(categoryId);
+            query.categoryId = new Types.ObjectId(categoryId);
         }
         const term = searchTerm?.trim();
         const isTextSearch = Boolean(term && term.length > 4);
@@ -186,8 +184,7 @@ export class ComponentService {
         }
         let projection;
         let sortCriteria;
-        if (isTextSearch &&
-            sortBy === "relevance") {
+        if (isTextSearch && sortBy === "relevance") {
             projection = {
                 score: {
                     $meta: "textScore",
@@ -208,9 +205,7 @@ export class ComponentService {
                 "isRemovable",
                 "isBundled",
             ]);
-            const safeSortBy = allowedSortFields.has(sortBy)
-                ? sortBy
-                : "createdAt";
+            const safeSortBy = allowedSortFields.has(sortBy) ? sortBy : "createdAt";
             sortCriteria = {
                 [safeSortBy]: sortOrder === "asc" ? 1 : -1,
             };

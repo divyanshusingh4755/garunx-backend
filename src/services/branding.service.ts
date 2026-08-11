@@ -1,6 +1,4 @@
-import mongoose, {
-  type HydratedDocument,
-} from "mongoose";
+import mongoose, { type HydratedDocument } from "mongoose";
 
 import {
   Branding,
@@ -32,9 +30,7 @@ class BrandingService {
       Array.isArray(newTheme) ||
       Object.keys(newTheme).length === 0
     ) {
-      throw new Error(
-        "At least one theme field is required",
-      );
+      throw new Error("At least one theme field is required");
     }
 
     const session = await mongoose.startSession();
@@ -47,37 +43,27 @@ class BrandingService {
         .session(session)
         .lean();
 
-      const currentTheme: IBrandTheme =
-        latest?.theme ?? {
-          primary: "#007bff",
-          secondary: "#6c757d",
-          accent: "#ffc107",
-          background: "#ffffff",
-          text: "#212259",
-        };
-
-      const mergedTheme: IBrandTheme = {
-        primary:
-          newTheme.primary ?? currentTheme.primary,
-
-        secondary:
-          newTheme.secondary ??
-          currentTheme.secondary,
-
-        accent:
-          newTheme.accent ?? currentTheme.accent,
-
-        background:
-          newTheme.background ??
-          currentTheme.background,
-
-        text:
-          newTheme.text ?? currentTheme.text,
+      const currentTheme: IBrandTheme = latest?.theme ?? {
+        primary: "#007bff",
+        secondary: "#6c757d",
+        accent: "#ffc107",
+        background: "#ffffff",
+        text: "#212259",
       };
 
-      const nextVersion = latest
-        ? latest.version + 1
-        : 1;
+      const mergedTheme: IBrandTheme = {
+        primary: newTheme.primary ?? currentTheme.primary,
+
+        secondary: newTheme.secondary ?? currentTheme.secondary,
+
+        accent: newTheme.accent ?? currentTheme.accent,
+
+        background: newTheme.background ?? currentTheme.background,
+
+        text: newTheme.text ?? currentTheme.text,
+      };
+
+      const nextVersion = latest ? latest.version + 1 : 1;
 
       await Branding.updateMany(
         { isActive: true },
@@ -91,22 +77,20 @@ class BrandingService {
         },
       );
 
-      const createdDocuments =
-        await Branding.create(
-          [
-            {
-              version: nextVersion,
-              isActive: true,
-              theme: mergedTheme,
-            },
-          ],
+      const createdDocuments = await Branding.create(
+        [
           {
-            session,
+            version: nextVersion,
+            isActive: true,
+            theme: mergedTheme,
           },
-        );
+        ],
+        {
+          session,
+        },
+      );
 
-      const createdBranding =
-        createdDocuments[0];
+      const createdBranding = createdDocuments[0];
 
       if (!createdBranding) {
         throw new Error("Theme creation failed");

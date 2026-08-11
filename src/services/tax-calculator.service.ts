@@ -32,90 +32,48 @@ export interface CalculateLineTaxInput {
 }
 
 export class TaxCalculatorService {
-  private static round(
-    value: number,
-  ): number {
-    return (
-      Math.round(
-        (value + Number.EPSILON) * 100,
-      ) / 100
-    );
+  private static round(value: number): number {
+    return Math.round((value + Number.EPSILON) * 100) / 100;
   }
 
-  private static validateAmount(
-    fieldName: string,
-    value: number,
-  ): void {
-    if (
-      typeof value !== "number" ||
-      !Number.isFinite(value) ||
-      value < 0
-    ) {
-      throw new Error(
-        `${fieldName} must be a valid non-negative number`,
-      );
+  private static validateAmount(fieldName: string, value: number): void {
+    if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
+      throw new Error(`${fieldName} must be a valid non-negative number`);
     }
   }
 
-  private static validateProfile(
-    profile: ITaxProfileSnapshot,
-  ): void {
-    this.validateAmount(
-      "profile.totalRate",
-      profile.totalRate,
-    );
+  private static validateProfile(profile: ITaxProfileSnapshot): void {
+    this.validateAmount("profile.totalRate", profile.totalRate);
 
     if (profile.totalRate > 100) {
-      throw new Error(
-        "profile.totalRate cannot exceed 100",
-      );
+      throw new Error("profile.totalRate cannot exceed 100");
     }
 
-    if (
-      profile.treatment === "TAXABLE" &&
-      profile.totalRate <= 0
-    ) {
-      throw new Error(
-        "Taxable profile must have a tax rate greater than zero",
-      );
+    if (profile.treatment === "TAXABLE" && profile.totalRate <= 0) {
+      throw new Error("Taxable profile must have a tax rate greater than zero");
     }
 
-    if (
-      profile.treatment !== "TAXABLE" &&
-      profile.totalRate !== 0
-    ) {
-      throw new Error(
-        "Non-taxable profile must have a tax rate equal to zero",
-      );
+    if (profile.treatment !== "TAXABLE" && profile.totalRate !== 0) {
+      throw new Error("Non-taxable profile must have a tax rate equal to zero");
     }
 
     if (
       profile.priceMode !== "INCLUSIVE" &&
       profile.priceMode !== "EXCLUSIVE"
     ) {
-      throw new Error(
-        "Invalid tax price mode",
-      );
+      throw new Error("Invalid tax price mode");
     }
   }
 
-  private static normalizeStateCode(
-    fieldName: string,
-    value: string,
-  ): string {
+  private static normalizeStateCode(fieldName: string, value: string): string {
     if (typeof value !== "string") {
-      throw new Error(
-        `${fieldName} must be a string`,
-      );
+      throw new Error(`${fieldName} must be a string`);
     }
 
-    const normalized =
-      value.trim();
+    const normalized = value.trim();
 
     if (!/^\d{2}$/.test(normalized)) {
-      throw new Error(
-        `${fieldName} must contain exactly two digits`,
-      );
+      throw new Error(`${fieldName} must contain exactly two digits`);
     }
 
     return normalized;
@@ -125,73 +83,50 @@ export class TaxCalculatorService {
     supplierStateCode: string,
     placeOfSupplyStateCode: string,
   ): TaxJurisdiction {
-    const supplierCode =
-      this.normalizeStateCode(
-        "Supplier state code",
-        supplierStateCode,
-      );
+    const supplierCode = this.normalizeStateCode(
+      "Supplier state code",
+      supplierStateCode,
+    );
 
-    const placeOfSupplyCode =
-      this.normalizeStateCode(
-        "Place of supply state code",
-        placeOfSupplyStateCode,
-      );
+    const placeOfSupplyCode = this.normalizeStateCode(
+      "Place of supply state code",
+      placeOfSupplyStateCode,
+    );
 
-    return supplierCode ===
-      placeOfSupplyCode
+    return supplierCode === placeOfSupplyCode
       ? TaxJurisdiction.INTRA_STATE
       : TaxJurisdiction.INTER_STATE;
   }
 
-  static calculateLineTax(
-    input: CalculateLineTaxInput,
-  ): ILineTax {
-    const {
-      amount,
-      profile,
-      supplierStateCode,
-      placeOfSupplyStateCode,
-    } = input;
+  static calculateLineTax(input: CalculateLineTaxInput): ILineTax {
+    const { amount, profile, supplierStateCode, placeOfSupplyStateCode } =
+      input;
 
-    const discountAmount =
-      input.discountAmount ?? 0;
+    const discountAmount = input.discountAmount ?? 0;
 
-    this.validateAmount(
-      "amount",
-      amount,
-    );
+    this.validateAmount("amount", amount);
 
-    this.validateAmount(
-      "discountAmount",
-      discountAmount,
-    );
+    this.validateAmount("discountAmount", discountAmount);
 
     if (discountAmount > amount) {
-      throw new Error(
-        "discountAmount cannot be greater than amount",
-      );
+      throw new Error("discountAmount cannot be greater than amount");
     }
 
     this.validateProfile(profile);
 
-    const netAmount = this.round(
-      amount - discountAmount,
-    );
+    const netAmount = this.round(amount - discountAmount);
 
-    const jurisdiction =
-      this.resolveJurisdiction(
-        supplierStateCode,
-        placeOfSupplyStateCode,
-      );
+    const jurisdiction = this.resolveJurisdiction(
+      supplierStateCode,
+      placeOfSupplyStateCode,
+    );
 
     /*
      * EXEMPT, NIL_RATED and NON_GST lines
      * retain their net line amount as the base,
      * but do not produce GST.
      */
-    if (
-      profile.treatment !== "TAXABLE"
-    ) {
+    if (profile.treatment !== "TAXABLE") {
       return {
         profile,
         jurisdiction,
@@ -207,16 +142,11 @@ export class TaxCalculatorService {
       };
     }
 
-    const totalApplicableRate =
-      profile.totalRate;
+    const totalApplicableRate = profile.totalRate;
 
     const rawTaxableAmount =
       profile.priceMode === "INCLUSIVE"
-        ? netAmount /
-          (
-            1 +
-            totalApplicableRate / 100
-          )
+        ? netAmount / (1 + totalApplicableRate / 100)
         : netAmount;
 
     let cgstRate = 0;
@@ -226,9 +156,7 @@ export class TaxCalculatorService {
     let igstRate = 0;
     let igstAmount = 0;
 
-    if (
-      profile.priceMode === "INCLUSIVE"
-    ) {
+    if (profile.priceMode === "INCLUSIVE") {
       /*
        * For inclusive pricing, derive the rounded
        * taxable base first and assign the remaining
@@ -236,65 +164,35 @@ export class TaxCalculatorService {
        *
        * taxableAmount + totalTax = netAmount
        */
-      const taxableAmount =
-        this.round(
-          rawTaxableAmount,
-        );
+      const taxableAmount = this.round(rawTaxableAmount);
 
-      const roundedTotalTax =
-        this.round(
-          netAmount - taxableAmount,
-        );
+      const roundedTotalTax = this.round(netAmount - taxableAmount);
 
-      if (
-        jurisdiction === "INTRA_STATE"
-      ) {
-        cgstRate =
-          totalApplicableRate / 2;
+      if (jurisdiction === "INTRA_STATE") {
+        cgstRate = totalApplicableRate / 2;
 
-        sgstRate =
-          totalApplicableRate / 2;
+        sgstRate = totalApplicableRate / 2;
 
-        cgstAmount =
-          this.round(
-            roundedTotalTax / 2,
-          );
+        cgstAmount = this.round(roundedTotalTax / 2);
 
-        sgstAmount =
-          this.round(
-            roundedTotalTax -
-              cgstAmount,
-          );
+        sgstAmount = this.round(roundedTotalTax - cgstAmount);
       } else {
-        igstRate =
-          totalApplicableRate;
+        igstRate = totalApplicableRate;
 
-        igstAmount =
-          roundedTotalTax;
+        igstAmount = roundedTotalTax;
       }
 
-      const totalTax =
-        this.round(
-          cgstAmount +
-            sgstAmount +
-            igstAmount,
-        );
+      const totalTax = this.round(cgstAmount + sgstAmount + igstAmount);
 
       return {
         profile,
         jurisdiction,
-        taxableAmount:
-          this.round(
-            netAmount - totalTax,
-          ),
-        cgstRate:
-          this.round(cgstRate),
+        taxableAmount: this.round(netAmount - totalTax),
+        cgstRate: this.round(cgstRate),
         cgstAmount,
-        sgstRate:
-          this.round(sgstRate),
+        sgstRate: this.round(sgstRate),
         sgstAmount,
-        igstRate:
-          this.round(igstRate),
+        igstRate: this.round(igstRate),
         igstAmount,
         totalTax,
         finalAmount: netAmount,
@@ -304,70 +202,40 @@ export class TaxCalculatorService {
     /*
      * Exclusive pricing.
      */
-    const taxableAmount =
-      this.round(
-        rawTaxableAmount,
-      );
+    const taxableAmount = this.round(rawTaxableAmount);
 
-    const rawTaxAmount =
-      taxableAmount *
-      (totalApplicableRate / 100);
+    const rawTaxAmount = taxableAmount * (totalApplicableRate / 100);
 
-    if (
-      jurisdiction === "INTRA_STATE"
-    ) {
-      cgstRate =
-        totalApplicableRate / 2;
+    if (jurisdiction === "INTRA_STATE") {
+      cgstRate = totalApplicableRate / 2;
 
-      sgstRate =
-        totalApplicableRate / 2;
+      sgstRate = totalApplicableRate / 2;
 
-      const roundedTotalTax =
-        this.round(rawTaxAmount);
+      const roundedTotalTax = this.round(rawTaxAmount);
 
-      cgstAmount =
-        this.round(
-          roundedTotalTax / 2,
-        );
+      cgstAmount = this.round(roundedTotalTax / 2);
 
-      sgstAmount =
-        this.round(
-          roundedTotalTax -
-            cgstAmount,
-        );
+      sgstAmount = this.round(roundedTotalTax - cgstAmount);
     } else {
-      igstRate =
-        totalApplicableRate;
+      igstRate = totalApplicableRate;
 
-      igstAmount =
-        this.round(rawTaxAmount);
+      igstAmount = this.round(rawTaxAmount);
     }
 
-    const totalTax =
-      this.round(
-        cgstAmount +
-          sgstAmount +
-          igstAmount,
-      );
+    const totalTax = this.round(cgstAmount + sgstAmount + igstAmount);
 
     return {
       profile,
       jurisdiction,
       taxableAmount,
-      cgstRate:
-        this.round(cgstRate),
+      cgstRate: this.round(cgstRate),
       cgstAmount,
-      sgstRate:
-        this.round(sgstRate),
+      sgstRate: this.round(sgstRate),
       sgstAmount,
-      igstRate:
-        this.round(igstRate),
+      igstRate: this.round(igstRate),
       igstAmount,
       totalTax,
-      finalAmount:
-        this.round(
-          taxableAmount + totalTax,
-        ),
+      finalAmount: this.round(taxableAmount + totalTax),
     };
   }
 }

@@ -1,12 +1,10 @@
 import { TaxJurisdiction, } from "../types/tax.types.js";
 export class TaxCalculatorService {
     static round(value) {
-        return (Math.round((value + Number.EPSILON) * 100) / 100);
+        return Math.round((value + Number.EPSILON) * 100) / 100;
     }
     static validateAmount(fieldName, value) {
-        if (typeof value !== "number" ||
-            !Number.isFinite(value) ||
-            value < 0) {
+        if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
             throw new Error(`${fieldName} must be a valid non-negative number`);
         }
     }
@@ -15,12 +13,10 @@ export class TaxCalculatorService {
         if (profile.totalRate > 100) {
             throw new Error("profile.totalRate cannot exceed 100");
         }
-        if (profile.treatment === "TAXABLE" &&
-            profile.totalRate <= 0) {
+        if (profile.treatment === "TAXABLE" && profile.totalRate <= 0) {
             throw new Error("Taxable profile must have a tax rate greater than zero");
         }
-        if (profile.treatment !== "TAXABLE" &&
-            profile.totalRate !== 0) {
+        if (profile.treatment !== "TAXABLE" && profile.totalRate !== 0) {
             throw new Error("Non-taxable profile must have a tax rate equal to zero");
         }
         if (profile.priceMode !== "INCLUSIVE" &&
@@ -41,13 +37,12 @@ export class TaxCalculatorService {
     static resolveJurisdiction(supplierStateCode, placeOfSupplyStateCode) {
         const supplierCode = this.normalizeStateCode("Supplier state code", supplierStateCode);
         const placeOfSupplyCode = this.normalizeStateCode("Place of supply state code", placeOfSupplyStateCode);
-        return supplierCode ===
-            placeOfSupplyCode
+        return supplierCode === placeOfSupplyCode
             ? TaxJurisdiction.INTRA_STATE
             : TaxJurisdiction.INTER_STATE;
     }
     static calculateLineTax(input) {
-        const { amount, profile, supplierStateCode, placeOfSupplyStateCode, } = input;
+        const { amount, profile, supplierStateCode, placeOfSupplyStateCode } = input;
         const discountAmount = input.discountAmount ?? 0;
         this.validateAmount("amount", amount);
         this.validateAmount("discountAmount", discountAmount);
@@ -79,9 +74,7 @@ export class TaxCalculatorService {
         }
         const totalApplicableRate = profile.totalRate;
         const rawTaxableAmount = profile.priceMode === "INCLUSIVE"
-            ? netAmount /
-                (1 +
-                    totalApplicableRate / 100)
+            ? netAmount / (1 + totalApplicableRate / 100)
             : netAmount;
         let cgstRate = 0;
         let cgstAmount = 0;
@@ -100,25 +93,16 @@ export class TaxCalculatorService {
             const taxableAmount = this.round(rawTaxableAmount);
             const roundedTotalTax = this.round(netAmount - taxableAmount);
             if (jurisdiction === "INTRA_STATE") {
-                cgstRate =
-                    totalApplicableRate / 2;
-                sgstRate =
-                    totalApplicableRate / 2;
-                cgstAmount =
-                    this.round(roundedTotalTax / 2);
-                sgstAmount =
-                    this.round(roundedTotalTax -
-                        cgstAmount);
+                cgstRate = totalApplicableRate / 2;
+                sgstRate = totalApplicableRate / 2;
+                cgstAmount = this.round(roundedTotalTax / 2);
+                sgstAmount = this.round(roundedTotalTax - cgstAmount);
             }
             else {
-                igstRate =
-                    totalApplicableRate;
-                igstAmount =
-                    roundedTotalTax;
+                igstRate = totalApplicableRate;
+                igstAmount = roundedTotalTax;
             }
-            const totalTax = this.round(cgstAmount +
-                sgstAmount +
-                igstAmount);
+            const totalTax = this.round(cgstAmount + sgstAmount + igstAmount);
             return {
                 profile,
                 jurisdiction,
@@ -137,29 +121,19 @@ export class TaxCalculatorService {
          * Exclusive pricing.
          */
         const taxableAmount = this.round(rawTaxableAmount);
-        const rawTaxAmount = taxableAmount *
-            (totalApplicableRate / 100);
+        const rawTaxAmount = taxableAmount * (totalApplicableRate / 100);
         if (jurisdiction === "INTRA_STATE") {
-            cgstRate =
-                totalApplicableRate / 2;
-            sgstRate =
-                totalApplicableRate / 2;
+            cgstRate = totalApplicableRate / 2;
+            sgstRate = totalApplicableRate / 2;
             const roundedTotalTax = this.round(rawTaxAmount);
-            cgstAmount =
-                this.round(roundedTotalTax / 2);
-            sgstAmount =
-                this.round(roundedTotalTax -
-                    cgstAmount);
+            cgstAmount = this.round(roundedTotalTax / 2);
+            sgstAmount = this.round(roundedTotalTax - cgstAmount);
         }
         else {
-            igstRate =
-                totalApplicableRate;
-            igstAmount =
-                this.round(rawTaxAmount);
+            igstRate = totalApplicableRate;
+            igstAmount = this.round(rawTaxAmount);
         }
-        const totalTax = this.round(cgstAmount +
-            sgstAmount +
-            igstAmount);
+        const totalTax = this.round(cgstAmount + sgstAmount + igstAmount);
         return {
             profile,
             jurisdiction,

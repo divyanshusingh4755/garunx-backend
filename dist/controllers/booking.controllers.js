@@ -1,4 +1,4 @@
-import { BookingService } from "../services/booking.service.js";
+import { BookingService, } from "../services/booking.service.js";
 import { mapRoleToReassignmentRole } from "../utils/mapRole.js";
 export const paymentWebhooks = async (req, res) => {
     try {
@@ -84,9 +84,7 @@ export const getAllBookings = async (req, res) => {
             limit: Number.isInteger(Number(limit)) && Number(limit) > 0
                 ? Math.min(Number(limit), 100)
                 : 20,
-            page: Number.isInteger(Number(page)) && Number(page) > 0
-                ? Number(page)
-                : 1,
+            page: Number.isInteger(Number(page)) && Number(page) > 0 ? Number(page) : 1,
             sortBy: sortBy || "createdAt",
             sortOrder: sortOrder || "desc",
         });
@@ -198,7 +196,7 @@ export const updateBookingNotes = async (req, res) => {
 export const rescheduleBooking = async (req, res) => {
     try {
         const { bookingId } = req.params;
-        const { scheduledAt, reason, } = req.body;
+        const { scheduledAt, reason } = req.body;
         const userId = req.user?.userId;
         const role = req.user?.role;
         if (!userId || !role) {
@@ -207,8 +205,7 @@ export const rescheduleBooking = async (req, res) => {
                 message: "Unauthorized",
             });
         }
-        if (!bookingId ||
-            Array.isArray(bookingId)) {
+        if (!bookingId || Array.isArray(bookingId)) {
             return res.status(400).json({
                 success: false,
                 message: "Valid booking ID is required",
@@ -220,8 +217,7 @@ export const rescheduleBooking = async (req, res) => {
                 message: "New scheduled date is required",
             });
         }
-        if (typeof reason !== "string" ||
-            !reason.trim()) {
+        if (typeof reason !== "string" || !reason.trim()) {
             return res.status(400).json({
                 success: false,
                 message: "Reschedule reason is required",
@@ -243,8 +239,7 @@ export const rescheduleBooking = async (req, res) => {
     catch (error) {
         return res.status(400).json({
             success: false,
-            message: error.message ||
-                "Failed to reschedule booking",
+            message: error.message || "Failed to reschedule booking",
         });
     }
 };
@@ -316,7 +311,7 @@ export const getMyBookings = async (req, res) => {
                 message: "Unauthorized",
             });
         }
-        const { status, page, limit, sortBy, sortOrder, } = req.query;
+        const { status, page, limit, sortBy, sortOrder } = req.query;
         const result = await BookingService.getMyBookings({
             userId,
             status: status,
@@ -415,15 +410,11 @@ export const getAvailableCoordinators = async (req, res) => {
         }
         const { matchCaste, matchGotra, minRating, minCompletedBookings, autoAssignmentEnabled, sortBy, sortOrder, scheduledAt, } = req.query;
         const filters = {};
-        if (matchCaste === "true" ||
-            matchCaste === "false") {
-            filters.matchCaste =
-                matchCaste === "true";
+        if (matchCaste === "true" || matchCaste === "false") {
+            filters.matchCaste = matchCaste === "true";
         }
-        if (matchGotra === "true" ||
-            matchGotra === "false") {
-            filters.matchGotra =
-                matchGotra === "true";
+        if (matchGotra === "true" || matchGotra === "false") {
+            filters.matchGotra = matchGotra === "true";
         }
         if (typeof minRating === "string") {
             const value = Number(minRating);
@@ -431,31 +422,25 @@ export const getAvailableCoordinators = async (req, res) => {
                 filters.minRating = value;
             }
         }
-        if (typeof minCompletedBookings ===
-            "string") {
+        if (typeof minCompletedBookings === "string") {
             const value = Number(minCompletedBookings);
             if (!Number.isNaN(value)) {
-                filters.minCompletedBookings =
-                    value;
+                filters.minCompletedBookings = value;
             }
         }
-        if (autoAssignmentEnabled === "true" ||
-            autoAssignmentEnabled === "false") {
-            filters.autoAssignmentEnabled =
-                autoAssignmentEnabled === "true";
+        if (autoAssignmentEnabled === "true" || autoAssignmentEnabled === "false") {
+            filters.autoAssignmentEnabled = autoAssignmentEnabled === "true";
         }
         if (sortBy === "rating" ||
             sortBy === "completedBookings" ||
             sortBy === "acceptanceRate") {
             filters.sortBy = sortBy;
         }
-        if (sortOrder === "asc" ||
-            sortOrder === "desc") {
+        if (sortOrder === "asc" || sortOrder === "desc") {
             filters.sortOrder = sortOrder;
         }
         if (typeof scheduledAt === "string") {
-            filters.scheduledAt =
-                scheduledAt;
+            filters.scheduledAt = scheduledAt;
         }
         const result = await BookingService.getAvailableCoordinators(bookingId, userId, filters);
         return res.status(200).json({
@@ -466,8 +451,7 @@ export const getAvailableCoordinators = async (req, res) => {
     catch (error) {
         return res.status(400).json({
             success: false,
-            message: error.message ||
-                "Failed to fetch available coordinators",
+            message: error.message || "Failed to fetch available coordinators",
         });
     }
 };
@@ -477,7 +461,7 @@ export const getAvailableCoordinators = async (req, res) => {
 export const selectCoordinator = async (req, res) => {
     try {
         const { bookingId } = req.params;
-        const { coordinatorId, scheduledAt, rescheduleReason, } = req.body;
+        const { coordinatorId, scheduledAt, rescheduleReason } = req.body;
         const userId = req.user?.userId;
         if (!userId) {
             return res.status(401).json({
@@ -504,8 +488,7 @@ export const selectCoordinator = async (req, res) => {
             });
         }
         if (scheduledAt &&
-            (typeof rescheduleReason !== "string" ||
-                !rescheduleReason.trim())) {
+            (typeof rescheduleReason !== "string" || !rescheduleReason.trim())) {
             return res.status(400).json({
                 success: false,
                 message: "Reschedule reason is required when selecting coordinator for a new date",
@@ -573,8 +556,7 @@ export const respondToAssignment = async (req, res) => {
             bookingId,
             coordinatorId,
             action: normalizedAction,
-            ...(typeof reason === "string" &&
-                reason.trim()
+            ...(typeof reason === "string" && reason.trim()
                 ? {
                     reason: reason.trim(),
                 }
@@ -622,8 +604,7 @@ export const requestReassignment = async (req, res) => {
                 message: "Valid booking ID is required",
             });
         }
-        if (typeof reason !== "string" ||
-            !reason.trim()) {
+        if (typeof reason !== "string" || !reason.trim()) {
             return res.status(400).json({
                 success: false,
                 message: "Reassignment reason is required",
@@ -665,21 +646,17 @@ export const getCoordinatorBookingList = async (req, res) => {
                 message: "Unauthorized",
             });
         }
-        const { view, status, page, limit, sortBy, sortOrder, } = req.query;
+        const { view, status, page, limit, sortBy, sortOrder } = req.query;
         const normalizedView = String(view ?? "")
             .trim()
             .toUpperCase();
-        if (![
-            "REQUESTS",
-            "BOOKINGS",
-        ].includes(normalizedView)) {
+        if (!["REQUESTS", "BOOKINGS"].includes(normalizedView)) {
             return res.status(400).json({
                 success: false,
                 message: "Invalid view. Allowed values are REQUESTS and BOOKINGS",
             });
         }
-        const normalizedSortOrder = sortOrder === "asc" ||
-            sortOrder === "desc"
+        const normalizedSortOrder = sortOrder === "asc" || sortOrder === "desc"
             ? sortOrder
             : normalizedView === "REQUESTS"
                 ? "desc"
@@ -691,12 +668,8 @@ export const getCoordinatorBookingList = async (req, res) => {
                 status.trim() && {
                 status: status.trim(),
             }),
-            page: typeof page === "string"
-                ? Number(page)
-                : 1,
-            limit: typeof limit === "string"
-                ? Number(limit)
-                : 20,
+            page: typeof page === "string" ? Number(page) : 1,
+            limit: typeof limit === "string" ? Number(limit) : 20,
             ...(typeof sortBy === "string" &&
                 sortBy.trim() && {
                 sortBy: sortBy.trim(),
@@ -718,8 +691,7 @@ export const getCoordinatorBookingList = async (req, res) => {
     catch (error) {
         return res.status(400).json({
             success: false,
-            message: error.message ||
-                "Failed to fetch coordinator booking list",
+            message: error.message || "Failed to fetch coordinator booking list",
         });
     }
 };
@@ -998,8 +970,7 @@ export const skipBookingService = async (req, res) => {
                 message: "Valid execution ID is required",
             });
         }
-        if (typeof reason !== "string" ||
-            !reason.trim()) {
+        if (typeof reason !== "string" || !reason.trim()) {
             return res.status(400).json({
                 success: false,
                 message: "Skip reason is required",
@@ -1081,36 +1052,27 @@ export const addBookingMilestone = async (req, res) => {
 export const completeBookingExecution = async (req, res) => {
     try {
         const bookingId = req.params.bookingId;
-        const { notes, proofUrls, } = req.body;
+        const { notes, proofUrls } = req.body;
         const completedBy = req.user?.userId;
         if (!completedBy) {
-            return res
-                .status(401)
-                .json({
+            return res.status(401).json({
                 success: false,
                 message: "Unauthorized",
             });
         }
-        if (!bookingId ||
-            Array.isArray(bookingId)) {
-            return res
-                .status(400)
-                .json({
+        if (!bookingId || Array.isArray(bookingId)) {
+            return res.status(400).json({
                 success: false,
                 message: "Valid booking ID is required",
             });
         }
-        if (!Array.isArray(proofUrls) ||
-            proofUrls.length === 0) {
-            return res
-                .status(400)
-                .json({
+        if (!Array.isArray(proofUrls) || proofUrls.length === 0) {
+            return res.status(400).json({
                 success: false,
                 message: "At least one completion proof is required",
             });
         }
-        const result = await BookingService
-            .completeBookingExecution({
+        const result = await BookingService.completeBookingExecution({
             bookingId,
             completedBy,
             notes,
@@ -1123,12 +1085,9 @@ export const completeBookingExecution = async (req, res) => {
         });
     }
     catch (error) {
-        return res
-            .status(400)
-            .json({
+        return res.status(400).json({
             success: false,
-            message: error.message ||
-                "Failed to complete booking",
+            message: error.message || "Failed to complete booking",
         });
     }
 };
@@ -1142,8 +1101,7 @@ export const generateBookingOtp = async (req, res) => {
                 message: "Unauthorized",
             });
         }
-        if (!bookingId ||
-            Array.isArray(bookingId)) {
+        if (!bookingId || Array.isArray(bookingId)) {
             return res.status(400).json({
                 success: false,
                 message: "Valid booking ID is required",
@@ -1162,8 +1120,7 @@ export const generateBookingOtp = async (req, res) => {
     catch (error) {
         return res.status(400).json({
             success: false,
-            message: error.message ||
-                "Failed to generate booking OTP",
+            message: error.message || "Failed to generate booking OTP",
         });
     }
 };

@@ -1,4 +1,4 @@
-import { Types, } from "mongoose";
+import { Types } from "mongoose";
 import { SubServiceComponent, } from "../models/subservices.model.js";
 import { Service } from "../models/service.model.js";
 import { escapeRegex } from "../utils/escapeRegex.js";
@@ -72,8 +72,7 @@ export class SubServiceComponentService {
         }
         let projection;
         let sortCriteria;
-        if (isTextSearch &&
-            sortBy === "relevance") {
+        if (isTextSearch && sortBy === "relevance") {
             projection = {
                 score: {
                     $meta: "textScore",
@@ -92,9 +91,7 @@ export class SubServiceComponentService {
                 "updatedAt",
                 "isActive",
             ]);
-            const safeSortBy = allowedSortFields.has(sortBy)
-                ? sortBy
-                : "createdAt";
+            const safeSortBy = allowedSortFields.has(sortBy) ? sortBy : "createdAt";
             sortCriteria = {
                 [safeSortBy]: sortOrder === "asc" ? 1 : -1,
             };
@@ -131,12 +128,10 @@ export class SubServiceComponentService {
             ...updateData,
         };
         if (updateData.name !== undefined) {
-            normalizedUpdate.name =
-                updateData.name.trim();
+            normalizedUpdate.name = updateData.name.trim();
         }
         if (updateData.description !== undefined) {
-            normalizedUpdate.description =
-                updateData.description.trim();
+            normalizedUpdate.description = updateData.description.trim();
         }
         const updatedSubServiceComponent = await SubServiceComponent.findByIdAndUpdate(subServiceComponentId, {
             $set: normalizedUpdate,

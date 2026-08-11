@@ -1,13 +1,5 @@
-import mongoose, {
-  type Document,
-  type Model,
-  Schema,
-  Types,
-} from "mongoose";
-import type {
-  ILineTax,
-  ITaxSummary,
-} from "../types/tax.types.js";
+import mongoose, { type Document, type Model, Schema, Types } from "mongoose";
+import type { ILineTax, ITaxSummary } from "../types/tax.types.js";
 import { lineTaxSchema } from "./tax.schema.js";
 
 export type CartStatus =
@@ -50,8 +42,7 @@ export interface ISelectedService {
   tax?: ILineTax;
 }
 
-export interface IAddonService
-  extends ISelectedService { }
+export interface IAddonService extends ISelectedService {}
 
 export interface ICart extends Document {
   _id: Types.ObjectId;
@@ -99,137 +90,133 @@ export interface ICart extends Document {
   convertedToBookingAt?: Date;
 }
 
-const cartTaxSummarySchema =
-  new Schema<ICartTaxSummary>(
-    {
-      taxableAmount: {
-        type: Number,
-        default: 0,
-        min: 0,
-      },
-      cgstAmount: {
-        type: Number,
-        default: 0,
-        min: 0,
-      },
-      sgstAmount: {
-        type: Number,
-        default: 0,
-        min: 0,
-      },
-      igstAmount: {
-        type: Number,
-        default: 0,
-        min: 0,
-      },
-      totalTax: {
-        type: Number,
-        default: 0,
-        min: 0,
-      },
-      supplierStateCode: {
-        type: String,
-        trim: true,
-        match: /^\d{2}$/,
-      },
-      placeOfSupplyStateCode: {
-        type: String,
-        trim: true,
-        match: /^\d{2}$/,
-      },
+const cartTaxSummarySchema = new Schema<ICartTaxSummary>(
+  {
+    taxableAmount: {
+      type: Number,
+      default: 0,
+      min: 0,
     },
-    { _id: false },
-  );
+    cgstAmount: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    sgstAmount: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    igstAmount: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    totalTax: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    supplierStateCode: {
+      type: String,
+      trim: true,
+      match: /^\d{2}$/,
+    },
+    placeOfSupplyStateCode: {
+      type: String,
+      trim: true,
+      match: /^\d{2}$/,
+    },
+  },
+  { _id: false },
+);
 
-const selectedComponentItemSchema =
-  new Schema<ISelectedComponentItem>(
-    {
-      itemId: {
-        type: Schema.Types.ObjectId,
-        ref: "ComponentItem",
-        required: true,
-      },
-      name: {
-        type: String,
-        required: true,
-      },
+const selectedComponentItemSchema = new Schema<ISelectedComponentItem>(
+  {
+    itemId: {
+      type: Schema.Types.ObjectId,
+      ref: "ComponentItem",
+      required: true,
     },
-    { _id: false },
-  );
+    name: {
+      type: String,
+      required: true,
+    },
+  },
+  { _id: false },
+);
 
-const selectedComponentSchema =
-  new Schema<ISelectedComponent>(
-    {
-      componentId: {
-        type: Schema.Types.ObjectId,
-        ref: "Component",
-        required: true,
-      },
-      name: {
-        type: String,
-        required: true,
-      },
-      items: {
-        type: [selectedComponentItemSchema],
-        default: [],
-      },
-      priceBeforeDiscount: {
-        type: Number,
-        required: true,
-        min: 0,
-      },
-      discountAmount: {
-        type: Number,
-        default: 0,
-        min: 0,
-      },
-      totalPrice: {
-        type: Number,
-        required: true,
-        min: 0,
-      },
-      tax: {
-        type: lineTaxSchema,
-        default: undefined,
-      },
+const selectedComponentSchema = new Schema<ISelectedComponent>(
+  {
+    componentId: {
+      type: Schema.Types.ObjectId,
+      ref: "Component",
+      required: true,
     },
-    { _id: false },
-  );
+    name: {
+      type: String,
+      required: true,
+    },
+    items: {
+      type: [selectedComponentItemSchema],
+      default: [],
+    },
+    priceBeforeDiscount: {
+      type: Number,
+      required: true,
+      min: 0,
+    },
+    discountAmount: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    totalPrice: {
+      type: Number,
+      required: true,
+      min: 0,
+    },
+    tax: {
+      type: lineTaxSchema,
+      default: undefined,
+    },
+  },
+  { _id: false },
+);
 
-const selectedServiceSchema =
-  new Schema<ISelectedService>(
-    {
-      serviceId: {
-        type: Schema.Types.ObjectId,
-        ref: "Service",
-        required: true,
-      },
-      name: {
-        type: String,
-        required: true,
-      },
-      priceBeforeDiscount: {
-        type: Number,
-        required: true,
-        min: 0,
-      },
-      discountAmount: {
-        type: Number,
-        default: 0,
-        min: 0,
-      },
-      price: {
-        type: Number,
-        required: true,
-        min: 0,
-      },
-      tax: {
-        type: lineTaxSchema,
-        default: undefined,
-      },
+const selectedServiceSchema = new Schema<ISelectedService>(
+  {
+    serviceId: {
+      type: Schema.Types.ObjectId,
+      ref: "Service",
+      required: true,
     },
-    { _id: false },
-  );
+    name: {
+      type: String,
+      required: true,
+    },
+    priceBeforeDiscount: {
+      type: Number,
+      required: true,
+      min: 0,
+    },
+    discountAmount: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    price: {
+      type: Number,
+      required: true,
+      min: 0,
+    },
+    tax: {
+      type: lineTaxSchema,
+      default: undefined,
+    },
+  },
+  { _id: false },
+);
 
 const cartSchema = new Schema<ICart>(
   {
@@ -410,9 +397,7 @@ cartSchema.pre("validate", function () {
   const hasPackage = Boolean(this.packageId);
 
   if (hasService === hasPackage) {
-    throw new Error(
-      "Cart must contain either serviceId or packageId",
-    );
+    throw new Error("Cart must contain either serviceId or packageId");
   }
 });
 
@@ -431,9 +416,7 @@ cartSchema.pre("validate", function () {
 
 cartSchema.pre("validate", function () {
   if (Boolean(this.couponId) !== Boolean(this.couponCode)) {
-    throw new Error(
-      "couponId and couponCode must be provided together",
-    );
+    throw new Error("couponId and couponCode must be provided together");
   }
 });
 
@@ -453,5 +436,4 @@ cartSchema.index(
   },
 );
 
-export const Cart: Model<ICart> =
-  mongoose.model<ICart>("Cart", cartSchema);
+export const Cart: Model<ICart> = mongoose.model<ICart>("Cart", cartSchema);

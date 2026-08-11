@@ -1,1 +1,1 @@
-{"version":3,"file":"escapeRegex.d.ts","sourceRoot":"","sources":["../../src/utils/escapeRegex.ts"],"names":[],"mappings":"AAAA,eAAO,MAAM,WAAW,GACtB,MAAM,MAAM,KACX,MAKF,CAAC"}
+{"version":3,"file":"escapeRegex.d.ts","sourceRoot":"","sources":["../../src/utils/escapeRegex.ts"],"names":[],"mappings":"AAAA,eAAO,MAAM,WAAW,GAAI,MAAM,MAAM,KAAG,MAE1C,CAAC"}

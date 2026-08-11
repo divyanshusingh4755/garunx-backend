@@ -1,8 +1,4 @@
-import {
-  Schema,
-  model,
-  type Types,
-} from "mongoose";
+import { Schema, model, type Types } from "mongoose";
 
 export interface IGeoPoint {
   type: "Point";
@@ -72,9 +68,7 @@ const citySchema = new Schema<ICity>(
         type: [Number],
         required: true,
         validate: {
-          validator: (
-            coordinates: number[],
-          ): boolean =>
+          validator: (coordinates: number[]): boolean =>
             coordinates.length === 2 &&
             coordinates.every(Number.isFinite) &&
             coordinates[0]! >= -180 &&
@@ -82,8 +76,7 @@ const citySchema = new Schema<ICity>(
             coordinates[1]! >= -90 &&
             coordinates[1]! <= 90,
 
-          message:
-            "Coordinates must be valid [longitude, latitude]",
+          message: "Coordinates must be valid [longitude, latitude]",
         },
       },
     },
@@ -117,7 +110,4 @@ citySchema.index(
   },
 );
 
-export const City = model<ICity>(
-  "City",
-  citySchema,
-);
+export const City = model<ICity>("City", citySchema);

@@ -1,7 +1,7 @@
-import AuthService from '../services/auth.service.js';
-import { Role } from '../types/rbac.js';
-import { getClientIp } from '../utils/clientIp.js';
-import { ApprovalStatus, AvailabilityStatus } from '../types/enums.js';
+import AuthService from "../services/auth.service.js";
+import { Role } from "../types/rbac.js";
+import { getClientIp } from "../utils/clientIp.js";
+import { ApprovalStatus, AvailabilityStatus, } from "../types/enums.js";
 export const register = async (req, res) => {
     try {
         const { role, password, userEmail, phoneNumber } = req.body;
@@ -17,14 +17,14 @@ export const register = async (req, res) => {
                 email: user.email,
                 isOtpVerified: user.isOtpVerified,
                 otp: user.otp,
-                nextStep
-            }
+                nextStep,
+            },
         });
     }
     catch (error) {
         res.status(400).json({
             success: false,
-            message: error.message || 'Registration failed'
+            message: error.message || "Registration failed",
         });
     }
 };
@@ -40,13 +40,13 @@ export const socialAuth = async (req, res) => {
                 ? "Social account linked. Please complete your profile."
                 : "Login successful",
             ...result,
-            nextStep
+            nextStep,
         });
     }
     catch (error) {
         res.status(401).json({
             success: false,
-            message: error.message || 'Social authentication failed'
+            message: error.message || "Social authentication failed",
         });
     }
 };
@@ -57,7 +57,7 @@ export const verifyOtp = async (req, res) => {
         if (!user) {
             return res.status(400).json({
                 success: false,
-                message: 'Invalid OTP or Session expired'
+                message: "Invalid OTP or Session expired",
             });
         }
         const isRegistrationFlow = !!userId;
@@ -71,14 +71,14 @@ export const verifyOtp = async (req, res) => {
                 role: user.role,
                 isOtpVerified: user.isOtpVerified,
                 isResetVerified: user.isResetVerified,
-                isComplete: user.isComplete
-            }
+                isComplete: user.isComplete,
+            },
         });
     }
     catch (error) {
         res.status(400).json({
             success: false,
-            message: error.message || 'OTP verification failed'
+            message: error.message || "OTP verification failed",
         });
     }
 };
@@ -88,20 +88,20 @@ export const resendOtp = async (req, res) => {
         if (!userId && !email) {
             return res.status(400).json({
                 success: false,
-                message: 'Either User ID or email is required.'
+                message: "Either User ID or email is required.",
             });
         }
         const result = await AuthService.resendOtp(userId, email, role);
         res.status(200).json({
             success: true,
             otp: result.otp,
-            message: result.message || 'A new OTP has been sent successfully'
+            message: result.message || "A new OTP has been sent successfully",
         });
     }
     catch (error) {
         res.status(400).json({
             success: false,
-            message: error.message || 'Failed to resend OTP'
+            message: error.message || "Failed to resend OTP",
         });
     }
 };
@@ -109,72 +109,82 @@ export const login = async (req, res) => {
     try {
         const { identifier, password, role } = req.body;
         if (!role) {
-            return res.status(400).json({ success: false, message: "Please specify the role for login." });
+            return res
+                .status(400)
+                .json({
+                success: false,
+                message: "Please specify the role for login.",
+            });
         }
         const { userAgent, ip } = getClientIp(req);
         const { user, accessToken, refreshToken } = await AuthService.loginUser(identifier, role, password, userAgent, ip);
-        res.cookie('refreshToken', refreshToken, {
+        res.cookie("refreshToken", refreshToken, {
             httpOnly: true,
             secure: true,
-            sameSite: 'none',
-            maxAge: 30 * 24 * 60 * 60 * 1000 // 30 days
+            sameSite: "none",
+            maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
         });
         res.status(200).json({
             success: true,
             message: "Login successful",
             user,
             accessToken,
-            refreshToken
+            refreshToken,
         });
     }
     catch (error) {
-        if (error.message.includes('incomplete')) {
+        if (error.message.includes("incomplete")) {
             return res.status(403).json({
                 success: false,
                 message: error.message,
-                nextStep: "COMPLETE_PROFILE"
+                nextStep: "COMPLETE_PROFILE",
             });
         }
-        if (error.message.includes('verify')) {
+        if (error.message.includes("verify")) {
             return res.status(403).json({
                 success: false,
                 message: error.message,
-                nextStep: "VERIFY_OTP"
+                nextStep: "VERIFY_OTP",
             });
         }
-        const statusCode = error.message.includes('not found') ? 404 : 401;
+        const statusCode = error.message.includes("not found") ? 404 : 401;
         res.status(statusCode).json({
             success: false,
-            message: error.message || 'Login failed'
+            message: error.message || "Login failed",
         });
     }
 };
 export const refreshToken = async (req, res) => {
     const oldToken = req.cookies?.refreshToken || req.body?.refreshToken;
     if (!oldToken) {
-        return res.status(401).json({ success: false, message: "Session expired. Please login again." });
+        return res
+            .status(401)
+            .json({
+            success: false,
+            message: "Session expired. Please login again.",
+        });
     }
     try {
         const { userAgent, ip } = getClientIp(req);
         const { accessToken, refreshToken: newRefreshToken } = await AuthService.refreshAccesToken(oldToken, userAgent, ip);
-        res.cookie('refreshToken', newRefreshToken, {
+        res.cookie("refreshToken", newRefreshToken, {
             httpOnly: true,
             secure: true,
-            sameSite: 'none',
-            maxAge: 30 * 24 * 60 * 60 * 1000 // 30 days
+            sameSite: "none",
+            maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
         });
         res.json({ success: true, accessToken, refreshToken: newRefreshToken });
     }
     catch (error) {
-        res.clearCookie('refreshToken', {
+        res.clearCookie("refreshToken", {
             httpOnly: true,
             secure: true,
-            sameSite: 'none',
-            path: '/'
+            sameSite: "none",
+            path: "/",
         });
         res.status(403).json({
             success: false,
-            message: error.message || "Invalid refresh attempt"
+            message: error.message || "Invalid refresh attempt",
         });
     }
 };
@@ -185,25 +195,25 @@ export const logout = async (req, res) => {
         if (refreshToken) {
             await AuthService.logoutUser(refreshToken, allDevices);
         }
-        res.clearCookie('refreshToken', {
+        res.clearCookie("refreshToken", {
             httpOnly: true,
             secure: true,
-            sameSite: 'none',
-            path: '/'
+            sameSite: "none",
+            path: "/",
         });
         res.status(200).json({
             success: true,
             message: allDevices
                 ? "Logged out from all devices for this role"
-                : "Logged out successfully"
+                : "Logged out successfully",
         });
     }
     catch (error) {
-        res.clearCookie('refreshToken', {
+        res.clearCookie("refreshToken", {
             httpOnly: true,
             secure: true,
-            sameSite: 'none',
-            path: '/'
+            sameSite: "none",
+            path: "/",
         });
         res.status(200).json({ success: true, message: "Logged out" });
     }
@@ -214,7 +224,7 @@ export const forgotPassword = async (req, res) => {
         if (!email || !role) {
             return res.status(400).json({
                 success: false,
-                message: "Email and Role are required to reset password"
+                message: "Email and Role are required to reset password",
             });
         }
         const result = await AuthService.forgotPassword(email, role);
@@ -222,14 +232,14 @@ export const forgotPassword = async (req, res) => {
             success: true,
             otp: result.otp,
             message: result.message || "Reset code sent to your email",
-            nextStep: "RESET_PASSWORD"
+            nextStep: "RESET_PASSWORD",
         });
     }
     catch (error) {
-        const statusCode = error.message.includes('not found') ? 404 : 500;
+        const statusCode = error.message.includes("not found") ? 404 : 500;
         res.status(statusCode).json({
             success: false,
-            message: error.message || "Error sending reset email. Please try again later."
+            message: error.message || "Error sending reset email. Please try again later.",
         });
     }
 };
@@ -237,31 +247,35 @@ export const resetPassword = async (req, res) => {
     try {
         const { userId, newPassword } = req.body;
         if (!userId) {
-            return res.status(400).json({ success: false, message: "UserId is missing" });
+            return res
+                .status(400)
+                .json({ success: false, message: "UserId is missing" });
         }
         if (!newPassword || newPassword.length < 8) {
             return res.status(400).json({
                 success: false,
-                message: "Password must be at least 8 characters long."
+                message: "Password must be at least 8 characters long.",
             });
         }
         await AuthService.resetPassword(userId, newPassword);
-        res.clearCookie('refreshToken', {
+        res.clearCookie("refreshToken", {
             httpOnly: true,
             secure: true,
-            sameSite: 'none',
-            path: '/'
+            sameSite: "none",
+            path: "/",
         });
         res.status(200).json({
             success: true,
-            message: "Password reset successfully. Please login with your new credentials."
+            message: "Password reset successfully. Please login with your new credentials.",
         });
     }
     catch (error) {
-        const statusCode = (error.message.includes('expired') || error.message.includes('invalid')) ? 400 : 500;
+        const statusCode = error.message.includes("expired") || error.message.includes("invalid")
+            ? 400
+            : 500;
         res.status(statusCode).json({
             success: false,
-            message: error.message || "Failed to reset password."
+            message: error.message || "Failed to reset password.",
         });
     }
 };
@@ -273,49 +287,53 @@ export const changePassword = async (req, res) => {
             return res.status(401).json({ success: false, message: "Unauthorized" });
         }
         if (!oldPassword) {
-            return res.status(400).json({ success: false, message: "Existing Password missing" });
+            return res
+                .status(400)
+                .json({ success: false, message: "Existing Password missing" });
         }
         if (!newPassword || newPassword.length < 8) {
             return res.status(400).json({
                 success: false,
-                message: "Password must be at least 8 characters long."
+                message: "Password must be at least 8 characters long.",
             });
         }
         await AuthService.changePassword(userId, oldPassword, newPassword);
-        res.clearCookie('refreshToken', {
+        res.clearCookie("refreshToken", {
             httpOnly: true,
             secure: true,
-            sameSite: 'none',
-            path: '/'
+            sameSite: "none",
+            path: "/",
         });
         res.status(200).json({
             success: true,
-            message: "Password reset successfully. Please login with your new credentials."
+            message: "Password reset successfully. Please login with your new credentials.",
         });
     }
     catch (error) {
-        const statusCode = (error.message.includes('expired') || error.message.includes('invalid')) ? 400 : 500;
+        const statusCode = error.message.includes("expired") || error.message.includes("invalid")
+            ? 400
+            : 500;
         res.status(statusCode).json({
             success: false,
-            message: error.message || "Failed to reset password."
+            message: error.message || "Failed to reset password.",
         });
     }
 };
 export const getAllUsers = async (req, res) => {
     try {
-        const { limit, page, role, isComplete, isActive, search, sortBy, sortOrder } = req.query;
-        const { users, pagination } = await AuthService.GetAllUsers(Number(page) || 1, Number(limit) || 40, role, isComplete === 'true' ? true : isComplete === 'false' ? false : undefined, isActive === 'true' ? true : isActive === 'false' ? false : undefined, search, sortBy || 'fullName', sortOrder || 'asc');
+        const { limit, page, role, isComplete, isActive, search, sortBy, sortOrder, } = req.query;
+        const { users, pagination } = await AuthService.GetAllUsers(Number(page) || 1, Number(limit) || 40, role, isComplete === "true" ? true : isComplete === "false" ? false : undefined, isActive === "true" ? true : isActive === "false" ? false : undefined, search, sortBy || "fullName", sortOrder || "asc");
         res.status(200).json({
             success: true,
             data: users,
-            pagination
+            pagination,
         });
     }
     catch (error) {
         console.error("GetAllUsers Error:", error);
         res.status(500).json({
             success: false,
-            message: error.message || "Error fetching users. Please try again later."
+            message: error.message || "Error fetching users. Please try again later.",
         });
     }
 };
@@ -323,21 +341,23 @@ export const getUserById = async (req, res) => {
     try {
         const { id } = req.params;
         if (!id) {
-            return res.status(400).json({ success: false, message: "User ID is required." });
+            return res
+                .status(400)
+                .json({ success: false, message: "User ID is required." });
         }
         const data = await AuthService.GetUserById(id);
         res.status(200).json({
             success: true,
-            data
+            data,
         });
     }
     catch (error) {
         const isNotFound = error.message.toLowerCase().includes("not found");
-        const isInvalidId = error.name === 'CastError' || error.message.includes("format");
-        const status = isNotFound ? 404 : (isInvalidId ? 400 : 500);
+        const isInvalidId = error.name === "CastError" || error.message.includes("format");
+        const status = isNotFound ? 404 : isInvalidId ? 400 : 500;
         res.status(status).json({
             success: false,
-            message: error.message || "Error retrieving user data."
+            message: error.message || "Error retrieving user data.",
         });
     }
 };
@@ -348,13 +368,13 @@ export const getUserByEmailOrPhone = async (req, res) => {
         if (!role) {
             return res.status(400).json({
                 success: false,
-                message: "Role is required to identify the correct profile."
+                message: "Role is required to identify the correct profile.",
             });
         }
         const data = await AuthService.GetUserByEmailOrPhone(identifier, role);
         res.status(200).json({
             success: true,
-            data
+            data,
         });
     }
     catch (error) {
@@ -362,7 +382,7 @@ export const getUserByEmailOrPhone = async (req, res) => {
         const status = isNotFound ? 404 : 500;
         res.status(status).json({
             success: false,
-            message: error.message || "Error retrieving user data. Please try again later."
+            message: error.message || "Error retrieving user data. Please try again later.",
         });
     }
 };
@@ -371,7 +391,9 @@ export const deactivateUser = async (req, res) => {
         const { id } = req.params;
         const { status } = req.body;
         if (!id || status === undefined) {
-            return res.status(400).json({ success: false, message: "User ID and Status is required." });
+            return res
+                .status(400)
+                .json({ success: false, message: "User ID and Status is required." });
         }
         await AuthService.deactivateUser(id, status);
         res.status(200).json({
@@ -383,50 +405,50 @@ export const deactivateUser = async (req, res) => {
     }
     catch (error) {
         const isNotFound = error.message.toLowerCase().includes("not found");
-        const isInvalidId = error.name === 'CastError';
-        const status = isNotFound ? 404 : (isInvalidId ? 400 : 500);
+        const isInvalidId = error.name === "CastError";
+        const status = isNotFound ? 404 : isInvalidId ? 400 : 500;
         res.status(status).json({
             success: false,
-            message: error.message || "Error deactivating user. Please try again later."
+            message: error.message || "Error deactivating user. Please try again later.",
         });
     }
 };
 export const completeProfile = async (req, res) => {
     try {
-        const { userId, fullName, dob, gender, referralCode, password, profileImage, email, phoneNumber, caste, gotra } = req.body;
+        const { userId, fullName, dob, gender, referralCode, password, profileImage, email, phoneNumber, caste, gotra, } = req.body;
         if (!userId || !fullName) {
             return res.status(400).json({
                 success: false,
-                message: "User ID and Full Name are required."
+                message: "User ID and Full Name are required.",
             });
         }
         const { userAgent, ip } = getClientIp(req);
         const { user, accessToken, refreshToken } = await AuthService.completeProfile(userId, fullName, dob, gender, referralCode, password, profileImage, userAgent, ip, email, phoneNumber, caste, gotra);
-        res.cookie('refreshToken', refreshToken, {
+        res.cookie("refreshToken", refreshToken, {
             httpOnly: true,
             secure: true,
-            sameSite: 'none',
-            maxAge: 30 * 24 * 60 * 60 * 1000 // 30 days
+            sameSite: "none",
+            maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
         });
         res.status(200).json({
             success: true,
             message: "Profile completed successfully. You are now fully registered.",
             user,
             accessToken,
-            refreshToken
+            refreshToken,
         });
     }
     catch (error) {
         res.status(400).json({
             success: false,
-            message: error.message || 'Profile completion failed'
+            message: error.message || "Profile completion failed",
         });
     }
 };
 export const updateProfile = async (req, res) => {
     try {
         const userId = req.user?.userId;
-        const { fullName, dob, gender, profileImage, savedLocations, } = req.body;
+        const { fullName, dob, gender, profileImage, savedLocations } = req.body;
         const dataToUpdate = {};
         if (fullName !== undefined) {
             dataToUpdate.fullName = fullName;
@@ -470,19 +492,19 @@ export const uploadSingle = async (req, res) => {
     catch (error) {
         res.status(400).json({
             success: false,
-            message: error.message || 'Failed to upload single image'
+            message: error.message || "Failed to upload single image",
         });
     }
 };
 export const uploadMutliple = async (req, res) => {
     try {
-        const urls = req.files.map(file => file.location);
+        const urls = req.files.map((file) => file.location);
         res.json({ success: true, urls });
     }
     catch (error) {
         res.status(400).json({
             success: false,
-            message: error.message || 'Failed to upload multiple image'
+            message: error.message || "Failed to upload multiple image",
         });
     }
 };
@@ -524,26 +546,22 @@ export const submitVerificationDocuments = async (req, res) => {
                     status: updatedUser.bankDocumentVerification.status,
                     isVerified: updatedUser.isBankDocumentVerified,
                 },
-                coordinatorApproval: updatedUser.coordinatorProfile
-                    ?.approvalStatus,
+                coordinatorApproval: updatedUser.coordinatorProfile?.approvalStatus,
             },
         });
     }
     catch (error) {
         return res.status(400).json({
             success: false,
-            message: error.message ||
-                "Failed to submit verification documents",
+            message: error.message || "Failed to submit verification documents",
         });
     }
 };
 export const approveOrRejectDocs = async (req, res) => {
     try {
-        const { userId, type, status, rejectionReason, } = req.body;
+        const { userId, type, status, rejectionReason } = req.body;
         const updatedUser = await AuthService.updateVerificationStatus(userId, type, status, rejectionReason);
-        const verificationName = type === "document"
-            ? "Identity documents"
-            : "Bank details";
+        const verificationName = type === "document" ? "Identity documents" : "Bank details";
         return res.status(200).json({
             success: true,
             message: `${verificationName} ${status.toLowerCase()} successfully`,
@@ -553,21 +571,17 @@ export const approveOrRejectDocs = async (req, res) => {
                 bankStatus: updatedUser?.bankDocumentVerification.status,
                 isDocumentVerified: updatedUser?.isDocumentVerified,
                 isBankDocumentVerified: updatedUser?.isBankDocumentVerified,
-                coordinatorApprovalStatus: updatedUser?.coordinatorProfile
-                    ?.approvalStatus,
+                coordinatorApprovalStatus: updatedUser?.coordinatorProfile?.approvalStatus,
             },
         });
     }
     catch (error) {
-        const statusCode = error.message
-            ?.toLowerCase()
-            .includes("not found")
+        const statusCode = error.message?.toLowerCase().includes("not found")
             ? 404
             : 400;
         return res.status(statusCode).json({
             success: false,
-            message: error.message ||
-                "Failed to update verification status",
+            message: error.message || "Failed to update verification status",
         });
     }
 };
@@ -587,9 +601,7 @@ export const getCurrentUser = async (req, res) => {
         });
     }
     catch (error) {
-        const statusCode = error.message.includes("not found")
-            ? 404
-            : 500;
+        const statusCode = error.message.includes("not found") ? 404 : 500;
         res.status(statusCode).json({
             success: false,
             message: error.message || "Failed to fetch current user",
@@ -662,7 +674,9 @@ export const updateCoordinatorSettings = async (req, res) => {
             });
         }
         if (!coordinatorId) {
-            return res.status(400).json({ success: false, message: "Coordinator ID is required." });
+            return res
+                .status(400)
+                .json({ success: false, message: "Coordinator ID is required." });
         }
         const data = await AuthService.updateCoordinatorSettings(coordinatorId, {
             maxDailyBookings,
@@ -704,13 +718,10 @@ export const updateServiceableLocations = async (req, res) => {
         });
     }
     catch (error) {
-        const statusCode = error.message.includes("not found")
-            ? 404
-            : 400;
+        const statusCode = error.message.includes("not found") ? 404 : 400;
         res.status(statusCode).json({
             success: false,
-            message: error.message ||
-                "Failed to update serviceable locations",
+            message: error.message || "Failed to update serviceable locations",
         });
     }
 };
@@ -724,9 +735,7 @@ export const getCoordinatorById = async (req, res) => {
         });
     }
     catch (error) {
-        const statusCode = error.message.includes("not found")
-            ? 404
-            : 400;
+        const statusCode = error.message.includes("not found") ? 404 : 400;
         res.status(statusCode).json({
             success: false,
             message: error.message || "Failed to fetch coordinator",
@@ -741,12 +750,10 @@ export const getCoordinators = async (req, res) => {
             limit: Number(limit) || 20,
         };
         if (approvalStatus !== undefined) {
-            filters.approvalStatus =
-                approvalStatus;
+            filters.approvalStatus = approvalStatus;
         }
         if (availabilityStatus !== undefined) {
-            filters.availabilityStatus =
-                availabilityStatus;
+            filters.availabilityStatus = availabilityStatus;
         }
         if (locationId !== undefined) {
             filters.locationId = locationId;
@@ -758,8 +765,7 @@ export const getCoordinators = async (req, res) => {
             filters.gotra = gotra;
         }
         if (autoAssignmentEnabled !== undefined) {
-            filters.autoAssignmentEnabled =
-                autoAssignmentEnabled === "true";
+            filters.autoAssignmentEnabled = autoAssignmentEnabled === "true";
         }
         if (minimumRating !== undefined) {
             filters.minimumRating = Number(minimumRating);

@@ -1,5 +1,5 @@
 import { Router, } from "express";
-import { body, param, query, validationResult, } from "express-validator";
+import { body, param, query, validationResult } from "express-validator";
 import { authenticate } from "../middleware/authenticate.js";
 import { createState, deleteState, getAllState, getStateById, updateState, } from "../controllers/state.controllers.js";
 const router = Router();
@@ -30,8 +30,7 @@ const locationValidation = [
         .withMessage("Coordinates must be [longitude, latitude]")
         .custom((coordinates) => {
         if (coordinates.length !== 2 ||
-            !coordinates.every((coordinate) => typeof coordinate === "number" &&
-                Number.isFinite(coordinate))) {
+            !coordinates.every((coordinate) => typeof coordinate === "number" && Number.isFinite(coordinate))) {
             throw new Error("Longitude and latitude must be valid numbers");
         }
         const [longitude, latitude] = coordinates;
@@ -84,9 +83,7 @@ const createStateValidation = [
     validate,
 ];
 const updateStateValidation = [
-    param("id")
-        .isMongoId()
-        .withMessage("Invalid state ID"),
+    param("id").isMongoId().withMessage("Invalid state ID"),
     body().custom((value) => {
         const allowedFields = [
             "country",
@@ -145,15 +142,11 @@ const updateStateValidation = [
     validate,
 ];
 const stateIdValidation = [
-    param("id")
-        .isMongoId()
-        .withMessage("Invalid state ID"),
+    param("id").isMongoId().withMessage("Invalid state ID"),
     validate,
 ];
 const statusValidation = [
-    param("id")
-        .isMongoId()
-        .withMessage("Invalid state ID"),
+    param("id").isMongoId().withMessage("Invalid state ID"),
     body("status")
         .exists({ checkNull: true })
         .withMessage("status is required")
@@ -180,14 +173,7 @@ const listValidation = [
         .withMessage("sortOrder must be asc or desc"),
     query("sortBy")
         .optional()
-        .isIn([
-        "name",
-        "country",
-        "gstCode",
-        "createdAt",
-        "updatedAt",
-        "relevance",
-    ])
+        .isIn(["name", "country", "gstCode", "createdAt", "updatedAt", "relevance"])
         .withMessage("Invalid sortBy value"),
     validate,
 ];

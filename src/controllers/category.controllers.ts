@@ -17,15 +17,8 @@ const parsePositiveInteger = (
 
 export const createCategory = async (req: Request, res: Response) => {
   try {
-    const {
-      label,
-      value,
-      type,
-      image,
-      description,
-      displayOrder,
-      isActive,
-    } = req.body;
+    const { label, value, type, image, description, displayOrder, isActive } =
+      req.body;
 
     const newCategory = await CategoryService.createCategory({
       label,
@@ -33,10 +26,8 @@ export const createCategory = async (req: Request, res: Response) => {
       type,
       image,
       description,
-      displayOrder:
-        typeof displayOrder === "number" ? displayOrder : 0,
-      isActive:
-        typeof isActive === "boolean" ? isActive : true,
+      displayOrder: typeof displayOrder === "number" ? displayOrder : 0,
+      isActive: typeof isActive === "boolean" ? isActive : true,
     });
 
     return res.status(201).json({
@@ -57,7 +48,10 @@ export const createCategory = async (req: Request, res: Response) => {
 export const updateCategory = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const {
+    const { label, value, type, image, description, displayOrder, isActive } =
+      req.body;
+
+    const updatedCategory = await CategoryService.updateCategory(id as string, {
       label,
       value,
       type,
@@ -65,20 +59,7 @@ export const updateCategory = async (req: Request, res: Response) => {
       description,
       displayOrder,
       isActive,
-    } = req.body;
-
-    const updatedCategory = await CategoryService.updateCategory(
-      id as string,
-      {
-        label,
-        value,
-        type,
-        image,
-        description,
-        displayOrder,
-        isActive,
-      },
-    );
+    });
 
     return res.status(200).json({
       success: true,
@@ -100,35 +81,25 @@ export const updateCategory = async (req: Request, res: Response) => {
   }
 };
 
-export const getCategoryById = async (
-  req: Request,
-  res: Response,
-) => {
+export const getCategoryById = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
 
-    const category = await CategoryService.getCategoryById(
-      id as string,
-    );
+    const category = await CategoryService.getCategoryById(id as string);
 
     return res.status(200).json({
       success: true,
       data: category,
     });
   } catch (error: any) {
-    return res
-      .status(error.message === "Category not found" ? 404 : 400)
-      .json({
-        success: false,
-        message: error.message,
-      });
+    return res.status(error.message === "Category not found" ? 404 : 400).json({
+      success: false,
+      message: error.message,
+    });
   }
 };
 
-export const deleteCategory = async (
-  req: Request,
-  res: Response,
-) => {
+export const deleteCategory = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
 
@@ -139,8 +110,7 @@ export const deleteCategory = async (
       message: "Category deleted successfully",
     });
   } catch (error: any) {
-    const status =
-      error.message === "Category not found" ? 404 : 400;
+    const status = error.message === "Category not found" ? 404 : 400;
 
     return res.status(status).json({
       success: false,
@@ -149,10 +119,7 @@ export const deleteCategory = async (
   }
 };
 
-export const toggleCategoryStatus = async (
-  req: Request,
-  res: Response,
-) => {
+export const toggleCategoryStatus = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { confirmed = false } = req.body;
@@ -180,29 +147,17 @@ export const toggleCategoryStatus = async (
       data: result,
     });
   } catch (error: any) {
-    return res
-      .status(error.message === "Category not found" ? 404 : 400)
-      .json({
-        success: false,
-        message: error.message,
-      });
+    return res.status(error.message === "Category not found" ? 404 : 400).json({
+      success: false,
+      message: error.message,
+    });
   }
 };
 
-export const getAllCategories = async (
-  req: Request,
-  res: Response,
-) => {
+export const getAllCategories = async (req: Request, res: Response) => {
   try {
-    const {
-      searchTerm,
-      type,
-      limit,
-      page,
-      isActive,
-      sortBy,
-      sortOrder,
-    } = req.query;
+    const { searchTerm, type, limit, page, isActive, sortBy, sortOrder } =
+      req.query;
 
     const parsedLimit = parsePositiveInteger(limit, 40, 100);
     const parsedPage = parsePositiveInteger(page, 1);
@@ -217,11 +172,7 @@ export const getAllCategories = async (
       type as "service" | "product",
       parsedLimit,
       parsedPage,
-      isActive === "true"
-        ? true
-        : isActive === "false"
-          ? false
-          : undefined,
+      isActive === "true" ? true : isActive === "false" ? false : undefined,
       (sortBy as string) || "displayOrder",
       (sortOrder as "asc" | "desc") || "asc",
     );

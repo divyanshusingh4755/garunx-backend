@@ -1,4 +1,4 @@
-import { Schema, model, } from "mongoose";
+import { Schema, model } from "mongoose";
 const citySchema = new Schema({
     name: {
         type: String,

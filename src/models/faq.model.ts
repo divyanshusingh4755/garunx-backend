@@ -1,8 +1,4 @@
-import {
-  model,
-  Schema,
-  type Document,
-} from "mongoose";
+import { model, Schema, type Document } from "mongoose";
 
 export type FaqType =
   | "User"
@@ -55,12 +51,7 @@ const faqSchema = new Schema<IFAQ>(
 
     faqType: {
       type: String,
-      enum: [
-        "User",
-        "Coordinator",
-        "User_Query",
-        "Coordinator_Query",
-      ],
+      enum: ["User", "Coordinator", "User_Query", "Coordinator_Query"],
       default: "User",
     },
 
@@ -96,8 +87,4 @@ faqSchema.index({
   displayOrder: 1,
 });
 
-export const FAQ =
-  model<IFAQ>(
-    "FAQ",
-    faqSchema,
-  );
+export const FAQ = model<IFAQ>("FAQ", faqSchema);

@@ -5,9 +5,8 @@ import express, {
   type Response,
 } from "express";
 
-import cors, {
-  type CorsOptions,
-} from "cors";
+import cors from "cors";
+import { corsOptions } from "./config/cors.js";
 
 import helmet from "helmet";
 
@@ -38,81 +37,23 @@ import policyRoutes from "./routes/policy.routes.js";
 import reviewRoutes from "./routes/review.routes.js";
 import queriesRoutes from "./routes/userQuery.routes.js";
 import taxRoutes from "./routes/taxprofile.routes.js";
+import chatRoutes from "./routes/chat.routes.js";
 
-import {
-  paymentWebhooks,
-} from "./controllers/booking.controllers.js";
+import { paymentWebhooks } from "./controllers/booking.controllers.js";
 import { HttpError } from "./utils/httpError.js";
 
+const app: Application = express();
 
-const app: Application =
-  express();
+app.set("trust proxy", 1);
 
-const allowedOrigins =
-  new Set<string>([
-    "https://heartfelt-gelato-d455e0.netlify.app",
-    "http://localhost:3001",
-  ]);
+app.use(cors(corsOptions));
 
-const corsOptions:
-  CorsOptions = {
-  origin: (
-    origin,
-    callback,
-  ): void => {
-    if (
-      origin === undefined ||
-      allowedOrigins.has(origin)
-    ) {
-      callback(null, true);
-      return;
-    }
-
-    callback(
-      new Error(
-        "Not allowed by CORS",
-      ),
-    );
-  },
-
-  credentials: true,
-
-  methods: [
-    "GET",
-    "POST",
-    "PUT",
-    "PATCH",
-    "DELETE",
-    "OPTIONS",
-  ],
-
-  allowedHeaders: [
-    "Content-Type",
-    "Authorization",
-    "X-Requested-With",
-    "Accept",
-  ],
-};
-
-app.set(
-  "trust proxy",
-  1,
-);
-
-app.use(
-  cors(corsOptions),
-);
-
-app.options(
-  "/*splat",
-  cors(corsOptions),
-);
+app.options("/*splat", cors(corsOptions));
 
 app.use(
   helmet({
     crossOriginResourcePolicy: {
-      policy:
-        "cross-origin",
+      policy: "cross-origin",
     },
   }),
 );
@@ -124,15 +65,12 @@ app.use(
 app.post(
   "/api/booking/webhooks/cashfree",
   express.raw({
-    type:
-      "application/json",
+    type: "application/json",
   }),
   paymentWebhooks,
 );
 
-app.use(
-  express.json(),
-);
+app.use(express.json());
 
 app.use(
   express.urlencoded({
@@ -140,198 +78,91 @@ app.use(
   }),
 );
 
-app.use(
-  "/api/auth",
-  authRoutes,
-);
+app.use("/api/auth", authRoutes);
+
+app.use("/api/state", stateRoutes);
+
+app.use("/api/city", cityRoutes);
+
+app.use("/api/location", locationRoutes);
+
+app.use("/api/category", categoryRoutes);
+
+app.use("/api/tier", tierRoutes);
+
+app.use("/api/tax", taxRoutes);
+
+app.use("/api/coupon", couponRoutes);
+
+app.use("/api/referral-reward", referralRewardRoutes);
+
+app.use("/api/component", componentRoutes);
+
+app.use("/api/component-item", componentItemRoutes);
+
+app.use("/api/service", serviceRoutes);
+
+app.use("/api/sub-services", subServicesRoutes);
+
+app.use("/api/service-component", serviceComponentRoutes);
+
+app.use("/api/service-pricing", servicePricingRoutes);
+
+app.use("/api/package", packageRoutes);
+
+app.use("/api/package-tier-map", packageTierMapRoutes);
+
+app.use("/api/package-tier-pricing", packageTierPricingRoutes);
+
+app.use("/api/cart", cartRoutes);
+
+app.use("/api/booking", bookingRoutes);
+
+app.use("/api/family-tree", familyTreeRoutes);
+
+app.use("/api/banner", bannerRoutes);
+
+app.use("/api/faq", faqRoutes);
+
+app.use("/api/policy", policyRoutes);
+
+app.use("/api/review", reviewRoutes);
+
+app.use("/api/queries", queriesRoutes);
+
+app.use("/api/branding", brandingRoutes);
+
+app.use("/api/chat", chatRoutes);
+
+app.get("/health", (_req: Request, res: Response): void => {
+  res.status(200).json({
+    status: "ok",
+    uptime: process.uptime(),
+  });
+});
+
+app.use((_req: Request, res: Response): void => {
+  res.status(404).json({
+    success: false,
+    message: "Route not found",
+  });
+});
 
 app.use(
-  "/api/state",
-  stateRoutes,
-);
-
-app.use(
-  "/api/city",
-  cityRoutes,
-);
-
-app.use(
-  "/api/location",
-  locationRoutes,
-);
-
-app.use(
-  "/api/category",
-  categoryRoutes,
-);
-
-app.use(
-  "/api/tier",
-  tierRoutes,
-);
-
-app.use(
-  "/api/tax",
-  taxRoutes,
-);
-
-app.use(
-  "/api/coupon",
-  couponRoutes,
-);
-
-app.use(
-  "/api/referral-reward",
-  referralRewardRoutes,
-);
-
-app.use(
-  "/api/component",
-  componentRoutes,
-);
-
-app.use(
-  "/api/component-item",
-  componentItemRoutes,
-);
-
-app.use(
-  "/api/service",
-  serviceRoutes,
-);
-
-app.use(
-  "/api/sub-services",
-  subServicesRoutes,
-);
-
-app.use(
-  "/api/service-component",
-  serviceComponentRoutes,
-);
-
-app.use(
-  "/api/service-pricing",
-  servicePricingRoutes,
-);
-
-app.use(
-  "/api/package",
-  packageRoutes,
-);
-
-app.use(
-  "/api/package-tier-map",
-  packageTierMapRoutes,
-);
-
-app.use(
-  "/api/package-tier-pricing",
-  packageTierPricingRoutes,
-);
-
-app.use(
-  "/api/cart",
-  cartRoutes,
-);
-
-app.use(
-  "/api/booking",
-  bookingRoutes,
-);
-
-app.use(
-  "/api/family-tree",
-  familyTreeRoutes,
-);
-
-app.use(
-  "/api/banner",
-  bannerRoutes,
-);
-
-app.use(
-  "/api/faq",
-  faqRoutes,
-);
-
-app.use(
-  "/api/policy",
-  policyRoutes,
-);
-
-app.use(
-  "/api/review",
-  reviewRoutes,
-);
-
-app.use(
-  "/api/queries",
-  queriesRoutes,
-);
-
-app.use(
-  "/api/branding",
-  brandingRoutes,
-);
-
-app.get(
-  "/health",
-  (
-    _req: Request,
-    res: Response,
-  ): void => {
-    res.status(200).json({
-      status: "ok",
-      uptime:
-        process.uptime(),
-    });
-  },
-);
-
-app.use(
-  (
-    _req: Request,
-    res: Response,
-  ): void => {
-    res.status(404).json({
-      success: false,
-      message:
-        "Route not found",
-    });
-  },
-);
-
-app.use(
-  (
-    error: unknown,
-    _req: Request,
-    res: Response,
-    _next: NextFunction,
-  ): void => {
-    const status =
-      error instanceof HttpError
-        ? error.statusCode
-        : 500;
+  (error: unknown, _req: Request, res: Response, _next: NextFunction): void => {
+    const status = error instanceof HttpError ? error.statusCode : 500;
 
     const errorMessage =
-      error instanceof Error
-        ? error.message
-        : "Unknown server error";
+      error instanceof Error ? error.message : "Unknown server error";
 
     if (error instanceof Error) {
-      console.error(
-        error.stack ??
-        error.message,
-      );
+      console.error(error.stack ?? error.message);
     } else {
       console.error(error);
     }
 
     const message =
-      process.env.NODE_ENV ===
-        "production" &&
-        status === 500
+      process.env.NODE_ENV === "production" && status === 500
         ? "Internal server error"
         : errorMessage;
 

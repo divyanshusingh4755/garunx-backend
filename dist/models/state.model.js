@@ -1,4 +1,4 @@
-import { Schema, model, } from "mongoose";
+import { Schema, model } from "mongoose";
 const stateSchema = new Schema({
     country: {
         type: String,
@@ -29,10 +29,7 @@ const stateSchema = new Schema({
         type: String,
         required: true,
         trim: true,
-        match: [
-            /^\d{2}$/,
-            "GST code must be exactly 2 digits",
-        ],
+        match: [/^\d{2}$/, "GST code must be exactly 2 digits"],
     },
     location: {
         type: {

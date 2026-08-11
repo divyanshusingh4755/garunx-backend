@@ -1,19 +1,8 @@
-import {
-  model,
-  Schema,
-  type Document,
-  Types,
-} from "mongoose";
+import { model, Schema, type Document, Types } from "mongoose";
 
-export type CouponApplicableOn =
-  | "ALL"
-  | "SERVICE"
-  | "PACKAGE"
-  | "REFERRAL";
+export type CouponApplicableOn = "ALL" | "SERVICE" | "PACKAGE" | "REFERRAL";
 
-export type CouponDiscountType =
-  | "PERCENTAGE"
-  | "FIXED";
+export type CouponDiscountType = "PERCENTAGE" | "FIXED";
 
 export interface ICoupon extends Document {
   version: number;
@@ -76,12 +65,7 @@ const couponSchema = new Schema<ICoupon>(
 
     applicableOn: {
       type: String,
-      enum: [
-        "ALL",
-        "SERVICE",
-        "PACKAGE",
-        "REFERRAL",
-      ],
+      enum: ["ALL", "SERVICE", "PACKAGE", "REFERRAL"],
       default: "ALL",
       required: true,
     },
@@ -108,10 +92,7 @@ const couponSchema = new Schema<ICoupon>(
 
     discountType: {
       type: String,
-      enum: [
-        "PERCENTAGE",
-        "FIXED",
-      ],
+      enum: ["PERCENTAGE", "FIXED"],
       default: "PERCENTAGE",
       required: true,
     },
@@ -168,74 +149,46 @@ couponSchema.pre("validate", function () {
 
   if (
     this.discountType === "PERCENTAGE" &&
-    (this.discount <= 0 ||
-      this.discount > 100)
+    (this.discount <= 0 || this.discount > 100)
   ) {
-    throw new Error(
-      "Percentage discount must be between 1 and 100",
-    );
+    throw new Error("Percentage discount must be between 1 and 100");
   }
 
-  if (
-    this.discountType === "FIXED" &&
-    this.maxDiscountAmount !== undefined
-  ) {
+  if (this.discountType === "FIXED" && this.maxDiscountAmount !== undefined) {
     this.set("maxDiscountAmount", undefined);
   }
 
-  if (
-    this.validFrom &&
-    this.validTill &&
-    this.validTill < this.validFrom
-  ) {
-    throw new Error(
-      "validTill must be greater than or equal to validFrom",
-    );
+  if (this.validFrom && this.validTill && this.validTill < this.validFrom) {
+    throw new Error("validTill must be greater than or equal to validFrom");
   }
 
   if (this.applicableOn === "SERVICE") {
     if (services.length === 0) {
-      throw new Error(
-        "At least one service is required for SERVICE coupons",
-      );
+      throw new Error("At least one service is required for SERVICE coupons");
     }
 
     if (packages.length > 0) {
-      throw new Error(
-        "Packages are not allowed for SERVICE coupons",
-      );
+      throw new Error("Packages are not allowed for SERVICE coupons");
     }
   }
 
   if (this.applicableOn === "PACKAGE") {
     if (packages.length === 0) {
-      throw new Error(
-        "At least one package is required for PACKAGE coupons",
-      );
+      throw new Error("At least one package is required for PACKAGE coupons");
     }
 
     if (services.length > 0) {
-      throw new Error(
-        "Services are not allowed for PACKAGE coupons",
-      );
+      throw new Error("Services are not allowed for PACKAGE coupons");
     }
   }
 
-  if (
-    this.applicableOn === "ALL" ||
-    this.applicableOn === "REFERRAL"
-  ) {
+  if (this.applicableOn === "ALL" || this.applicableOn === "REFERRAL") {
     this.services = [];
     this.packages = [];
   }
 
-  if (
-    this.applicableOn === "REFERRAL" &&
-    !this.assignedUserId
-  ) {
-    throw new Error(
-      "assignedUserId is required for REFERRAL coupons",
-    );
+  if (this.applicableOn === "REFERRAL" && !this.assignedUserId) {
+    throw new Error("assignedUserId is required for REFERRAL coupons");
   }
 });
 
@@ -260,8 +213,4 @@ couponSchema.index(
   },
 );
 
-export const Coupon =
-  model<ICoupon>(
-    "Coupon",
-    couponSchema,
-  );
+export const Coupon = model<ICoupon>("Coupon", couponSchema);

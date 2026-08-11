@@ -1,4 +1,4 @@
-import { Schema, Types, model, } from "mongoose";
+import { Schema, Types, model } from "mongoose";
 import { Caste, FamilyRelation, Gender, Gotra, MemberLifeStatus, } from "../types/enums.js";
 const familyMemberSchema = new Schema({
     ownerId: {
@@ -107,8 +107,7 @@ const familyMemberSchema = new Schema({
         validate: {
             validator: (spouseIds) => {
                 const uniqueIds = new Set(spouseIds.map((id) => id.toString()));
-                return (uniqueIds.size ===
-                    spouseIds.length);
+                return uniqueIds.size === spouseIds.length;
             },
             message: "Duplicate spouse IDs are not allowed",
         },
@@ -164,58 +163,39 @@ const familyMemberSchema = new Schema({
     timestamps: true,
 });
 familyMemberSchema.pre("validate", function () {
-    if (this.source ===
-        "COORDINATOR_BOOKING" &&
-        !this.sourceBookingId) {
+    if (this.source === "COORDINATOR_BOOKING" && !this.sourceBookingId) {
         throw new Error("Booking ID is required when a family member is added by a coordinator");
     }
-    if (this.source !==
-        "COORDINATOR_BOOKING" &&
-        this.sourceBookingId) {
+    if (this.source !== "COORDINATOR_BOOKING" && this.sourceBookingId) {
         throw new Error("Booking ID can only be provided for coordinator booking source");
     }
-    if (this.lifeStatus ===
-        MemberLifeStatus.ALIVE &&
-        this.dateOfDeath) {
+    if (this.lifeStatus === MemberLifeStatus.ALIVE && this.dateOfDeath) {
         throw new Error("Date of death cannot be provided for an alive family member");
     }
-    if (this.lifeStatus !==
-        MemberLifeStatus.ALIVE &&
-        !this.dateOfDeath) {
+    if (this.lifeStatus !== MemberLifeStatus.ALIVE && !this.dateOfDeath) {
         throw new Error("Date of death is required for a deceased family member");
     }
-    if (this.dob &&
-        this.dateOfDeath &&
-        this.dateOfDeath <
-            this.dob) {
+    if (this.dob && this.dateOfDeath && this.dateOfDeath < this.dob) {
         throw new Error("Date of death cannot be earlier than date of birth");
     }
-    if (this.fatherId &&
-        this.motherId &&
-        this.fatherId.equals(this.motherId)) {
+    if (this.fatherId && this.motherId && this.fatherId.equals(this.motherId)) {
         throw new Error("Father and mother cannot be the same family member");
     }
-    if (this._id &&
-        this.fatherId?.equals(this._id)) {
+    if (this._id && this.fatherId?.equals(this._id)) {
         throw new Error("A family member cannot be their own father");
     }
-    if (this._id &&
-        this.motherId?.equals(this._id)) {
+    if (this._id && this.motherId?.equals(this._id)) {
         throw new Error("A family member cannot be their own mother");
     }
     if (this._id &&
         this.spouseIds.some((spouseId) => spouseId.equals(this._id))) {
         throw new Error("A family member cannot be their own spouse");
     }
-    if (this.isDeleted &&
-        (!this.deletedAt ||
-            !this.deletedBy)) {
+    if (this.isDeleted && (!this.deletedAt || !this.deletedBy)) {
         throw new Error("Deleted family members require deletedAt and deletedBy");
     }
     if (!this.isDeleted &&
-        (this.deletedAt ||
-            this.deletedBy ||
-            this.deletionReason)) {
+        (this.deletedAt || this.deletedBy || this.deletionReason)) {
         throw new Error("Deletion fields cannot be set when family member is not deleted");
     }
 });

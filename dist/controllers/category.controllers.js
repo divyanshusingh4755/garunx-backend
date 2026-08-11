@@ -8,7 +8,7 @@ const parsePositiveInteger = (value, fallback, maximum) => {
 };
 export const createCategory = async (req, res) => {
     try {
-        const { label, value, type, image, description, displayOrder, isActive, } = req.body;
+        const { label, value, type, image, description, displayOrder, isActive } = req.body;
         const newCategory = await CategoryService.createCategory({
             label,
             value,
@@ -35,7 +35,7 @@ export const createCategory = async (req, res) => {
 export const updateCategory = async (req, res) => {
     try {
         const { id } = req.params;
-        const { label, value, type, image, description, displayOrder, isActive, } = req.body;
+        const { label, value, type, image, description, displayOrder, isActive } = req.body;
         const updatedCategory = await CategoryService.updateCategory(id, {
             label,
             value,
@@ -73,9 +73,7 @@ export const getCategoryById = async (req, res) => {
         });
     }
     catch (error) {
-        return res
-            .status(error.message === "Category not found" ? 404 : 400)
-            .json({
+        return res.status(error.message === "Category not found" ? 404 : 400).json({
             success: false,
             message: error.message,
         });
@@ -118,9 +116,7 @@ export const toggleCategoryStatus = async (req, res) => {
         });
     }
     catch (error) {
-        return res
-            .status(error.message === "Category not found" ? 404 : 400)
-            .json({
+        return res.status(error.message === "Category not found" ? 404 : 400).json({
             success: false,
             message: error.message,
         });
@@ -128,14 +124,10 @@ export const toggleCategoryStatus = async (req, res) => {
 };
 export const getAllCategories = async (req, res) => {
     try {
-        const { searchTerm, type, limit, page, isActive, sortBy, sortOrder, } = req.query;
+        const { searchTerm, type, limit, page, isActive, sortBy, sortOrder } = req.query;
         const parsedLimit = parsePositiveInteger(limit, 40, 100);
         const parsedPage = parsePositiveInteger(page, 1);
-        const { data, total, page: currentPage, totalPages, } = await CategoryService.findCategories(searchTerm, type, parsedLimit, parsedPage, isActive === "true"
-            ? true
-            : isActive === "false"
-                ? false
-                : undefined, sortBy || "displayOrder", sortOrder || "asc");
+        const { data, total, page: currentPage, totalPages, } = await CategoryService.findCategories(searchTerm, type, parsedLimit, parsedPage, isActive === "true" ? true : isActive === "false" ? false : undefined, sortBy || "displayOrder", sortOrder || "asc");
         return res.status(200).json({
             success: true,
             data,

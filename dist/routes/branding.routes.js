@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { body } from "express-validator";
-import { getTheme, updateTheme, } from "../controllers/brand.controllers.js";
+import { getTheme, updateTheme } from "../controllers/brand.controllers.js";
 import { authenticate } from "../middleware/authenticate.js";
 // import { hasPermission } from "../middleware/hasPermission.js";
 import { validate } from "../utils/validate.js";

@@ -1,5 +1,5 @@
 import { Router, } from "express";
-import { body, param, query, validationResult, } from "express-validator";
+import { body, param, query, validationResult } from "express-validator";
 import { authenticate } from "../middleware/authenticate.js";
 import { getAllBanners, getBannerById, createBanner, updateBanner, toggleBannerStatus, deleteBanner, } from "../controllers/banner.controllers.js";
 const PLACEMENTS = [
@@ -31,9 +31,7 @@ const validateRequest = (req, res, next) => {
     next();
 };
 const bannerIdValidation = [
-    param("id")
-        .isMongoId()
-        .withMessage("Invalid banner ID"),
+    param("id").isMongoId().withMessage("Invalid banner ID"),
     validateRequest,
 ];
 const redirectValidation = [
@@ -136,9 +134,7 @@ const createBannerValidation = [
     validateRequest,
 ];
 const updateBannerValidation = [
-    param("id")
-        .isMongoId()
-        .withMessage("Invalid banner ID"),
+    param("id").isMongoId().withMessage("Invalid banner ID"),
     body().custom((value) => {
         if (!value ||
             typeof value !== "object" ||
@@ -161,10 +157,7 @@ const updateBannerValidation = [
         .optional()
         .isIn(PLACEMENTS)
         .withMessage("Invalid placement"),
-    body("format")
-        .optional()
-        .isIn(FORMATS)
-        .withMessage("Invalid format"),
+    body("format").optional().isIn(FORMATS).withMessage("Invalid format"),
     body("image")
         .optional()
         .isString()
@@ -211,10 +204,7 @@ const listBannerValidation = [
         .optional()
         .isIn(PLACEMENTS)
         .withMessage("Invalid placement"),
-    query("format")
-        .optional()
-        .isIn(FORMATS)
-        .withMessage("Invalid format"),
+    query("format").optional().isIn(FORMATS).withMessage("Invalid format"),
     query("redirectType")
         .optional()
         .isIn(REDIRECT_TYPES)

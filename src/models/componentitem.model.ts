@@ -1,7 +1,4 @@
-import {
-  model,
-  Schema,
-} from "mongoose";
+import { model, Schema } from "mongoose";
 
 export interface IComponentItem {
   name: string;
@@ -11,32 +8,31 @@ export interface IComponentItem {
   updatedAt: Date;
 }
 
-const componentItemSchema =
-  new Schema<IComponentItem>(
-    {
-      name: {
-        type: String,
-        required: true,
-        trim: true,
-        unique: true,
-      },
-
-      price: {
-        type: Number,
-        min: 0,
-      },
-
-      isActive: {
-        type: Boolean,
-        required: true,
-        default: true,
-        index: true,
-      },
+const componentItemSchema = new Schema<IComponentItem>(
+  {
+    name: {
+      type: String,
+      required: true,
+      trim: true,
+      unique: true,
     },
-    {
-      timestamps: true,
+
+    price: {
+      type: Number,
+      min: 0,
     },
-  );
+
+    isActive: {
+      type: Boolean,
+      required: true,
+      default: true,
+      index: true,
+    },
+  },
+  {
+    timestamps: true,
+  },
+);
 
 componentItemSchema.index(
   {
@@ -47,8 +43,7 @@ componentItemSchema.index(
   },
 );
 
-export const ComponentItem =
-  model<IComponentItem>(
-    "ComponentItem",
-    componentItemSchema,
-  );
+export const ComponentItem = model<IComponentItem>(
+  "ComponentItem",
+  componentItemSchema,
+);

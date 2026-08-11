@@ -8,7 +8,7 @@ import { Counter } from "../models/counter.model.js";
 import crypto from "crypto";
 import nodemailer from "nodemailer";
 import { generateUniqueCode } from "../utils/generateUniqueCode.js";
-import { ApprovalStatus, AvailabilityStatus, VerificationStatus } from "../types/enums.js";
+import { ApprovalStatus, AvailabilityStatus, VerificationStatus, } from "../types/enums.js";
 import { escapeRegex } from "../utils/escapeRegex.js";
 class AuthService {
     static async generateUserSession(user, userAgent, ip, mongoSession) {
@@ -155,8 +155,7 @@ class AuthService {
             if (!user.otp) {
                 throw new Error("No OTP was requested for this account.");
             }
-            if (user.otpExpiresAt &&
-                new Date() > user.otpExpiresAt) {
+            if (user.otpExpiresAt && new Date() > user.otpExpiresAt) {
                 user.otp = null;
                 user.otpExpiresAt = null;
                 await user.save();
@@ -173,10 +172,7 @@ class AuthService {
         }
         // Forgot-password OTP verification
         if (email) {
-            const hashedToken = crypto
-                .createHash("sha256")
-                .update(otp)
-                .digest("hex");
+            const hashedToken = crypto.createHash("sha256").update(otp).digest("hex");
             const user = await User.findOne({
                 email: email.toLowerCase(),
                 resetPasswordToken: hashedToken,
@@ -279,7 +275,10 @@ class AuthService {
         const normalizedIdentifier = identifier.trim();
         const user = (await User.findOne({
             role,
-            $or: [{ email: normalizedIdentifier.toLowerCase() }, { phoneNumber: normalizedIdentifier }],
+            $or: [
+                { email: normalizedIdentifier.toLowerCase() },
+                { phoneNumber: normalizedIdentifier },
+            ],
         }).select("+password"));
         if (!user || !user.password)
             throw new Error("Invalid Credentials");
@@ -713,8 +712,7 @@ class AuthService {
             throw new Error("User not found");
         }
         const updatePayload = {};
-        const isIdentityDocumentSubmitted = docs.aadharCard !== undefined ||
-            docs.panCard !== undefined;
+        const isIdentityDocumentSubmitted = docs.aadharCard !== undefined || docs.panCard !== undefined;
         const isBankDocumentSubmitted = docs.bankPassbook !== undefined;
         /*
          * IDENTITY DOCUMENTS
@@ -722,27 +720,23 @@ class AuthService {
          * Every new Aadhaar or PAN submission must be verified again.
          */
         if (isIdentityDocumentSubmitted) {
-            updatePayload["documentVerification.status"] =
-                VerificationStatus.PENDING;
-            updatePayload["documentVerification.rejectionReason"] =
-                null;
+            updatePayload["documentVerification.status"] = VerificationStatus.PENDING;
+            updatePayload["documentVerification.rejectionReason"] = null;
             updatePayload.isDocumentVerified = false;
             if (docs.aadharCard !== undefined) {
-                updatePayload["documentVerification.aadharCard"] =
-                    docs.aadharCard;
+                updatePayload["documentVerification.aadharCard"] = docs.aadharCard;
             }
             if (docs.panCard !== undefined) {
-                updatePayload["documentVerification.panCard"] =
-                    docs.panCard;
+                updatePayload["documentVerification.panCard"] = docs.panCard;
             }
             /*
              * Coordinator approval was based on the previous identity
              * documents, so identity re-submission requires coordinator
              * approval again.
              */
-            if (user.role === Role.COORDINATOR &&
-                user.coordinatorProfile) {
-                updatePayload["coordinatorProfile.approvalStatus"] = ApprovalStatus.PENDING;
+            if (user.role === Role.COORDINATOR && user.coordinatorProfile) {
+                updatePayload["coordinatorProfile.approvalStatus"] =
+                    ApprovalStatus.PENDING;
                 updatePayload["coordinatorProfile.approvalRejectionReason"] = null;
                 updatePayload["coordinatorProfile.autoAssignmentEnabled"] = false;
             }
@@ -758,8 +752,10 @@ class AuthService {
                 VerificationStatus.PENDING;
             updatePayload["bankDocumentVerification.rejectionReason"] = null;
             updatePayload.isBankDocumentVerified = false;
-            updatePayload["bankDocumentVerification.bankPassbook"] = docs.bankPassbook;
-            updatePayload["bankDocumentVerification.accountNumber"] = docs.accountNumber;
+            updatePayload["bankDocumentVerification.bankPassbook"] =
+                docs.bankPassbook;
+            updatePayload["bankDocumentVerification.accountNumber"] =
+                docs.accountNumber;
             updatePayload["bankDocumentVerification.accountName"] = docs.accountName;
             updatePayload["bankDocumentVerification.bankName"] = docs.bankName;
             updatePayload["bankDocumentVerification.ifscCode"] = docs.ifscCode;
@@ -784,24 +780,19 @@ class AuthService {
         if (!user) {
             throw new Error("User not found");
         }
-        if (status === VerificationStatus.REJECTED &&
-            !rejectionReason?.trim()) {
+        if (status === VerificationStatus.REJECTED && !rejectionReason?.trim()) {
             throw new Error("Rejection reason is required when rejecting verification");
         }
         if (type === "document") {
             const hasIdentityDocument = Boolean(user.documentVerification?.aadharCard) ||
                 Boolean(user.documentVerification?.panCard);
-            if (status === VerificationStatus.APPROVED &&
-                !hasIdentityDocument) {
+            if (status === VerificationStatus.APPROVED && !hasIdentityDocument) {
                 throw new Error("Identity verification cannot be approved because no Aadhaar or PAN document has been submitted");
             }
             user.documentVerification.status = status;
             user.documentVerification.rejectionReason =
-                status === VerificationStatus.REJECTED
-                    ? rejectionReason.trim()
-                    : null;
-            user.isDocumentVerified =
-                status === VerificationStatus.APPROVED;
+                status === VerificationStatus.REJECTED ? rejectionReason.trim() : null;
+            user.isDocumentVerified = status === VerificationStatus.APPROVED;
             /*
              * Verifying identity documents does not automatically approve
              * the coordinator. Coordinator approval remains a separate
@@ -810,10 +801,8 @@ class AuthService {
             if (status === VerificationStatus.REJECTED &&
                 user.role === Role.COORDINATOR &&
                 user.coordinatorProfile) {
-                user.coordinatorProfile.approvalStatus =
-                    ApprovalStatus.PENDING;
-                user.coordinatorProfile.autoAssignmentEnabled =
-                    false;
+                user.coordinatorProfile.approvalStatus = ApprovalStatus.PENDING;
+                user.coordinatorProfile.autoAssignmentEnabled = false;
             }
         }
         if (type === "bank") {
@@ -822,17 +811,13 @@ class AuthService {
                 Boolean(user.bankDocumentVerification?.accountName) &&
                 Boolean(user.bankDocumentVerification?.bankName) &&
                 Boolean(user.bankDocumentVerification?.ifscCode);
-            if (status === VerificationStatus.APPROVED &&
-                !hasCompleteBankDetails) {
+            if (status === VerificationStatus.APPROVED && !hasCompleteBankDetails) {
                 throw new Error("Bank verification cannot be approved because complete bank details have not been submitted");
             }
             user.bankDocumentVerification.status = status;
             user.bankDocumentVerification.rejectionReason =
-                status === VerificationStatus.REJECTED
-                    ? rejectionReason.trim()
-                    : null;
-            user.isBankDocumentVerified =
-                status === VerificationStatus.APPROVED;
+                status === VerificationStatus.REJECTED ? rejectionReason.trim() : null;
+            user.isBankDocumentVerified = status === VerificationStatus.APPROVED;
             /*
              * Do not change coordinator approval here.
              * Bank verification controls payouts, not the coordinator's
@@ -866,8 +851,7 @@ class AuthService {
         if (!coordinator.coordinatorProfile) {
             throw new Error("Coordinator profile has not been created");
         }
-        if (status === ApprovalStatus.REJECTED &&
-            !rejectionReason?.trim()) {
+        if (status === ApprovalStatus.REJECTED && !rejectionReason?.trim()) {
             throw new Error("Rejection reason is required when rejecting a coordinator");
         }
         /*
@@ -888,19 +872,15 @@ class AuthService {
                 throw new Error("Coordinator identity documents must be verified before approval");
             }
         }
-        coordinator.coordinatorProfile.approvalStatus =
-            status;
+        coordinator.coordinatorProfile.approvalStatus = status;
         coordinator.coordinatorProfile.approvalRejectionReason =
-            status === ApprovalStatus.REJECTED
-                ? rejectionReason.trim()
-                : null;
+            status === ApprovalStatus.REJECTED ? rejectionReason.trim() : null;
         /*
          * Pending or rejected coordinators cannot receive automatic
          * assignments.
          */
         if (status !== ApprovalStatus.APPROVED) {
-            coordinator.coordinatorProfile.autoAssignmentEnabled =
-                false;
+            coordinator.coordinatorProfile.autoAssignmentEnabled = false;
         }
         await coordinator.save();
         return User.findById(coordinatorId)
@@ -1008,8 +988,7 @@ class AuthService {
             query["coordinatorProfile.approvalStatus"] = approvalStatus;
         }
         if (availabilityStatus) {
-            query["coordinatorProfile.availabilityStatus"] =
-                availabilityStatus;
+            query["coordinatorProfile.availabilityStatus"] = availabilityStatus;
         }
         if (locationId || caste || gotra) {
             const locationMatch = {};
@@ -1027,8 +1006,7 @@ class AuthService {
             };
         }
         if (typeof autoAssignmentEnabled === "boolean") {
-            query["coordinatorProfile.autoAssignmentEnabled"] =
-                autoAssignmentEnabled;
+            query["coordinatorProfile.autoAssignmentEnabled"] = autoAssignmentEnabled;
         }
         if (minimumRating !== undefined) {
             query["coordinatorProfile.averageRating"] = {

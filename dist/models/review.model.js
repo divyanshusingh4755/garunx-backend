@@ -1,4 +1,4 @@
-import { Schema, Types, model, } from "mongoose";
+import { Schema, Types, model } from "mongoose";
 const reviewSchema = new Schema({
     bookingId: {
         type: Schema.Types.ObjectId,
@@ -54,20 +54,13 @@ const reviewSchema = new Schema({
     },
     visibility: {
         type: String,
-        enum: [
-            "PUBLISHED",
-            "HIDDEN",
-            "UNPUBLISHED",
-        ],
+        enum: ["PUBLISHED", "HIDDEN", "UNPUBLISHED"],
         default: "PUBLISHED",
         index: true,
     },
     moderationStatus: {
         type: String,
-        enum: [
-            "CLEAN",
-            "FLAGGED",
-        ],
+        enum: ["CLEAN", "FLAGGED"],
         default: "CLEAN",
         index: true,
     },
@@ -107,8 +100,7 @@ reviewSchema.pre("validate", function () {
     if (this.reviewerId.equals(this.revieweeId)) {
         throw new Error("Reviewer and reviewee cannot be the same");
     }
-    if (this.isDeleted &&
-        !this.deletedAt) {
+    if (this.isDeleted && !this.deletedAt) {
         this.deletedAt = new Date();
     }
 });

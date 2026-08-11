@@ -1,21 +1,14 @@
-import { model, Schema, } from "mongoose";
+import { model, Schema } from "mongoose";
 const contentSchema = new Schema({
     type: {
         type: String,
-        enum: [
-            "TERMS",
-            "PRIVACY",
-            "REFUND",
-        ],
+        enum: ["TERMS", "PRIVACY", "REFUND"],
         required: true,
         index: true,
     },
     userType: {
         type: String,
-        enum: [
-            "User",
-            "Coordinator",
-        ],
+        enum: ["User", "Coordinator"],
         default: "User",
         required: true,
     },
@@ -46,8 +39,7 @@ const contentSchema = new Schema({
     timestamps: true,
 });
 contentSchema.pre("validate", function () {
-    if (this.isActive &&
-        !this.publishedAt) {
+    if (this.isActive && !this.publishedAt) {
         this.publishedAt = new Date();
     }
 });

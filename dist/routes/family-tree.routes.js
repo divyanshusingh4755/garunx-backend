@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { body, param, query, } from "express-validator";
+import { body, param, query } from "express-validator";
 import { addFamilyMember, deleteFamilyMember, getFamilyMemberActivities, getFamilyMemberById, getFamilyMembers, getFamilyTree, getFamilyTreeActivities, restoreFamilyMember, updateFamilyMember, } from "../controllers/family-tree-controllers.js";
 import { authenticate } from "../middleware/authenticate.js";
 import { authorizeRoles } from "../middleware/authorizeRoles.js";
@@ -72,10 +72,7 @@ const addFamilyMemberValidation = [
         .optional()
         .isArray()
         .withMessage("Spouse IDs must be an array"),
-    body("spouseIds.*")
-        .optional()
-        .isMongoId()
-        .withMessage("Invalid spouse ID"),
+    body("spouseIds.*").optional().isMongoId().withMessage("Invalid spouse ID"),
     body("nativeVillage")
         .optional()
         .isString()
@@ -157,39 +154,26 @@ const addFamilyMemberValidation = [
     })
         .withMessage("Notes cannot exceed 1000 characters"),
     body().custom((value) => {
-        const dob = value.dob
-            ? new Date(value.dob)
-            : null;
-        const dateOfDeath = value.dateOfDeath
-            ? new Date(value.dateOfDeath)
-            : null;
-        if (dob &&
-            dob.getTime() > Date.now()) {
+        const dob = value.dob ? new Date(value.dob) : null;
+        const dateOfDeath = value.dateOfDeath ? new Date(value.dateOfDeath) : null;
+        if (dob && dob.getTime() > Date.now()) {
             throw new Error("DOB cannot be in the future");
         }
-        if (dob &&
-            dateOfDeath &&
-            dateOfDeath < dob) {
+        if (dob && dateOfDeath && dateOfDeath < dob) {
             throw new Error("Date of death cannot be before DOB");
         }
         return true;
     }),
     body().custom((value) => {
-        if (value.fatherId &&
-            value.motherId &&
-            value.fatherId ===
-                value.motherId) {
+        if (value.fatherId && value.motherId && value.fatherId === value.motherId) {
             throw new Error("Father and mother cannot be the same member");
         }
-        if (value.lifeStatus ===
-            MemberLifeStatus.ALIVE &&
-            value.dateOfDeath) {
+        if (value.lifeStatus === MemberLifeStatus.ALIVE && value.dateOfDeath) {
             throw new Error("Date of death cannot be provided for an alive member");
         }
         if (Array.isArray(value.spouseIds)) {
             const uniqueSpouseIds = new Set(value.spouseIds);
-            if (uniqueSpouseIds.size !==
-                value.spouseIds.length) {
+            if (uniqueSpouseIds.size !== value.spouseIds.length) {
                 throw new Error("Duplicate spouse IDs are not allowed");
             }
         }
@@ -205,11 +189,9 @@ const updateFamilyMemberValidation = [
         .withMessage("Invalid family member ID"),
     body().custom((value) => {
         if (!value ||
-            typeof value !==
-                "object" ||
+            typeof value !== "object" ||
             Array.isArray(value) ||
-            Object.keys(value).length ===
-                0) {
+            Object.keys(value).length === 0) {
             throw new Error("At least one field is required for update");
         }
         return true;
@@ -270,10 +252,7 @@ const updateFamilyMemberValidation = [
         .optional()
         .isArray()
         .withMessage("Spouse IDs must be an array"),
-    body("spouseIds.*")
-        .optional()
-        .isMongoId()
-        .withMessage("Invalid spouse ID"),
+    body("spouseIds.*").optional().isMongoId().withMessage("Invalid spouse ID"),
     body("nativeVillage")
         .optional()
         .isString()
@@ -355,39 +334,26 @@ const updateFamilyMemberValidation = [
     })
         .withMessage("Notes cannot exceed 1000 characters"),
     body().custom((value) => {
-        const dob = value.dob
-            ? new Date(value.dob)
-            : null;
-        const dateOfDeath = value.dateOfDeath
-            ? new Date(value.dateOfDeath)
-            : null;
-        if (dob &&
-            dob.getTime() > Date.now()) {
+        const dob = value.dob ? new Date(value.dob) : null;
+        const dateOfDeath = value.dateOfDeath ? new Date(value.dateOfDeath) : null;
+        if (dob && dob.getTime() > Date.now()) {
             throw new Error("DOB cannot be in the future");
         }
-        if (dob &&
-            dateOfDeath &&
-            dateOfDeath < dob) {
+        if (dob && dateOfDeath && dateOfDeath < dob) {
             throw new Error("Date of death cannot be before DOB");
         }
         return true;
     }),
     body().custom((value) => {
-        if (value.fatherId &&
-            value.motherId &&
-            value.fatherId ===
-                value.motherId) {
+        if (value.fatherId && value.motherId && value.fatherId === value.motherId) {
             throw new Error("Father and mother cannot be the same member");
         }
-        if (value.lifeStatus ===
-            MemberLifeStatus.ALIVE &&
-            value.dateOfDeath) {
+        if (value.lifeStatus === MemberLifeStatus.ALIVE && value.dateOfDeath) {
             throw new Error("Date of death cannot be provided for an alive member");
         }
         if (Array.isArray(value.spouseIds)) {
             const uniqueSpouseIds = new Set(value.spouseIds);
-            if (uniqueSpouseIds.size !==
-                value.spouseIds.length) {
+            if (uniqueSpouseIds.size !== value.spouseIds.length) {
                 throw new Error("Duplicate spouse IDs are not allowed");
             }
         }
@@ -474,10 +440,7 @@ const getFamilyTreeActivitiesValidation = [
         .optional()
         .isMongoId()
         .withMessage("Invalid performed-by user ID"),
-    query("bookingId")
-        .optional()
-        .isMongoId()
-        .withMessage("Invalid booking ID"),
+    query("bookingId").optional().isMongoId().withMessage("Invalid booking ID"),
     query("page")
         .optional()
         .isInt({

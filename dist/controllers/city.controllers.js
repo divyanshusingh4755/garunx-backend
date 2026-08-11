@@ -13,7 +13,7 @@ const getStatusCode = (error) => {
 };
 export const createCity = async (req, res) => {
     try {
-        const { name, country, stateId, image, description, location, } = req.body;
+        const { name, country, stateId, image, description, location } = req.body;
         const city = await CityService.createCity({
             name,
             country,
@@ -53,20 +53,12 @@ export const updateCity = async (req, res) => {
 export const getAllCity = async (req, res) => {
     try {
         const { searchTerm, cityFilter, stateIdFilter, countryFilter, limit, page, isActive, sortBy, sortOrder, } = req.query;
-        const activeStatus = isActive === "true"
-            ? true
-            : isActive === "false"
-                ? false
-                : undefined;
+        const activeStatus = isActive === "true" ? true : isActive === "false" ? false : undefined;
         const result = await CityService.findCity({
             limit: limit ? Number(limit) : 40,
             page: page ? Number(page) : 1,
-            sortBy: typeof sortBy === "string"
-                ? sortBy
-                : "createdAt",
-            sortOrder: sortOrder === "asc" || sortOrder === "desc"
-                ? sortOrder
-                : "desc",
+            sortBy: typeof sortBy === "string" ? sortBy : "createdAt",
+            sortOrder: sortOrder === "asc" || sortOrder === "desc" ? sortOrder : "desc",
             ...(typeof searchTerm === "string" && {
                 searchTerm,
             }),

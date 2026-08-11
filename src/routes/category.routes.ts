@@ -130,12 +130,7 @@ const listCategoryValidation = [
 router.get("/", listCategoryValidation, getAllCategories);
 router.get("/:id", authenticate, categoryIdValidation, getCategoryById);
 
-router.post(
-  "/",
-  authenticate,
-  categoryBodyValidation,
-  createCategory,
-);
+router.post("/", authenticate, categoryBodyValidation, createCategory);
 
 router.put(
   "/:id",
@@ -152,11 +147,6 @@ router.patch(
   toggleCategoryStatus,
 );
 
-router.delete(
-  "/:id",
-  authenticate,
-  categoryIdValidation,
-  deleteCategory,
-);
+router.delete("/:id", authenticate, categoryIdValidation, deleteCategory);
 
 export default router;

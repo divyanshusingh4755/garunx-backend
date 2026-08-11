@@ -1,4 +1,4 @@
-import { model, Schema, Types, } from "mongoose";
+import { model, Schema, Types } from "mongoose";
 const couponSchema = new Schema({
     version: {
         type: Number,
@@ -24,12 +24,7 @@ const couponSchema = new Schema({
     },
     applicableOn: {
         type: String,
-        enum: [
-            "ALL",
-            "SERVICE",
-            "PACKAGE",
-            "REFERRAL",
-        ],
+        enum: ["ALL", "SERVICE", "PACKAGE", "REFERRAL"],
         default: "ALL",
         required: true,
     },
@@ -52,10 +47,7 @@ const couponSchema = new Schema({
     },
     discountType: {
         type: String,
-        enum: [
-            "PERCENTAGE",
-            "FIXED",
-        ],
+        enum: ["PERCENTAGE", "FIXED"],
         default: "PERCENTAGE",
         required: true,
     },
@@ -99,17 +91,13 @@ couponSchema.pre("validate", function () {
     const services = this.services ?? [];
     const packages = this.packages ?? [];
     if (this.discountType === "PERCENTAGE" &&
-        (this.discount <= 0 ||
-            this.discount > 100)) {
+        (this.discount <= 0 || this.discount > 100)) {
         throw new Error("Percentage discount must be between 1 and 100");
     }
-    if (this.discountType === "FIXED" &&
-        this.maxDiscountAmount !== undefined) {
+    if (this.discountType === "FIXED" && this.maxDiscountAmount !== undefined) {
         this.set("maxDiscountAmount", undefined);
     }
-    if (this.validFrom &&
-        this.validTill &&
-        this.validTill < this.validFrom) {
+    if (this.validFrom && this.validTill && this.validTill < this.validFrom) {
         throw new Error("validTill must be greater than or equal to validFrom");
     }
     if (this.applicableOn === "SERVICE") {
@@ -128,13 +116,11 @@ couponSchema.pre("validate", function () {
             throw new Error("Services are not allowed for PACKAGE coupons");
         }
     }
-    if (this.applicableOn === "ALL" ||
-        this.applicableOn === "REFERRAL") {
+    if (this.applicableOn === "ALL" || this.applicableOn === "REFERRAL") {
         this.services = [];
         this.packages = [];
     }
-    if (this.applicableOn === "REFERRAL" &&
-        !this.assignedUserId) {
+    if (this.applicableOn === "REFERRAL" && !this.assignedUserId) {
         throw new Error("assignedUserId is required for REFERRAL coupons");
     }
 });

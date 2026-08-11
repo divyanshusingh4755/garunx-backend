@@ -1,5 +1,5 @@
-import mongoose, { Types, } from "mongoose";
-import { Service, } from "../models/service.model.js";
+import mongoose, { Types } from "mongoose";
+import { Service } from "../models/service.model.js";
 import { Category } from "../models/category.model.js";
 import { generateSlug } from "../utils/generateSlug.js";
 import { getNextSequence } from "../utils/getNextSequence.js";
@@ -57,20 +57,16 @@ export class ServiceService {
             updateData.name = payload.name.trim();
         }
         if (payload.shortDescription !== undefined) {
-            updateData.shortDescription =
-                payload.shortDescription.trim();
+            updateData.shortDescription = payload.shortDescription.trim();
         }
         if (payload.fullDescription !== undefined) {
-            updateData.fullDescription =
-                payload.fullDescription.trim();
+            updateData.fullDescription = payload.fullDescription.trim();
         }
         if (payload.thumbnailImage !== undefined) {
-            updateData.thumbnailImage =
-                payload.thumbnailImage;
+            updateData.thumbnailImage = payload.thumbnailImage;
         }
         if (payload.bannerImage !== undefined) {
-            updateData.bannerImage =
-                payload.bannerImage;
+            updateData.bannerImage = payload.bannerImage;
         }
         if (payload.categoryId !== undefined) {
             const categoryExists = await Category.exists({
@@ -79,8 +75,7 @@ export class ServiceService {
             if (!categoryExists) {
                 throw createHttpError("Category not found", 404);
             }
-            updateData.categoryId =
-                payload.categoryId;
+            updateData.categoryId = payload.categoryId;
         }
         const updatedService = await Service.findByIdAndUpdate(serviceId, {
             $set: updateData,
@@ -102,7 +97,7 @@ export class ServiceService {
     }
     static async getDeactivationImpact(serviceId) {
         const serviceObjectId = new Types.ObjectId(serviceId);
-        const [packageMappings, packagePricing, servicePricing,] = await Promise.all([
+        const [packageMappings, packagePricing, servicePricing] = await Promise.all([
             PackageTierMap.find({
                 services: {
                     $elemMatch: {
@@ -260,9 +255,7 @@ export class ServiceService {
             "isActive",
             "isComplete",
         ]);
-        const safeSortBy = allowedSortFields.has(sortBy)
-            ? sortBy
-            : "createdAt";
+        const safeSortBy = allowedSortFields.has(sortBy) ? sortBy : "createdAt";
         const sortCriteria = {
             [safeSortBy]: sortOrder === "asc" ? 1 : -1,
         };
@@ -316,12 +309,10 @@ export class ServiceService {
             matchQuery.isComplete = isComplete;
         }
         if (categoryId) {
-            matchQuery.categoryId =
-                new Types.ObjectId(categoryId);
+            matchQuery.categoryId = new Types.ObjectId(categoryId);
         }
         if (locationId) {
-            matchQuery["locations.locationId"] =
-                new Types.ObjectId(locationId);
+            matchQuery["locations.locationId"] = new Types.ObjectId(locationId);
         }
         const term = searchTerm?.trim();
         const useTextSearch = Boolean(term && term.length > 4);
@@ -340,8 +331,7 @@ export class ServiceService {
         }
         let projection;
         let sortCriteria;
-        if (useTextSearch &&
-            sortBy === "relevance") {
+        if (useTextSearch && sortBy === "relevance") {
             projection = {
                 score: {
                     $meta: "textScore",
@@ -362,9 +352,7 @@ export class ServiceService {
                 "isActive",
                 "isComplete",
             ]);
-            const safeSortBy = allowedSortFields.has(sortBy)
-                ? sortBy
-                : "createdAt";
+            const safeSortBy = allowedSortFields.has(sortBy) ? sortBy : "createdAt";
             sortCriteria = {
                 [safeSortBy]: sortOrder === "asc" ? 1 : -1,
             };
@@ -425,8 +413,7 @@ export class ServiceService {
         })
             .select("_id name")
             .lean();
-        if (validLocations.length !==
-            objectIds.length) {
+        if (validLocations.length !== objectIds.length) {
             throw createHttpError("One or more location IDs are invalid", 400);
         }
         const formattedLocations = validLocations.map((location) => ({
@@ -434,8 +421,7 @@ export class ServiceService {
             name: location.name,
             isActive: true,
         }));
-        service.locations =
-            formattedLocations;
+        service.locations = formattedLocations;
         await service.save();
         await ServiceCascadingEngine.run(serviceId);
         return {
@@ -449,8 +435,7 @@ export class ServiceService {
         if (!service) {
             throw createHttpError("Service not found", 404);
         }
-        const exists = service.locations.some((location) => location.locationId.toString() ===
-            locationId);
+        const exists = service.locations.some((location) => location.locationId.toString() === locationId);
         if (!exists) {
             return {
                 success: true,
@@ -459,9 +444,7 @@ export class ServiceService {
                 locations: service.locations,
             };
         }
-        service.locations =
-            service.locations.filter((location) => location.locationId.toString() !==
-                locationId);
+        service.locations = service.locations.filter((location) => location.locationId.toString() !== locationId);
         await service.save();
         await ServiceCascadingEngine.run(serviceId);
         return {
@@ -475,9 +458,7 @@ export class ServiceService {
         if (!service) {
             throw createHttpError("Service not found", 404);
         }
-        const uniqueIds = [
-            ...new Set(tiers.map((tier) => tier.tierId)),
-        ];
+        const uniqueIds = [...new Set(tiers.map((tier) => tier.tierId))];
         const objectIds = uniqueIds.map((id) => new Types.ObjectId(id));
         const validTiers = await Tier.find({
             _id: {
@@ -486,14 +467,12 @@ export class ServiceService {
         })
             .select("_id name")
             .lean();
-        if (validTiers.length !==
-            objectIds.length) {
+        if (validTiers.length !== objectIds.length) {
             throw createHttpError("One or more tier IDs are invalid", 400);
         }
         const currentIds = service.tiers.map((tier) => tier.tierId.toString());
         const newIds = objectIds.map((id) => id.toString());
-        const isSame = currentIds.length ===
-            newIds.length &&
+        const isSame = currentIds.length === newIds.length &&
             currentIds.every((id) => newIds.includes(id));
         if (isSame) {
             return {
@@ -503,11 +482,10 @@ export class ServiceService {
                 tiers: service.tiers,
             };
         }
-        service.tiers =
-            validTiers.map((tier) => ({
-                tierId: tier._id,
-                name: tier.name,
-            }));
+        service.tiers = validTiers.map((tier) => ({
+            tierId: tier._id,
+            name: tier.name,
+        }));
         await service.save();
         await ServiceCascadingEngine.run(serviceId);
         return {
@@ -521,8 +499,7 @@ export class ServiceService {
         if (!service) {
             throw createHttpError("Service not found", 404);
         }
-        const exists = service.tiers.some((tier) => tier.tierId.toString() ===
-            tierId);
+        const exists = service.tiers.some((tier) => tier.tierId.toString() === tierId);
         if (!exists) {
             return {
                 success: true,
@@ -531,9 +508,7 @@ export class ServiceService {
                 tiers: service.tiers,
             };
         }
-        service.tiers =
-            service.tiers.filter((tier) => tier.tierId.toString() !==
-                tierId);
+        service.tiers = service.tiers.filter((tier) => tier.tierId.toString() !== tierId);
         await service.save();
         await ServiceCascadingEngine.run(serviceId);
         return {
@@ -562,7 +537,7 @@ export class ServiceService {
         if (!service) {
             throw createHttpError("Service not found", 404);
         }
-        const [serviceComponents, pricing, serviceCategory,] = await Promise.all([
+        const [serviceComponents, pricing, serviceCategory] = await Promise.all([
             ServiceComponent.find({
                 serviceId,
             }).lean(),
@@ -586,9 +561,7 @@ export class ServiceService {
                 select: "name code treatment totalRate isActive",
             })
                 .lean(),
-            Category.findById(service.categoryId)
-                .select("label value image")
-                .lean(),
+            Category.findById(service.categoryId).select("label value image").lean(),
         ]);
         const componentIds = serviceComponents.map((component) => component.componentId);
         const componentDocs = await Component.find({
@@ -596,20 +569,14 @@ export class ServiceService {
                 $in: componentIds,
             },
         }).lean();
-        const componentMap = new Map(componentDocs.map((component) => [
-            component._id.toString(),
-            component,
-        ]));
+        const componentMap = new Map(componentDocs.map((component) => [component._id.toString(), component]));
         const itemIds = serviceComponents.flatMap((component) => component.items?.map((item) => item.itemId) ?? []);
         const itemDocs = await ComponentItem.find({
             _id: {
                 $in: itemIds,
             },
         }).lean();
-        const itemMap = new Map(itemDocs.map((item) => [
-            item._id.toString(),
-            item,
-        ]));
+        const itemMap = new Map(itemDocs.map((item) => [item._id.toString(), item]));
         const pricingMap = new Map();
         for (const price of pricing) {
             const key = `${price.tierId.toString()}_${price.componentId.toString()}`;
@@ -626,8 +593,7 @@ export class ServiceService {
                     treatment: taxProfile?.treatment ?? null,
                     totalRate: taxProfile?.totalRate ?? 0,
                     priceMode: taxProfile
-                        ? price.taxPriceMode ??
-                            "EXCLUSIVE"
+                        ? (price.taxPriceMode ?? "EXCLUSIVE")
                         : "EXCLUSIVE",
                     isTaxConfigured: Boolean(taxProfile),
                 },
@@ -738,13 +704,12 @@ export class ServiceService {
             throw createHttpError("Service not found", 404);
         }
         const filteredLocations = service.locations
-            .filter((location) => locationIds.some((id) => id.toString() ===
-            location.locationId.toString()))
+            .filter((location) => locationIds.some((id) => id.toString() === location.locationId.toString()))
             .map((location) => ({
             ...location,
             locationDetails: locationMap.get(location.locationId.toString()) ?? null,
         }));
-        const [components, pricing, componentDetails,] = await Promise.all([
+        const [components, pricing, componentDetails] = await Promise.all([
             ServiceComponent.find({
                 serviceId,
             }).lean(),
@@ -798,8 +763,7 @@ export class ServiceService {
                 name: component.name,
                 description: component.description,
                 isRequired: component.isRequired,
-                imageUrl: componentInfo?.imageUrl ??
-                    null,
+                imageUrl: componentInfo?.imageUrl ?? null,
                 items: component.items ?? [],
                 pricing: componentPricing,
             });
@@ -857,11 +821,10 @@ export class ServiceService {
             pricingMap.set(key, price.price);
         }
         let minimumPrice = Infinity;
-        for (const [tierId, componentIds,] of tierComponentMap.entries()) {
+        for (const [tierId, componentIds] of tierComponentMap.entries()) {
             const locationIds = [
                 ...new Set(pricing
-                    .filter((price) => price.tierId.toString() ===
-                    tierId)
+                    .filter((price) => price.tierId.toString() === tierId)
                     .map((price) => price.locationId.toString())),
             ];
             for (const locationId of locationIds) {
@@ -883,9 +846,7 @@ export class ServiceService {
         }
         await Service.findByIdAndUpdate(serviceId, {
             $set: {
-                startingPrice: minimumPrice === Infinity
-                    ? 0
-                    : minimumPrice,
+                startingPrice: minimumPrice === Infinity ? 0 : minimumPrice,
             },
         });
     }
@@ -922,7 +883,7 @@ export class ServiceService {
             tierComponentMap.set(tierId, existing);
         }
         let hasValidCombination = false;
-        for (const [tierId, tierComponents,] of tierComponentMap.entries()) {
+        for (const [tierId, tierComponents] of tierComponentMap.entries()) {
             for (const location of activeLocations) {
                 const allPriced = tierComponents.every((component) => {
                     const key = `${tierId}_${location.locationId}_${component.componentId}`;

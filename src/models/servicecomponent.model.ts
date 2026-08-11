@@ -1,8 +1,4 @@
-import {
-  model,
-  Schema,
-  type Types,
-} from "mongoose";
+import { model, Schema, type Types } from "mongoose";
 
 export interface IServiceComponentItem {
   itemId: Types.ObjectId;
@@ -21,77 +17,75 @@ export interface IServiceComponent {
   updatedAt: Date;
 }
 
-const serviceComponentItemSchema =
-  new Schema<IServiceComponentItem>(
-    {
-      itemId: {
-        type: Schema.Types.ObjectId,
-        ref: "ComponentItem",
-        required: true,
-      },
-
-      name: {
-        type: String,
-        required: true,
-        trim: true,
-      },
+const serviceComponentItemSchema = new Schema<IServiceComponentItem>(
+  {
+    itemId: {
+      type: Schema.Types.ObjectId,
+      ref: "ComponentItem",
+      required: true,
     },
-    {
-      _id: false,
+
+    name: {
+      type: String,
+      required: true,
+      trim: true,
     },
-  );
+  },
+  {
+    _id: false,
+  },
+);
 
-const serviceComponentSchema =
-  new Schema<IServiceComponent>(
-    {
-      name: {
-        type: String,
-        required: true,
-        trim: true,
-      },
-
-      description: {
-        type: String,
-        required: true,
-        trim: true,
-      },
-
-      serviceId: {
-        type: Schema.Types.ObjectId,
-        ref: "Service",
-        required: true,
-        index: true,
-      },
-
-      componentId: {
-        type: Schema.Types.ObjectId,
-        ref: "Component",
-        required: true,
-        index: true,
-      },
-
-      tierId: {
-        type: Schema.Types.ObjectId,
-        ref: "Tier",
-        required: true,
-        index: true,
-      },
-
-      isRequired: {
-        type: Boolean,
-        required: true,
-        default: false,
-      },
-
-      items: {
-        type: [serviceComponentItemSchema],
-        default: [],
-      },
+const serviceComponentSchema = new Schema<IServiceComponent>(
+  {
+    name: {
+      type: String,
+      required: true,
+      trim: true,
     },
-    {
-      timestamps: true,
+
+    description: {
+      type: String,
+      required: true,
+      trim: true,
     },
-  );
+
+    serviceId: {
+      type: Schema.Types.ObjectId,
+      ref: "Service",
+      required: true,
+      index: true,
+    },
+
+    componentId: {
+      type: Schema.Types.ObjectId,
+      ref: "Component",
+      required: true,
+      index: true,
+    },
+
+    tierId: {
+      type: Schema.Types.ObjectId,
+      ref: "Tier",
+      required: true,
+      index: true,
+    },
+
+    isRequired: {
+      type: Boolean,
+      required: true,
+      default: false,
+    },
+
+    items: {
+      type: [serviceComponentItemSchema],
+      default: [],
+    },
+  },
+  {
+    timestamps: true,
+  },
+);
 
 serviceComponentSchema.index(
   {
@@ -109,8 +103,7 @@ serviceComponentSchema.index({
   tierId: 1,
 });
 
-export const ServiceComponent =
-  model<IServiceComponent>(
-    "ServiceComponent",
-    serviceComponentSchema,
-  );
+export const ServiceComponent = model<IServiceComponent>(
+  "ServiceComponent",
+  serviceComponentSchema,
+);

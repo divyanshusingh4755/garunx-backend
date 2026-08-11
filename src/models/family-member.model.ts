@@ -1,9 +1,4 @@
-import {
-  Schema,
-  Types,
-  model,
-  type Document,
-} from "mongoose";
+import { Schema, Types, model, type Document } from "mongoose";
 
 import {
   Caste,
@@ -19,8 +14,7 @@ export type FamilyMemberSource =
   | "ADMIN_MANUAL"
   | "SYSTEM_IMPORT";
 
-export interface IFamilyMember
-  extends Document {
+export interface IFamilyMember extends Document {
   ownerId: Types.ObjectId;
 
   createdBy: Types.ObjectId;
@@ -64,357 +58,260 @@ export interface IFamilyMember
   updatedAt: Date;
 }
 
-const familyMemberSchema =
-  new Schema<IFamilyMember>(
-    {
-      ownerId: {
-        type:
-          Schema.Types.ObjectId,
-        ref: "User",
-        required: true,
-        index: true,
-      },
+const familyMemberSchema = new Schema<IFamilyMember>(
+  {
+    ownerId: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+      index: true,
+    },
 
-      createdBy: {
-        type:
-          Schema.Types.ObjectId,
-        ref: "User",
-        required: true,
-      },
+    createdBy: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+    },
 
-      updatedBy: {
-        type:
-          Schema.Types.ObjectId,
-        ref: "User",
-        default: null,
-      },
+    updatedBy: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
 
-      source: {
-        type: String,
-        enum: [
-          "CUSTOMER_SELF",
-          "COORDINATOR_BOOKING",
-          "ADMIN_MANUAL",
-          "SYSTEM_IMPORT",
-        ] satisfies FamilyMemberSource[],
-        required: true,
-      },
+    source: {
+      type: String,
+      enum: [
+        "CUSTOMER_SELF",
+        "COORDINATOR_BOOKING",
+        "ADMIN_MANUAL",
+        "SYSTEM_IMPORT",
+      ] satisfies FamilyMemberSource[],
+      required: true,
+    },
 
-      sourceBookingId: {
-        type:
-          Schema.Types.ObjectId,
-        ref: "Booking",
-        default: null,
-      },
+    sourceBookingId: {
+      type: Schema.Types.ObjectId,
+      ref: "Booking",
+      default: null,
+    },
 
-      sourceBookingReference: {
-        type: String,
-        trim: true,
-        default: null,
-      },
+    sourceBookingReference: {
+      type: String,
+      trim: true,
+      default: null,
+    },
 
-      isDeleted: {
-        type: Boolean,
-        default: false,
-        required: true,
-      },
+    isDeleted: {
+      type: Boolean,
+      default: false,
+      required: true,
+    },
 
-      deletedAt: {
-        type: Date,
-        default: null,
-      },
+    deletedAt: {
+      type: Date,
+      default: null,
+    },
 
-      deletedBy: {
-        type:
-          Schema.Types.ObjectId,
-        ref: "User",
-        default: null,
-      },
+    deletedBy: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
 
-      deletionReason: {
-        type: String,
-        trim: true,
-        maxlength: 500,
-        default: null,
-      },
+    deletionReason: {
+      type: String,
+      trim: true,
+      maxlength: 500,
+      default: null,
+    },
 
-      fullName: {
-        type: String,
-        required: true,
-        trim: true,
-        minlength: 2,
-        maxlength: 120,
-      },
+    fullName: {
+      type: String,
+      required: true,
+      trim: true,
+      minlength: 2,
+      maxlength: 120,
+    },
 
-      relation: {
-        type: String,
-        enum:
-          Object.values(
-            FamilyRelation,
-          ),
-        required: true,
-      },
+    relation: {
+      type: String,
+      enum: Object.values(FamilyRelation),
+      required: true,
+    },
 
-      gender: {
-        type: String,
-        enum:
-          Object.values(Gender),
-      },
+    gender: {
+      type: String,
+      enum: Object.values(Gender),
+    },
 
-      dob: {
-        type: Date,
-      },
+    dob: {
+      type: Date,
+    },
 
-      lifeStatus: {
-        type: String,
-        enum:
-          Object.values(
-            MemberLifeStatus,
-          ),
-        default:
-          MemberLifeStatus.ALIVE,
-        required: true,
-      },
+    lifeStatus: {
+      type: String,
+      enum: Object.values(MemberLifeStatus),
+      default: MemberLifeStatus.ALIVE,
+      required: true,
+    },
 
-      dateOfDeath: {
-        type: Date,
-        default: null,
-      },
+    dateOfDeath: {
+      type: Date,
+      default: null,
+    },
 
-      fatherId: {
-        type:
-          Schema.Types.ObjectId,
-        ref: "FamilyMember",
-        default: null,
-      },
+    fatherId: {
+      type: Schema.Types.ObjectId,
+      ref: "FamilyMember",
+      default: null,
+    },
 
-      motherId: {
-        type:
-          Schema.Types.ObjectId,
-        ref: "FamilyMember",
-        default: null,
-      },
+    motherId: {
+      type: Schema.Types.ObjectId,
+      ref: "FamilyMember",
+      default: null,
+    },
 
-      spouseIds: {
-        type: [
-          {
-            type:
-              Schema.Types.ObjectId,
-            ref: "FamilyMember",
-          },
-        ],
-        default: [],
-        validate: {
-          validator: (
-            spouseIds:
-              Types.ObjectId[],
-          ): boolean => {
-            const uniqueIds =
-              new Set(
-                spouseIds.map(
-                  (id) =>
-                    id.toString(),
-                ),
-              );
-
-            return (
-              uniqueIds.size ===
-              spouseIds.length
-            );
-          },
-
-          message:
-            "Duplicate spouse IDs are not allowed",
+    spouseIds: {
+      type: [
+        {
+          type: Schema.Types.ObjectId,
+          ref: "FamilyMember",
         },
-      },
+      ],
+      default: [],
+      validate: {
+        validator: (spouseIds: Types.ObjectId[]): boolean => {
+          const uniqueIds = new Set(spouseIds.map((id) => id.toString()));
 
-      nativeVillage: {
-        type: String,
-        trim: true,
-        maxlength: 120,
-      },
+          return uniqueIds.size === spouseIds.length;
+        },
 
-      state: {
-        type: String,
-        trim: true,
-        maxlength: 120,
-      },
-
-      district: {
-        type: String,
-        trim: true,
-        maxlength: 120,
-      },
-
-      caste: {
-        type: String,
-        enum:
-          Object.values(Caste),
-      },
-
-      gotra: {
-        type: String,
-        enum:
-          Object.values(Gotra),
-      },
-
-      designatedPandit: {
-        type: String,
-        trim: true,
-        maxlength: 120,
-      },
-
-      visitors: {
-        type: [
-          {
-            type: String,
-            trim: true,
-            maxlength: 120,
-          },
-        ],
-        default: [],
-      },
-
-      profileImage: {
-        type: String,
-        default: null,
-      },
-
-      notes: {
-        type: String,
-        trim: true,
-        maxlength: 1000,
+        message: "Duplicate spouse IDs are not allowed",
       },
     },
-    {
-      timestamps: true,
+
+    nativeVillage: {
+      type: String,
+      trim: true,
+      maxlength: 120,
     },
-  );
 
-familyMemberSchema.pre(
-  "validate",
-  function (): void {
-    if (
-      this.source ===
-        "COORDINATOR_BOOKING" &&
-      !this.sourceBookingId
-    ) {
-      throw new Error(
-        "Booking ID is required when a family member is added by a coordinator",
-      );
-    }
+    state: {
+      type: String,
+      trim: true,
+      maxlength: 120,
+    },
 
-    if (
-      this.source !==
-        "COORDINATOR_BOOKING" &&
-      this.sourceBookingId
-    ) {
-      throw new Error(
-        "Booking ID can only be provided for coordinator booking source",
-      );
-    }
+    district: {
+      type: String,
+      trim: true,
+      maxlength: 120,
+    },
 
-    if (
-      this.lifeStatus ===
-        MemberLifeStatus.ALIVE &&
-      this.dateOfDeath
-    ) {
-      throw new Error(
-        "Date of death cannot be provided for an alive family member",
-      );
-    }
+    caste: {
+      type: String,
+      enum: Object.values(Caste),
+    },
 
-    if (
-      this.lifeStatus !==
-        MemberLifeStatus.ALIVE &&
-      !this.dateOfDeath
-    ) {
-      throw new Error(
-        "Date of death is required for a deceased family member",
-      );
-    }
+    gotra: {
+      type: String,
+      enum: Object.values(Gotra),
+    },
 
-    if (
-      this.dob &&
-      this.dateOfDeath &&
-      this.dateOfDeath <
-        this.dob
-    ) {
-      throw new Error(
-        "Date of death cannot be earlier than date of birth",
-      );
-    }
+    designatedPandit: {
+      type: String,
+      trim: true,
+      maxlength: 120,
+    },
 
-    if (
-      this.fatherId &&
-      this.motherId &&
-      this.fatherId.equals(
-        this.motherId,
-      )
-    ) {
-      throw new Error(
-        "Father and mother cannot be the same family member",
-      );
-    }
+    visitors: {
+      type: [
+        {
+          type: String,
+          trim: true,
+          maxlength: 120,
+        },
+      ],
+      default: [],
+    },
 
-    if (
-      this._id &&
-      this.fatherId?.equals(
-        this._id,
-      )
-    ) {
-      throw new Error(
-        "A family member cannot be their own father",
-      );
-    }
+    profileImage: {
+      type: String,
+      default: null,
+    },
 
-    if (
-      this._id &&
-      this.motherId?.equals(
-        this._id,
-      )
-    ) {
-      throw new Error(
-        "A family member cannot be their own mother",
-      );
-    }
-
-    if (
-      this._id &&
-      this.spouseIds.some(
-        (spouseId) =>
-          spouseId.equals(
-            this._id,
-          ),
-      )
-    ) {
-      throw new Error(
-        "A family member cannot be their own spouse",
-      );
-    }
-
-    if (
-      this.isDeleted &&
-      (!this.deletedAt ||
-        !this.deletedBy)
-    ) {
-      throw new Error(
-        "Deleted family members require deletedAt and deletedBy",
-      );
-    }
-
-    if (
-      !this.isDeleted &&
-      (this.deletedAt ||
-        this.deletedBy ||
-        this.deletionReason)
-    ) {
-      throw new Error(
-        "Deletion fields cannot be set when family member is not deleted",
-      );
-    }
+    notes: {
+      type: String,
+      trim: true,
+      maxlength: 1000,
+    },
+  },
+  {
+    timestamps: true,
   },
 );
+
+familyMemberSchema.pre("validate", function (): void {
+  if (this.source === "COORDINATOR_BOOKING" && !this.sourceBookingId) {
+    throw new Error(
+      "Booking ID is required when a family member is added by a coordinator",
+    );
+  }
+
+  if (this.source !== "COORDINATOR_BOOKING" && this.sourceBookingId) {
+    throw new Error(
+      "Booking ID can only be provided for coordinator booking source",
+    );
+  }
+
+  if (this.lifeStatus === MemberLifeStatus.ALIVE && this.dateOfDeath) {
+    throw new Error(
+      "Date of death cannot be provided for an alive family member",
+    );
+  }
+
+  if (this.lifeStatus !== MemberLifeStatus.ALIVE && !this.dateOfDeath) {
+    throw new Error("Date of death is required for a deceased family member");
+  }
+
+  if (this.dob && this.dateOfDeath && this.dateOfDeath < this.dob) {
+    throw new Error("Date of death cannot be earlier than date of birth");
+  }
+
+  if (this.fatherId && this.motherId && this.fatherId.equals(this.motherId)) {
+    throw new Error("Father and mother cannot be the same family member");
+  }
+
+  if (this._id && this.fatherId?.equals(this._id)) {
+    throw new Error("A family member cannot be their own father");
+  }
+
+  if (this._id && this.motherId?.equals(this._id)) {
+    throw new Error("A family member cannot be their own mother");
+  }
+
+  if (
+    this._id &&
+    this.spouseIds.some((spouseId) => spouseId.equals(this._id))
+  ) {
+    throw new Error("A family member cannot be their own spouse");
+  }
+
+  if (this.isDeleted && (!this.deletedAt || !this.deletedBy)) {
+    throw new Error("Deleted family members require deletedAt and deletedBy");
+  }
+
+  if (
+    !this.isDeleted &&
+    (this.deletedAt || this.deletedBy || this.deletionReason)
+  ) {
+    throw new Error(
+      "Deletion fields cannot be set when family member is not deleted",
+    );
+  }
+});
 
 familyMemberSchema.index({
   ownerId: 1,
@@ -451,8 +348,7 @@ familyMemberSchema.index({
   isDeleted: 1,
 });
 
-export const FamilyMember =
-  model<IFamilyMember>(
-    "FamilyMember",
-    familyMemberSchema,
-  );
+export const FamilyMember = model<IFamilyMember>(
+  "FamilyMember",
+  familyMemberSchema,
+);

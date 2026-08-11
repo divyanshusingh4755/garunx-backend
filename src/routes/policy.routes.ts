@@ -5,12 +5,7 @@ import {
   type NextFunction,
 } from "express";
 
-import {
-  body,
-  param,
-  query,
-  validationResult,
-} from "express-validator";
+import { body, param, query, validationResult } from "express-validator";
 
 import {
   createPolicy,
@@ -20,28 +15,15 @@ import {
   getPolicyByType,
 } from "../controllers/policy.controllers.js";
 
-import {
-  authenticate,
-} from "../middleware/authenticate.js";
+import { authenticate } from "../middleware/authenticate.js";
 
 const router = Router();
 
-const POLICY_TYPES = [
-  "TERMS",
-  "PRIVACY",
-  "REFUND",
-] as const;
+const POLICY_TYPES = ["TERMS", "PRIVACY", "REFUND"] as const;
 
-const USER_TYPES = [
-  "User",
-  "Coordinator",
-] as const;
+const USER_TYPES = ["User", "Coordinator"] as const;
 
-const validate = (
-  req: Request,
-  res: Response,
-  next: NextFunction,
-) => {
+const validate = (req: Request, res: Response, next: NextFunction) => {
   const errors = validationResult(req);
 
   if (!errors.isEmpty()) {
@@ -58,9 +40,7 @@ const validate = (
 };
 
 const createPolicyValidation = [
-  body("type")
-    .isIn(POLICY_TYPES)
-    .withMessage("Invalid policy type"),
+  body("type").isIn(POLICY_TYPES).withMessage("Invalid policy type"),
 
   body("title")
     .isString()
@@ -76,43 +56,25 @@ const createPolicyValidation = [
     .notEmpty()
     .withMessage("Content is required"),
 
-  body("userType")
-    .isIn(USER_TYPES)
-    .withMessage("Invalid user type"),
+  body("userType").isIn(USER_TYPES).withMessage("Invalid user type"),
 
   validate,
 ];
 
 const updatePolicyValidation = [
-  param("id")
-    .isMongoId()
-    .withMessage("Invalid policy id"),
+  param("id").isMongoId().withMessage("Invalid policy id"),
 
   body().custom((value) => {
-    if (
-      !value ||
-      typeof value !== "object" ||
-      Array.isArray(value)
-    ) {
-      throw new Error(
-        "Request body must be an object",
-      );
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+      throw new Error("Request body must be an object");
     }
 
-    const hasAllowedField = [
-      "title",
-      "content",
-    ].some((field) =>
-      Object.prototype.hasOwnProperty.call(
-        value,
-        field,
-      ),
+    const hasAllowedField = ["title", "content"].some((field) =>
+      Object.prototype.hasOwnProperty.call(value, field),
     );
 
     if (!hasAllowedField) {
-      throw new Error(
-        "At least one valid field is required for update",
-      );
+      throw new Error("At least one valid field is required for update");
     }
 
     return true;
@@ -138,17 +100,13 @@ const updatePolicyValidation = [
 ];
 
 const statusValidation = [
-  param("id")
-    .isMongoId()
-    .withMessage("Invalid policy id"),
+  param("id").isMongoId().withMessage("Invalid policy id"),
 
   body("isActive")
     .exists()
     .withMessage("isActive is required")
     .isBoolean()
-    .withMessage(
-      "isActive must be a boolean",
-    )
+    .withMessage("isActive must be a boolean")
     .toBoolean(),
 
   validate,
@@ -168,33 +126,25 @@ const getPoliciesValidation = [
   query("isActive")
     .optional()
     .isBoolean()
-    .withMessage(
-      "isActive must be true or false",
-    ),
+    .withMessage("isActive must be true or false"),
 
   query("page")
     .optional()
     .isInt({ min: 1 })
-    .withMessage(
-      "page must be greater than 0",
-    )
+    .withMessage("page must be greater than 0")
     .toInt(),
 
   query("limit")
     .optional()
     .isInt({ min: 1, max: 100 })
-    .withMessage(
-      "limit must be between 1 and 100",
-    )
+    .withMessage("limit must be between 1 and 100")
     .toInt(),
 
   validate,
 ];
 
 const getPolicyByTypeValidation = [
-  param("type")
-    .isIn(POLICY_TYPES)
-    .withMessage("Invalid policy type"),
+  param("type").isIn(POLICY_TYPES).withMessage("Invalid policy type"),
 
   query("userType")
     .exists()
@@ -205,38 +155,14 @@ const getPolicyByTypeValidation = [
   validate,
 ];
 
-router.get(
-  "/",
-  authenticate,
-  getPoliciesValidation,
-  getAllPolicies,
-);
+router.get("/", authenticate, getPoliciesValidation, getAllPolicies);
 
-router.post(
-  "/",
-  authenticate,
-  createPolicyValidation,
-  createPolicy,
-);
+router.post("/", authenticate, createPolicyValidation, createPolicy);
 
-router.put(
-  "/:id",
-  authenticate,
-  updatePolicyValidation,
-  updatePolicy,
-);
+router.put("/:id", authenticate, updatePolicyValidation, updatePolicy);
 
-router.patch(
-  "/:id/status",
-  authenticate,
-  statusValidation,
-  togglePolicyStatus,
-);
+router.patch("/:id/status", authenticate, statusValidation, togglePolicyStatus);
 
-router.get(
-  "/:type",
-  getPolicyByTypeValidation,
-  getPolicyByType,
-);
+router.get("/:type", getPolicyByTypeValidation, getPolicyByType);
 
 export default router;

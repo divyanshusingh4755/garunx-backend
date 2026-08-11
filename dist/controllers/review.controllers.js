@@ -1,7 +1,5 @@
-import { ReviewService, } from "../services/review.services.js";
-const getErrorMessage = (error, fallback) => error instanceof Error
-    ? error.message
-    : fallback;
+import { ReviewService } from "../services/review.services.js";
+const getErrorMessage = (error, fallback) => error instanceof Error ? error.message : fallback;
 const getErrorStatus = (error) => {
     if (!(error instanceof Error)) {
         return 400;
@@ -19,16 +17,11 @@ const getErrorStatus = (error) => {
     return 400;
 };
 const parsePositiveInteger = (value, fallback, maximum) => {
-    const parsed = typeof value === "number"
-        ? value
-        : Number(value);
-    if (!Number.isInteger(parsed) ||
-        parsed < 1) {
+    const parsed = typeof value === "number" ? value : Number(value);
+    if (!Number.isInteger(parsed) || parsed < 1) {
         return fallback;
     }
-    return maximum
-        ? Math.min(parsed, maximum)
-        : parsed;
+    return maximum ? Math.min(parsed, maximum) : parsed;
 };
 export const getAllReviews = async (req, res) => {
     try {
@@ -36,27 +29,20 @@ export const getAllReviews = async (req, res) => {
         const params = {
             limit: parsePositiveInteger(limit, 40, 100),
             page: parsePositiveInteger(page, 1),
-            sortBy: typeof sortBy === "string"
-                ? sortBy
-                : "createdAt",
-            sortOrder: sortOrder === "asc"
-                ? "asc"
-                : "desc",
+            sortBy: typeof sortBy === "string" ? sortBy : "createdAt",
+            sortOrder: sortOrder === "asc" ? "asc" : "desc",
         };
         if (typeof searchTerm === "string") {
             params.searchTerm = searchTerm;
         }
         if (typeof direction === "string") {
-            params.direction =
-                direction;
+            params.direction = direction;
         }
         if (typeof visibility === "string") {
-            params.visibility =
-                visibility;
+            params.visibility = visibility;
         }
         if (typeof moderationStatus === "string") {
-            params.moderationStatus =
-                moderationStatus;
+            params.moderationStatus = moderationStatus;
         }
         if (isDeleted === "true") {
             params.isDeleted = true;
@@ -87,9 +73,7 @@ export const getAllReviews = async (req, res) => {
         });
     }
     catch (error) {
-        return res
-            .status(getErrorStatus(error))
-            .json({
+        return res.status(getErrorStatus(error)).json({
             success: false,
             message: getErrorMessage(error, "Failed to fetch reviews"),
         });
@@ -115,8 +99,7 @@ export const createReview = async (req, res) => {
         if (Object.prototype.hasOwnProperty.call(req.body, "imageUrl")) {
             input.imageUrl = req.body.imageUrl;
         }
-        const createdReview = await ReviewService
-            .createReviewService(input);
+        const createdReview = await ReviewService.createReviewService(input);
         return res.status(201).json({
             success: true,
             message: "Review submitted successfully",
@@ -124,9 +107,7 @@ export const createReview = async (req, res) => {
         });
     }
     catch (error) {
-        return res
-            .status(getErrorStatus(error))
-            .json({
+        return res.status(getErrorStatus(error)).json({
             success: false,
             message: getErrorMessage(error, "Failed to submit review"),
         });
@@ -154,8 +135,7 @@ export const editReview = async (req, res) => {
         if (Object.prototype.hasOwnProperty.call(req.body, "imageUrl")) {
             input.imageUrl = req.body.imageUrl;
         }
-        const updatedReview = await ReviewService
-            .editReviewService(input);
+        const updatedReview = await ReviewService.editReviewService(input);
         return res.status(200).json({
             success: true,
             message: "Review updated successfully",
@@ -163,9 +143,7 @@ export const editReview = async (req, res) => {
         });
     }
     catch (error) {
-        return res
-            .status(getErrorStatus(error))
-            .json({
+        return res.status(getErrorStatus(error)).json({
             success: false,
             message: getErrorMessage(error, "Failed to update review"),
         });
@@ -188,8 +166,7 @@ export const moderateReview = async (req, res) => {
         if (Object.prototype.hasOwnProperty.call(req.body, "reason")) {
             input.reason = req.body.reason;
         }
-        const moderatedReview = await ReviewService
-            .moderateReviewService(input);
+        const moderatedReview = await ReviewService.moderateReviewService(input);
         return res.status(200).json({
             success: true,
             message: "Review moderated successfully",
@@ -197,9 +174,7 @@ export const moderateReview = async (req, res) => {
         });
     }
     catch (error) {
-        return res
-            .status(getErrorStatus(error))
-            .json({
+        return res.status(getErrorStatus(error)).json({
             success: false,
             message: getErrorMessage(error, "Failed to moderate review"),
         });
@@ -214,8 +189,7 @@ export const getMyBookingReview = async (req, res) => {
                 message: "Unauthorized",
             });
         }
-        const result = await ReviewService
-            .getMyBookingReview({
+        const result = await ReviewService.getMyBookingReview({
             bookingId: req.params.bookingId,
             userId: userId.toString(),
         });
@@ -225,9 +199,7 @@ export const getMyBookingReview = async (req, res) => {
         });
     }
     catch (error) {
-        return res
-            .status(getErrorStatus(error))
-            .json({
+        return res.status(getErrorStatus(error)).json({
             success: false,
             message: getErrorMessage(error, "Failed to fetch review"),
         });
@@ -246,22 +218,14 @@ export const getMyReviews = async (req, res) => {
             userId: userId.toString(),
             limit: parsePositiveInteger(req.query.limit, 20, 100),
             page: parsePositiveInteger(req.query.page, 1),
-            sortBy: typeof req.query.sortBy ===
-                "string"
-                ? req.query.sortBy
-                : "createdAt",
-            sortOrder: req.query.sortOrder === "asc"
-                ? "asc"
-                : "desc",
+            sortBy: typeof req.query.sortBy === "string" ? req.query.sortBy : "createdAt",
+            sortOrder: req.query.sortOrder === "asc" ? "asc" : "desc",
         };
         if (req.query.rating !== undefined) {
-            params.rating =
-                Number(req.query.rating);
+            params.rating = Number(req.query.rating);
         }
-        if (typeof req.query.direction ===
-            "string") {
-            params.direction =
-                req.query.direction;
+        if (typeof req.query.direction === "string") {
+            params.direction = req.query.direction;
         }
         const result = await ReviewService.getMyReviews(params);
         return res.status(200).json({
@@ -274,9 +238,7 @@ export const getMyReviews = async (req, res) => {
         });
     }
     catch (error) {
-        return res
-            .status(getErrorStatus(error))
-            .json({
+        return res.status(getErrorStatus(error)).json({
             success: false,
             message: getErrorMessage(error, "Failed to fetch reviews"),
         });
@@ -288,20 +250,13 @@ export const getCoordinatorReviews = async (req, res) => {
             coordinatorId: req.params.coordinatorId,
             limit: parsePositiveInteger(req.query.limit, 20, 100),
             page: parsePositiveInteger(req.query.page, 1),
-            sortBy: typeof req.query.sortBy ===
-                "string"
-                ? req.query.sortBy
-                : "createdAt",
-            sortOrder: req.query.sortOrder === "asc"
-                ? "asc"
-                : "desc",
+            sortBy: typeof req.query.sortBy === "string" ? req.query.sortBy : "createdAt",
+            sortOrder: req.query.sortOrder === "asc" ? "asc" : "desc",
         };
         if (req.query.rating !== undefined) {
-            params.rating =
-                Number(req.query.rating);
+            params.rating = Number(req.query.rating);
         }
-        const result = await ReviewService
-            .getCoordinatorReviews(params);
+        const result = await ReviewService.getCoordinatorReviews(params);
         return res.status(200).json({
             success: true,
             coordinator: result.coordinator,
@@ -313,9 +268,7 @@ export const getCoordinatorReviews = async (req, res) => {
         });
     }
     catch (error) {
-        return res
-            .status(getErrorStatus(error))
-            .json({
+        return res.status(getErrorStatus(error)).json({
             success: false,
             message: getErrorMessage(error, "Failed to fetch coordinator reviews"),
         });

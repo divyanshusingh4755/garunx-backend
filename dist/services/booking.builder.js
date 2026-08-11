@@ -1,14 +1,12 @@
-import { Package, } from "../models/package.model.js";
-import { Service, } from "../models/service.model.js";
-import { Component, } from "../models/component.model.js";
-import { ServiceComponent, } from "../models/servicecomponent.model.js";
+import { Package } from "../models/package.model.js";
+import { Service } from "../models/service.model.js";
+import { Component } from "../models/component.model.js";
+import { ServiceComponent } from "../models/servicecomponent.model.js";
 export class BookingBuilder {
     static toPlainCart(cart) {
         const possibleDocument = cart;
-        if (typeof possibleDocument
-            .toObject === "function") {
-            return possibleDocument
-                .toObject();
+        if (typeof possibleDocument.toObject === "function") {
+            return possibleDocument.toObject();
         }
         return cart;
     }
@@ -20,34 +18,23 @@ export class BookingBuilder {
                 ? "Cart cannot contain both serviceId and packageId"
                 : "Cart must contain either serviceId or packageId");
         }
-        return hasService
-            ? "SERVICE"
-            : "PACKAGE";
+        return hasService ? "SERVICE" : "PACKAGE";
     }
     static buildTaxSummary(taxSummary) {
         return {
-            taxableAmount: taxSummary?.taxableAmount ??
-                0,
-            cgstAmount: taxSummary?.cgstAmount ??
-                0,
-            sgstAmount: taxSummary?.sgstAmount ??
-                0,
-            igstAmount: taxSummary?.igstAmount ??
-                0,
-            totalTax: taxSummary?.totalTax ??
-                0,
-            ...(taxSummary
-                ?.supplierStateCode
+            taxableAmount: taxSummary?.taxableAmount ?? 0,
+            cgstAmount: taxSummary?.cgstAmount ?? 0,
+            sgstAmount: taxSummary?.sgstAmount ?? 0,
+            igstAmount: taxSummary?.igstAmount ?? 0,
+            totalTax: taxSummary?.totalTax ?? 0,
+            ...(taxSummary?.supplierStateCode
                 ? {
-                    supplierStateCode: taxSummary
-                        .supplierStateCode,
+                    supplierStateCode: taxSummary.supplierStateCode,
                 }
                 : {}),
-            ...(taxSummary
-                ?.placeOfSupplyStateCode
+            ...(taxSummary?.placeOfSupplyStateCode
                 ? {
-                    placeOfSupplyStateCode: taxSummary
-                        .placeOfSupplyStateCode,
+                    placeOfSupplyStateCode: taxSummary.placeOfSupplyStateCode,
                 }
                 : {}),
         };
@@ -57,8 +44,7 @@ export class BookingBuilder {
             baseAmount: cart.basePrice,
             addonAmount: cart.addonPrice,
             subtotal: cart.subtotal,
-            ...(cart.couponId &&
-                cart.couponCode
+            ...(cart.couponId && cart.couponCode
                 ? {
                     couponId: cart.couponId,
                     couponCode: cart.couponCode,
@@ -88,44 +74,35 @@ export class BookingBuilder {
         }
         const plainCart = this.toPlainCart(cart);
         const selectedComponents = [
-            ...(plainCart
-                .selectedComponents ?? []).map((component) => ({
+            ...(plainCart.selectedComponents ?? []).map((component) => ({
                 ...component,
                 componentType: "DEFAULT",
             })),
-            ...(plainCart
-                .addonComponents ?? []).map((component) => ({
+            ...(plainCart.addonComponents ?? []).map((component) => ({
                 ...component,
                 componentType: "ADDON",
             })),
         ];
-        const components = await this
-            .buildComponentSnapshots(selectedComponents, service._id, cart.tierId);
+        const components = await this.buildComponentSnapshots(selectedComponents, service._id, cart.tierId);
         const entry = {
             entryType: "SERVICE",
             serviceConfiguration: {
                 serviceId: service._id,
                 serviceSnapshot: {
                     name: service.name,
-                    ...(service
-                        .shortDescription
+                    ...(service.shortDescription
                         ? {
-                            shortDescription: service
-                                .shortDescription,
+                            shortDescription: service.shortDescription,
                         }
                         : {}),
-                    ...(service
-                        .thumbnailImage
+                    ...(service.thumbnailImage
                         ? {
-                            thumbnailImage: service
-                                .thumbnailImage,
+                            thumbnailImage: service.thumbnailImage,
                         }
                         : {}),
-                    ...(service
-                        .serviceReference
+                    ...(service.serviceReference
                         ? {
-                            serviceReference: service
-                                .serviceReference,
+                            serviceReference: service.serviceReference,
                         }
                         : {}),
                 },
@@ -176,15 +153,10 @@ export class BookingBuilder {
                 },
             }).lean()
             : [];
-        const serviceMap = new Map(services.map((service) => [
-            service._id.toString(),
-            service,
-        ]));
+        const serviceMap = new Map(services.map((service) => [service._id.toString(), service]));
         const selectedServices = [];
         for (const selectedService of selectedCartServices) {
-            const service = serviceMap.get(selectedService
-                .serviceId
-                .toString());
+            const service = serviceMap.get(selectedService.serviceId.toString());
             if (!service) {
                 throw new Error(`Service not found: ${selectedService.serviceId.toString()}`);
             }
@@ -192,9 +164,7 @@ export class BookingBuilder {
         }
         const addonServices = [];
         for (const addonService of addonCartServices) {
-            const service = serviceMap.get(addonService
-                .serviceId
-                .toString());
+            const service = serviceMap.get(addonService.serviceId.toString());
             if (!service) {
                 throw new Error(`Addon service not found: ${addonService.serviceId.toString()}`);
             }
@@ -206,25 +176,19 @@ export class BookingBuilder {
                 packageId: packageDocument._id,
                 packageSnapshot: {
                     name: packageDocument.name,
-                    ...(packageDocument
-                        .shortDescription
+                    ...(packageDocument.shortDescription
                         ? {
-                            shortDescription: packageDocument
-                                .shortDescription,
+                            shortDescription: packageDocument.shortDescription,
                         }
                         : {}),
-                    ...(packageDocument
-                        .thumbnailImage
+                    ...(packageDocument.thumbnailImage
                         ? {
-                            thumbnailImage: packageDocument
-                                .thumbnailImage,
+                            thumbnailImage: packageDocument.thumbnailImage,
                         }
                         : {}),
-                    ...(packageDocument
-                        .packageReference
+                    ...(packageDocument.packageReference
                         ? {
-                            packageReference: packageDocument
-                                .packageReference,
+                            packageReference: packageDocument.packageReference,
                         }
                         : {}),
                 },
@@ -252,20 +216,17 @@ export class BookingBuilder {
                 name: service.name,
                 ...(service.shortDescription
                     ? {
-                        shortDescription: service
-                            .shortDescription,
+                        shortDescription: service.shortDescription,
                     }
                     : {}),
                 ...(service.thumbnailImage
                     ? {
-                        thumbnailImage: service
-                            .thumbnailImage,
+                        thumbnailImage: service.thumbnailImage,
                     }
                     : {}),
                 ...(service.serviceReference
                     ? {
-                        serviceReference: service
-                            .serviceReference,
+                        serviceReference: service.serviceReference,
                     }
                     : {}),
             },
@@ -280,10 +241,8 @@ export class BookingBuilder {
             },
             components: [],
             pricing: {
-                priceBeforeDiscount: selectedService
-                    .priceBeforeDiscount,
-                discountAmount: selectedService
-                    .discountAmount,
+                priceBeforeDiscount: selectedService.priceBeforeDiscount,
+                discountAmount: selectedService.discountAmount,
                 finalAmount: selectedService.price,
                 ...(selectedService.tax
                     ? {
@@ -317,7 +276,7 @@ export class BookingBuilder {
             return [];
         }
         const componentIds = components.map((component) => component.componentId);
-        const [componentDocs, serviceComponents,] = await Promise.all([
+        const [componentDocs, serviceComponents] = await Promise.all([
             Component.find({
                 _id: {
                     $in: componentIds,
@@ -331,51 +290,31 @@ export class BookingBuilder {
                 },
             }).lean(),
         ]);
-        const componentMap = new Map(componentDocs.map((component) => [
-            component._id.toString(),
-            component,
-        ]));
+        const componentMap = new Map(componentDocs.map((component) => [component._id.toString(), component]));
         const serviceComponentMap = new Map(serviceComponents.map((serviceComponent) => [
-            serviceComponent
-                .componentId
-                .toString(),
+            serviceComponent.componentId.toString(),
             serviceComponent,
         ]));
         return components.map((component) => {
-            const componentId = component
-                .componentId
-                .toString();
+            const componentId = component.componentId.toString();
             const componentDocument = componentMap.get(componentId);
             const serviceComponent = serviceComponentMap.get(componentId);
             const bookingComponent = {
-                componentType: component
-                    .componentType,
-                componentId: component
-                    .componentId,
-                name: componentDocument
-                    ?.name ??
-                    component.name,
-                isRequired: serviceComponent
-                    ?.isRequired ??
-                    false,
-                isRemovable: componentDocument
-                    ?.isRemovable ??
-                    false,
-                isBundled: componentDocument
-                    ?.isBundled ??
-                    false,
+                componentType: component.componentType,
+                componentId: component.componentId,
+                name: componentDocument?.name ?? component.name,
+                isRequired: serviceComponent?.isRequired ?? false,
+                isRemovable: componentDocument?.isRemovable ?? false,
+                isBundled: componentDocument?.isBundled ?? false,
                 selected: true,
                 selectedItems: (component.items ?? []).map((item) => ({
                     itemId: item.itemId,
                     name: item.name,
                 })),
                 pricing: {
-                    priceBeforeDiscount: component
-                        .priceBeforeDiscount,
-                    discountAmount: component
-                        .discountAmount,
-                    finalAmount: component
-                        .totalPrice,
+                    priceBeforeDiscount: component.priceBeforeDiscount,
+                    discountAmount: component.discountAmount,
+                    finalAmount: component.totalPrice,
                     ...(component.tax
                         ? {
                             tax: component.tax,
@@ -384,16 +323,10 @@ export class BookingBuilder {
                 },
             };
             if (serviceComponent?._id) {
-                bookingComponent
-                    .serviceComponentId =
-                    serviceComponent._id;
+                bookingComponent.serviceComponentId = serviceComponent._id;
             }
-            if (componentDocument
-                ?.description) {
-                bookingComponent
-                    .description =
-                    componentDocument
-                        .description;
+            if (componentDocument?.description) {
+                bookingComponent.description = componentDocument.description;
             }
             return bookingComponent;
         });

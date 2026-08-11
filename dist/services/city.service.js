@@ -1,5 +1,5 @@
-import { Types, } from "mongoose";
-import { City, } from "../models/city.model.js";
+import { Types } from "mongoose";
+import { City } from "../models/city.model.js";
 import { State } from "../models/state.model.js";
 import { escapeRegex } from "../utils/escapeRegex.js";
 const createHttpError = (message, statusCode) => {
@@ -28,7 +28,7 @@ export class CityService {
         return values.length > 0 ? { $in: values } : undefined;
     }
     static async createCity(params) {
-        const { name, country, stateId, image, description, location, } = params;
+        const { name, country, stateId, image, description, location } = params;
         const validState = await State.exists({
             _id: stateId,
             country,
@@ -105,9 +105,7 @@ export class CityService {
                 "createdAt",
                 "updatedAt",
             ]);
-            const safeSortBy = allowedSortFields.has(sortBy)
-                ? sortBy
-                : "createdAt";
+            const safeSortBy = allowedSortFields.has(sortBy) ? sortBy : "createdAt";
             sortCriteria = {
                 [safeSortBy]: sortOrder === "asc" ? 1 : -1,
             };
@@ -139,10 +137,8 @@ export class CityService {
             throw createHttpError("City not found", 404);
         }
         const country = updateData.country ?? existingCity.country;
-        const stateId = updateData.stateId ??
-            existingCity.stateId.toString();
-        if (updateData.country !== undefined ||
-            updateData.stateId !== undefined) {
+        const stateId = updateData.stateId ?? existingCity.stateId.toString();
+        if (updateData.country !== undefined || updateData.stateId !== undefined) {
             const validState = await State.exists({
                 _id: stateId,
                 country,
@@ -179,9 +175,7 @@ export class CityService {
         return updatedCity;
     }
     static async getCityById(cityId) {
-        const city = await City.findById(cityId)
-            .populate("stateId", "name")
-            .lean();
+        const city = await City.findById(cityId).populate("stateId", "name").lean();
         if (!city) {
             throw createHttpError("City not found", 404);
         }

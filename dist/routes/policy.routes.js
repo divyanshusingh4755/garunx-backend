@@ -1,17 +1,10 @@
 import { Router, } from "express";
-import { body, param, query, validationResult, } from "express-validator";
+import { body, param, query, validationResult } from "express-validator";
 import { createPolicy, updatePolicy, getAllPolicies, togglePolicyStatus, getPolicyByType, } from "../controllers/policy.controllers.js";
-import { authenticate, } from "../middleware/authenticate.js";
+import { authenticate } from "../middleware/authenticate.js";
 const router = Router();
-const POLICY_TYPES = [
-    "TERMS",
-    "PRIVACY",
-    "REFUND",
-];
-const USER_TYPES = [
-    "User",
-    "Coordinator",
-];
+const POLICY_TYPES = ["TERMS", "PRIVACY", "REFUND"];
+const USER_TYPES = ["User", "Coordinator"];
 const validate = (req, res, next) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -25,9 +18,7 @@ const validate = (req, res, next) => {
     return next();
 };
 const createPolicyValidation = [
-    body("type")
-        .isIn(POLICY_TYPES)
-        .withMessage("Invalid policy type"),
+    body("type").isIn(POLICY_TYPES).withMessage("Invalid policy type"),
     body("title")
         .isString()
         .withMessage("Title must be a string")
@@ -40,25 +31,16 @@ const createPolicyValidation = [
         .trim()
         .notEmpty()
         .withMessage("Content is required"),
-    body("userType")
-        .isIn(USER_TYPES)
-        .withMessage("Invalid user type"),
+    body("userType").isIn(USER_TYPES).withMessage("Invalid user type"),
     validate,
 ];
 const updatePolicyValidation = [
-    param("id")
-        .isMongoId()
-        .withMessage("Invalid policy id"),
+    param("id").isMongoId().withMessage("Invalid policy id"),
     body().custom((value) => {
-        if (!value ||
-            typeof value !== "object" ||
-            Array.isArray(value)) {
+        if (!value || typeof value !== "object" || Array.isArray(value)) {
             throw new Error("Request body must be an object");
         }
-        const hasAllowedField = [
-            "title",
-            "content",
-        ].some((field) => Object.prototype.hasOwnProperty.call(value, field));
+        const hasAllowedField = ["title", "content"].some((field) => Object.prototype.hasOwnProperty.call(value, field));
         if (!hasAllowedField) {
             throw new Error("At least one valid field is required for update");
         }
@@ -81,9 +63,7 @@ const updatePolicyValidation = [
     validate,
 ];
 const statusValidation = [
-    param("id")
-        .isMongoId()
-        .withMessage("Invalid policy id"),
+    param("id").isMongoId().withMessage("Invalid policy id"),
     body("isActive")
         .exists()
         .withMessage("isActive is required")
@@ -118,9 +98,7 @@ const getPoliciesValidation = [
     validate,
 ];
 const getPolicyByTypeValidation = [
-    param("type")
-        .isIn(POLICY_TYPES)
-        .withMessage("Invalid policy type"),
+    param("type").isIn(POLICY_TYPES).withMessage("Invalid policy type"),
     query("userType")
         .exists()
         .withMessage("userType is required")

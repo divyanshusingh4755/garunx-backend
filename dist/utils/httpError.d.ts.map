@@ -1,1 +1,1 @@
-{"version":3,"file":"httpError.d.ts","sourceRoot":"","sources":["../../src/utils/httpError.ts"],"names":[],"mappings":"AAAA,qBAAa,SACX,SAAQ,KAAK;IACb,SAAgB,UAAU,EACxB,MAAM,CAAC;gBAGP,UAAU,EAAE,MAAM,EAClB,OAAO,EAAE,MAAM;CA2BlB"}
+{"version":3,"file":"httpError.d.ts","sourceRoot":"","sources":["../../src/utils/httpError.ts"],"names":[],"mappings":"AAAA,qBAAa,SAAU,SAAQ,KAAK;IAClC,SAAgB,UAAU,EAAE,MAAM,CAAC;gBAEhB,UAAU,EAAE,MAAM,EAAE,OAAO,EAAE,MAAM;CAevD"}

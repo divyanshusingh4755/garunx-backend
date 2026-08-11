@@ -1,4 +1,4 @@
-import { model, Schema, } from "mongoose";
+import { model, Schema } from "mongoose";
 const faqSchema = new Schema({
     version: {
         type: Number,
@@ -26,12 +26,7 @@ const faqSchema = new Schema({
     },
     faqType: {
         type: String,
-        enum: [
-            "User",
-            "Coordinator",
-            "User_Query",
-            "Coordinator_Query",
-        ],
+        enum: ["User", "Coordinator", "User_Query", "Coordinator_Query"],
         default: "User",
     },
     displayOrder: {

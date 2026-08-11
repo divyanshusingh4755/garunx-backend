@@ -4,12 +4,7 @@ import {
   type Response,
   type NextFunction,
 } from "express";
-import {
-  body,
-  param,
-  query,
-  validationResult,
-} from "express-validator";
+import { body, param, query, validationResult } from "express-validator";
 
 import { authenticate } from "../middleware/authenticate.js";
 
@@ -23,11 +18,7 @@ import {
 
 const router = Router();
 
-const validate = (
-  req: Request,
-  res: Response,
-  next: NextFunction,
-) => {
+const validate = (req: Request, res: Response, next: NextFunction) => {
   const errors = validationResult(req);
 
   if (!errors.isEmpty()) {
@@ -78,9 +69,7 @@ const createSubServiceComponentValidation = [
 ];
 
 const updateSubServiceComponentValidation = [
-  param("id")
-    .isMongoId()
-    .withMessage("Invalid ID"),
+  param("id").isMongoId().withMessage("Invalid ID"),
 
   body().custom((value) => {
     const allowedFields = [
@@ -102,9 +91,7 @@ const updateSubServiceComponentValidation = [
     );
 
     if (invalidFields.length > 0) {
-      throw new Error(
-        `Invalid update fields: ${invalidFields.join(", ")}`,
-      );
+      throw new Error(`Invalid update fields: ${invalidFields.join(", ")}`);
     }
 
     return true;
@@ -126,10 +113,7 @@ const updateSubServiceComponentValidation = [
     .notEmpty()
     .withMessage("Description cannot be empty"),
 
-  body("serviceId")
-    .optional()
-    .isMongoId()
-    .withMessage("Invalid Service ID"),
+  body("serviceId").optional().isMongoId().withMessage("Invalid Service ID"),
 
   body("image")
     .optional({ values: "falsy" })
@@ -145,17 +129,13 @@ const updateSubServiceComponentValidation = [
 ];
 
 const idValidation = [
-  param("id")
-    .isMongoId()
-    .withMessage("Invalid ID"),
+  param("id").isMongoId().withMessage("Invalid ID"),
 
   validate,
 ];
 
 const statusValidation = [
-  param("id")
-    .isMongoId()
-    .withMessage("Invalid ID"),
+  param("id").isMongoId().withMessage("Invalid ID"),
 
   body("status")
     .exists({ checkNull: true })
@@ -199,13 +179,7 @@ const listValidation = [
 
   query("sortBy")
     .optional()
-    .isIn([
-      "name",
-      "createdAt",
-      "updatedAt",
-      "isActive",
-      "relevance",
-    ])
+    .isIn(["name", "createdAt", "updatedAt", "isActive", "relevance"])
     .withMessage("Invalid sortBy value"),
 
   query("sortOrder")
@@ -216,11 +190,7 @@ const listValidation = [
   validate,
 ];
 
-router.get(
-  "/",
-  listValidation,
-  getAllSubServiceComponents,
-);
+router.get("/", listValidation, getAllSubServiceComponents);
 
 router.post(
   "/",
@@ -236,12 +206,7 @@ router.patch(
   updateSubServiceComponent,
 );
 
-router.get(
-  "/:id",
-  authenticate,
-  idValidation,
-  getSubServiceComponentById,
-);
+router.get("/:id", authenticate, idValidation, getSubServiceComponentById);
 
 router.patch(
   "/:id/status",

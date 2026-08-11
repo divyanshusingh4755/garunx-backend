@@ -1,16 +1,11 @@
 import { Router, } from "express";
-import { body, param, query, validationResult, } from "express-validator";
-import { authenticate, } from "../middleware/authenticate.js";
-import { authorizeRoles, } from "../middleware/authorizeRoles.js";
-import { Role, } from "../types/rbac.js";
+import { body, param, query, validationResult } from "express-validator";
+import { authenticate } from "../middleware/authenticate.js";
+import { authorizeRoles } from "../middleware/authorizeRoles.js";
+import { Role } from "../types/rbac.js";
 import { createUserQuery, getMyQueries, getUserQueryById, sendUserQueryMessage, markUserQueryAsRead, getAllUserQueries, getAdminUserQueryById, sendAdminQueryReply, updateUserQueryStatus, updateUserQueryPriority, updateUserQueryCategory, assignUserQuery, deleteUserQuery, } from "../controllers/userQuery.controllers.js";
 const router = Router();
-const QUERY_STATUSES = [
-    "PENDING",
-    "ONGOING",
-    "RESOLVED",
-    "REJECTED",
-];
+const QUERY_STATUSES = ["PENDING", "ONGOING", "RESOLVED", "REJECTED"];
 const QUERY_CATEGORIES = [
     "BOOKING",
     "PAYMENT",
@@ -21,34 +16,22 @@ const QUERY_CATEGORIES = [
     "TECHNICAL",
     "OTHER",
 ];
-const QUERY_PRIORITIES = [
-    "LOW",
-    "NORMAL",
-    "HIGH",
-    "URGENT",
-];
-const REQUESTER_TYPES = [
-    "USER",
-    "COORDINATOR",
-];
+const QUERY_PRIORITIES = ["LOW", "NORMAL", "HIGH", "URGENT"];
+const REQUESTER_TYPES = ["USER", "COORDINATOR"];
 const SORT_FIELDS = [
     "createdAt",
     "updatedAt",
     "latestMessageAt",
     "lastActionAt",
 ];
-const ADMIN_SORT_FIELDS = [
-    ...SORT_FIELDS,
-    "priority",
-];
+const ADMIN_SORT_FIELDS = [...SORT_FIELDS, "priority"];
 const validate = (req, res, next) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
         const firstError = errors.array()[0];
         return res.status(400).json({
             success: false,
-            message: firstError?.msg ??
-                "Validation failed",
+            message: firstError?.msg ?? "Validation failed",
             error: firstError,
         });
     }
@@ -82,15 +65,11 @@ const messageValidation = [
     })
         .withMessage("Each image URL must be a valid HTTP or HTTPS URL"),
     body().custom((value) => {
-        if (!value ||
-            typeof value !== "object" ||
-            Array.isArray(value)) {
+        if (!value || typeof value !== "object" || Array.isArray(value)) {
             throw new Error("Request body must be an object");
         }
-        const hasMessage = typeof value.message === "string" &&
-            value.message.trim().length > 0;
-        const hasImages = Array.isArray(value.imageUrls) &&
-            value.imageUrls.length > 0;
+        const hasMessage = typeof value.message === "string" && value.message.trim().length > 0;
+        const hasImages = Array.isArray(value.imageUrls) && value.imageUrls.length > 0;
         if (!hasMessage && !hasImages) {
             throw new Error("Message or at least one image is required");
         }
@@ -104,9 +83,7 @@ export const createUserQueryValidation = [
         .trim()
         .isLength({ min: 3, max: 200 })
         .withMessage("Subject must be between 3 and 200 characters"),
-    body("category")
-        .isIn(QUERY_CATEGORIES)
-        .withMessage("Invalid query category"),
+    body("category").isIn(QUERY_CATEGORIES).withMessage("Invalid query category"),
     ...messageValidation,
     validate,
 ];
@@ -139,19 +116,13 @@ export const getMyQueriesValidation = [
         .withMessage("Sort order must be asc or desc"),
     validate,
 ];
-export const getUserQueryByIdValidation = [
-    queryIdValidator,
-    validate,
-];
+export const getUserQueryByIdValidation = [queryIdValidator, validate];
 export const sendUserQueryMessageValidation = [
     queryIdValidator,
     ...messageValidation,
     validate,
 ];
-export const markUserQueryAsReadValidation = [
-    queryIdValidator,
-    validate,
-];
+export const markUserQueryAsReadValidation = [queryIdValidator, validate];
 export const getAllUserQueriesValidation = [
     query("searchTerm")
         .optional()
@@ -215,9 +186,7 @@ export const sendAdminQueryReplyValidation = [
 ];
 export const updateUserQueryStatusValidation = [
     queryIdValidator,
-    body("status")
-        .isIn(QUERY_STATUSES)
-        .withMessage("Invalid query status"),
+    body("status").isIn(QUERY_STATUSES).withMessage("Invalid query status"),
     body("reason")
         .optional({ nullable: true })
         .isString()
@@ -227,8 +196,7 @@ export const updateUserQueryStatusValidation = [
         .withMessage("Reason cannot exceed 1000 characters"),
     body().custom((value) => {
         if (value?.status === "REJECTED" &&
-            (typeof value.reason !== "string" ||
-                !value.reason.trim())) {
+            (typeof value.reason !== "string" || !value.reason.trim())) {
             throw new Error("Reason is required when rejecting a query");
         }
         return true;
@@ -237,9 +205,7 @@ export const updateUserQueryStatusValidation = [
 ];
 export const updateUserQueryPriorityValidation = [
     queryIdValidator,
-    body("priority")
-        .isIn(QUERY_PRIORITIES)
-        .withMessage("Invalid query priority"),
+    body("priority").isIn(QUERY_PRIORITIES).withMessage("Invalid query priority"),
     body("reason")
         .optional({ nullable: true })
         .isString()
@@ -251,9 +217,7 @@ export const updateUserQueryPriorityValidation = [
 ];
 export const updateUserQueryCategoryValidation = [
     queryIdValidator,
-    body("category")
-        .isIn(QUERY_CATEGORIES)
-        .withMessage("Invalid query category"),
+    body("category").isIn(QUERY_CATEGORIES).withMessage("Invalid query category"),
     body("reason")
         .optional({ nullable: true })
         .isString()
@@ -265,9 +229,7 @@ export const updateUserQueryCategoryValidation = [
 ];
 export const assignUserQueryValidation = [
     queryIdValidator,
-    body("adminId")
-        .isMongoId()
-        .withMessage("Invalid admin id"),
+    body("adminId").isMongoId().withMessage("Invalid admin id"),
     validate,
 ];
 export const deleteUserQueryValidation = [

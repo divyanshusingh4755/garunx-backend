@@ -1,8 +1,8 @@
-import { extname, } from "node:path";
-import { randomUUID, } from "node:crypto";
+import { extname } from "node:path";
+import { randomUUID } from "node:crypto";
 import multer from "multer";
 import multerS3 from "multer-s3";
-import { s3, } from "../config/s3.js";
+import { s3 } from "../config/s3.js";
 const bucket = process.env.AWS_S3_BUCKET;
 if (!bucket) {
     throw new Error("AWS_S3_BUCKET is not configured");

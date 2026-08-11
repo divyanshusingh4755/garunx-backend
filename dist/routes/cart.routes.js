@@ -1,5 +1,5 @@
 import { Router, } from "express";
-import { body, param, query, validationResult, } from "express-validator";
+import { body, param, query, validationResult } from "express-validator";
 import { createServiceCart, createPackageCart, getUserCarts, getCartById, updateSelectedComponents, updateAddonComponents, updateAddonServices, updateSchedule, updateCustomerDetails, updateCartNotes, recalculateCart, validateCart, checkoutCart, deleteCart, updateSelectedServices, mergeGuestCartToUser, applyCoupon, removeCoupon, reopenCart, } from "../controllers/cart.controllers.js";
 import { authenticate, optionalAuthenticate, } from "../middleware/authenticate.js";
 const router = Router();
@@ -16,9 +16,7 @@ const validate = (req, res, next) => {
     next();
 };
 const cartIdValidation = [
-    param("cartId")
-        .isMongoId()
-        .withMessage("Invalid cartId"),
+    param("cartId").isMongoId().withMessage("Invalid cartId"),
     validate,
 ];
 const ownerSelectionValidation = [
@@ -60,19 +58,13 @@ router.put("/:cartId/addon-components", optionalAuthenticate, param("cartId").is
     .withMessage("addonComponents must be an array"), validate, updateAddonComponents);
 const serviceSelectionValidation = [
     param("cartId").isMongoId().withMessage("Invalid cartId"),
-    body("serviceIds")
-        .isArray()
-        .withMessage("serviceIds must be an array"),
-    body("serviceIds.*")
-        .isMongoId()
-        .withMessage("Invalid serviceId"),
+    body("serviceIds").isArray().withMessage("serviceIds must be an array"),
+    body("serviceIds.*").isMongoId().withMessage("Invalid serviceId"),
     validate,
 ];
 router.put("/:cartId/selected-services", optionalAuthenticate, serviceSelectionValidation, updateSelectedServices);
 router.put("/:cartId/addon-services", optionalAuthenticate, serviceSelectionValidation, updateAddonServices);
-router.put("/:cartId/schedule", optionalAuthenticate, param("cartId")
-    .isMongoId()
-    .withMessage("Invalid cartId"), body("scheduledDate")
+router.put("/:cartId/schedule", optionalAuthenticate, param("cartId").isMongoId().withMessage("Invalid cartId"), body("scheduledDate")
     .notEmpty()
     .withMessage("scheduledDate is required")
     .matches(/^\d{4}-\d{2}-\d{2}$/)
@@ -87,10 +79,7 @@ router.put("/:cartId/customer-details", optionalAuthenticate, param("cartId").is
     .withMessage("Invalid bookingFor value"), body("name").notEmpty().withMessage("name is required"), body("email")
     .isEmail()
     .withMessage("Valid email is required")
-    .normalizeEmail(), body("phone")
-    .notEmpty()
-    .withMessage("phone is required")
-    .isString(), validate, updateCustomerDetails);
+    .normalizeEmail(), body("phone").notEmpty().withMessage("phone is required").isString(), validate, updateCustomerDetails);
 router.put("/:cartId/notes", optionalAuthenticate, param("cartId").isMongoId().withMessage("Invalid cartId"), body("notes")
     .optional()
     .isString()

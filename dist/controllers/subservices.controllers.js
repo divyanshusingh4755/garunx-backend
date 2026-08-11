@@ -13,7 +13,7 @@ const getStatusCode = (error) => {
 };
 export const createSubServiceComponent = async (req, res) => {
     try {
-        const { name, description, serviceId, image, isActive, } = req.body;
+        const { name, description, serviceId, image, isActive } = req.body;
         const component = await SubServiceComponentService.createSubServiceComponent({
             name,
             description,
@@ -34,8 +34,7 @@ export const createSubServiceComponent = async (req, res) => {
     catch (error) {
         return res.status(getStatusCode(error)).json({
             success: false,
-            message: error.message ||
-                "Failed to create Sub Service Component",
+            message: error.message || "Failed to create Sub Service Component",
         });
     }
 };
@@ -50,29 +49,19 @@ export const updateSubServiceComponent = async (req, res) => {
     catch (error) {
         return res.status(getStatusCode(error)).json({
             success: false,
-            message: error.message ||
-                "Failed to update Sub Service Component",
+            message: error.message || "Failed to update Sub Service Component",
         });
     }
 };
 export const getAllSubServiceComponents = async (req, res) => {
     try {
-        const { searchTerm, serviceId, limit, page, isActive, sortBy, sortOrder, } = req.query;
-        const activeStatus = isActive === "true"
-            ? true
-            : isActive === "false"
-                ? false
-                : undefined;
+        const { searchTerm, serviceId, limit, page, isActive, sortBy, sortOrder } = req.query;
+        const activeStatus = isActive === "true" ? true : isActive === "false" ? false : undefined;
         const result = await SubServiceComponentService.findSubServiceComponents({
             limit: limit ? Number(limit) : 40,
             page: page ? Number(page) : 1,
-            sortBy: typeof sortBy === "string"
-                ? sortBy
-                : "name",
-            sortOrder: sortOrder === "asc" ||
-                sortOrder === "desc"
-                ? sortOrder
-                : "asc",
+            sortBy: typeof sortBy === "string" ? sortBy : "name",
+            sortOrder: sortOrder === "asc" || sortOrder === "desc" ? sortOrder : "asc",
             ...(typeof searchTerm === "string" && {
                 searchTerm,
             }),
@@ -94,8 +83,7 @@ export const getAllSubServiceComponents = async (req, res) => {
     catch (error) {
         return res.status(getStatusCode(error)).json({
             success: false,
-            message: error.message ||
-                "Failed to fetch Sub Service Components",
+            message: error.message || "Failed to fetch Sub Service Components",
         });
     }
 };
@@ -110,8 +98,7 @@ export const getSubServiceComponentById = async (req, res) => {
     catch (error) {
         return res.status(getStatusCode(error)).json({
             success: false,
-            message: error.message ||
-                "Failed to get Sub Service Component",
+            message: error.message || "Failed to get Sub Service Component",
         });
     }
 };
@@ -128,8 +115,7 @@ export const toggleSubServiceComponent = async (req, res) => {
     catch (error) {
         return res.status(getStatusCode(error)).json({
             success: false,
-            message: error.message ||
-                "Failed to change Sub Service Component status",
+            message: error.message || "Failed to change Sub Service Component status",
         });
     }
 };

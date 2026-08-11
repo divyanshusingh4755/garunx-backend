@@ -1,6 +1,6 @@
-import { Types, } from "mongoose";
-import { Coupon, } from "../models/coupon.model.js";
-import { escapeRegex, } from "../utils/escapeRegex.js";
+import { Types } from "mongoose";
+import { Coupon } from "../models/coupon.model.js";
+import { escapeRegex } from "../utils/escapeRegex.js";
 export class CouponService {
     static ensureValidId(id) {
         if (!Types.ObjectId.isValid(id)) {
@@ -11,9 +11,7 @@ export class CouponService {
         if (!couponData.couponCode?.trim()) {
             throw new Error("Coupon code is required");
         }
-        const normalizedCode = couponData.couponCode
-            .trim()
-            .toUpperCase();
+        const normalizedCode = couponData.couponCode.trim().toUpperCase();
         const existingCoupon = await Coupon.findOne({
             couponCode: normalizedCode,
         }).lean();
@@ -33,9 +31,7 @@ export class CouponService {
             throw new Error("Coupon not found");
         }
         if (updateData.couponCode !== undefined) {
-            const normalizedCode = updateData.couponCode
-                .trim()
-                .toUpperCase();
+            const normalizedCode = updateData.couponCode.trim().toUpperCase();
             const duplicate = await Coupon.exists({
                 couponCode: normalizedCode,
                 _id: {
@@ -78,13 +74,11 @@ export class CouponService {
                 throw new Error("At least one package is required for PACKAGE coupons");
             }
         }
-        if (coupon.applicableOn === "ALL" ||
-            coupon.applicableOn === "REFERRAL") {
+        if (coupon.applicableOn === "ALL" || coupon.applicableOn === "REFERRAL") {
             coupon.services = [];
             coupon.packages = [];
         }
-        if (coupon.applicableOn === "REFERRAL" &&
-            !coupon.assignedUserId) {
+        if (coupon.applicableOn === "REFERRAL" && !coupon.assignedUserId) {
             throw new Error("assignedUserId is required for REFERRAL coupons");
         }
         await coupon.save();
@@ -135,21 +129,15 @@ export class CouponService {
         return coupon.save();
     }
     static async findCoupons(searchTerm, limit = 20, page = 1, isActive, assignedUserId, applicableOn, sortBy = "createdAt", sortOrder = "desc") {
-        const safeLimit = Number.isInteger(limit) && limit > 0
-            ? Math.min(limit, 100)
-            : 20;
-        const safePage = Number.isInteger(page) && page > 0
-            ? page
-            : 1;
+        const safeLimit = Number.isInteger(limit) && limit > 0 ? Math.min(limit, 100) : 20;
+        const safePage = Number.isInteger(page) && page > 0 ? page : 1;
         const skip = safeLimit * (safePage - 1);
         const conditions = [];
         if (typeof isActive === "boolean") {
             conditions.push({ isActive });
         }
         if (applicableOn) {
-            const values = (Array.isArray(applicableOn)
-                ? applicableOn
-                : applicableOn.split(","))
+            const values = (Array.isArray(applicableOn) ? applicableOn : applicableOn.split(","))
                 .map((item) => item.trim().toUpperCase())
                 .filter(Boolean);
             if (assignedUserId) {
@@ -178,8 +166,7 @@ export class CouponService {
             });
         }
         const normalizedSearch = searchTerm?.trim();
-        const isTextSearch = Boolean(normalizedSearch &&
-            normalizedSearch.length > 4);
+        const isTextSearch = Boolean(normalizedSearch && normalizedSearch.length > 4);
         if (normalizedSearch) {
             if (isTextSearch) {
                 conditions.push({
@@ -206,9 +193,7 @@ export class CouponService {
                 });
             }
         }
-        const query = conditions.length > 0
-            ? { $and: conditions }
-            : {};
+        const query = conditions.length > 0 ? { $and: conditions } : {};
         const allowedSortFields = new Set([
             "createdAt",
             "updatedAt",
@@ -223,13 +208,10 @@ export class CouponService {
             "isActive",
             "relevance",
         ]);
-        const safeSortBy = allowedSortFields.has(sortBy)
-            ? sortBy
-            : "createdAt";
+        const safeSortBy = allowedSortFields.has(sortBy) ? sortBy : "createdAt";
         let projection = {};
         let sortCriteria;
-        if (isTextSearch &&
-            safeSortBy === "relevance") {
+        if (isTextSearch && safeSortBy === "relevance") {
             projection = {
                 score: {
                     $meta: "textScore",
@@ -242,13 +224,9 @@ export class CouponService {
             };
         }
         else {
-            const actualSortField = safeSortBy === "relevance"
-                ? "createdAt"
-                : safeSortBy;
+            const actualSortField = safeSortBy === "relevance" ? "createdAt" : safeSortBy;
             sortCriteria = {
-                [actualSortField]: sortOrder === "desc"
-                    ? -1
-                    : 1,
+                [actualSortField]: sortOrder === "desc" ? -1 : 1,
             };
             if (actualSortField !== "createdAt") {
                 sortCriteria.createdAt = -1;
@@ -274,15 +252,12 @@ export class CouponService {
             };
         }
         catch (error) {
-            const message = error instanceof Error
-                ? error.message
-                : "Unknown error";
+            const message = error instanceof Error ? error.message : "Unknown error";
             throw new Error(`Coupon fetch failed: ${message}`);
         }
     }
     static async validateCoupon({ couponCode, serviceId, packageId, orderAmount, userId, isFirstOrder = false, }) {
-        if (!Number.isFinite(orderAmount) ||
-            orderAmount < 0) {
+        if (!Number.isFinite(orderAmount) || orderAmount < 0) {
             throw new Error("Order amount must be a non-negative number");
         }
         const normalizedCode = couponCode.trim().toUpperCase();
@@ -294,20 +269,17 @@ export class CouponService {
             throw new Error("Invalid coupon code");
         }
         const now = new Date();
-        if (coupon.validFrom &&
-            coupon.validFrom > now) {
+        if (coupon.validFrom && coupon.validFrom > now) {
             throw new Error("Coupon is not active yet");
         }
-        if (coupon.validTill &&
-            coupon.validTill < now) {
+        if (coupon.validTill && coupon.validTill < now) {
             throw new Error("Coupon has expired");
         }
         if (coupon.assignedUserId) {
             if (!userId) {
                 throw new Error("User authentication is required for this coupon");
             }
-            if (coupon.assignedUserId.toString() !==
-                userId) {
+            if (coupon.assignedUserId.toString() !== userId) {
                 throw new Error("This coupon does not belong to you");
             }
         }
@@ -336,21 +308,18 @@ export class CouponService {
             case "REFERRAL":
                 break;
         }
-        if (coupon.usageLimit > 0 &&
-            coupon.usedCount >= coupon.usageLimit) {
+        if (coupon.usageLimit > 0 && coupon.usedCount >= coupon.usageLimit) {
             throw new Error("Coupon usage limit reached");
         }
         if (orderAmount < coupon.minOrderAmount) {
             throw new Error(`Minimum order amount is ₹${coupon.minOrderAmount}`);
         }
-        if (coupon.isFirstOrderOnly &&
-            !isFirstOrder) {
+        if (coupon.isFirstOrderOnly && !isFirstOrder) {
             throw new Error("Coupon is valid only for first order");
         }
         let discountAmount;
         if (coupon.discountType === "PERCENTAGE") {
-            discountAmount =
-                (orderAmount * coupon.discount) / 100;
+            discountAmount = (orderAmount * coupon.discount) / 100;
             if (coupon.maxDiscountAmount !== undefined) {
                 discountAmount = Math.min(discountAmount, coupon.maxDiscountAmount);
             }

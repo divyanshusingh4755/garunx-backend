@@ -1,20 +1,10 @@
-import {
-  model,
-  Schema,
-  type Document,
-} from "mongoose";
+import { model, Schema, type Document } from "mongoose";
 
-export type PolicyType =
-  | "TERMS"
-  | "PRIVACY"
-  | "REFUND";
+export type PolicyType = "TERMS" | "PRIVACY" | "REFUND";
 
-export type PolicyUserType =
-  | "User"
-  | "Coordinator";
+export type PolicyUserType = "User" | "Coordinator";
 
-export interface IContent
-  extends Document {
+export interface IContent extends Document {
   type: PolicyType;
   userType: PolicyUserType;
   version: number;
@@ -26,74 +16,60 @@ export interface IContent
   updatedAt: Date;
 }
 
-const contentSchema =
-  new Schema<IContent>(
-    {
-      type: {
-        type: String,
-        enum: [
-          "TERMS",
-          "PRIVACY",
-          "REFUND",
-        ],
-        required: true,
-        index: true,
-      },
-
-      userType: {
-        type: String,
-        enum: [
-          "User",
-          "Coordinator",
-        ],
-        default: "User",
-        required: true,
-      },
-
-      version: {
-        type: Number,
-        required: true,
-        min: 1,
-      },
-
-      title: {
-        type: String,
-        required: true,
-        trim: true,
-      },
-
-      content: {
-        type: String,
-        required: true,
-        trim: true,
-      },
-
-      isActive: {
-        type: Boolean,
-        default: false,
-        index: true,
-      },
-
-      publishedAt: {
-        type: Date,
-      },
+const contentSchema = new Schema<IContent>(
+  {
+    type: {
+      type: String,
+      enum: ["TERMS", "PRIVACY", "REFUND"],
+      required: true,
+      index: true,
     },
-    {
-      timestamps: true,
-    },
-  );
 
-contentSchema.pre(
-  "validate",
-  function () {
-    if (
-      this.isActive &&
-      !this.publishedAt
-    ) {
-      this.publishedAt = new Date();
-    }
+    userType: {
+      type: String,
+      enum: ["User", "Coordinator"],
+      default: "User",
+      required: true,
+    },
+
+    version: {
+      type: Number,
+      required: true,
+      min: 1,
+    },
+
+    title: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+
+    content: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+
+    isActive: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+
+    publishedAt: {
+      type: Date,
+    },
+  },
+  {
+    timestamps: true,
   },
 );
+
+contentSchema.pre("validate", function () {
+  if (this.isActive && !this.publishedAt) {
+    this.publishedAt = new Date();
+  }
+});
 
 contentSchema.index(
   {
@@ -103,8 +79,7 @@ contentSchema.index(
   },
   {
     unique: true,
-    name:
-      "UniquePolicyVersionPerAudience",
+    name: "UniquePolicyVersionPerAudience",
   },
 );
 
@@ -119,8 +94,7 @@ contentSchema.index(
     partialFilterExpression: {
       isActive: true,
     },
-    name:
-      "UniqueActivePolicyPerAudience",
+    name: "UniqueActivePolicyPerAudience",
   },
 );
 
@@ -135,8 +109,4 @@ contentSchema.index({
   publishedAt: -1,
 });
 
-export const Content =
-  model<IContent>(
-    "Content",
-    contentSchema,
-  );
+export const Content = model<IContent>("Content", contentSchema);

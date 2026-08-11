@@ -1,15 +1,12 @@
 import { BannerService } from "../services/banner.service.js";
 const getErrorStatus = (error) => {
-    if (error instanceof Error &&
-        error.message === "Banner not found") {
+    if (error instanceof Error && error.message === "Banner not found") {
         return 404;
     }
     return 400;
 };
 const getErrorMessage = (error, fallback) => {
-    return error instanceof Error
-        ? error.message
-        : fallback;
+    return error instanceof Error ? error.message : fallback;
 };
 export const createBanner = async (req, res) => {
     try {
@@ -21,12 +18,8 @@ export const createBanner = async (req, res) => {
             placement,
             format,
             image,
-            displayOrder: displayOrder === undefined
-                ? 0
-                : displayOrder,
-            isActive: isActive === undefined
-                ? true
-                : isActive,
+            displayOrder: displayOrder === undefined ? 0 : displayOrder,
+            isActive: isActive === undefined ? true : isActive,
             redirect,
         });
         return res.status(201).json({
@@ -97,9 +90,7 @@ export const toggleBannerStatus = async (req, res) => {
         const banner = await BannerService.toggleBannerStatus(id);
         return res.status(200).json({
             success: true,
-            message: `Banner ${banner.isActive
-                ? "activated"
-                : "deactivated"} successfully`,
+            message: `Banner ${banner.isActive ? "activated" : "deactivated"} successfully`,
             data: banner,
         });
     }
@@ -113,35 +104,13 @@ export const toggleBannerStatus = async (req, res) => {
 export const getAllBanners = async (req, res) => {
     try {
         const { searchTerm, placement, format, redirectType, isActive, limit, page, sortBy, sortOrder, } = req.query;
-        const parsedLimit = typeof limit === "number"
-            ? limit
-            : Number(limit);
-        const parsedPage = typeof page === "number"
-            ? page
-            : Number(page);
-        const result = await BannerService.findBanners(typeof searchTerm === "string"
-            ? searchTerm
-            : undefined, typeof placement === "string"
-            ? placement
-            : undefined, typeof format === "string"
-            ? format
-            : undefined, typeof redirectType === "string"
+        const parsedLimit = typeof limit === "number" ? limit : Number(limit);
+        const parsedPage = typeof page === "number" ? page : Number(page);
+        const result = await BannerService.findBanners(typeof searchTerm === "string" ? searchTerm : undefined, typeof placement === "string" ? placement : undefined, typeof format === "string" ? format : undefined, typeof redirectType === "string"
             ? redirectType
-            : undefined, Number.isInteger(parsedLimit) &&
-            parsedLimit > 0
+            : undefined, Number.isInteger(parsedLimit) && parsedLimit > 0
             ? Math.min(parsedLimit, 100)
-            : 20, Number.isInteger(parsedPage) &&
-            parsedPage > 0
-            ? parsedPage
-            : 1, isActive === "true"
-            ? true
-            : isActive === "false"
-                ? false
-                : undefined, typeof sortBy === "string"
-            ? sortBy
-            : "displayOrder", sortOrder === "desc"
-            ? "desc"
-            : "asc");
+            : 20, Number.isInteger(parsedPage) && parsedPage > 0 ? parsedPage : 1, isActive === "true" ? true : isActive === "false" ? false : undefined, typeof sortBy === "string" ? sortBy : "displayOrder", sortOrder === "desc" ? "desc" : "asc");
         return res.status(200).json({
             success: true,
             ...result,

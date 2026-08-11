@@ -438,10 +438,7 @@ export class PackageService {
                     profileCode: taxProfile?.code ?? null,
                     treatment: taxProfile?.treatment ?? null,
                     totalRate: taxProfile?.totalRate ?? 0,
-                    priceMode: taxProfile
-                        ? p.taxPriceMode ??
-                            "EXCLUSIVE"
-                        : "EXCLUSIVE",
+                    priceMode: taxProfile ? (p.taxPriceMode ?? "EXCLUSIVE") : "EXCLUSIVE",
                     isTaxConfigured: Boolean(taxProfile),
                 },
             });
