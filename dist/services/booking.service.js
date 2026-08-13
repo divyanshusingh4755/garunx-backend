@@ -506,7 +506,7 @@ export class BookingService {
         };
     }
     static async findBookings(params) {
-        const { searchTerm, status, paymentStatus, userId, bookingReference, fromDate, toDate, limit = 20, page = 1, sortBy = "createdAt", sortOrder = "desc", includeCoordinatorProfile = false, } = params;
+        const { searchTerm, status, paymentStatus, userId, bookingReference, fromDate, toDate, limit = 20, page = 1, sortBy = "createdAt", sortOrder = "desc", includeCoordinatorProfile = true, } = params;
         const safePage = Number.isInteger(page) && page > 0 ? page : 1;
         const safeLimit = Number.isInteger(limit) && limit > 0 ? Math.min(limit, 100) : 20;
         const skip = (safePage - 1) * safeLimit;

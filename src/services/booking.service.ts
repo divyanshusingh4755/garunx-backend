@@ -763,7 +763,7 @@ export class BookingService {
       page = 1,
       sortBy = "createdAt",
       sortOrder = "desc",
-      includeCoordinatorProfile = false,
+      includeCoordinatorProfile = true,
     } = params;
 
     const safePage = Number.isInteger(page) && page > 0 ? page : 1;
