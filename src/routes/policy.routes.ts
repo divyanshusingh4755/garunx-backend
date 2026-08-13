@@ -16,6 +16,9 @@ import {
 } from "../controllers/policy.controllers.js";
 
 import { authenticate } from "../middleware/authenticate.js";
+import { authorizeRoles } from "../middleware/authorizeRoles.js";
+import { Role } from "../types/rbac.js";
+import { requirePermission } from "../middleware/rbac.js";
 
 const router = Router();
 
@@ -155,14 +158,46 @@ const getPolicyByTypeValidation = [
   validate,
 ];
 
-router.get("/", authenticate, getPoliciesValidation, getAllPolicies);
+router.get(
+  "/",
+  authenticate,
+  authorizeRoles(Role.ADMIN),
+  requirePermission("policy.read"),
+  getPoliciesValidation,
+  getAllPolicies,
+);
 
-router.post("/", authenticate, createPolicyValidation, createPolicy);
+router.post(
+  "/",
+  authenticate,
+  authorizeRoles(Role.ADMIN),
+  requirePermission("policy.create"),
+  createPolicyValidation,
+  createPolicy,
+);
 
-router.put("/:id", authenticate, updatePolicyValidation, updatePolicy);
+router.put(
+  "/:id",
+  authenticate,
+  authorizeRoles(Role.ADMIN),
+  requirePermission("policy.update"),
+  updatePolicyValidation,
+  updatePolicy,
+);
 
-router.patch("/:id/status", authenticate, statusValidation, togglePolicyStatus);
+router.patch(
+  "/:id/status",
+  authenticate,
+  authorizeRoles(Role.ADMIN),
+  requirePermission("policy.status"),
+  statusValidation,
+  togglePolicyStatus,
+);
 
-router.get("/:type", getPolicyByTypeValidation, getPolicyByType);
+router.get(
+  "/:type",
+  getPolicyByTypeValidation,
+  getPolicyByType,
+);
 
 export default router;

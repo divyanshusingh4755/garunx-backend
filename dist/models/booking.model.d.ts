@@ -164,6 +164,12 @@ export interface IBooking extends Document {
     bookedBy: BookedBy;
     entries: IBookingEntry[];
     bookingFor: BookingFor;
+    beneficiaryUserId?: Types.ObjectId;
+    beneficiaryAccess?: {
+        tokenHash: string;
+        expiresAt: Date;
+        createdAt: Date;
+    };
     customerDetails: {
         name?: string;
         email?: string;
@@ -253,6 +259,7 @@ export interface IBooking extends Document {
             requestedByRole: ReassignmentRequestedByRole;
             reason?: string;
             requestedAt: Date;
+            previousCoordinatorId?: Types.ObjectId;
         };
     };
     scheduledAt?: Date;

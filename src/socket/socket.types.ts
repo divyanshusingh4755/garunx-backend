@@ -1,5 +1,6 @@
 import type { ChatMessageType } from "../models/chatmessage.model.js";
 import type { Role } from "../types/rbac.js";
+import type { NotificationSocketDto } from "./notification.dto.js";
 import type { ChatMessageSocketDto } from "./socket.dto.js";
 
 export interface TypingPayload {
@@ -76,6 +77,23 @@ export interface SendMessagePayload {
   replyToMessageId?: string;
 }
 
+export interface NotificationReadEvent {
+  notificationId: string;
+  readAt: string;
+}
+
+export interface NotificationReadAllEvent {
+  readAt: string;
+}
+
+export interface NotificationDeletedEvent {
+  notificationId: string;
+}
+
+export interface NotificationUnreadCountEvent {
+  unreadCount: number;
+}
+
 export type SendMessageAck = { success: true, data: ChatMessageSocketDto } | { success: false, message: string }
 export type ConversationReadAck = { success: true, data: ConversationReadEvent } | { success: false, message: string }
 export type MessageDeliveredAck = { success: true, data: MessageDeliveredEvent } | { success: false, message: string }
@@ -106,6 +124,11 @@ export interface ServerToClientEvents {
   "presence:state": (payload: PresenceStateEvent) => void;
   "conversation:delivered": (payload: MessageDeliveredEvent) => void;
   "typing:changed": (payload: TypingChangedEvent) => void;
+  "notification:new": (notification: NotificationSocketDto) => void;
+  "notification:read": (payload: NotificationReadEvent) => void;
+  "notification:read-all": (payload: NotificationReadAllEvent) => void;
+  "notification:deleted": (payload: NotificationDeletedEvent) => void;
+  "notification:unread-count": (payload: NotificationUnreadCountEvent) => void;
 }
 
 export interface InterServerEvents { }

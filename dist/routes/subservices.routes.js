@@ -1,7 +1,10 @@
 import { Router, } from "express";
 import { body, param, query, validationResult } from "express-validator";
 import { authenticate } from "../middleware/authenticate.js";
-import { createSubServiceComponent, toggleSubServiceComponent, getAllSubServiceComponents, getSubServiceComponentById, updateSubServiceComponent, } from "../controllers/subservices.controllers.js";
+import { createSubServiceComponent, toggleSubServiceComponent, getAllSubServiceComponents, getSubServiceComponentById, updateSubServiceComponent, getAllSubServiceComponentsAdmin, } from "../controllers/subservices.controllers.js";
+import { authorizeRoles } from "../middleware/authorizeRoles.js";
+import { requirePermission } from "../middleware/rbac.js";
+import { Role } from "../types/rbac.js";
 const router = Router();
 const validate = (req, res, next) => {
     const errors = validationResult(req);
@@ -51,7 +54,6 @@ const updateSubServiceComponentValidation = [
             "description",
             "serviceId",
             "image",
-            "isActive",
         ];
         const suppliedFields = Object.keys(value ?? {});
         if (suppliedFields.length === 0) {
@@ -82,10 +84,6 @@ const updateSubServiceComponentValidation = [
         .optional({ values: "falsy" })
         .isURL()
         .withMessage("Image must be a valid URL"),
-    body("isActive")
-        .optional()
-        .isBoolean()
-        .withMessage("isActive must be boolean"),
     validate,
 ];
 const idValidation = [
@@ -101,7 +99,7 @@ const statusValidation = [
         .withMessage("status must be boolean"),
     validate,
 ];
-const listValidation = [
+const publicListValidation = [
     query("serviceId")
         .optional()
         .custom((value) => {
@@ -122,13 +120,14 @@ const listValidation = [
         .optional()
         .isInt({ min: 1 })
         .withMessage("page must be at least 1"),
-    query("isActive")
-        .optional()
-        .isBoolean()
-        .withMessage("isActive must be true or false"),
     query("sortBy")
         .optional()
-        .isIn(["name", "createdAt", "updatedAt", "isActive", "relevance"])
+        .isIn([
+        "name",
+        "createdAt",
+        "updatedAt",
+        "relevance",
+    ])
         .withMessage("Invalid sortBy value"),
     query("sortOrder")
         .optional()
@@ -136,10 +135,19 @@ const listValidation = [
         .withMessage("sortOrder must be asc or desc"),
     validate,
 ];
-router.get("/", listValidation, getAllSubServiceComponents);
-router.post("/", authenticate, createSubServiceComponentValidation, createSubServiceComponent);
-router.patch("/:id", authenticate, updateSubServiceComponentValidation, updateSubServiceComponent);
-router.get("/:id", authenticate, idValidation, getSubServiceComponentById);
-router.patch("/:id/status", authenticate, statusValidation, toggleSubServiceComponent);
+const adminListValidation = [
+    ...publicListValidation.slice(0, -1),
+    query("isActive")
+        .optional()
+        .isBoolean()
+        .withMessage("isActive must be true or false"),
+    validate,
+];
+router.get("/", publicListValidation, getAllSubServiceComponents);
+router.get("/admin", authenticate, authorizeRoles(Role.ADMIN), requirePermission("sub_service_component.read"), adminListValidation, getAllSubServiceComponentsAdmin);
+router.post("/", authenticate, authorizeRoles(Role.ADMIN), requirePermission("sub_service_component.create"), createSubServiceComponentValidation, createSubServiceComponent);
+router.patch("/:id", authenticate, authorizeRoles(Role.ADMIN), requirePermission("sub_service_component.update"), updateSubServiceComponentValidation, updateSubServiceComponent);
+router.get("/:id", authenticate, authorizeRoles(Role.ADMIN), requirePermission("sub_service_component.read"), idValidation, getSubServiceComponentById);
+router.patch("/:id/status", authenticate, authorizeRoles(Role.ADMIN), requirePermission("sub_service_component.status"), statusValidation, toggleSubServiceComponent);
 export default router;
 //# sourceMappingURL=subservices.routes.js.map

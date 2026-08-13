@@ -5,7 +5,7 @@ type CreateComponentItemInput = {
     price?: number;
     isActive?: boolean;
 };
-type ComponentItemUpdate = Partial<Pick<IComponentItem, "name" | "price" | "isActive">>;
+type ComponentItemUpdate = Partial<Pick<IComponentItem, "name" | "price">>;
 export declare class ComponentItemService {
     static createComponentItem(payload: CreateComponentItemInput): Promise<import("mongoose").Document<unknown, {}, IComponentItem, {}, import("mongoose").DefaultSchemaOptions> & IComponentItem & {
         _id: Types.ObjectId;

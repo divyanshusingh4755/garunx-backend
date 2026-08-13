@@ -1,6 +1,13 @@
 import { Types } from "mongoose";
 import { type ICoupon } from "../models/coupon.model.js";
-type CouponUpdateData = Partial<Pick<ICoupon, "name" | "couponCode" | "applicableOn" | "services" | "packages" | "assignedUserId" | "discount" | "discountType" | "usageLimit" | "validFrom" | "validTill" | "minOrderAmount" | "maxDiscountAmount" | "isFirstOrderOnly" | "isActive">>;
+type CouponUpdateData = Partial<Pick<ICoupon, "name" | "couponCode" | "applicableOn" | "services" | "packages" | "assignedUserId" | "discount" | "discountType" | "usageLimit" | "validFrom" | "validTill" | "minOrderAmount" | "maxDiscountAmount" | "isFirstOrderOnly">>;
+interface GetAvailableCouponsInput {
+    userId: string;
+    serviceId?: string;
+    packageId?: string;
+    orderAmount?: number;
+    isFirstOrder?: boolean;
+}
 interface ValidateCouponInput {
     couponCode: string;
     serviceId?: string;
@@ -66,6 +73,11 @@ export declare class CouponService {
         discountAmount: number;
         finalAmount: number;
     }>;
+    static getAvailableCoupons({ userId, serviceId, packageId, orderAmount, isFirstOrder, }: GetAvailableCouponsInput): Promise<(ICoupon & Required<{
+        _id: Types.ObjectId;
+    }> & {
+        __v: number;
+    })[]>;
 }
 export {};
 //# sourceMappingURL=coupon.service.d.ts.map

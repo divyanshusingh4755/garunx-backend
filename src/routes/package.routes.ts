@@ -24,7 +24,11 @@ import {
   getPackagesByLocation,
   getFullPackageByCities,
   getRelatedPackageService,
+  getAllPackagesAdmin,
 } from "../controllers/package.controllers.js";
+import { authorizeRoles } from "../middleware/authorizeRoles.js";
+import { Role } from "../types/rbac.js";
+import { requirePermission } from "../middleware/rbac.js";
 
 const router = Router();
 
@@ -183,17 +187,50 @@ const removeTierValidation = [
   validate,
 ];
 
-router.get("/", getAllPackages);
-
-router.get("/getPackagesByLocation", authenticate, getPackagesByLocation);
-
-router.post(
-  "/:packageId/getFullPackagesByCities",
-  packageIdValidation,
-  getFullPackageByCities,
+router.get(
+  "/",
+  getAllPackages,
 );
 
-router.get("/:packageId/full", packageIdValidation, getFullPackage);
+router.get(
+  "/admin",
+  authenticate,
+  authorizeRoles(Role.ADMIN),
+  requirePermission("package.read"),
+  getAllPackagesAdmin,
+);
+
+
+router.get(
+  "/getPackagesByLocation",
+  authenticate,
+  authorizeRoles(Role.USER),
+  getPackagesByLocation,
+);
+
+router.get(
+  "/:packageId/diagnostics",
+  authenticate,
+  authorizeRoles(Role.ADMIN),
+  requirePermission("package.diagnostics"),
+  packageIdValidation,
+  getPackageDiagnostics,
+);
+
+router.get(
+  "/:packageId",
+  authenticate,
+  authorizeRoles(Role.ADMIN),
+  requirePermission("package.read"),
+  packageIdValidation,
+  getPackageById,
+);
+
+router.get(
+  "/:packageId/full",
+  packageIdValidation,
+  getFullPackage,
+);
 
 router.get(
   "/:packageId/:tierId/:locationId/relatedService",
@@ -201,20 +238,27 @@ router.get(
   getRelatedPackageService,
 );
 
-router.get(
-  "/:packageId/diagnostics",
+router.post(
+  "/",
   authenticate,
-  packageIdValidation,
-  getPackageDiagnostics,
+  authorizeRoles(Role.ADMIN),
+  requirePermission("package.create"),
+  packageValidation,
+  createPackage,
 );
 
-router.get("/:packageId", packageIdValidation, getPackageById);
+router.post(
+  "/:packageId/getFullPackagesByCities",
+  packageIdValidation,
+  getFullPackageByCities,
+);
 
-router.post("/", authenticate, packageValidation, createPackage);
 
 router.patch(
   "/:packageId",
   authenticate,
+  authorizeRoles(Role.ADMIN),
+  requirePermission("package.update"),
   updatePackageValidation,
   updatePackage,
 );
@@ -222,6 +266,8 @@ router.patch(
 router.patch(
   "/:packageId/status",
   authenticate,
+  authorizeRoles(Role.ADMIN),
+  requirePermission("package.status"),
   packageStatusValidation,
   togglePackageStatus,
 );
@@ -229,6 +275,8 @@ router.patch(
 router.post(
   "/:id/locations",
   authenticate,
+  authorizeRoles(Role.ADMIN),
+  requirePermission("package.manage_locations"),
   updateLocationsValidation,
   updatePackageLocations,
 );
@@ -236,6 +284,8 @@ router.post(
 router.delete(
   "/:id/locations/:locationId",
   authenticate,
+  authorizeRoles(Role.ADMIN),
+  requirePermission("package.manage_locations"),
   removeLocationValidation,
   removePackageLocation,
 );
@@ -243,6 +293,8 @@ router.delete(
 router.post(
   "/:id/tiers",
   authenticate,
+  authorizeRoles(Role.ADMIN),
+  requirePermission("package.manage_tiers"),
   updateTiersValidation,
   updatePackageTiers,
 );
@@ -250,6 +302,8 @@ router.post(
 router.delete(
   "/:id/tiers/:tierId",
   authenticate,
+  authorizeRoles(Role.ADMIN),
+  requirePermission("package.manage_tiers"),
   removeTierValidation,
   removePackageTier,
 );

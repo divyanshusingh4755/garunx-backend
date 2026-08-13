@@ -10,6 +10,9 @@ import {
   bulkUpsertPackageTierPricing,
   resolvePackagePricing,
 } from "../controllers/packagetierpricing.controllers.js";
+import { authorizeRoles } from "../middleware/authorizeRoles.js";
+import { Role } from "../types/rbac.js";
+import { requirePermission } from "../middleware/rbac.js";
 
 const router = Router();
 
@@ -32,6 +35,8 @@ const validate = (req: Request, res: Response, next: NextFunction) => {
 router.post(
   "/bulk",
   authenticate,
+  authorizeRoles(Role.ADMIN),
+  requirePermission("package_tier_pricing.update"),
 
   body("packageId")
     .notEmpty()
@@ -57,7 +62,9 @@ router.post(
 
   body("pricing.*.services")
     .isArray({ min: 1 })
-    .withMessage("Each location must contain at least one service"),
+    .withMessage(
+      "Each location must contain at least one service",
+    ),
 
   body("pricing.*.services.*.serviceId")
     .notEmpty()
@@ -68,13 +75,17 @@ router.post(
   body("pricing.*.services.*.fixedPrice")
     .optional({ nullable: true })
     .isFloat({ min: 0 })
-    .withMessage("fixedPrice must be a non-negative number")
+    .withMessage(
+      "fixedPrice must be a non-negative number",
+    )
     .toFloat(),
 
   body("pricing.*.services.*.discountPercent")
     .optional({ nullable: true })
     .isFloat({ min: 0, max: 100 })
-    .withMessage("discountPercent must be between 0 and 100")
+    .withMessage(
+      "discountPercent must be between 0 and 100",
+    )
     .toFloat(),
 
   body("pricing.*.services.*.taxProfileId")
@@ -86,29 +97,41 @@ router.post(
   body("pricing.*.services.*.taxPriceMode")
     .optional()
     .isIn(["EXCLUSIVE", "INCLUSIVE"])
-    .withMessage("taxPriceMode must be EXCLUSIVE or INCLUSIVE"),
+    .withMessage(
+      "taxPriceMode must be EXCLUSIVE or INCLUSIVE",
+    ),
 
-  body("pricing.*.services.*").custom((servicePricing) => {
-    const hasFixedPrice =
-      servicePricing.fixedPrice !== undefined &&
-      servicePricing.fixedPrice !== null;
+  body("pricing.*.services.*").custom(
+    (servicePricing) => {
+      const hasFixedPrice =
+        servicePricing.fixedPrice !== undefined &&
+        servicePricing.fixedPrice !== null;
 
-    const hasDiscountPercent =
-      servicePricing.discountPercent !== undefined &&
-      servicePricing.discountPercent !== null;
+      const hasDiscountPercent =
+        servicePricing.discountPercent !== undefined &&
+        servicePricing.discountPercent !== null;
 
-    if (hasFixedPrice && hasDiscountPercent) {
-      throw new Error(
-        "fixedPrice and discountPercent cannot be provided together",
-      );
-    }
+      if (
+        hasFixedPrice &&
+        hasDiscountPercent
+      ) {
+        throw new Error(
+          "fixedPrice and discountPercent cannot be provided together",
+        );
+      }
 
-    if (!hasFixedPrice && !hasDiscountPercent) {
-      throw new Error("Either fixedPrice or discountPercent is required");
-    }
+      if (
+        !hasFixedPrice &&
+        !hasDiscountPercent
+      ) {
+        throw new Error(
+          "Either fixedPrice or discountPercent is required",
+        );
+      }
 
-    return true;
-  }),
+      return true;
+    },
+  ),
 
   validate,
   bulkUpsertPackageTierPricing,
@@ -117,6 +140,7 @@ router.post(
 router.get(
   "/resolve",
   authenticate,
+  authorizeRoles(Role.USER),
 
   query("packageId")
     .notEmpty()

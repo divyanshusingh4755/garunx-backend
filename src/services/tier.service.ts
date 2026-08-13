@@ -6,6 +6,10 @@ import { ServicePricing } from "../models/servicepricing.model.js";
 import { Tier, type ITier } from "../models/tier.model.js";
 import { escapeRegex } from "../utils/escapeRegex.js";
 
+type TierUpdate = Partial<
+  Pick<ITier, "name" | "tierReference">
+>;
+
 export class TierService {
   static async createTier(tierData: ITier) {
     const existingTier = await Tier.findOne({
@@ -32,7 +36,7 @@ export class TierService {
     return tier.save();
   }
 
-  static async updateTier(id: string, tierData: Partial<ITier>) {
+  static async updateTier(id: string, tierData: TierUpdate) {
     if (!Types.ObjectId.isValid(id)) {
       throw new Error("Invalid tier id");
     }

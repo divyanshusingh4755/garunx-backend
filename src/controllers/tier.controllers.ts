@@ -106,13 +106,24 @@ export const toggleTierStatus = async (req: Request, res: Response) => {
   }
 };
 
-export const getAllTier = async (req: Request, res: Response) => {
+export const getAllTier = async (
+  req: Request,
+  res: Response,
+) => {
   try {
-    const { searchTerm, limit, page, isActive, sortBy, sortOrder } = req.query;
+    const {
+      searchTerm,
+      limit,
+      page,
+      sortBy,
+      sortOrder,
+    } = req.query;
 
-    const parsedLimit = parsePositiveInteger(limit, 40, 100);
+    const parsedLimit =
+      parsePositiveInteger(limit, 40, 100);
 
-    const parsedPage = parsePositiveInteger(page, 1);
+    const parsedPage =
+      parsePositiveInteger(page, 1);
 
     const {
       data,
@@ -125,7 +136,7 @@ export const getAllTier = async (req: Request, res: Response) => {
       (sortBy as string) || "createdAt",
       (sortOrder as "asc" | "desc") || "asc",
       searchTerm as string,
-      isActive === "true" ? true : isActive === "false" ? false : undefined,
+      true,
     );
 
     return res.status(200).json({
@@ -138,7 +149,67 @@ export const getAllTier = async (req: Request, res: Response) => {
   } catch (error: any) {
     return res.status(400).json({
       success: false,
-      message: error.message || "Failed to fetch tiers",
+      message:
+        error.message ||
+        "Failed to fetch tiers",
+    });
+  }
+};
+
+export const getAllTierAdmin = async (
+  req: Request,
+  res: Response,
+) => {
+  try {
+    const {
+      searchTerm,
+      limit,
+      page,
+      isActive,
+      sortBy,
+      sortOrder,
+    } = req.query;
+
+    const parsedLimit =
+      parsePositiveInteger(limit, 40, 100);
+
+    const parsedPage =
+      parsePositiveInteger(page, 1);
+
+    const activeStatus =
+      isActive === "true"
+        ? true
+        : isActive === "false"
+          ? false
+          : undefined;
+
+    const {
+      data,
+      total,
+      page: currentPage,
+      totalPages,
+    } = await TierService.findTiers(
+      parsedLimit,
+      parsedPage,
+      (sortBy as string) || "createdAt",
+      (sortOrder as "asc" | "desc") || "asc",
+      searchTerm as string,
+      activeStatus,
+    );
+
+    return res.status(200).json({
+      success: true,
+      data,
+      total,
+      currentPage,
+      totalPages,
+    });
+  } catch (error: any) {
+    return res.status(400).json({
+      success: false,
+      message:
+        error.message ||
+        "Failed to fetch tiers",
     });
   }
 };

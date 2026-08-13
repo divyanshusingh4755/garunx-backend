@@ -21,7 +21,6 @@ type CouponUpdateData = Partial<
     | "minOrderAmount"
     | "maxDiscountAmount"
     | "isFirstOrderOnly"
-    | "isActive"
   >
 >;
 
@@ -71,7 +70,6 @@ export const createCoupon = async (req: Request, res: Response) => {
       usageLimit: usageLimit ?? 0,
       minOrderAmount: minOrderAmount ?? 0,
       isFirstOrderOnly: isFirstOrderOnly ?? false,
-      isActive: isActive ?? true,
     };
 
     if (assignedUserId !== undefined) {
@@ -123,7 +121,6 @@ export const updateCoupon = async (req: Request, res: Response) => {
       "minOrderAmount",
       "maxDiscountAmount",
       "isFirstOrderOnly",
-      "isActive",
     ] as const;
 
     for (const field of directFields) {
@@ -233,9 +230,8 @@ export const toggleCouponStatus = async (req: Request, res: Response) => {
 
     return res.status(200).json({
       success: true,
-      message: `Coupon ${
-        coupon.isActive ? "activated" : "deactivated"
-      } successfully`,
+      message: `Coupon ${coupon.isActive ? "activated" : "deactivated"
+        } successfully`,
       data: coupon,
     });
   } catch (error: unknown) {
@@ -286,6 +282,72 @@ export const getAllCoupons = async (req: Request, res: Response) => {
     return res.status(400).json({
       success: false,
       message: getErrorMessage(error, "Failed to fetch coupons"),
+    });
+  }
+};
+
+export const getAvailableCoupons = async (
+  req: Request,
+  res: Response,
+) => {
+  try {
+    const userId = req.user?.userId;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized access",
+      });
+    }
+
+    const {
+      serviceId,
+      packageId,
+      amount,
+      isFirstOrder,
+    } = req.query;
+
+    const firstOrder =
+      isFirstOrder === "true"
+        ? true
+        : isFirstOrder === "false"
+          ? false
+          : undefined;
+
+    const coupons =
+      await CouponService.getAvailableCoupons({
+        userId,
+
+        ...(typeof serviceId === "string" && {
+          serviceId,
+        }),
+
+        ...(typeof packageId === "string" && {
+          packageId,
+        }),
+
+        ...(amount !== undefined && {
+          orderAmount: Number(amount),
+        }),
+
+        ...(firstOrder !== undefined && {
+          isFirstOrder: firstOrder,
+        }),
+      });
+
+    return res.status(200).json({
+      success: true,
+      message:
+        "Available coupons fetched successfully",
+      data: coupons,
+    });
+  } catch (error: unknown) {
+    return res.status(400).json({
+      success: false,
+      message: getErrorMessage(
+        error,
+        "Failed to fetch available coupons",
+      ),
     });
   }
 };

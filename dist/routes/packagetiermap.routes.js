@@ -2,6 +2,9 @@ import { Router, } from "express";
 import { body, param, validationResult } from "express-validator";
 import { authenticate } from "../middleware/authenticate.js";
 import { bulkUpsertPackageTierMappings, replacePackageTierMappings, getServicesByPackageAndTier, updatePackageTierService, } from "../controllers/packagetiermap.controllers.js";
+import { authorizeRoles } from "../middleware/authorizeRoles.js";
+import { Role } from "../types/rbac.js";
+import { requirePermission } from "../middleware/rbac.js";
 const router = Router();
 const validate = (req, res, next) => {
     const errors = validationResult(req);
@@ -62,10 +65,10 @@ const mappingBodyValidation = [
     }),
     validate,
 ];
-router.post("/bulk", authenticate, mappingBodyValidation, bulkUpsertPackageTierMappings);
-router.put("/replace", authenticate, mappingBodyValidation, replacePackageTierMappings);
-router.get("/:packageId/:tierId", authenticate, packageTierValidation, getServicesByPackageAndTier);
-router.patch("/", authenticate, body("packageId")
+router.post("/bulk", authenticate, authorizeRoles(Role.ADMIN), requirePermission("package_tier_map.upsert"), mappingBodyValidation, bulkUpsertPackageTierMappings);
+router.put("/replace", authenticate, authorizeRoles(Role.ADMIN), requirePermission("package_tier_map.replace"), mappingBodyValidation, replacePackageTierMappings);
+router.get("/:packageId/:tierId", authenticate, authorizeRoles(Role.ADMIN), requirePermission("package_tier_map.read"), packageTierValidation, getServicesByPackageAndTier);
+router.patch("/", authenticate, authorizeRoles(Role.ADMIN), requirePermission("package_tier_map.update"), body("packageId")
     .notEmpty()
     .withMessage("packageId is required")
     .isMongoId()
@@ -89,7 +92,8 @@ router.patch("/", authenticate, body("packageId")
     if (!hasIsRequired && !hasIsRelated) {
         throw new Error("isRequired or isRelated is required");
     }
-    if (payload.isRequired === true && payload.isRelated === true) {
+    if (payload.isRequired === true &&
+        payload.isRelated === true) {
         throw new Error("Service cannot be both required and related");
     }
     return true;

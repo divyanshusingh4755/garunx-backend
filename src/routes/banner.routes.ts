@@ -15,7 +15,11 @@ import {
   updateBanner,
   toggleBannerStatus,
   deleteBanner,
+  getPublicBanners,
 } from "../controllers/banner.controllers.js";
+import { authorizeRoles } from "../middleware/authorizeRoles.js";
+import { Role } from "../types/rbac.js";
+import { requirePermission } from "../middleware/rbac.js";
 
 const PLACEMENTS = [
   "HOME_TOP",
@@ -297,23 +301,98 @@ const listBannerValidation = [
   validateRequest,
 ];
 
+const listPublicBannerValidation = [
+  query("placement")
+    .optional()
+    .isIn(PLACEMENTS)
+    .withMessage("Invalid placement"),
+
+  query("format")
+    .optional()
+    .isIn(FORMATS)
+    .withMessage("Invalid format"),
+
+  query("redirectType")
+    .optional()
+    .isIn(REDIRECT_TYPES)
+    .withMessage("Invalid redirect type"),
+
+  query("page")
+    .optional()
+    .isInt({ min: 1 })
+    .withMessage("page must be a positive integer")
+    .toInt(),
+
+  query("limit")
+    .optional()
+    .isInt({ min: 1, max: 100 })
+    .withMessage("limit must be between 1 and 100")
+    .toInt(),
+
+  query("sortOrder")
+    .optional()
+    .isIn(["asc", "desc"])
+    .withMessage("sortOrder must be asc or desc"),
+
+  validateRequest,
+];
+
 const router = Router();
 
-router.get("/", listBannerValidation, getAllBanners);
+router.get(
+  "/admin",
+  authenticate,
+  authorizeRoles(Role.ADMIN),
+  requirePermission("banner.read"),
+  listBannerValidation,
+  getAllBanners,
+);
 
-router.get("/:id", authenticate, bannerIdValidation, getBannerById);
+router.get("/", listPublicBannerValidation, getPublicBanners);
 
-router.post("/", authenticate, createBannerValidation, createBanner);
+router.get(
+  "/:id",
+  authenticate,
+  authorizeRoles(Role.ADMIN),
+  requirePermission("banner.read"),
+  bannerIdValidation,
+  getBannerById,
+);
 
-router.put("/:id", authenticate, updateBannerValidation, updateBanner);
+router.post(
+  "/",
+  authenticate,
+  authorizeRoles(Role.ADMIN),
+  requirePermission("banner.create"),
+  createBannerValidation,
+  createBanner,
+);
+
+router.put(
+  "/:id",
+  authenticate,
+  authorizeRoles(Role.ADMIN),
+  requirePermission("banner.update"),
+  updateBannerValidation,
+  updateBanner,
+);
 
 router.patch(
   "/:id/status",
   authenticate,
+  authorizeRoles(Role.ADMIN),
+  requirePermission("banner.status"),
   bannerIdValidation,
   toggleBannerStatus,
 );
 
-router.delete("/:id", authenticate, bannerIdValidation, deleteBanner);
+router.delete(
+  "/:id",
+  authenticate,
+  authorizeRoles(Role.ADMIN),
+  requirePermission("banner.delete"),
+  bannerIdValidation,
+  deleteBanner,
+);
 
 export default router;

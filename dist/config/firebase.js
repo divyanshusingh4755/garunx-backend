@@ -1,22 +1,24 @@
 import { cert, getApp, getApps, initializeApp, } from "firebase-admin/app";
-import { getAuth } from "firebase-admin/auth";
-import serviceAccount from "../../serviceAccountKey.json" with { type: "json" };
-const isServiceAccount = (value) => {
-    if (typeof value !== "object" || value === null) {
-        return false;
-    }
-    const candidate = value;
-    return (typeof candidate.projectId === "string" &&
-        typeof candidate.clientEmail === "string" &&
-        typeof candidate.privateKey === "string");
-};
-if (!isServiceAccount(serviceAccount)) {
-    throw new Error("Invalid Firebase service account configuration");
+import { getAuth, } from "firebase-admin/auth";
+import { getMessaging, } from "firebase-admin/messaging";
+const projectId = process.env.FIREBASE_PROJECT_ID;
+const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
+const privateKey = process.env.FIREBASE_PRIVATE_KEY
+    ?.replace(/\\n/g, "\n");
+if (!projectId ||
+    !clientEmail ||
+    !privateKey) {
+    throw new Error("Firebase configuration is missing");
 }
-const app = getApps().length === 0
-    ? initializeApp({
-        credential: cert(serviceAccount),
-    })
-    : getApp();
-export const auth = getAuth(app);
+const firebaseApp = getApps().length > 0
+    ? getApp()
+    : initializeApp({
+        credential: cert({
+            projectId,
+            clientEmail,
+            privateKey,
+        }),
+    });
+export const auth = getAuth(firebaseApp);
+export const firebaseMessaging = getMessaging(firebaseApp);
 //# sourceMappingURL=firebase.js.map

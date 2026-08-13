@@ -9,9 +9,11 @@ import { ReferralRewardService } from "./referralreward.service.js";
 import { escapeRegex } from "../utils/escapeRegex.js";
 import { User } from "../models/user.model.js";
 import { ChatConversationService } from "./chatconversation.service.js";
+import { Role } from "../types/rbac.js";
 const COORDINATOR_RESPONSE_TIME_MS = 2 * 60 * 60 * 1000; // for testing only
 // const COORDINATOR_RESPONSE_TIME_MS = 10 * 60 * 1000;
 const ASSIGNMENT_WINDOW_MS = 2 * 60 * 60 * 1000;
+const USER_REASSIGNMENT_CUTOFF_MS = 2 * 60 * 60 * 1000; // 2 hours
 const BOOKING_OTP_EXPIRY_MS = 10 * 60 * 1000;
 const OTP_RESEND_COOLDOWN_MS = 60 * 1000;
 const MAX_OTP_RESENDS = 5;
@@ -29,6 +31,23 @@ const STATUS_TRANSITIONS = {
 export class BookingService {
     static generateOtp() {
         return crypto.randomInt(100000, 1000000).toString();
+    }
+    static generateBeneficiaryAccessToken() {
+        const token = crypto.randomBytes(32).toString("hex");
+        const tokenHash = crypto
+            .createHash("sha256")
+            .update(token)
+            .digest("hex");
+        return {
+            token,
+            tokenHash,
+        };
+    }
+    static hashBeneficiaryAccessToken(token) {
+        return crypto
+            .createHash("sha256")
+            .update(token)
+            .digest("hex");
     }
     static buildServiceExecutions(booking) {
         const serviceExecutions = [];
@@ -124,7 +143,7 @@ export class BookingService {
             .filter(Boolean)
             .map((coordinatorId) => new Types.ObjectId(coordinatorId.toString()));
     }
-    static async findNextAvailableCoordinator(booking, excludedCoordinatorIds = []) {
+    static async findNextAvailableCoordinator(booking, excludedCoordinatorIds = [], scheduledAt) {
         const locationIds = this.getBookingLocationIds(booking);
         const query = {
             role: "COORDINATOR",
@@ -154,10 +173,11 @@ export class BookingService {
         if (!candidates.length) {
             return null;
         }
-        if (!booking.scheduledAt) {
+        const targetScheduledAt = scheduledAt ?? booking.scheduledAt;
+        if (!targetScheduledAt) {
             return candidates[0];
         }
-        const scheduledDate = new Date(booking.scheduledAt);
+        const scheduledDate = new Date(targetScheduledAt);
         const startOfDay = new Date(scheduledDate);
         startOfDay.setHours(0, 0, 0, 0);
         const endOfDay = new Date(scheduledDate);
@@ -219,12 +239,14 @@ export class BookingService {
         booking.assignment.assignedBy = selectedBy
             ? new Types.ObjectId(selectedBy.toString())
             : undefined;
+        // Manual customer-selection window is over
+        // once any coordinator request is sent.
+        delete booking.assignment.assignmentExpiresAt;
         // A coordinator becomes assigned only after accepting.
         delete booking.assignment.assignedCoordinatorId;
         delete booking.assignment.assignedAt;
         delete booking.assignment.coordinatorAcceptedAt;
         delete booking.assignment.responseDeadlineAt;
-        booking.assignment.assignmentExpiresAt ??= new Date(now.getTime() + ASSIGNMENT_WINDOW_MS);
         booking.status = "ASSIGNMENT_PENDING";
         await booking.save();
         return booking;
@@ -301,6 +323,7 @@ export class BookingService {
                         throw new Error("Payment amount does not match booking total");
                     }
                     const paidAt = new Date();
+                    const assignmentExpiresAt = new Date(paidAt.getTime() + ASSIGNMENT_WINDOW_MS);
                     const paidUpdate = await Booking.updateOne({
                         _id: booking._id,
                         "payment.status": { $ne: "PAID" },
@@ -314,6 +337,8 @@ export class BookingService {
                             "payment.paidAt": paidAt,
                             status: "CONFIRMED",
                             "assignment.status": "PENDING_SELECTION",
+                            // Customer gets 2 hours to select coordinator
+                            "assignment.assignmentExpiresAt": assignmentExpiresAt,
                         },
                         $unset: {
                             paymentExpiresAt: 1,
@@ -479,6 +504,8 @@ export class BookingService {
                     status: "CONFIRMED",
                     "assignment.status": "PENDING_SELECTION",
                     "payment.paidAt": paidAt,
+                    "assignment.assignmentExpiresAt": new Date(paidAt.getTime() +
+                        ASSIGNMENT_WINDOW_MS),
                 },
                 $unset: {
                     paymentExpiresAt: 1,
@@ -488,6 +515,7 @@ export class BookingService {
             booking.payment.status = "PAID";
             booking.status = "CONFIRMED";
             booking.payment.paidAt = paidAt;
+            await this.createBeneficiaryAccess(booking._id.toString());
         }
         const hasPending = cashfreeStatus === "ACTIVE" || cashfreeStatus === "PENDING";
         const canRetry = cashfreeStatus === "EXPIRED" ||
@@ -506,10 +534,11 @@ export class BookingService {
         };
     }
     static async findBookings(params) {
-        const { searchTerm, status, paymentStatus, userId, bookingReference, fromDate, toDate, limit = 20, page = 1, sortBy = "createdAt", sortOrder = "desc", includeCoordinatorProfile = false, } = params;
+        const { searchTerm, status, paymentStatus, userId, accessibleByUserId, bookingReference, fromDate, toDate, limit = 20, page = 1, sortBy = "createdAt", sortOrder = "desc", includeCoordinatorProfile = true, } = params;
         const safePage = Number.isInteger(page) && page > 0 ? page : 1;
         const safeLimit = Number.isInteger(limit) && limit > 0 ? Math.min(limit, 100) : 20;
         const skip = (safePage - 1) * safeLimit;
+        const andConditions = [];
         const query = {
             isDeleted: false,
         };
@@ -521,6 +550,19 @@ export class BookingService {
         }
         if (userId) {
             query.userId = userId;
+        }
+        if (accessibleByUserId) {
+            const userObjectId = new Types.ObjectId(accessibleByUserId);
+            andConditions.push({
+                $or: [
+                    {
+                        userId: userObjectId,
+                    },
+                    {
+                        beneficiaryUserId: userObjectId,
+                    },
+                ],
+            });
         }
         if (bookingReference) {
             query.bookingReference = bookingReference;
@@ -536,32 +578,37 @@ export class BookingService {
         }
         if (searchTerm?.trim()) {
             const term = escapeRegex(searchTerm.trim());
-            query.$or = [
-                {
-                    bookingReference: {
-                        $regex: term,
-                        $options: "i",
+            andConditions.push({
+                $or: [
+                    {
+                        bookingReference: {
+                            $regex: term,
+                            $options: "i",
+                        },
                     },
-                },
-                {
-                    "customerDetails.name": {
-                        $regex: term,
-                        $options: "i",
+                    {
+                        "customerDetails.name": {
+                            $regex: term,
+                            $options: "i",
+                        },
                     },
-                },
-                {
-                    "customerDetails.email": {
-                        $regex: term,
-                        $options: "i",
+                    {
+                        "customerDetails.email": {
+                            $regex: term,
+                            $options: "i",
+                        },
                     },
-                },
-                {
-                    "customerDetails.phone": {
-                        $regex: term,
-                        $options: "i",
+                    {
+                        "customerDetails.phone": {
+                            $regex: term,
+                            $options: "i",
+                        },
                     },
-                },
-            ];
+                ],
+            });
+        }
+        if (andConditions.length > 0) {
+            query.$and = andConditions;
         }
         const allowedSortFields = new Set([
             "createdAt",
@@ -1364,8 +1411,15 @@ export class BookingService {
     static async getMyBookingById(bookingId, userId) {
         const booking = await Booking.findOne({
             _id: bookingId,
-            userId,
             isDeleted: false,
+            $or: [
+                {
+                    userId,
+                },
+                {
+                    beneficiaryUserId: new Types.ObjectId(userId),
+                },
+            ],
         })
             .populate({
             path: "assignment.assignedCoordinatorId",
@@ -1479,12 +1533,22 @@ export class BookingService {
     }
     static async getMyBookings(params) {
         return this.findBookings({
-            userId: params.userId,
-            ...(params.status && { status: params.status }),
-            ...(params.page && { page: params.page }),
-            ...(params.limit && { limit: params.limit }),
-            ...(params.sortBy && { sortBy: params.sortBy }),
-            ...(params.sortOrder && { sortOrder: params.sortOrder }),
+            accessibleByUserId: params.userId,
+            ...(params.status && {
+                status: params.status,
+            }),
+            ...(params.page && {
+                page: params.page,
+            }),
+            ...(params.limit && {
+                limit: params.limit,
+            }),
+            ...(params.sortBy && {
+                sortBy: params.sortBy,
+            }),
+            ...(params.sortOrder && {
+                sortOrder: params.sortOrder,
+            }),
             includeCoordinatorProfile: true,
         });
     }
@@ -2063,7 +2127,16 @@ export class BookingService {
         }
     }
     static async requestReassignment(params) {
-        const { bookingId, requestedBy, requestedByRole, reason } = params;
+        const { bookingId, requestedBy, requestedByRole, reason, } = params;
+        if (!Types.ObjectId.isValid(bookingId)) {
+            throw new Error("Invalid booking ID");
+        }
+        if (!Types.ObjectId.isValid(requestedBy)) {
+            throw new Error("Invalid requester ID");
+        }
+        if (!reason?.trim()) {
+            throw new Error("Reassignment reason is required");
+        }
         const booking = await Booking.findOne({
             _id: bookingId,
             isDeleted: false,
@@ -2071,59 +2144,171 @@ export class BookingService {
         if (!booking) {
             throw new Error("Booking not found");
         }
-        const isOwner = booking.userId?.toString() === requestedBy;
-        const isAssignedCoordinator = booking.assignment?.assignedCoordinatorId?.toString() === requestedBy;
+        /*
+         * ------------------------------------------------
+         * Identify requester relationship with booking.
+         * ------------------------------------------------
+         */
+        const isOwner = booking.userId?.toString() ===
+            requestedBy;
+        const assignedCoordinatorId = booking.assignment
+            ?.assignedCoordinatorId;
+        const isAssignedCoordinator = assignedCoordinatorId?.toString() ===
+            requestedBy;
         const isAdmin = requestedByRole === "ADMIN";
-        if (requestedByRole === "USER" && !isOwner) {
+        const isSystem = requestedByRole === "SYSTEM";
+        /*
+         * ------------------------------------------------
+         * Role-specific authorization.
+         * ------------------------------------------------
+         */
+        if (requestedByRole === "USER" &&
+            !isOwner) {
             throw new Error("Only the booking owner can request reassignment");
         }
-        if (requestedByRole === "COORDINATOR" && !isAssignedCoordinator) {
+        if (requestedByRole === "COORDINATOR" &&
+            !isAssignedCoordinator) {
             throw new Error("Only the assigned coordinator can request reassignment");
         }
         if (!isOwner &&
             !isAssignedCoordinator &&
             !isAdmin &&
-            requestedByRole !== "SYSTEM") {
+            !isSystem) {
             throw new Error("You are not authorized to request reassignment");
         }
-        if (!["ASSIGNED", "ASSIGNMENT_PENDING"].includes(booking.status)) {
+        /*
+         * ------------------------------------------------
+         * Booking must currently be in an assignment stage.
+         * ------------------------------------------------
+         */
+        if (![
+            "ASSIGNED",
+            "ASSIGNMENT_PENDING",
+        ].includes(booking.status)) {
             throw new Error("Reassignment is available only for assigned bookings");
         }
-        if (booking.status === "IN_PROGRESS" || booking.execution?.startedAt) {
+        /*
+         * ------------------------------------------------
+         * Reassignment is not allowed after execution starts.
+         * ------------------------------------------------
+         */
+        if (booking.status === "IN_PROGRESS" ||
+            booking.execution?.startedAt) {
             throw new Error("Reassignment cannot be requested after execution starts");
         }
-        const now = new Date();
         if (!booking.assignment) {
             throw new Error("Booking assignment details not found");
         }
+        const now = new Date();
+        /*
+         * ------------------------------------------------
+         * USER REASSIGNMENT CUTOFF
+         *
+         * User cannot request reassignment within
+         * 2 hours of the scheduled booking.
+         *
+         * ADMIN / COORDINATOR / SYSTEM can still
+         * request according to business rules.
+         * ------------------------------------------------
+         */
+        if (requestedByRole === "USER" &&
+            booking.scheduledAt) {
+            const scheduledAt = new Date(booking.scheduledAt);
+            const timeUntilBooking = scheduledAt.getTime() -
+                now.getTime();
+            if (timeUntilBooking <= 0) {
+                throw new Error("Reassignment cannot be requested after the scheduled booking time");
+            }
+            if (timeUntilBooking <=
+                USER_REASSIGNMENT_CUTOFF_MS) {
+                throw new Error("Reassignment cannot be requested within 2 hours of the scheduled booking");
+            }
+        }
+        /*
+         * ------------------------------------------------
+         * Preserve previous coordinator.
+         *
+         * processAutoAssignments() will use this
+         * to prevent immediately assigning the same
+         * coordinator again.
+         * ------------------------------------------------
+         */
+        const previousCoordinatorId = booking.assignment
+            .assignedCoordinatorId;
+        /*
+         * ------------------------------------------------
+         * Close all pending requests from current round.
+         * ------------------------------------------------
+         */
         const currentRound = booking.assignment.currentRound ?? 1;
         for (const request of booking.assignment.requests ?? []) {
             if (request.status === "PENDING" &&
-                (request.assignmentRound ?? 1) === currentRound) {
+                (request.assignmentRound ?? 1) ===
+                    currentRound) {
                 request.status = "CANCELLED";
-                request.closureReason = "REASSIGNMENT_STARTED";
+                request.closureReason =
+                    "REASSIGNMENT_STARTED";
                 request.respondedAt = now;
             }
         }
-        booking.assignment.currentRound = currentRound + 1;
-        booking.assignment.status = "REASSIGNMENT_REQUESTED";
+        /*
+         * ------------------------------------------------
+         * Start a new assignment round.
+         * ------------------------------------------------
+         */
+        booking.assignment.currentRound =
+            currentRound + 1;
+        booking.assignment.status =
+            "REASSIGNMENT_REQUESTED";
         booking.assignment.reassignment = {
             requestedBy: new Types.ObjectId(requestedBy),
             requestedByRole,
             reason: reason.trim(),
             requestedAt: now,
+            ...(previousCoordinatorId && {
+                previousCoordinatorId: new Types.ObjectId(previousCoordinatorId.toString()),
+            }),
         };
-        delete booking.assignment.assignedCoordinatorId;
-        delete booking.assignment.coordinatorAcceptedAt;
-        delete booking.assignment.responseDeadlineAt;
-        delete booking.assignment.pendingReschedule;
-        booking.status = "ASSIGNMENT_PENDING";
+        /*
+         * ------------------------------------------------
+         * Clear previous accepted assignment.
+         *
+         * Cron processAutoAssignments() will now
+         * automatically search for another coordinator.
+         * ------------------------------------------------
+         */
+        delete booking.assignment
+            .assignedCoordinatorId;
+        delete booking.assignment
+            .assignedAt;
+        delete booking.assignment
+            .coordinatorAcceptedAt;
+        delete booking.assignment
+            .responseDeadlineAt;
+        /*
+         * Any previous manual-selection deadline
+         * is irrelevant during reassignment.
+         */
+        delete booking.assignment
+            .assignmentExpiresAt;
+        /*
+         * A previous pending reschedule should not
+         * remain attached to a normal reassignment.
+         */
+        delete booking.assignment
+            .pendingReschedule;
+        booking.status =
+            "ASSIGNMENT_PENDING";
         await booking.save();
         return {
             bookingId: booking._id,
+            bookingReference: booking.bookingReference,
             bookingStatus: booking.status,
             assignmentStatus: booking.assignment.status,
+            assignmentRound: booking.assignment.currentRound,
+            previousCoordinatorId: previousCoordinatorId ?? null,
             reassignment: booking.assignment.reassignment,
+            message: "Reassignment requested successfully. Another coordinator will be assigned automatically.",
         };
     }
     static async getCoordinatorBookingList(params) {
@@ -2357,7 +2542,9 @@ export class BookingService {
             "assignment.requests": {
                 $elemMatch: {
                     status: "PENDING",
-                    responseDeadlineAt: { $lte: now },
+                    responseDeadlineAt: {
+                        $lte: now,
+                    },
                 },
             },
         });
@@ -2365,16 +2552,17 @@ export class BookingService {
             processed: 0,
             expiredRequests: 0,
             waitingForSelection: 0,
-            assignmentExpired: 0,
         };
         for (const booking of bookings) {
-            if (!booking.assignment)
+            if (!booking.assignment) {
                 continue;
+            }
             const currentRound = booking.assignment.currentRound ?? 1;
             let changed = false;
             for (const request of booking.assignment.requests ?? []) {
                 if (request.status === "PENDING" &&
-                    (request.assignmentRound ?? 1) === currentRound &&
+                    (request.assignmentRound ?? 1) ===
+                        currentRound &&
                     request.responseDeadlineAt <= now) {
                     request.status = "EXPIRED";
                     request.respondedAt = now;
@@ -2382,36 +2570,44 @@ export class BookingService {
                     changed = true;
                 }
             }
-            if (!changed)
+            if (!changed) {
                 continue;
+            }
             result.processed += 1;
             const hasPending = booking.assignment.requests.some((request) => request.status === "PENDING" &&
-                (request.assignmentRound ?? 1) === currentRound);
+                (request.assignmentRound ?? 1) ===
+                    currentRound);
             if (hasPending) {
-                booking.assignment.status = "PENDING_RESPONSE";
+                booking.assignment.status =
+                    "PENDING_RESPONSE";
                 await booking.save();
                 continue;
             }
-            booking.assignment.status = "PENDING_SELECTION";
-            if (booking.assignment.assignmentExpiresAt &&
-                booking.assignment.assignmentExpiresAt <= now) {
-                booking.status = "CONFIRMED";
-                result.assignmentExpired += 1;
-            }
-            else {
-                booking.status = "ASSIGNMENT_PENDING";
-                result.waitingForSelection += 1;
-            }
+            /*
+             * No coordinator in this round is
+             * currently waiting to respond.
+             *
+             * Auto-assignment cron will now
+             * choose the next coordinator.
+             */
+            booking.assignment.status =
+                "PENDING_SELECTION";
+            booking.status =
+                "ASSIGNMENT_PENDING";
+            result.waitingForSelection += 1;
             await booking.save();
         }
         return result;
     }
-    static async getBookingExecution(bookingId) {
+    static async getBookingExecution(params) {
+        const { bookingId, userId, role, } = params;
         const booking = await Booking.findOne({
             _id: bookingId,
             isDeleted: false,
         })
             .select({
+            userId: 1,
+            beneficiaryUserId: 1,
             bookingReference: 1,
             status: 1,
             scheduledAt: 1,
@@ -2424,12 +2620,29 @@ export class BookingService {
         if (!booking) {
             throw new Error("Booking not found");
         }
+        if (role === Role.USER) {
+            const isOwner = booking.userId?.toString() === userId;
+            const isBeneficiary = booking.beneficiaryUserId?.toString() === userId;
+            if (!isOwner && !isBeneficiary) {
+                throw new Error("You are not authorized to view this booking execution");
+            }
+        }
+        if (role === Role.COORDINATOR) {
+            const coordinator = booking.assignment
+                ?.assignedCoordinatorId;
+            const coordinatorId = coordinator?._id?.toString() ??
+                coordinator?.toString();
+            if (coordinatorId !== userId) {
+                throw new Error("You are not authorized to view this booking execution");
+            }
+        }
         return {
             bookingId: booking._id,
             bookingReference: booking.bookingReference,
             bookingStatus: booking.status,
             scheduledAt: booking.scheduledAt,
-            coordinator: booking.assignment?.assignedCoordinatorId,
+            coordinator: booking.assignment
+                ?.assignedCoordinatorId,
             assignmentStatus: booking.assignment?.status,
             execution: booking.execution ?? {
                 stage: "NOT_STARTED",
@@ -2911,6 +3124,432 @@ export class BookingService {
             //   otp,
             // }),
         };
+    }
+    static async getBookingInvoice(params) {
+        const { bookingId, requestedBy, requestedByRole, } = params;
+        if (!Types.ObjectId.isValid(bookingId)) {
+            throw new Error("Invalid booking ID");
+        }
+        const booking = await Booking.findOne({
+            _id: bookingId,
+            isDeleted: false,
+        })
+            .select({
+            userId: 1,
+            bookingReference: 1,
+            status: 1,
+            bookedBy: 1,
+            bookingFor: 1,
+            customerDetails: 1,
+            entries: 1,
+            pricing: 1,
+            payment: 1,
+            scheduledAt: 1,
+            completedAt: 1,
+            createdAt: 1,
+        })
+            .lean();
+        if (!booking) {
+            throw new Error("Booking not found");
+        }
+        /*
+         * -----------------------------------------
+         * Authorization
+         * -----------------------------------------
+         */
+        if (requestedByRole === Role.USER) {
+            const isOwner = booking.userId?.toString() ===
+                requestedBy;
+            if (!isOwner) {
+                throw new Error("You are not authorized to view this invoice");
+            }
+        }
+        else if (requestedByRole !== Role.ADMIN) {
+            throw new Error("You are not authorized to view this invoice");
+        }
+        /*
+         * -----------------------------------------
+         * Invoice should exist only for payments
+         * that were successfully completed.
+         *
+         * PARTIAL_REFUND / REFUNDED are also
+         * allowed because the original invoice
+         * remains valid after refund.
+         * -----------------------------------------
+         */
+        const invoicePaymentStatuses = [
+            "PAID",
+            "PARTIAL_REFUND",
+            "REFUNDED",
+        ];
+        if (!invoicePaymentStatuses.includes(booking.payment.status)) {
+            throw new Error("Invoice is not available until payment is completed");
+        }
+        /*
+         * -----------------------------------------
+         * Do NOT expose pricing.earnings.
+         *
+         * earnings is internal platform/business
+         * information and should not appear on
+         * the customer invoice.
+         * -----------------------------------------
+         */
+        const pricing = {
+            baseAmount: booking.pricing.baseAmount,
+            addonAmount: booking.pricing.addonAmount ?? 0,
+            subtotal: booking.pricing.subtotal,
+            couponCode: booking.pricing.couponCode ?? null,
+            discountAmount: booking.pricing.discountAmount ?? 0,
+            taxSummary: booking.pricing.taxSummary,
+            grandTotal: booking.pricing.grandTotal,
+        };
+        /*
+         * Only expose payment information useful
+         * for invoice / transaction display.
+         */
+        const payment = {
+            status: booking.payment.status,
+            paymentMethod: booking.payment.paymentMethod ?? null,
+            gateway: booking.payment.gateway ?? null,
+            amountPaid: booking.payment.amountPaid ?? 0,
+            refundAmount: booking.payment.refundAmount ?? 0,
+            currency: booking.payment.currency ?? "INR",
+            paidAt: booking.payment.paidAt ?? null,
+            refundedAt: booking.payment.refundedAt ?? null,
+            providerOrderId: booking.payment.providerOrderId ?? null,
+            providerPaymentId: booking.payment.providerPaymentId ?? null,
+        };
+        return {
+            bookingId: booking._id,
+            bookingReference: booking.bookingReference,
+            bookingStatus: booking.status,
+            bookedAt: booking.createdAt,
+            scheduledAt: booking.scheduledAt ?? null,
+            completedAt: booking.completedAt ?? null,
+            bookingFor: booking.bookingFor,
+            customer: {
+                name: booking.customerDetails?.name ?? null,
+                email: booking.customerDetails?.email ?? null,
+                phone: booking.customerDetails?.phone ?? null,
+                address: booking.customerDetails?.address ?? null,
+            },
+            items: booking.entries,
+            pricing,
+            payment,
+        };
+    }
+    static async createBeneficiaryAccess(bookingId) {
+        if (!Types.ObjectId.isValid(bookingId)) {
+            throw new Error("Invalid booking ID");
+        }
+        const booking = await Booking.findOne({
+            _id: bookingId,
+            isDeleted: false,
+        }).select("+beneficiaryAccess.tokenHash");
+        if (!booking) {
+            throw new Error("Booking not found");
+        }
+        if (booking.bookingFor !== "OTHER") {
+            return null;
+        }
+        const email = booking.customerDetails?.email
+            ?.trim()
+            .toLowerCase();
+        const phone = booking.customerDetails?.phone
+            ?.trim();
+        if (!email && !phone) {
+            throw new Error("Email or phone is required for OTHER booking");
+        }
+        /*
+         * Try to link the booking with an
+         * existing USER account.
+         */
+        const identityConditions = [];
+        if (email) {
+            identityConditions.push({
+                email,
+            });
+        }
+        if (phone) {
+            identityConditions.push({
+                phoneNumber: phone,
+            });
+        }
+        const existingUser = await User.findOne({
+            role: Role.USER,
+            $or: identityConditions,
+        })
+            .select("_id")
+            .lean();
+        if (existingUser) {
+            booking.beneficiaryUserId =
+                existingUser._id;
+        }
+        const now = new Date();
+        /*
+         * Don't generate another token while
+         * the existing browser-access link
+         * is still active.
+         */
+        const hasActiveToken = !!booking.beneficiaryAccess?.tokenHash &&
+            !!booking.beneficiaryAccess?.expiresAt &&
+            booking.beneficiaryAccess.expiresAt >
+                now;
+        if (hasActiveToken) {
+            /*
+             * Save beneficiaryUserId in case the
+             * account became available after the
+             * original link was generated.
+             */
+            await booking.save();
+            return {
+                bookingId: booking._id,
+                bookingReference: booking.bookingReference,
+                token: null,
+                tokenCreated: false,
+                beneficiaryUserId: booking.beneficiaryUserId ?? null,
+                expiresAt: booking.beneficiaryAccess
+                    ?.expiresAt ?? null,
+            };
+        }
+        /*
+         * No active access token exists.
+         * Create a new browser-access link.
+         */
+        const { token, tokenHash, } = this.generateBeneficiaryAccessToken();
+        booking.beneficiaryAccess = {
+            tokenHash,
+            createdAt: now,
+            expiresAt: new Date(now.getTime() +
+                30 * 24 * 60 * 60 * 1000),
+        };
+        await booking.save();
+        return {
+            bookingId: booking._id,
+            bookingReference: booking.bookingReference,
+            token,
+            tokenCreated: true,
+            beneficiaryUserId: booking.beneficiaryUserId ?? null,
+            expiresAt: booking.beneficiaryAccess.expiresAt,
+        };
+    }
+    static async getBeneficiaryBooking(token) {
+        if (!token?.trim()) {
+            throw new Error("Booking access token is required");
+        }
+        const tokenHash = this.hashBeneficiaryAccessToken(token.trim());
+        const booking = await Booking.findOne({
+            bookingFor: "OTHER",
+            isDeleted: false,
+            "beneficiaryAccess.tokenHash": tokenHash,
+            "beneficiaryAccess.expiresAt": {
+                $gt: new Date(),
+            },
+        })
+            .select("+beneficiaryAccess.tokenHash")
+            .lean();
+        if (!booking) {
+            throw new Error("Booking link is invalid or expired");
+        }
+        /*
+         * Return only what beneficiary
+         * should see.
+         *
+         * Do NOT expose payment gateway internals,
+         * purchaser userId, admin notes, etc.
+         */
+        return {
+            bookingId: booking._id,
+            bookingReference: booking.bookingReference,
+            status: booking.status,
+            customerDetails: booking.customerDetails,
+            entries: booking.entries,
+            scheduledAt: booking.scheduledAt ?? null,
+            assignment: {
+                status: booking.assignment?.status,
+                assignedCoordinatorId: booking.assignment
+                    ?.assignedCoordinatorId ?? null,
+            },
+            execution: booking.execution ?? null,
+            createdAt: booking.createdAt,
+            completedAt: booking.completedAt ?? null,
+        };
+    }
+    static async linkBeneficiaryBookingsToUser(userId) {
+        if (!Types.ObjectId.isValid(userId)) {
+            throw new Error("Invalid user ID");
+        }
+        const user = await User.findOne({
+            _id: userId,
+            role: Role.USER,
+        })
+            .select("_id email phoneNumber")
+            .lean();
+        if (!user) {
+            throw new Error("User not found");
+        }
+        const email = user.email
+            ?.trim()
+            .toLowerCase();
+        const phone = user.phoneNumber
+            ?.trim();
+        const identityConditions = [];
+        if (email) {
+            identityConditions.push({
+                "customerDetails.email": email,
+            });
+        }
+        if (phone) {
+            identityConditions.push({
+                "customerDetails.phone": phone,
+            });
+        }
+        if (identityConditions.length === 0) {
+            return {
+                linkedCount: 0,
+            };
+        }
+        const result = await Booking.updateMany({
+            bookingFor: "OTHER",
+            isDeleted: false,
+            $and: [
+                {
+                    $or: identityConditions,
+                },
+                {
+                    $or: [
+                        {
+                            beneficiaryUserId: {
+                                $exists: false,
+                            },
+                        },
+                        {
+                            beneficiaryUserId: null,
+                        },
+                        {
+                            beneficiaryUserId: user._id,
+                        },
+                    ],
+                },
+            ],
+        }, {
+            $set: {
+                beneficiaryUserId: user._id,
+            },
+        });
+        return {
+            linkedCount: result.modifiedCount,
+        };
+    }
+    static async processAutoAssignments() {
+        const bookings = await Booking.find({
+            isDeleted: false,
+            "payment.status": "PAID",
+            status: {
+                $in: [
+                    "CONFIRMED",
+                    "ASSIGNMENT_PENDING",
+                ],
+            },
+            $or: [
+                // Initial selection:
+                // customer did nothing for 2 hours
+                {
+                    "assignment.status": "PENDING_SELECTION",
+                    "assignment.assignmentExpiresAt": {
+                        $lte: new Date(),
+                    },
+                    "assignment.requests": {
+                        $size: 0,
+                    },
+                },
+                // A coordinator was previously requested
+                // but rejected / expired.
+                {
+                    "assignment.status": "PENDING_SELECTION",
+                    "assignment.requests.0": {
+                        $exists: true,
+                    },
+                },
+                // Reassignment
+                {
+                    "assignment.status": "REASSIGNMENT_REQUESTED",
+                },
+            ],
+        });
+        const result = {
+            processed: 0,
+            assigned: 0,
+            noCoordinatorAvailable: 0,
+            skipped: 0,
+        };
+        for (const booking of bookings) {
+            try {
+                if (!booking.assignment) {
+                    result.skipped += 1;
+                    continue;
+                }
+                const currentRound = booking.assignment.currentRound ?? 1;
+                /*
+                 * -----------------------------------------
+                 * Determine which date we are assigning for.
+                 * -----------------------------------------
+                 *
+                 * Normal booking:
+                 * booking.scheduledAt
+                 *
+                 * Reschedule:
+                 * pendingReschedule.requestedScheduledAt
+                 */
+                const targetScheduledAt = booking.assignment.pendingReschedule
+                    ?.requestedScheduledAt ??
+                    booking.scheduledAt;
+                if (!targetScheduledAt) {
+                    result.skipped += 1;
+                    continue;
+                }
+                /*
+                 * -----------------------------------------
+                 * Exclude coordinators who already received
+                 * a request in the current assignment round.
+                 * -----------------------------------------
+                 */
+                const excludedCoordinatorIds = (booking.assignment.requests ?? [])
+                    .filter((request) => (request.assignmentRound ?? 1) ===
+                    currentRound)
+                    .map((request) => new Types.ObjectId(request.coordinatorId.toString()));
+                /*
+                 * For reassignment, also exclude the previous
+                 * coordinator if needed.
+                 */
+                const previousCoordinatorId = booking.assignment.reassignment
+                    ?.previousCoordinatorId;
+                if (previousCoordinatorId) {
+                    const alreadyExcluded = excludedCoordinatorIds.some((id) => id.toString() ===
+                        previousCoordinatorId.toString());
+                    if (!alreadyExcluded) {
+                        excludedCoordinatorIds.push(new Types.ObjectId(previousCoordinatorId.toString()));
+                    }
+                }
+                const coordinator = await this.findNextAvailableCoordinator(booking, excludedCoordinatorIds, targetScheduledAt);
+                result.processed += 1;
+                if (!coordinator) {
+                    result.noCoordinatorAvailable += 1;
+                    continue;
+                }
+                await this.assignCoordinatorRequest({
+                    booking,
+                    coordinatorId: coordinator._id,
+                    assignmentType: "AUTO",
+                    scheduledAt: targetScheduledAt,
+                });
+                result.assigned += 1;
+            }
+            catch (error) {
+                console.error(`[AUTO ASSIGN] Booking ${booking._id} failed:`, error);
+            }
+        }
+        return result;
     }
 }
 //# sourceMappingURL=booking.service.js.map

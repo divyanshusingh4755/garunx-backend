@@ -5,6 +5,7 @@ import { registerConversationHandlers, registerDeliveryHandlers, registerMessage
 import { getUserRoom } from "./socket.rooms.js";
 import { addUserSocket, removeUserSocket } from "./socket.presence.js";
 import { ChatConversationService } from "../services/chatconversation.service.js";
+import { setSocketServer } from "./socket.instance.js";
 export const initializeSocket = (httpServer) => {
     const io = new Server(httpServer, {
         cors: {
@@ -18,6 +19,7 @@ export const initializeSocket = (httpServer) => {
             credentials: true,
         }
     });
+    setSocketServer(io);
     io.use((socket, next) => {
         try {
             const token = socket.handshake.auth?.token;

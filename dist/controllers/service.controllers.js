@@ -144,14 +144,67 @@ export const getServicesByLocation = async (req, res) => {
 };
 export const getAllServices = async (req, res) => {
     try {
-        const { searchTerm, categoryId, locationId, limit, page, isActive, isComplete, sortBy, sortOrder, } = req.query;
-        const activeStatus = isActive === "true" ? true : isActive === "false" ? false : undefined;
-        const completeStatus = isComplete === "true" ? true : isComplete === "false" ? false : undefined;
+        const { searchTerm, categoryId, locationId, limit, page, sortBy, sortOrder, } = req.query;
         const result = await ServiceService.findServices({
             limit: limit ? Number(limit) : 20,
             page: page ? Number(page) : 1,
-            sortBy: typeof sortBy === "string" ? sortBy : "name",
-            sortOrder: sortOrder === "asc" || sortOrder === "desc" ? sortOrder : "asc",
+            isActive: true,
+            isComplete: true,
+            sortBy: typeof sortBy === "string"
+                ? sortBy
+                : "name",
+            sortOrder: sortOrder === "asc" ||
+                sortOrder === "desc"
+                ? sortOrder
+                : "asc",
+            ...(typeof searchTerm === "string" && {
+                searchTerm,
+            }),
+            ...(typeof categoryId === "string" && {
+                categoryId,
+            }),
+            ...(typeof locationId === "string" && {
+                locationId,
+            }),
+        });
+        return res.status(200).json({
+            success: true,
+            data: result.data,
+            total: result.total,
+            currentPage: result.page,
+            totalPages: result.totalPages,
+        });
+    }
+    catch (error) {
+        return res.status(getStatusCode(error)).json({
+            success: false,
+            message: error.message || "Failed to fetch services",
+        });
+    }
+};
+export const getAllServicesAdmin = async (req, res) => {
+    try {
+        const { searchTerm, categoryId, locationId, limit, page, isActive, isComplete, sortBy, sortOrder, } = req.query;
+        const activeStatus = isActive === "true"
+            ? true
+            : isActive === "false"
+                ? false
+                : undefined;
+        const completeStatus = isComplete === "true"
+            ? true
+            : isComplete === "false"
+                ? false
+                : undefined;
+        const result = await ServiceService.findServices({
+            limit: limit ? Number(limit) : 20,
+            page: page ? Number(page) : 1,
+            sortBy: typeof sortBy === "string"
+                ? sortBy
+                : "name",
+            sortOrder: sortOrder === "asc" ||
+                sortOrder === "desc"
+                ? sortOrder
+                : "asc",
             ...(typeof searchTerm === "string" && {
                 searchTerm,
             }),
@@ -179,7 +232,8 @@ export const getAllServices = async (req, res) => {
     catch (error) {
         return res.status(getStatusCode(error)).json({
             success: false,
-            message: error.message || "Failed to fetch services",
+            message: error.message ||
+                "Failed to fetch services",
         });
     }
 };

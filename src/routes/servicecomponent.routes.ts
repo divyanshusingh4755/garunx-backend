@@ -14,6 +14,9 @@ import {
 } from "../controllers/servicecomponent.controllers.js";
 
 import { authenticate } from "../middleware/authenticate.js";
+import { authorizeRoles } from "../middleware/authorizeRoles.js";
+import { requirePermission } from "../middleware/rbac.js";
+import { Role } from "../types/rbac.js";
 
 const router = Router();
 
@@ -171,17 +174,40 @@ const patchValidation = [
   validate,
 ];
 
-router.post("/bulk", authenticate, bulkValidation, bulkUpsertServiceComponents);
+router.post(
+  "/bulk",
+  authenticate,
+  authorizeRoles(Role.ADMIN),
+  requirePermission("service_component.upsert"),
+  bulkValidation,
+  bulkUpsertServiceComponents,
+);
 
-router.put("/replace", authenticate, bulkValidation, replaceServiceComponents);
+router.put(
+  "/replace",
+  authenticate,
+  authorizeRoles(Role.ADMIN),
+  requirePermission("service_component.replace"),
+  bulkValidation,
+  replaceServiceComponents,
+);
 
 router.get(
   "/:serviceId/:tierId",
   authenticate,
+  authorizeRoles(Role.ADMIN),
+  requirePermission("service_component.read"),
   serviceTierValidation,
   getComponentsByServiceAndTier,
 );
 
-router.patch("/", authenticate, patchValidation, updateServiceComponent);
+router.patch(
+  "/",
+  authenticate,
+  authorizeRoles(Role.ADMIN),
+  requirePermission("service_component.update"),
+  patchValidation,
+  updateServiceComponent,
+);
 
 export default router;

@@ -15,6 +15,9 @@ import {
 } from "../controllers/component.controllers.js";
 
 import { authenticate } from "../middleware/authenticate.js";
+import { authorizeRoles } from "../middleware/authorizeRoles.js";
+import { Role } from "../types/rbac.js";
+import { requirePermission } from "../middleware/rbac.js";
 
 const router = Router();
 
@@ -89,7 +92,6 @@ const updateComponentValidation = [
       "imageUrl",
       "isRemovable",
       "isBundled",
-      "isActive",
     ];
 
     const suppliedFields = Object.keys(value ?? {});
@@ -141,11 +143,6 @@ const updateComponentValidation = [
     .optional()
     .isBoolean()
     .withMessage("isBundled must be boolean"),
-
-  body("isActive")
-    .optional()
-    .isBoolean()
-    .withMessage("isActive must be boolean"),
 
   validate,
 ];
@@ -222,20 +219,35 @@ const listValidation = [
   validate,
 ];
 
-router.get("/", listValidation, getAllComponents);
+router.get(
+  "/",
+  listValidation,
+  getAllComponents,
+);
 
 router.get(
   "/:componentId",
   authenticate,
+  authorizeRoles(Role.ADMIN),
+  requirePermission("component.read"),
   componentIdValidation,
   getComponentById,
 );
 
-router.post("/", authenticate, createComponentValidation, createComponent);
+router.post(
+  "/",
+  authenticate,
+  authorizeRoles(Role.ADMIN),
+  requirePermission("component.create"),
+  createComponentValidation,
+  createComponent,
+);
 
 router.patch(
   "/:componentId",
   authenticate,
+  authorizeRoles(Role.ADMIN),
+  requirePermission("component.update"),
   updateComponentValidation,
   updateComponent,
 );
@@ -243,6 +255,8 @@ router.patch(
 router.patch(
   "/:componentId/status",
   authenticate,
+  authorizeRoles(Role.ADMIN),
+  requirePermission("component.status"),
   componentStatusValidation,
   toggleComponentStatus,
 );

@@ -110,17 +110,11 @@ export const getReferralHistory = async (req: Request, res: Response) => {
   }
 };
 
-export const getReferralRewards = async (req: Request, res: Response) => {
+export const getReferralRewards = async (
+  req: Request,
+  res: Response,
+) => {
   try {
-    const authenticatedUserId = getAuthenticatedUserId(req);
-
-    if (!authenticatedUserId) {
-      return res.status(401).json({
-        success: false,
-        message: "Unauthorized",
-      });
-    }
-
     const page =
       typeof req.query.page === "number"
         ? req.query.page
@@ -137,14 +131,21 @@ export const getReferralRewards = async (req: Request, res: Response) => {
         : undefined;
 
     const userId =
-      typeof req.query.userId === "string" ? req.query.userId : undefined;
+      typeof req.query.userId === "string"
+        ? req.query.userId
+        : undefined;
 
-    const result = await ReferralRewardService.getReferralRewards(
-      userId,
-      Number.isInteger(page) && page > 0 ? page : 1,
-      Number.isInteger(limit) && limit > 0 ? Math.min(limit, 100) : 20,
-      status,
-    );
+    const result =
+      await ReferralRewardService.getReferralRewards(
+        userId,
+        Number.isInteger(page) && page > 0
+          ? page
+          : 1,
+        Number.isInteger(limit) && limit > 0
+          ? Math.min(limit, 100)
+          : 20,
+        status,
+      );
 
     return res.status(200).json({
       success: true,
@@ -153,7 +154,10 @@ export const getReferralRewards = async (req: Request, res: Response) => {
   } catch (error: unknown) {
     return res.status(400).json({
       success: false,
-      message: getErrorMessage(error, "Failed to fetch referral rewards"),
+      message: getErrorMessage(
+        error,
+        "Failed to fetch referral rewards",
+      ),
     });
   }
 };

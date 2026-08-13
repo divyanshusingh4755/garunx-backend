@@ -14,7 +14,11 @@ import {
   getAllSubServiceComponents,
   getSubServiceComponentById,
   updateSubServiceComponent,
+  getAllSubServiceComponentsAdmin,
 } from "../controllers/subservices.controllers.js";
+import { authorizeRoles } from "../middleware/authorizeRoles.js";
+import { requirePermission } from "../middleware/rbac.js";
+import { Role } from "../types/rbac.js";
 
 const router = Router();
 
@@ -77,7 +81,6 @@ const updateSubServiceComponentValidation = [
       "description",
       "serviceId",
       "image",
-      "isActive",
     ];
 
     const suppliedFields = Object.keys(value ?? {});
@@ -120,11 +123,6 @@ const updateSubServiceComponentValidation = [
     .isURL()
     .withMessage("Image must be a valid URL"),
 
-  body("isActive")
-    .optional()
-    .isBoolean()
-    .withMessage("isActive must be boolean"),
-
   validate,
 ];
 
@@ -146,7 +144,7 @@ const statusValidation = [
   validate,
 ];
 
-const listValidation = [
+const publicListValidation = [
   query("serviceId")
     .optional()
     .custom((value) => {
@@ -155,8 +153,14 @@ const listValidation = [
         .map((id) => id.trim())
         .filter(Boolean);
 
-      if (ids.some((id) => !/^[a-f\d]{24}$/i.test(id))) {
-        throw new Error("One or more service IDs are invalid");
+      if (
+        ids.some(
+          (id) => !/^[a-f\d]{24}$/i.test(id),
+        )
+      ) {
+        throw new Error(
+          "One or more service IDs are invalid",
+        );
       }
 
       return true;
@@ -165,36 +169,68 @@ const listValidation = [
   query("limit")
     .optional()
     .isInt({ min: 1, max: 100 })
-    .withMessage("limit must be between 1 and 100"),
+    .withMessage(
+      "limit must be between 1 and 100",
+    ),
 
   query("page")
     .optional()
     .isInt({ min: 1 })
     .withMessage("page must be at least 1"),
 
-  query("isActive")
-    .optional()
-    .isBoolean()
-    .withMessage("isActive must be true or false"),
-
   query("sortBy")
     .optional()
-    .isIn(["name", "createdAt", "updatedAt", "isActive", "relevance"])
+    .isIn([
+      "name",
+      "createdAt",
+      "updatedAt",
+      "relevance",
+    ])
     .withMessage("Invalid sortBy value"),
 
   query("sortOrder")
     .optional()
     .isIn(["asc", "desc"])
-    .withMessage("sortOrder must be asc or desc"),
+    .withMessage(
+      "sortOrder must be asc or desc",
+    ),
 
   validate,
 ];
 
-router.get("/", listValidation, getAllSubServiceComponents);
+const adminListValidation = [
+  ...publicListValidation.slice(0, -1),
+
+  query("isActive")
+    .optional()
+    .isBoolean()
+    .withMessage(
+      "isActive must be true or false",
+    ),
+
+  validate,
+];
+
+router.get(
+  "/",
+  publicListValidation,
+  getAllSubServiceComponents,
+);
+
+router.get(
+  "/admin",
+  authenticate,
+  authorizeRoles(Role.ADMIN),
+  requirePermission("sub_service_component.read"),
+  adminListValidation,
+  getAllSubServiceComponentsAdmin,
+);
 
 router.post(
   "/",
   authenticate,
+  authorizeRoles(Role.ADMIN),
+  requirePermission("sub_service_component.create"),
   createSubServiceComponentValidation,
   createSubServiceComponent,
 );
@@ -202,15 +238,26 @@ router.post(
 router.patch(
   "/:id",
   authenticate,
+  authorizeRoles(Role.ADMIN),
+  requirePermission("sub_service_component.update"),
   updateSubServiceComponentValidation,
   updateSubServiceComponent,
 );
 
-router.get("/:id", authenticate, idValidation, getSubServiceComponentById);
+router.get(
+  "/:id",
+  authenticate,
+  authorizeRoles(Role.ADMIN),
+  requirePermission("sub_service_component.read"),
+  idValidation,
+  getSubServiceComponentById,
+);
 
 router.patch(
   "/:id/status",
   authenticate,
+  authorizeRoles(Role.ADMIN),
+  requirePermission("sub_service_component.status"),
   statusValidation,
   toggleSubServiceComponent,
 );

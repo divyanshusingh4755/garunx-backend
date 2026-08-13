@@ -32,6 +32,8 @@ import {
   authenticate,
   optionalAuthenticate,
 } from "../middleware/authenticate.js";
+import { authorizeRoles } from "../middleware/authorizeRoles.js";
+import { Role } from "../types/rbac.js";
 
 const router = Router();
 
@@ -96,7 +98,12 @@ router.post(
   createPackageCart,
 );
 
-router.post("/merge", authenticate, mergeGuestCartToUser);
+router.post(
+  "/merge",
+  authenticate,
+  authorizeRoles(Role.USER),
+  mergeGuestCartToUser,
+);
 
 router.get(
   "/",
@@ -228,7 +235,13 @@ router.post(
   validateCart,
 );
 
-router.post("/:cartId/checkout", authenticate, cartIdValidation, checkoutCart);
+router.post(
+  "/:cartId/checkout",
+  authenticate,
+  authorizeRoles(Role.USER),
+  cartIdValidation,
+  checkoutCart,
+);
 
 router.post(
   "/:cartId/reopen",

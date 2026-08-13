@@ -713,8 +713,8 @@ export const respondToAssignment = async (req: Request, res: Response) => {
 
       ...(typeof reason === "string" && reason.trim()
         ? {
-            reason: reason.trim(),
-          }
+          reason: reason.trim(),
+        }
         : {}),
     });
 
@@ -842,8 +842,8 @@ export const getCoordinatorBookingList = async (
 
       ...(typeof status === "string" &&
         status.trim() && {
-          status: status.trim(),
-        }),
+        status: status.trim(),
+      }),
 
       page: typeof page === "string" ? Number(page) : 1,
 
@@ -851,8 +851,8 @@ export const getCoordinatorBookingList = async (
 
       ...(typeof sortBy === "string" &&
         sortBy.trim() && {
-          sortBy: sortBy.trim(),
-        }),
+        sortBy: sortBy.trim(),
+      }),
 
       sortOrder: normalizedSortOrder,
     });
@@ -904,7 +904,17 @@ export const processAssignmentTimeouts = async (
  */
 export const getBookingExecution = async (req: Request, res: Response) => {
   try {
+    const userId = req.user!.userId;
+    const role = req.user!.role;
+
     const { bookingId } = req.params;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized",
+      });
+    }
 
     if (!bookingId) {
       return res.status(400).json({
@@ -920,7 +930,7 @@ export const getBookingExecution = async (req: Request, res: Response) => {
       });
     }
 
-    const result = await BookingService.getBookingExecution(bookingId);
+    const result = await BookingService.getBookingExecution({ bookingId, userId, role });
 
     return res.status(200).json({
       success: true,
@@ -1356,6 +1366,81 @@ export const generateBookingOtp = async (req: Request, res: Response) => {
     return res.status(400).json({
       success: false,
       message: error.message || "Failed to generate booking OTP",
+    });
+  }
+};
+
+export const getBookingInvoice = async (
+  req: Request,
+  res: Response,
+) => {
+  try {
+    const { bookingId } = req.params;
+
+    const userId =
+      req.user?.userId;
+
+    const role =
+      req.user?.role;
+
+    if (!userId || !role) {
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized",
+      });
+    }
+
+    if (!bookingId) {
+      return res.status(400).json({
+        success: false,
+        message: "Booking ID is required",
+      });
+    }
+
+    const result =
+      await BookingService.getBookingInvoice({
+        bookingId: String(bookingId),
+        requestedBy: userId,
+        requestedByRole: role,
+      });
+
+    return res.status(200).json({
+      success: true,
+      data: result,
+    });
+  } catch (error: any) {
+    return res.status(400).json({
+      success: false,
+      message:
+        error.message ||
+        "Failed to fetch booking invoice",
+    });
+  }
+};
+
+export const getBeneficiaryBooking = async (
+  req: Request,
+  res: Response,
+) => {
+  try {
+    const token =
+      String(req.params.token);
+
+    const result =
+      await BookingService.getBeneficiaryBooking(
+        token,
+      );
+
+    return res.status(200).json({
+      success: true,
+      data: result,
+    });
+  } catch (error: any) {
+    return res.status(400).json({
+      success: false,
+      message:
+        error.message ||
+        "Failed to fetch booking",
     });
   }
 };

@@ -9,7 +9,11 @@ type FaqType = "User" | "Coordinator" | "User_Query" | "Coordinator_Query";
 type FaqUpdateData = Partial<
   Pick<
     IFAQ,
-    "name" | "question" | "answer" | "faqType" | "displayOrder" | "isActive"
+    | "name"
+    | "question"
+    | "answer"
+    | "faqType"
+    | "displayOrder"
   >
 >;
 

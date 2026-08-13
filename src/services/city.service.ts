@@ -6,11 +6,11 @@ import { escapeRegex } from "../utils/escapeRegex.js";
 type CityUpdate = Partial<
   Pick<
     ICity,
-    "name" | "country" | "image" | "description" | "isActive" | "location"
-  >
-> & {
-  stateId?: string;
-};
+    "name" | "country" | "image" | "description" | "location"
+  > & {
+    stateId?: string;
+  }
+>;
 
 const createHttpError = (message: string, statusCode: number) => {
   const error = new Error(message) as Error & {

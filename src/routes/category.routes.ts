@@ -14,6 +14,9 @@ import {
   toggleCategoryStatus,
   deleteCategory,
 } from "../controllers/category.controllers.js";
+import { authorizeRoles } from "../middleware/authorizeRoles.js";
+import { requirePermission } from "../middleware/rbac.js";
+import { Role } from "../types/rbac.js";
 
 const router = Router();
 
@@ -127,14 +130,35 @@ const listCategoryValidation = [
   validate,
 ];
 
-router.get("/", listCategoryValidation, getAllCategories);
-router.get("/:id", authenticate, categoryIdValidation, getCategoryById);
+router.get(
+  "/",
+  listCategoryValidation,
+  getAllCategories,
+);
 
-router.post("/", authenticate, categoryBodyValidation, createCategory);
+router.get(
+  "/:id",
+  authenticate,
+  authorizeRoles(Role.ADMIN),
+  requirePermission("category.read"),
+  categoryIdValidation,
+  getCategoryById,
+);
+
+router.post(
+  "/",
+  authenticate,
+  authorizeRoles(Role.ADMIN),
+  requirePermission("category.create"),
+  categoryBodyValidation,
+  createCategory,
+);
 
 router.put(
   "/:id",
   authenticate,
+  authorizeRoles(Role.ADMIN),
+  requirePermission("category.update"),
   categoryIdValidation.slice(0, -1),
   categoryBodyValidation,
   updateCategory,
@@ -143,10 +167,19 @@ router.put(
 router.patch(
   "/:id/status",
   authenticate,
+  authorizeRoles(Role.ADMIN),
+  requirePermission("category.status"),
   categoryStatusValidation,
   toggleCategoryStatus,
 );
 
-router.delete("/:id", authenticate, categoryIdValidation, deleteCategory);
+router.delete(
+  "/:id",
+  authenticate,
+  authorizeRoles(Role.ADMIN),
+  requirePermission("category.delete"),
+  categoryIdValidation,
+  deleteCategory,
+);
 
 export default router;

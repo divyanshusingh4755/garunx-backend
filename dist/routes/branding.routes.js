@@ -1,9 +1,11 @@
 import { Router } from "express";
 import { body } from "express-validator";
-import { getTheme, updateTheme } from "../controllers/brand.controllers.js";
+import { getTheme, updateTheme, } from "../controllers/brand.controllers.js";
 import { authenticate } from "../middleware/authenticate.js";
-// import { hasPermission } from "../middleware/hasPermission.js";
+import { authorizeRoles } from "../middleware/authorizeRoles.js";
+import { Role } from "../types/rbac.js";
 import { validate } from "../utils/validate.js";
+import { requirePermission } from "../middleware/rbac.js";
 const router = Router();
 const updateThemeValidation = [
     body("theme")
@@ -67,6 +69,6 @@ const updateThemeValidation = [
     validate,
 ];
 router.get("/get-theme", getTheme);
-router.patch("/update-theme", authenticate, updateThemeValidation, updateTheme);
+router.patch("/update-theme", authenticate, authorizeRoles(Role.ADMIN), requirePermission("branding.update"), updateThemeValidation, updateTheme);
 export default router;
 //# sourceMappingURL=branding.routes.js.map

@@ -793,4 +793,60 @@ export const getCoordinators = async (req, res) => {
         });
     }
 };
+export const createAdmin = async (req, res) => {
+    try {
+        const { fullName, email, password, phoneNumber, } = req.body;
+        const admin = await AuthService.createAdmin({
+            fullName,
+            email,
+            password,
+            phoneNumber,
+        });
+        return res.status(201).json({
+            success: true,
+            message: "Admin account created successfully",
+            data: admin,
+        });
+    }
+    catch (error) {
+        if (error.message ===
+            "Admin account with this email or phone number already exists") {
+            return res.status(409).json({
+                success: false,
+                message: error.message,
+            });
+        }
+        return res.status(400).json({
+            success: false,
+            message: error.message ||
+                "Failed to create admin account",
+        });
+    }
+};
+export const exportUsersCsv = async (req, res) => {
+    try {
+        const { userIds, } = req.body;
+        const result = await AuthService.exportUsersToCsv(userIds);
+        const timestamp = new Date()
+            .toISOString()
+            .replace(/[:.]/g, "-");
+        res.setHeader("Content-Type", "text/csv; charset=utf-8");
+        res.setHeader("Content-Disposition", `attachment; filename="users-${timestamp}.csv"`);
+        return res.status(200).send(result.csv);
+    }
+    catch (error) {
+        if (error.message ===
+            "No users found for export") {
+            return res.status(404).json({
+                success: false,
+                message: error.message,
+            });
+        }
+        return res.status(400).json({
+            success: false,
+            message: error.message ||
+                "Failed to export users",
+        });
+    }
+};
 //# sourceMappingURL=auth.controllers.js.map

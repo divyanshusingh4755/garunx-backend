@@ -17,6 +17,9 @@ import {
 } from "../controllers/servicepricing.controllers.js";
 
 import { authenticate } from "../middleware/authenticate.js";
+import { authorizeRoles } from "../middleware/authorizeRoles.js";
+import { Role } from "../types/rbac.js";
+import { requirePermission } from "../middleware/rbac.js";
 
 const router = Router();
 
@@ -92,14 +95,19 @@ const bulkPricingValidation: ValidationChain[] = [
 router.post(
   "/bulk",
   authenticate,
+  authorizeRoles(Role.ADMIN),
+  requirePermission("service_pricing.update"),
+
   ...bulkPricingValidation,
   validate,
+
   bulkUpsertTierPricing,
 );
 
 router.get(
   "/resolve",
   authenticate,
+  authorizeRoles(Role.USER),
 
   query("serviceId")
     .notEmpty()

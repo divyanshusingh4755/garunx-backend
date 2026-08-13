@@ -537,6 +537,9 @@ export class ServiceService {
         if (!service) {
             throw createHttpError("Service not found", 404);
         }
+        if (!service.isActive || !service.isComplete) {
+            throw createHttpError("Service not available", 404);
+        }
         const [serviceComponents, pricing, serviceCategory] = await Promise.all([
             ServiceComponent.find({
                 serviceId,
@@ -702,6 +705,9 @@ export class ServiceService {
         });
         if (!service) {
             throw createHttpError("Service not found", 404);
+        }
+        if (!service.isActive || !service.isComplete) {
+            throw createHttpError("Service not available", 404);
         }
         const filteredLocations = service.locations
             .filter((location) => locationIds.some((id) => id.toString() === location.locationId.toString()))

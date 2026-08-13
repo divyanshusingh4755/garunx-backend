@@ -488,6 +488,19 @@ const bookingSchema = new Schema({
         default: "MYSELF",
         required: true,
     },
+    beneficiaryUserId: {
+        type: Schema.Types.ObjectId,
+        ref: "User",
+        index: true,
+    },
+    beneficiaryAccess: {
+        tokenHash: {
+            type: String,
+            select: false,
+        },
+        expiresAt: Date,
+        createdAt: Date,
+    },
     customerDetails: {
         name: String,
         email: { type: String, lowercase: true, trim: true },
@@ -644,7 +657,7 @@ const bookingSchema = new Schema({
         coordinatorAcceptedAt: Date,
         // deadline for one coordinator
         responseDeadlineAt: Date,
-        // final deadline for the complete coordinator-selection process
+        // deadline for customer to manually select the first coordinator
         assignmentExpiresAt: Date,
         currentRound: {
             type: Number,
@@ -676,6 +689,10 @@ const bookingSchema = new Schema({
             },
             reason: String,
             requestedAt: Date,
+            previousCoordinatorId: {
+                type: Schema.Types.ObjectId,
+                ref: "User",
+            },
         },
     },
     execution: {
@@ -855,6 +872,18 @@ bookingSchema.index({
 bookingSchema.index({
     "assignment.status": 1,
     "assignment.assignmentExpiresAt": 1,
+});
+bookingSchema.index({
+    beneficiaryUserId: 1,
+    status: 1,
+});
+bookingSchema.index({
+    bookingFor: 1,
+    "customerDetails.email": 1,
+});
+bookingSchema.index({
+    bookingFor: 1,
+    "customerDetails.phone": 1,
 });
 export const Booking = model("Booking", bookingSchema);
 //# sourceMappingURL=booking.model.js.map

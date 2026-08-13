@@ -265,7 +265,10 @@ export class LocationService {
     static async getLocationByIds(locationIds) {
         const objectIds = locationIds.map((id) => new Types.ObjectId(id));
         const locations = await Location.find({
-            _id: { $in: objectIds },
+            _id: {
+                $in: objectIds,
+            },
+            isActive: true,
         })
             .populate("stateId", "name")
             .populate("cityId", "name")

@@ -30,6 +30,7 @@ import reviewRoutes from "./routes/review.routes.js";
 import queriesRoutes from "./routes/userQuery.routes.js";
 import taxRoutes from "./routes/taxprofile.routes.js";
 import chatRoutes from "./routes/chat.routes.js";
+import rbacRoutes from "./routes/rbac.routes.js";
 import { paymentWebhooks } from "./controllers/booking.controllers.js";
 import { HttpError } from "./utils/httpError.js";
 const app = express();
@@ -80,6 +81,7 @@ app.use("/api/review", reviewRoutes);
 app.use("/api/queries", queriesRoutes);
 app.use("/api/branding", brandingRoutes);
 app.use("/api/chat", chatRoutes);
+app.use("/api/rbac", rbacRoutes);
 app.get("/health", (_req, res) => {
     res.status(200).json({
         status: "ok",

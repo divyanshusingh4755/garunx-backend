@@ -11,6 +11,7 @@ import {
   resolveFamilyTreeOwnerId,
   type ResolvedFamilyTreeAccess,
 } from "../services/access.service.js";
+import { Role } from "../types/rbac.js";
 
 interface AuthenticatedUser {
   userId: string;
@@ -55,23 +56,26 @@ const getRequiredStringParam = (
   return parsedValue.trim();
 };
 
-const getSourceFromRole = (role: string): FamilyTreeActorContext["source"] => {
-  const normalizedRole = role.trim().toUpperCase();
+const getSourceFromRole = (
+  role: string,
+): FamilyTreeActorContext["source"] => {
+  const normalizedRole =
+    role.trim().toUpperCase();
 
   switch (normalizedRole) {
-    case "USER":
-    case "USER":
+    case Role.USER:
       return "CUSTOMER_SELF";
 
-    case "COORDINATOR":
+    case Role.COORDINATOR:
       return "COORDINATOR_BOOKING";
 
-    case "ADMIN":
-    case "SUPER_ADMIN":
+    case Role.ADMIN:
       return "ADMIN_MANUAL";
 
     default:
-      throw new Error("Role is not authorized to modify a family tree");
+      throw new Error(
+        "Role is not authorized to modify a family tree",
+      );
   }
 };
 

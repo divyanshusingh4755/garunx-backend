@@ -1,6 +1,6 @@
 import { Types } from "mongoose";
 import { type IFAQ } from "../models/faq.model.js";
-type FaqUpdateData = Partial<Pick<IFAQ, "name" | "question" | "answer" | "faqType" | "displayOrder" | "isActive">>;
+type FaqUpdateData = Partial<Pick<IFAQ, "name" | "question" | "answer" | "faqType" | "displayOrder">>;
 export declare class FAQService {
     private static ensureValidId;
     static createFaq(faqData: Partial<IFAQ>): Promise<import("mongoose").Document<unknown, {}, IFAQ, {}, import("mongoose").DefaultSchemaOptions> & IFAQ & Required<{

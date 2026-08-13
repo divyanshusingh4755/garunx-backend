@@ -2,6 +2,9 @@ import { Router, } from "express";
 import { body, param, query, validationResult } from "express-validator";
 import { authenticate } from "../middleware/authenticate.js";
 import { getAllCategories, getCategoryById, createCategory, updateCategory, toggleCategoryStatus, deleteCategory, } from "../controllers/category.controllers.js";
+import { authorizeRoles } from "../middleware/authorizeRoles.js";
+import { requirePermission } from "../middleware/rbac.js";
+import { Role } from "../types/rbac.js";
 const router = Router();
 const validate = (req, res, next) => {
     const errors = validationResult(req);
@@ -90,10 +93,10 @@ const listCategoryValidation = [
     validate,
 ];
 router.get("/", listCategoryValidation, getAllCategories);
-router.get("/:id", authenticate, categoryIdValidation, getCategoryById);
-router.post("/", authenticate, categoryBodyValidation, createCategory);
-router.put("/:id", authenticate, categoryIdValidation.slice(0, -1), categoryBodyValidation, updateCategory);
-router.patch("/:id/status", authenticate, categoryStatusValidation, toggleCategoryStatus);
-router.delete("/:id", authenticate, categoryIdValidation, deleteCategory);
+router.get("/:id", authenticate, authorizeRoles(Role.ADMIN), requirePermission("category.read"), categoryIdValidation, getCategoryById);
+router.post("/", authenticate, authorizeRoles(Role.ADMIN), requirePermission("category.create"), categoryBodyValidation, createCategory);
+router.put("/:id", authenticate, authorizeRoles(Role.ADMIN), requirePermission("category.update"), categoryIdValidation.slice(0, -1), categoryBodyValidation, updateCategory);
+router.patch("/:id/status", authenticate, authorizeRoles(Role.ADMIN), requirePermission("category.status"), categoryStatusValidation, toggleCategoryStatus);
+router.delete("/:id", authenticate, authorizeRoles(Role.ADMIN), requirePermission("category.delete"), categoryIdValidation, deleteCategory);
 export default router;
 //# sourceMappingURL=category.routes.js.map

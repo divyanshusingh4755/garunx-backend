@@ -2,6 +2,9 @@ import { Router, } from "express";
 import { body, query, validationResult } from "express-validator";
 import { authenticate } from "../middleware/authenticate.js";
 import { bulkUpsertPackageTierPricing, resolvePackagePricing, } from "../controllers/packagetierpricing.controllers.js";
+import { authorizeRoles } from "../middleware/authorizeRoles.js";
+import { Role } from "../types/rbac.js";
+import { requirePermission } from "../middleware/rbac.js";
 const router = Router();
 const validate = (req, res, next) => {
     const errors = validationResult(req);
@@ -15,7 +18,7 @@ const validate = (req, res, next) => {
     }
     next();
 };
-router.post("/bulk", authenticate, body("packageId")
+router.post("/bulk", authenticate, authorizeRoles(Role.ADMIN), requirePermission("package_tier_pricing.update"), body("packageId")
     .notEmpty()
     .withMessage("packageId is required")
     .isMongoId()
@@ -55,15 +58,17 @@ router.post("/bulk", authenticate, body("packageId")
         servicePricing.fixedPrice !== null;
     const hasDiscountPercent = servicePricing.discountPercent !== undefined &&
         servicePricing.discountPercent !== null;
-    if (hasFixedPrice && hasDiscountPercent) {
+    if (hasFixedPrice &&
+        hasDiscountPercent) {
         throw new Error("fixedPrice and discountPercent cannot be provided together");
     }
-    if (!hasFixedPrice && !hasDiscountPercent) {
+    if (!hasFixedPrice &&
+        !hasDiscountPercent) {
         throw new Error("Either fixedPrice or discountPercent is required");
     }
     return true;
 }), validate, bulkUpsertPackageTierPricing);
-router.get("/resolve", authenticate, query("packageId")
+router.get("/resolve", authenticate, authorizeRoles(Role.USER), query("packageId")
     .notEmpty()
     .withMessage("packageId is required")
     .isMongoId()

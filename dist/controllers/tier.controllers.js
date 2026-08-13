@@ -85,10 +85,10 @@ export const toggleTierStatus = async (req, res) => {
 };
 export const getAllTier = async (req, res) => {
     try {
-        const { searchTerm, limit, page, isActive, sortBy, sortOrder } = req.query;
+        const { searchTerm, limit, page, sortBy, sortOrder, } = req.query;
         const parsedLimit = parsePositiveInteger(limit, 40, 100);
         const parsedPage = parsePositiveInteger(page, 1);
-        const { data, total, page: currentPage, totalPages, } = await TierService.findTiers(parsedLimit, parsedPage, sortBy || "createdAt", sortOrder || "asc", searchTerm, isActive === "true" ? true : isActive === "false" ? false : undefined);
+        const { data, total, page: currentPage, totalPages, } = await TierService.findTiers(parsedLimit, parsedPage, sortBy || "createdAt", sortOrder || "asc", searchTerm, true);
         return res.status(200).json({
             success: true,
             data,
@@ -100,7 +100,35 @@ export const getAllTier = async (req, res) => {
     catch (error) {
         return res.status(400).json({
             success: false,
-            message: error.message || "Failed to fetch tiers",
+            message: error.message ||
+                "Failed to fetch tiers",
+        });
+    }
+};
+export const getAllTierAdmin = async (req, res) => {
+    try {
+        const { searchTerm, limit, page, isActive, sortBy, sortOrder, } = req.query;
+        const parsedLimit = parsePositiveInteger(limit, 40, 100);
+        const parsedPage = parsePositiveInteger(page, 1);
+        const activeStatus = isActive === "true"
+            ? true
+            : isActive === "false"
+                ? false
+                : undefined;
+        const { data, total, page: currentPage, totalPages, } = await TierService.findTiers(parsedLimit, parsedPage, sortBy || "createdAt", sortOrder || "asc", searchTerm, activeStatus);
+        return res.status(200).json({
+            success: true,
+            data,
+            total,
+            currentPage,
+            totalPages,
+        });
+    }
+    catch (error) {
+        return res.status(400).json({
+            success: false,
+            message: error.message ||
+                "Failed to fetch tiers",
         });
     }
 };

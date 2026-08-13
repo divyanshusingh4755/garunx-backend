@@ -63,6 +63,7 @@ export interface IUser extends Document {
   email?: string;
   password?: string;
   role: Role;
+  rbacRoles: Types.ObjectId[];
 
   otp?: string | null;
   otpExpiresAt?: Date | null;
@@ -358,6 +359,23 @@ const userSchema = new Schema<IUser>(
       enum: Object.values(Role),
       required: true,
       default: Role.USER,
+    },
+
+    rbacRoles: {
+      type: [
+        {
+          type: Schema.Types.ObjectId,
+          ref: "RbacRole",
+        },
+      ],
+      default: [],
+      validate: {
+        validator: (roles: Types.ObjectId[]) => {
+          const ids = roles.map((id) => id.toString());
+          return new Set(ids).size === ids.length;
+        },
+        message: "Duplicate RBAC roles are not allowed",
+      },
     },
 
     otp: {

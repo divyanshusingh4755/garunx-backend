@@ -74,7 +74,10 @@ export const updateLocation = async (req: Request, res: Response) => {
   }
 };
 
-export const getAllLocation = async (req: Request, res: Response) => {
+export const getAllLocation = async (
+  req: Request,
+  res: Response,
+) => {
   try {
     const {
       searchTerm,
@@ -84,47 +87,48 @@ export const getAllLocation = async (req: Request, res: Response) => {
       pincodeFilter,
       limit,
       page,
-      isActive,
       sortBy,
       sortOrder,
     } = req.query;
 
-    const activeStatus =
-      isActive === "true" ? true : isActive === "false" ? false : undefined;
+    const result =
+      await LocationService.findLocation({
+        limit: limit ? Number(limit) : 40,
+        page: page ? Number(page) : 1,
 
-    const result = await LocationService.findLocation({
-      limit: limit ? Number(limit) : 40,
-      page: page ? Number(page) : 1,
+        isActive: true,
 
-      sortBy: typeof sortBy === "string" ? sortBy : "createdAt",
+        sortBy:
+          typeof sortBy === "string"
+            ? sortBy
+            : "createdAt",
 
-      sortOrder:
-        sortOrder === "asc" || sortOrder === "desc" ? sortOrder : "desc",
+        sortOrder:
+          sortOrder === "asc" ||
+            sortOrder === "desc"
+            ? sortOrder
+            : "desc",
 
-      ...(typeof searchTerm === "string" && {
-        searchTerm,
-      }),
+        ...(typeof searchTerm === "string" && {
+          searchTerm,
+        }),
 
-      ...(typeof countryFilter === "string" && {
-        countryFilter,
-      }),
+        ...(typeof countryFilter === "string" && {
+          countryFilter,
+        }),
 
-      ...(typeof stateIdFilter === "string" && {
-        stateIdFilter,
-      }),
+        ...(typeof stateIdFilter === "string" && {
+          stateIdFilter,
+        }),
 
-      ...(typeof cityIdFilter === "string" && {
-        cityIdFilter,
-      }),
+        ...(typeof cityIdFilter === "string" && {
+          cityIdFilter,
+        }),
 
-      ...(typeof pincodeFilter === "string" && {
-        pincodeFilter,
-      }),
-
-      ...(typeof activeStatus === "boolean" && {
-        isActive: activeStatus,
-      }),
-    });
+        ...(typeof pincodeFilter === "string" && {
+          pincodeFilter,
+        }),
+      });
 
     return res.status(200).json({
       success: true,
@@ -133,7 +137,9 @@ export const getAllLocation = async (req: Request, res: Response) => {
   } catch (error: any) {
     return res.status(getStatusCode(error)).json({
       success: false,
-      message: error.message || "Failed to fetch locations",
+      message:
+        error.message ||
+        "Failed to fetch locations",
     });
   }
 };
@@ -206,6 +212,86 @@ export const getLocationIds = async (req: Request, res: Response) => {
     return res.status(getStatusCode(error)).json({
       success: false,
       message: error.message || "Failed to get locations",
+    });
+  }
+};
+
+export const getAllLocationsAdmin = async (
+  req: Request,
+  res: Response,
+) => {
+  try {
+    const {
+      searchTerm,
+      countryFilter,
+      stateIdFilter,
+      cityIdFilter,
+      pincodeFilter,
+      limit,
+      page,
+      isActive,
+      sortBy,
+      sortOrder,
+    } = req.query;
+
+    const activeStatus =
+      isActive === "true"
+        ? true
+        : isActive === "false"
+          ? false
+          : undefined;
+
+    const result =
+      await LocationService.findLocation({
+        limit: limit ? Number(limit) : 40,
+        page: page ? Number(page) : 1,
+
+        sortBy:
+          typeof sortBy === "string"
+            ? sortBy
+            : "createdAt",
+
+        sortOrder:
+          sortOrder === "asc" ||
+            sortOrder === "desc"
+            ? sortOrder
+            : "desc",
+
+        ...(typeof searchTerm === "string" && {
+          searchTerm,
+        }),
+
+        ...(typeof countryFilter === "string" && {
+          countryFilter,
+        }),
+
+        ...(typeof stateIdFilter === "string" && {
+          stateIdFilter,
+        }),
+
+        ...(typeof cityIdFilter === "string" && {
+          cityIdFilter,
+        }),
+
+        ...(typeof pincodeFilter === "string" && {
+          pincodeFilter,
+        }),
+
+        ...(typeof activeStatus === "boolean" && {
+          isActive: activeStatus,
+        }),
+      });
+
+    return res.status(200).json({
+      success: true,
+      ...result,
+    });
+  } catch (error: any) {
+    return res.status(getStatusCode(error)).json({
+      success: false,
+      message:
+        error.message ||
+        "Failed to fetch locations",
     });
   }
 };

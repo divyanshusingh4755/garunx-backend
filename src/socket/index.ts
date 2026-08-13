@@ -7,6 +7,7 @@ import { registerConversationHandlers, registerDeliveryHandlers, registerMessage
 import { getUserRoom } from "./socket.rooms.js";
 import { addUserSocket, removeUserSocket } from "./socket.presence.js";
 import { ChatConversationService } from "../services/chatconversation.service.js";
+import { setSocketServer } from "./socket.instance.js";
 
 export type ChatSocketServer = Server<
   ClientToServerEvents,
@@ -41,6 +42,8 @@ export const initializeSocket = (httpServer: HttpServer): ChatSocketServer => {
       credentials: true,
     }
   });
+
+  setSocketServer(io);
 
   io.use((socket, next) => {
     try {

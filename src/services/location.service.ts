@@ -17,13 +17,12 @@ type LocationUpdate = Partial<
     | "pincode"
     | "image"
     | "description"
-    | "isActive"
     | "location"
-  >
-> & {
-  stateId?: string;
-  cityId?: string;
-};
+  > & {
+    stateId?: string;
+    cityId?: string;
+  }
+>;
 
 const createHttpError = (message: string, statusCode: number) => {
   const error = new Error(message) as Error & {
@@ -390,7 +389,10 @@ export class LocationService {
     const objectIds = locationIds.map((id) => new Types.ObjectId(id));
 
     const locations = await Location.find({
-      _id: { $in: objectIds },
+      _id: {
+        $in: objectIds,
+      },
+      isActive: true,
     })
       .populate("stateId", "name")
       .populate("cityId", "name")

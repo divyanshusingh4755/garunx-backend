@@ -23,9 +23,16 @@ type CouponUpdateData = Partial<
     | "minOrderAmount"
     | "maxDiscountAmount"
     | "isFirstOrderOnly"
-    | "isActive"
   >
 >;
+
+interface GetAvailableCouponsInput {
+  userId: string;
+  serviceId?: string;
+  packageId?: string;
+  orderAmount?: number;
+  isFirstOrder?: boolean;
+}
 
 interface ValidateCouponInput {
   couponCode: string;
@@ -241,12 +248,12 @@ export class CouponService {
           $or: values.map((value) =>
             value === "REFERRAL"
               ? {
-                  applicableOn: "REFERRAL",
-                  assignedUserId,
-                }
+                applicableOn: "REFERRAL",
+                assignedUserId,
+              }
               : {
-                  applicableOn: value,
-                },
+                applicableOn: value,
+              },
           ),
         });
       } else {
@@ -484,5 +491,215 @@ export class CouponService {
       discountAmount,
       finalAmount: orderAmount - discountAmount,
     };
+  }
+
+  static async getAvailableCoupons({
+    userId,
+    serviceId,
+    packageId,
+    orderAmount,
+    isFirstOrder = false,
+  }: GetAvailableCouponsInput) {
+    if (!Types.ObjectId.isValid(userId)) {
+      throw new Error("Invalid user ID");
+    }
+
+    const now = new Date();
+
+    const conditions: Record<string, unknown>[] = [
+      {
+        isActive: true,
+      },
+
+      {
+        $or: [
+          {
+            validFrom: {
+              $exists: false,
+            },
+          },
+          {
+            validFrom: null,
+          },
+          {
+            validFrom: {
+              $lte: now,
+            },
+          },
+        ],
+      },
+
+      {
+        $or: [
+          {
+            validTill: {
+              $exists: false,
+            },
+          },
+          {
+            validTill: null,
+          },
+          {
+            validTill: {
+              $gte: now,
+            },
+          },
+        ],
+      },
+
+      {
+        $or: [
+          {
+            assignedUserId: {
+              $exists: false,
+            },
+          },
+          {
+            assignedUserId: null,
+          },
+          {
+            assignedUserId:
+              new Types.ObjectId(userId),
+          },
+        ],
+      },
+
+      {
+        $expr: {
+          $or: [
+            {
+              $eq: ["$usageLimit", 0],
+            },
+            {
+              $lt: [
+                "$usedCount",
+                "$usageLimit",
+              ],
+            },
+          ],
+        },
+      },
+    ];
+
+    if (isFirstOrder === false) {
+      conditions.push({
+        $or: [
+          {
+            isFirstOrderOnly: false,
+          },
+          {
+            isFirstOrderOnly: {
+              $exists: false,
+            },
+          },
+        ],
+      });
+    }
+
+    if (
+      typeof orderAmount === "number" &&
+      Number.isFinite(orderAmount)
+    ) {
+      conditions.push({
+        minOrderAmount: {
+          $lte: orderAmount,
+        },
+      });
+    }
+
+    if (serviceId) {
+      if (!Types.ObjectId.isValid(serviceId)) {
+        throw new Error("Invalid service ID");
+      }
+
+      conditions.push({
+        $or: [
+          {
+            applicableOn: "ALL",
+          },
+          {
+            applicableOn: "SERVICE",
+            services: new Types.ObjectId(
+              serviceId,
+            ),
+          },
+          {
+            applicableOn: "REFERRAL",
+            assignedUserId:
+              new Types.ObjectId(userId),
+          },
+        ],
+      });
+    } else if (packageId) {
+      if (!Types.ObjectId.isValid(packageId)) {
+        throw new Error("Invalid package ID");
+      }
+
+      conditions.push({
+        $or: [
+          {
+            applicableOn: "ALL",
+          },
+          {
+            applicableOn: "PACKAGE",
+            packages: new Types.ObjectId(
+              packageId,
+            ),
+          },
+          {
+            applicableOn: "REFERRAL",
+            assignedUserId:
+              new Types.ObjectId(userId),
+          },
+        ],
+      });
+    } else {
+      conditions.push({
+        $or: [
+          {
+            applicableOn: "ALL",
+          },
+          {
+            applicableOn: "REFERRAL",
+            assignedUserId:
+              new Types.ObjectId(userId),
+          },
+          {
+            applicableOn: "SERVICE",
+          },
+          {
+            applicableOn: "PACKAGE",
+          },
+        ],
+      });
+    }
+
+    const coupons = await Coupon.find({
+      $and: conditions,
+    })
+      .select(
+        [
+          "name",
+          "couponCode",
+          "applicableOn",
+          "services",
+          "packages",
+          "discount",
+          "discountType",
+          "validFrom",
+          "validTill",
+          "minOrderAmount",
+          "maxDiscountAmount",
+          "isFirstOrderOnly",
+        ].join(" "),
+      )
+      .populate("services", "_id name")
+      .populate("packages", "_id name")
+      .sort({
+        createdAt: -1,
+      })
+      .lean();
+
+    return coupons;
   }
 }

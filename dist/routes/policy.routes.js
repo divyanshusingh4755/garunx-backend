@@ -2,6 +2,9 @@ import { Router, } from "express";
 import { body, param, query, validationResult } from "express-validator";
 import { createPolicy, updatePolicy, getAllPolicies, togglePolicyStatus, getPolicyByType, } from "../controllers/policy.controllers.js";
 import { authenticate } from "../middleware/authenticate.js";
+import { authorizeRoles } from "../middleware/authorizeRoles.js";
+import { Role } from "../types/rbac.js";
+import { requirePermission } from "../middleware/rbac.js";
 const router = Router();
 const POLICY_TYPES = ["TERMS", "PRIVACY", "REFUND"];
 const USER_TYPES = ["User", "Coordinator"];
@@ -106,10 +109,10 @@ const getPolicyByTypeValidation = [
         .withMessage("Invalid user type"),
     validate,
 ];
-router.get("/", authenticate, getPoliciesValidation, getAllPolicies);
-router.post("/", authenticate, createPolicyValidation, createPolicy);
-router.put("/:id", authenticate, updatePolicyValidation, updatePolicy);
-router.patch("/:id/status", authenticate, statusValidation, togglePolicyStatus);
+router.get("/", authenticate, authorizeRoles(Role.ADMIN), requirePermission("policy.read"), getPoliciesValidation, getAllPolicies);
+router.post("/", authenticate, authorizeRoles(Role.ADMIN), requirePermission("policy.create"), createPolicyValidation, createPolicy);
+router.put("/:id", authenticate, authorizeRoles(Role.ADMIN), requirePermission("policy.update"), updatePolicyValidation, updatePolicy);
+router.patch("/:id/status", authenticate, authorizeRoles(Role.ADMIN), requirePermission("policy.status"), statusValidation, togglePolicyStatus);
 router.get("/:type", getPolicyByTypeValidation, getPolicyByType);
 export default router;
 //# sourceMappingURL=policy.routes.js.map

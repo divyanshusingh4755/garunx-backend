@@ -1,9 +1,9 @@
 import mongoose, { Types } from "mongoose";
 import { type ILocation, type IGeoPoint } from "../models/location.model.js";
-type LocationUpdate = Partial<Pick<ILocation, "name" | "country" | "fullAddress" | "pincode" | "image" | "description" | "isActive" | "location">> & {
+type LocationUpdate = Partial<Pick<ILocation, "name" | "country" | "fullAddress" | "pincode" | "image" | "description" | "location"> & {
     stateId?: string;
     cityId?: string;
-};
+}>;
 export declare class LocationService {
     static createLocation(data: {
         name: string;

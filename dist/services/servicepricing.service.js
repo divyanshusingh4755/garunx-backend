@@ -173,6 +173,9 @@ export class ServicePricingService {
         if (!service.isActive) {
             throw createHttpError("Service is inactive", 400);
         }
+        if (!service.isComplete) {
+            throw createHttpError("Service configuration is incomplete", 400);
+        }
         const tier = service.tiers.find((item) => item.tierId.toString() === tierId);
         if (!tier) {
             throw createHttpError("Tier does not belong to service", 400);

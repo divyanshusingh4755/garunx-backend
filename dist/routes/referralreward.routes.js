@@ -2,6 +2,9 @@ import { Router, } from "express";
 import { query, validationResult } from "express-validator";
 import { getReferralInfo, getReferralHistory, getReferralRewards, getReferralStats, } from "../controllers/referralreward.controllers.js";
 import { authenticate } from "../middleware/authenticate.js";
+import { authorizeRoles } from "../middleware/authorizeRoles.js";
+import { Role } from "../types/rbac.js";
+import { requirePermission } from "../middleware/rbac.js";
 const router = Router();
 const validate = (req, res, next) => {
     const errors = validationResult(req);
@@ -46,9 +49,9 @@ const rewardsValidation = [
         .toInt(),
     validate,
 ];
-router.get("/rewards", authenticate, rewardsValidation, getReferralRewards);
-router.get("/stats", authenticate, getReferralStats);
-router.get("/history", authenticate, paginationValidation, getReferralHistory);
-router.get("/", authenticate, getReferralInfo);
+router.get("/rewards", authenticate, authorizeRoles(Role.ADMIN), requirePermission("referral_reward.read"), rewardsValidation, getReferralRewards);
+router.get("/stats", authenticate, authorizeRoles(Role.USER), getReferralStats);
+router.get("/history", authenticate, authorizeRoles(Role.USER), paginationValidation, getReferralHistory);
+router.get("/", authenticate, authorizeRoles(Role.USER), getReferralInfo);
 export default router;
 //# sourceMappingURL=referralreward.routes.js.map

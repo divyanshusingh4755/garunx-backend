@@ -64,33 +64,45 @@ const sendMessageValidation = [
   validate
 ]
 
+const markAsReadValidation = [
+  param("conversationId")
+    .isMongoId()
+    .withMessage("Invalid conversation ID"),
+
+  body("messageId")
+    .isMongoId()
+    .withMessage("Invalid message ID"),
+
+  validate,
+];
+
 router.get(
   "/booking/:bookingId",
   authenticate,
   bookingIdValidation,
-  getByBookingId
-)
+  getByBookingId,
+);
 
 router.get(
   "/conversation/:conversationId",
   authenticate,
   conversationIdValidation,
-  getById
-)
+  getById,
+);
 
 router.get(
   "/conversation/:conversationId/messages",
   authenticate,
   getMessagesValidation,
-  getMessages
-)
+  getMessages,
+);
 
 router.post(
   "/conversation/:conversationId/messages",
   authenticate,
   sendMessageValidation,
-  sendMessage
-)
+  sendMessage,
+);
 
 router.post(
   "/conversation/:conversationId/images",
@@ -98,22 +110,21 @@ router.post(
   conversationIdValidation,
   requireActiveChatParticipant,
   chatImageUpload.array("images", 5),
-  uploadChatImages
-)
+  uploadChatImages,
+);
 
 router.patch(
   "/conversation/:conversationId/read",
   authenticate,
-  conversationIdValidation,
-  body("messageId").isMongoId().withMessage("Invalid message ID"),
-  markAsRead
-)
+  markAsReadValidation,
+  markAsRead,
+);
 
 router.get(
   "/conversation/:conversationId/unread-count",
   authenticate,
   conversationIdValidation,
-  getUnreadCount
-)
+  getUnreadCount,
+);
 
 export default router;

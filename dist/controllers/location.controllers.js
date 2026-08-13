@@ -56,13 +56,18 @@ export const updateLocation = async (req, res) => {
 };
 export const getAllLocation = async (req, res) => {
     try {
-        const { searchTerm, countryFilter, stateIdFilter, cityIdFilter, pincodeFilter, limit, page, isActive, sortBy, sortOrder, } = req.query;
-        const activeStatus = isActive === "true" ? true : isActive === "false" ? false : undefined;
+        const { searchTerm, countryFilter, stateIdFilter, cityIdFilter, pincodeFilter, limit, page, sortBy, sortOrder, } = req.query;
         const result = await LocationService.findLocation({
             limit: limit ? Number(limit) : 40,
             page: page ? Number(page) : 1,
-            sortBy: typeof sortBy === "string" ? sortBy : "createdAt",
-            sortOrder: sortOrder === "asc" || sortOrder === "desc" ? sortOrder : "desc",
+            isActive: true,
+            sortBy: typeof sortBy === "string"
+                ? sortBy
+                : "createdAt",
+            sortOrder: sortOrder === "asc" ||
+                sortOrder === "desc"
+                ? sortOrder
+                : "desc",
             ...(typeof searchTerm === "string" && {
                 searchTerm,
             }),
@@ -78,9 +83,6 @@ export const getAllLocation = async (req, res) => {
             ...(typeof pincodeFilter === "string" && {
                 pincodeFilter,
             }),
-            ...(typeof activeStatus === "boolean" && {
-                isActive: activeStatus,
-            }),
         });
         return res.status(200).json({
             success: true,
@@ -90,7 +92,8 @@ export const getAllLocation = async (req, res) => {
     catch (error) {
         return res.status(getStatusCode(error)).json({
             success: false,
-            message: error.message || "Failed to fetch locations",
+            message: error.message ||
+                "Failed to fetch locations",
         });
     }
 };
@@ -148,6 +151,56 @@ export const getLocationIds = async (req, res) => {
         return res.status(getStatusCode(error)).json({
             success: false,
             message: error.message || "Failed to get locations",
+        });
+    }
+};
+export const getAllLocationsAdmin = async (req, res) => {
+    try {
+        const { searchTerm, countryFilter, stateIdFilter, cityIdFilter, pincodeFilter, limit, page, isActive, sortBy, sortOrder, } = req.query;
+        const activeStatus = isActive === "true"
+            ? true
+            : isActive === "false"
+                ? false
+                : undefined;
+        const result = await LocationService.findLocation({
+            limit: limit ? Number(limit) : 40,
+            page: page ? Number(page) : 1,
+            sortBy: typeof sortBy === "string"
+                ? sortBy
+                : "createdAt",
+            sortOrder: sortOrder === "asc" ||
+                sortOrder === "desc"
+                ? sortOrder
+                : "desc",
+            ...(typeof searchTerm === "string" && {
+                searchTerm,
+            }),
+            ...(typeof countryFilter === "string" && {
+                countryFilter,
+            }),
+            ...(typeof stateIdFilter === "string" && {
+                stateIdFilter,
+            }),
+            ...(typeof cityIdFilter === "string" && {
+                cityIdFilter,
+            }),
+            ...(typeof pincodeFilter === "string" && {
+                pincodeFilter,
+            }),
+            ...(typeof activeStatus === "boolean" && {
+                isActive: activeStatus,
+            }),
+        });
+        return res.status(200).json({
+            success: true,
+            ...result,
+        });
+    }
+    catch (error) {
+        return res.status(getStatusCode(error)).json({
+            success: false,
+            message: error.message ||
+                "Failed to fetch locations",
         });
     }
 };

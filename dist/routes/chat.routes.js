@@ -53,12 +53,21 @@ const sendMessageValidation = [
     }),
     validate
 ];
+const markAsReadValidation = [
+    param("conversationId")
+        .isMongoId()
+        .withMessage("Invalid conversation ID"),
+    body("messageId")
+        .isMongoId()
+        .withMessage("Invalid message ID"),
+    validate,
+];
 router.get("/booking/:bookingId", authenticate, bookingIdValidation, getByBookingId);
 router.get("/conversation/:conversationId", authenticate, conversationIdValidation, getById);
 router.get("/conversation/:conversationId/messages", authenticate, getMessagesValidation, getMessages);
 router.post("/conversation/:conversationId/messages", authenticate, sendMessageValidation, sendMessage);
 router.post("/conversation/:conversationId/images", authenticate, conversationIdValidation, requireActiveChatParticipant, chatImageUpload.array("images", 5), uploadChatImages);
-router.patch("/conversation/:conversationId/read", authenticate, conversationIdValidation, body("messageId").isMongoId().withMessage("Invalid message ID"), markAsRead);
+router.patch("/conversation/:conversationId/read", authenticate, markAsReadValidation, markAsRead);
 router.get("/conversation/:conversationId/unread-count", authenticate, conversationIdValidation, getUnreadCount);
 export default router;
 //# sourceMappingURL=chat.routes.js.map

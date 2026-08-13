@@ -38,10 +38,13 @@ import {
   addBookingMilestone,
   completeBookingExecution,
   generateBookingOtp,
+  getBookingInvoice,
+  getBeneficiaryBooking,
 } from "../controllers/booking.controllers.js";
 
 import { authorizeRoles } from "../middleware/authorizeRoles.js";
 import { Role } from "../types/rbac.js";
+import { requirePermission } from "../middleware/rbac.js";
 
 const router = Router();
 
@@ -77,11 +80,17 @@ const executionValidation = [
   validate,
 ];
 
-router.get("/my-bookings", authenticate, getMyBookings);
+router.get(
+  "/my-bookings",
+  authenticate,
+  authorizeRoles(Role.USER),
+  getMyBookings,
+);
 
 router.get(
   "/my-bookings/:bookingId",
   authenticate,
+  authorizeRoles(Role.USER),
   bookingIdValidation,
   getMyBookingById,
 );
@@ -89,6 +98,7 @@ router.get(
 router.get(
   "/:cartId/payment-status",
   authenticate,
+  authorizeRoles(Role.USER),
   cartIdValidation,
   paymentStatus,
 );
@@ -96,6 +106,7 @@ router.get(
 router.post(
   "/:bookingId/retry-payment",
   authenticate,
+  authorizeRoles(Role.USER),
   bookingIdValidation,
   retryPayment,
 );
@@ -103,6 +114,8 @@ router.post(
 router.post(
   "/:bookingId/cancel",
   authenticate,
+  authenticate,
+  authorizeRoles(Role.USER),
   param("bookingId").isMongoId().withMessage("Invalid booking ID"),
   body("reason")
     .isString()
@@ -118,6 +131,7 @@ router.post(
 router.patch(
   "/:bookingId/reschedule",
   authenticate,
+  authorizeRoles(Role.USER),
   param("bookingId").isMongoId().withMessage("Invalid booking ID"),
   body("scheduledAt").isISO8601().withMessage("Valid scheduledAt is required"),
   body("reason")
@@ -134,6 +148,7 @@ router.patch(
 router.patch(
   "/:bookingId/notes",
   authenticate,
+  authorizeRoles(Role.USER),
   param("bookingId").isMongoId().withMessage("Invalid booking ID"),
   body("notes")
     .isString()
@@ -144,11 +159,17 @@ router.patch(
   updateBookingNotes,
 );
 
-router.get("/coordinator/bookings", authenticate, getCoordinatorBookingList);
+router.get(
+  "/coordinator/bookings",
+  authenticate,
+  authorizeRoles(Role.COORDINATOR),
+  getCoordinatorBookingList,
+);
 
 router.get(
   "/:bookingId/available-coordinators",
   authenticate,
+  authorizeRoles(Role.USER),
   bookingIdValidation,
   getAvailableCoordinators,
 );
@@ -156,6 +177,7 @@ router.get(
 router.post(
   "/:bookingId/assignment/select",
   authenticate,
+  authorizeRoles(Role.USER),
   param("bookingId").isMongoId().withMessage("Invalid booking ID"),
   body("coordinatorId").isMongoId().withMessage("Invalid coordinator ID"),
   body("scheduledAt").optional().isISO8601().withMessage("Invalid scheduledAt"),
@@ -172,6 +194,7 @@ router.post(
 router.post(
   "/:bookingId/assignment/respond",
   authenticate,
+  authorizeRoles(Role.COORDINATOR),
   param("bookingId").isMongoId().withMessage("Invalid booking ID"),
   body("action")
     .isIn(["ACCEPT", "REJECT"])
@@ -189,6 +212,10 @@ router.post(
 router.post(
   "/:bookingId/assignment/reassign",
   authenticate,
+  authorizeRoles(
+    Role.USER,
+    Role.COORDINATOR,
+  ),
   param("bookingId").isMongoId().withMessage("Invalid booking ID"),
   body("reason")
     .isString()
@@ -204,6 +231,10 @@ router.post(
 router.get(
   "/:bookingId/execution",
   authenticate,
+  authorizeRoles(
+    Role.USER,
+    Role.COORDINATOR,
+  ),
   bookingIdValidation,
   getBookingExecution,
 );
@@ -211,6 +242,7 @@ router.get(
 router.post(
   "/:bookingId/execution/arrived",
   authenticate,
+  authorizeRoles(Role.COORDINATOR),
   bookingIdValidation,
   markCoordinatorArrived,
 );
@@ -218,6 +250,7 @@ router.post(
 router.post(
   "/:bookingId/execution/verify-otp",
   authenticate,
+  authorizeRoles(Role.COORDINATOR),
   param("bookingId").isMongoId().withMessage("Invalid booking ID"),
   body("otp")
     .matches(/^\d{6}$/)
@@ -229,6 +262,7 @@ router.post(
 router.post(
   "/:bookingId/execution/services/:executionId/start",
   authenticate,
+  authorizeRoles(Role.COORDINATOR),
   executionValidation,
   startBookingService,
 );
@@ -236,6 +270,7 @@ router.post(
 router.post(
   "/:bookingId/execution/services/:executionId/complete",
   authenticate,
+  authorizeRoles(Role.COORDINATOR),
   executionValidation,
   completeBookingService,
 );
@@ -243,6 +278,7 @@ router.post(
 router.post(
   "/:bookingId/execution/services/:executionId/skip",
   authenticate,
+  authorizeRoles(Role.COORDINATOR),
   param("bookingId").isMongoId().withMessage("Invalid booking ID"),
   param("executionId").isUUID().withMessage("Invalid execution ID"),
   body("reason")
@@ -259,6 +295,7 @@ router.post(
 router.post(
   "/:bookingId/execution/milestones",
   authenticate,
+  authorizeRoles(Role.COORDINATOR),
   param("bookingId").isMongoId().withMessage("Invalid booking ID"),
   body("code").isString().notEmpty().withMessage("Milestone code is required"),
   body("notes")
@@ -273,6 +310,7 @@ router.post(
 router.post(
   "/:bookingId/execution/complete",
   authenticate,
+  authorizeRoles(Role.COORDINATOR),
   param("bookingId").isMongoId().withMessage("Invalid booking ID"),
   body("proofUrls")
     .isArray({ min: 1 })
@@ -290,6 +328,7 @@ router.post(
 router.post(
   "/:bookingId/execution/generate-otp",
   authenticate,
+  authorizeRoles(Role.COORDINATOR),
   bookingIdValidation,
   generateBookingOtp,
 );
@@ -298,19 +337,27 @@ router.post(
   "/system/expire-payments",
   authenticate,
   authorizeRoles(Role.ADMIN),
+  requirePermission(
+    "booking.expire_payments",
+  ),
   expirePayments,
 );
 
 router.post(
-  "/system/process-assignment-timeouts",
+  "/system/expire-payments",
   authenticate,
   authorizeRoles(Role.ADMIN),
-  processAssignmentTimeouts,
+  requirePermission(
+    "booking.expire_payments",
+  ),
+  expirePayments,
 );
 
 router.get(
   "/",
   authenticate,
+  authorizeRoles(Role.ADMIN),
+  requirePermission("booking.read"),
   query("page")
     .optional()
     .isInt({ min: 1 })
@@ -327,11 +374,19 @@ router.get(
   getAllBookings,
 );
 
-router.get("/stats", authenticate, getBookingStats);
+router.get(
+  "/stats",
+  authenticate,
+  authorizeRoles(Role.ADMIN),
+  requirePermission("booking.stats"),
+  getBookingStats,
+);
 
 router.get(
   "/search",
   authenticate,
+  authorizeRoles(Role.ADMIN),
+  requirePermission("booking.search"),
   query("query")
     .isString()
     .trim()
@@ -344,7 +399,17 @@ router.get(
 router.patch(
   "/:bookingId/status",
   authenticate,
+  authorizeRoles(Role.ADMIN),
+  requirePermission("booking.status"),
   param("bookingId").isMongoId().withMessage("Invalid booking ID"),
+  body("reason")
+    .optional()
+    .isString()
+    .trim()
+    .isLength({ max: 500 })
+    .withMessage(
+      "Reason cannot exceed 500 characters",
+    ),
   body("status")
     .isIn([
       "PENDING_PAYMENT",
@@ -364,6 +429,8 @@ router.patch(
 router.post(
   "/:bookingId/refund",
   authenticate,
+  authorizeRoles(Role.ADMIN),
+  requirePermission("booking.refund"),
   param("bookingId").isMongoId().withMessage("Invalid booking ID"),
   body("amount")
     .isFloat({ gt: 0 })
@@ -380,6 +447,40 @@ router.post(
   refundBooking,
 );
 
-router.get("/:bookingId", authenticate, bookingIdValidation, getBookingById);
+router.get(
+  "/:bookingId/invoice",
+  authenticate,
+  authorizeRoles(Role.USER),
+  bookingIdValidation,
+  getBookingInvoice,
+);
+
+router.get(
+  "/admin/:bookingId/invoice",
+  authenticate,
+  authorizeRoles(Role.ADMIN),
+  requirePermission("booking.read"),
+  bookingIdValidation,
+  getBookingInvoice,
+);
+
+router.get(
+  "/view/:token",
+  param("token")
+    .isString()
+    .isLength({ min: 64, max: 64 })
+    .withMessage("Invalid booking access token"),
+  validate,
+  getBeneficiaryBooking,
+);
+
+router.get(
+  "/:bookingId",
+  authenticate,
+  authorizeRoles(Role.ADMIN),
+  requirePermission("booking.read"),
+  bookingIdValidation,
+  getBookingById,
+);
 
 export default router;

@@ -139,17 +139,17 @@ export const getServicesByLocation = async (req: Request, res: Response) => {
     const cityIdArray =
       typeof cityIds === "string"
         ? cityIds
-            .split(",")
-            .map((id) => id.trim())
-            .filter(Boolean)
+          .split(",")
+          .map((id) => id.trim())
+          .filter(Boolean)
         : undefined;
 
     const categoryIdArray =
       typeof categoryIds === "string"
         ? categoryIds
-            .split(",")
-            .map((id) => id.trim())
-            .filter(Boolean)
+          .split(",")
+          .map((id) => id.trim())
+          .filter(Boolean)
         : undefined;
 
     const activeStatus =
@@ -207,26 +207,27 @@ export const getAllServices = async (req: Request, res: Response) => {
       locationId,
       limit,
       page,
-      isActive,
-      isComplete,
       sortBy,
       sortOrder,
     } = req.query;
-
-    const activeStatus =
-      isActive === "true" ? true : isActive === "false" ? false : undefined;
-
-    const completeStatus =
-      isComplete === "true" ? true : isComplete === "false" ? false : undefined;
 
     const result = await ServiceService.findServices({
       limit: limit ? Number(limit) : 20,
       page: page ? Number(page) : 1,
 
-      sortBy: typeof sortBy === "string" ? sortBy : "name",
+      isActive: true,
+      isComplete: true,
+
+      sortBy:
+        typeof sortBy === "string"
+          ? sortBy
+          : "name",
 
       sortOrder:
-        sortOrder === "asc" || sortOrder === "desc" ? sortOrder : "asc",
+        sortOrder === "asc" ||
+          sortOrder === "desc"
+          ? sortOrder
+          : "asc",
 
       ...(typeof searchTerm === "string" && {
         searchTerm,
@@ -238,14 +239,6 @@ export const getAllServices = async (req: Request, res: Response) => {
 
       ...(typeof locationId === "string" && {
         locationId,
-      }),
-
-      ...(activeStatus !== undefined && {
-        isActive: activeStatus,
-      }),
-
-      ...(completeStatus !== undefined && {
-        isComplete: completeStatus,
       }),
     });
 
@@ -260,6 +253,91 @@ export const getAllServices = async (req: Request, res: Response) => {
     return res.status(getStatusCode(error)).json({
       success: false,
       message: error.message || "Failed to fetch services",
+    });
+  }
+};
+
+export const getAllServicesAdmin = async (
+  req: Request,
+  res: Response,
+) => {
+  try {
+    const {
+      searchTerm,
+      categoryId,
+      locationId,
+      limit,
+      page,
+      isActive,
+      isComplete,
+      sortBy,
+      sortOrder,
+    } = req.query;
+
+    const activeStatus =
+      isActive === "true"
+        ? true
+        : isActive === "false"
+          ? false
+          : undefined;
+
+    const completeStatus =
+      isComplete === "true"
+        ? true
+        : isComplete === "false"
+          ? false
+          : undefined;
+
+    const result =
+      await ServiceService.findServices({
+        limit: limit ? Number(limit) : 20,
+        page: page ? Number(page) : 1,
+
+        sortBy:
+          typeof sortBy === "string"
+            ? sortBy
+            : "name",
+
+        sortOrder:
+          sortOrder === "asc" ||
+            sortOrder === "desc"
+            ? sortOrder
+            : "asc",
+
+        ...(typeof searchTerm === "string" && {
+          searchTerm,
+        }),
+
+        ...(typeof categoryId === "string" && {
+          categoryId,
+        }),
+
+        ...(typeof locationId === "string" && {
+          locationId,
+        }),
+
+        ...(activeStatus !== undefined && {
+          isActive: activeStatus,
+        }),
+
+        ...(completeStatus !== undefined && {
+          isComplete: completeStatus,
+        }),
+      });
+
+    return res.status(200).json({
+      success: true,
+      data: result.data,
+      total: result.total,
+      currentPage: result.page,
+      totalPages: result.totalPages,
+    });
+  } catch (error: any) {
+    return res.status(getStatusCode(error)).json({
+      success: false,
+      message:
+        error.message ||
+        "Failed to fetch services",
     });
   }
 };

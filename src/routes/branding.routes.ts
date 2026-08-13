@@ -1,9 +1,17 @@
 import { Router } from "express";
 import { body } from "express-validator";
-import { getTheme, updateTheme } from "../controllers/brand.controllers.js";
+
+import {
+  getTheme,
+  updateTheme,
+} from "../controllers/brand.controllers.js";
+
 import { authenticate } from "../middleware/authenticate.js";
-// import { hasPermission } from "../middleware/hasPermission.js";
+import { authorizeRoles } from "../middleware/authorizeRoles.js";
+
+import { Role } from "../types/rbac.js";
 import { validate } from "../utils/validate.js";
+import { requirePermission } from "../middleware/rbac.js";
 
 const router = Router();
 
@@ -25,13 +33,20 @@ const updateThemeValidation = [
       const keys = Object.keys(theme);
 
       if (keys.length === 0) {
-        throw new Error("At least one theme field is required");
+        throw new Error(
+          "At least one theme field is required",
+        );
       }
 
-      const invalidFields = keys.filter((key) => !allowedFields.includes(key));
+      const invalidFields = keys.filter(
+        (key) =>
+          !allowedFields.includes(key),
+      );
 
       if (invalidFields.length > 0) {
-        throw new Error(`Invalid theme fields: ${invalidFields.join(", ")}`);
+        throw new Error(
+          `Invalid theme fields: ${invalidFields.join(", ")}`,
+        );
       }
 
       return true;
@@ -40,48 +55,87 @@ const updateThemeValidation = [
   body("theme.primary")
     .optional()
     .isString()
-    .withMessage("Primary color must be a string")
+    .withMessage(
+      "Primary color must be a string",
+    )
     .trim()
     .notEmpty()
-    .withMessage("Primary color cannot be empty"),
+    .withMessage(
+      "Primary color cannot be empty",
+    ),
 
   body("theme.secondary")
     .optional()
     .isString()
-    .withMessage("Secondary color must be a string")
+    .withMessage(
+      "Secondary color must be a string",
+    )
     .trim()
     .notEmpty()
-    .withMessage("Secondary color cannot be empty"),
+    .withMessage(
+      "Secondary color cannot be empty",
+    ),
 
   body("theme.accent")
     .optional()
     .isString()
-    .withMessage("Accent color must be a string")
+    .withMessage(
+      "Accent color must be a string",
+    )
     .trim()
     .notEmpty()
-    .withMessage("Accent color cannot be empty"),
+    .withMessage(
+      "Accent color cannot be empty",
+    ),
 
   body("theme.background")
     .optional()
     .isString()
-    .withMessage("Background color must be a string")
+    .withMessage(
+      "Background color must be a string",
+    )
     .trim()
     .notEmpty()
-    .withMessage("Background color cannot be empty"),
+    .withMessage(
+      "Background color cannot be empty",
+    ),
 
   body("theme.text")
     .optional()
     .isString()
-    .withMessage("Text color must be a string")
+    .withMessage(
+      "Text color must be a string",
+    )
     .trim()
     .notEmpty()
-    .withMessage("Text color cannot be empty"),
+    .withMessage(
+      "Text color cannot be empty",
+    ),
 
   validate,
 ];
 
-router.get("/get-theme", getTheme);
+router.get(
+  "/get-theme",
+  getTheme,
+);
 
-router.patch("/update-theme", authenticate, updateThemeValidation, updateTheme);
+router.patch(
+  "/update-theme",
+
+  authenticate,
+
+  authorizeRoles(
+    Role.ADMIN,
+  ),
+
+  requirePermission(
+    "branding.update",
+  ),
+
+  updateThemeValidation,
+
+  updateTheme,
+);
 
 export default router;

@@ -2,6 +2,9 @@ import { Router, } from "express";
 import { body, query, validationResult, } from "express-validator";
 import { bulkUpsertTierPricing, resolvePricing, } from "../controllers/servicepricing.controllers.js";
 import { authenticate } from "../middleware/authenticate.js";
+import { authorizeRoles } from "../middleware/authorizeRoles.js";
+import { Role } from "../types/rbac.js";
+import { requirePermission } from "../middleware/rbac.js";
 const router = Router();
 const validate = (req, res, next) => {
     const errors = validationResult(req);
@@ -59,8 +62,8 @@ const bulkPricingValidation = [
         .isIn(["EXCLUSIVE", "INCLUSIVE"])
         .withMessage("taxPriceMode must be EXCLUSIVE or INCLUSIVE"),
 ];
-router.post("/bulk", authenticate, ...bulkPricingValidation, validate, bulkUpsertTierPricing);
-router.get("/resolve", authenticate, query("serviceId")
+router.post("/bulk", authenticate, authorizeRoles(Role.ADMIN), requirePermission("service_pricing.update"), ...bulkPricingValidation, validate, bulkUpsertTierPricing);
+router.get("/resolve", authenticate, authorizeRoles(Role.USER), query("serviceId")
     .notEmpty()
     .withMessage("serviceId is required")
     .isMongoId()

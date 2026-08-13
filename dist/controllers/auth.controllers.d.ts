@@ -26,4 +26,6 @@ export declare const updateCoordinatorSettings: (req: Request, res: Response) =>
 export declare const updateServiceableLocations: (req: Request, res: Response) => Promise<Response<any, Record<string, any>> | undefined>;
 export declare const getCoordinatorById: (req: Request, res: Response) => Promise<void>;
 export declare const getCoordinators: (req: Request, res: Response) => Promise<void>;
+export declare const createAdmin: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
+export declare const exportUsersCsv: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
 //# sourceMappingURL=auth.controllers.d.ts.map

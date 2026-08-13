@@ -92,9 +92,40 @@ export const getPackageById = async (req, res) => {
 };
 export const getAllPackages = async (req, res) => {
     try {
+        const { searchTerm, categoryId, locationId, tierId, limit, page, sortBy, sortOrder, } = req.query;
+        const parsedLimit = parsePositiveInteger(limit, 20, 100);
+        const parsedPage = parsePositiveInteger(page, 1);
+        const { data, total, page: currentPage, totalPages, } = await PackageService.findPackages(searchTerm, categoryId, locationId, tierId, parsedLimit, parsedPage, true, // isActive
+        true, // isComplete
+        sortBy || "name", sortOrder || "asc");
+        return res.status(200).json({
+            success: true,
+            data,
+            total,
+            currentPage,
+            totalPages,
+        });
+    }
+    catch (error) {
+        return res.status(400).json({
+            success: false,
+            message: error.message || "Failed to fetch packages",
+        });
+    }
+};
+export const getAllPackagesAdmin = async (req, res) => {
+    try {
         const { searchTerm, categoryId, locationId, tierId, limit, page, isActive, isComplete, sortBy, sortOrder, } = req.query;
-        const activeBool = isActive === "true" ? true : isActive === "false" ? false : undefined;
-        const completeBool = isComplete === "true" ? true : isComplete === "false" ? false : undefined;
+        const activeBool = isActive === "true"
+            ? true
+            : isActive === "false"
+                ? false
+                : undefined;
+        const completeBool = isComplete === "true"
+            ? true
+            : isComplete === "false"
+                ? false
+                : undefined;
         const parsedLimit = parsePositiveInteger(limit, 20, 100);
         const parsedPage = parsePositiveInteger(page, 1);
         const { data, total, page: currentPage, totalPages, } = await PackageService.findPackages(searchTerm, categoryId, locationId, tierId, parsedLimit, parsedPage, activeBool, completeBool, sortBy || "name", sortOrder || "asc");
@@ -109,7 +140,8 @@ export const getAllPackages = async (req, res) => {
     catch (error) {
         return res.status(400).json({
             success: false,
-            message: error.message || "Failed to fetch packages",
+            message: error.message ||
+                "Failed to fetch packages",
         });
     }
 };

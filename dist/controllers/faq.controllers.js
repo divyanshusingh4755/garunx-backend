@@ -134,4 +134,34 @@ export const getAllFaqs = async (req, res) => {
         });
     }
 };
+export const getPublicFaqs = async (req, res) => {
+    try {
+        const { searchTerm, faqType, limit, page, sortBy, sortOrder, } = req.query;
+        const parsedLimit = Number(limit);
+        const parsedPage = Number(page);
+        const result = await FAQService.findFaqs(typeof searchTerm === "string"
+            ? searchTerm
+            : undefined, typeof faqType === "string"
+            ? faqType
+            : undefined, Number.isInteger(parsedLimit) && parsedLimit > 0
+            ? Math.min(parsedLimit, 100)
+            : 20, Number.isInteger(parsedPage) && parsedPage > 0
+            ? parsedPage
+            : 1, true, typeof sortBy === "string"
+            ? sortBy
+            : "displayOrder", sortOrder === "desc"
+            ? "desc"
+            : "asc");
+        return res.status(200).json({
+            success: true,
+            ...result,
+        });
+    }
+    catch (error) {
+        return res.status(400).json({
+            success: false,
+            message: getErrorMessage(error, "Failed to fetch FAQs"),
+        });
+    }
+};
 //# sourceMappingURL=faq.controllers.js.map

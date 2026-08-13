@@ -1,5 +1,6 @@
 import mongoose, { Types } from "mongoose";
 import { type ITier } from "../models/tier.model.js";
+type TierUpdate = Partial<Pick<ITier, "name" | "tierReference">>;
 export declare class TierService {
     static createTier(tierData: ITier): Promise<mongoose.Document<unknown, {}, ITier, {}, mongoose.DefaultSchemaOptions> & ITier & {
         _id: Types.ObjectId;
@@ -8,7 +9,7 @@ export declare class TierService {
     } & {
         id: string;
     }>;
-    static updateTier(id: string, tierData: Partial<ITier>): Promise<mongoose.Document<unknown, {}, ITier, {}, mongoose.DefaultSchemaOptions> & ITier & {
+    static updateTier(id: string, tierData: TierUpdate): Promise<mongoose.Document<unknown, {}, ITier, {}, mongoose.DefaultSchemaOptions> & ITier & {
         _id: Types.ObjectId;
     } & {
         __v: number;
@@ -95,4 +96,5 @@ export declare class TierService {
         totalPages: number;
     }>;
 }
+export {};
 //# sourceMappingURL=tier.service.d.ts.map

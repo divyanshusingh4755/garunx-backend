@@ -13,7 +13,7 @@ type CreateComponentItemInput = {
 };
 
 type ComponentItemUpdate = Partial<
-  Pick<IComponentItem, "name" | "price" | "isActive">
+  Pick<IComponentItem, "name" | "price">
 >;
 
 const createHttpError = (message: string, statusCode: number) => {

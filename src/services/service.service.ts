@@ -773,6 +773,13 @@ export class ServiceService {
       throw createHttpError("Service not found", 404);
     }
 
+    if (!service.isActive || !service.isComplete) {
+      throw createHttpError(
+        "Service not available",
+        404,
+      );
+    }
+
     const [serviceComponents, pricing, serviceCategory] = await Promise.all([
       ServiceComponent.find({
         serviceId,
@@ -841,13 +848,13 @@ export class ServiceService {
 
       const taxProfile = price.taxProfileId as
         | {
-            _id: Types.ObjectId;
-            name?: string;
-            code?: string;
-            treatment?: string;
-            totalRate?: number;
-            isActive?: boolean;
-          }
+          _id: Types.ObjectId;
+          name?: string;
+          code?: string;
+          treatment?: string;
+          totalRate?: number;
+          isActive?: boolean;
+        }
         | null
         | undefined;
 
@@ -909,16 +916,16 @@ export class ServiceService {
 
         component: componentDetails
           ? {
-              id: componentDetails._id,
+            id: componentDetails._id,
 
-              image: componentDetails.imageUrl,
+            image: componentDetails.imageUrl,
 
-              isRemovable: componentDetails.isRemovable,
+            isRemovable: componentDetails.isRemovable,
 
-              isBundled: componentDetails.isBundled,
+            isBundled: componentDetails.isBundled,
 
-              isActive: componentDetails.isActive,
-            }
+            isActive: componentDetails.isActive,
+          }
           : null,
 
         items: (component.items ?? []).map((item) => ({
@@ -949,14 +956,14 @@ export class ServiceService {
 
         category: serviceCategory
           ? {
-              id: serviceCategory._id,
+            id: serviceCategory._id,
 
-              label: serviceCategory.label,
+            label: serviceCategory.label,
 
-              value: serviceCategory.value,
+            value: serviceCategory.value,
 
-              image: serviceCategory.image,
-            }
+            image: serviceCategory.image,
+          }
           : null,
 
         isActive: service.isActive,
@@ -1026,6 +1033,13 @@ export class ServiceService {
 
     if (!service) {
       throw createHttpError("Service not found", 404);
+    }
+
+    if (!service.isActive || !service.isComplete) {
+      throw createHttpError(
+        "Service not available",
+        404,
+      );
     }
 
     const filteredLocations = service.locations

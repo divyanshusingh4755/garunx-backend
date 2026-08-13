@@ -75,4 +75,6 @@ export declare const addBookingMilestone: (req: Request, res: Response) => Promi
  */
 export declare const completeBookingExecution: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
 export declare const generateBookingOtp: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
+export declare const getBookingInvoice: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
+export declare const getBeneficiaryBooking: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
 //# sourceMappingURL=booking.controllers.d.ts.map

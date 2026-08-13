@@ -10,10 +10,14 @@ import {
   createLocation,
   deleteLocation,
   getAllLocation,
+  getAllLocationsAdmin,
   getLocationById,
   getLocationIds,
   updateLocation,
 } from "../controllers/location.controllers.js";
+import { authorizeRoles } from "../middleware/authorizeRoles.js";
+import { requirePermission } from "../middleware/rbac.js";
+import { Role } from "../types/rbac.js";
 
 const router = Router();
 
@@ -159,7 +163,6 @@ const updateLocationValidation = [
       "image",
       "description",
       "location",
-      "isActive",
     ];
 
     const suppliedFields = Object.keys(value ?? {});
@@ -226,11 +229,6 @@ const updateLocationValidation = [
     .withMessage("description must be a string")
     .trim(),
 
-  body("isActive")
-    .optional()
-    .isBoolean()
-    .withMessage("isActive must be a boolean"),
-
   ...coordinatesValidation,
   handleValidationErrors,
 ];
@@ -269,7 +267,7 @@ const locationIdsValidation = [
   handleValidationErrors,
 ];
 
-const listValidation = [
+const publicListValidation = [
   query("limit")
     .optional()
     .isInt({ min: 1, max: 100 })
@@ -280,11 +278,6 @@ const listValidation = [
     .isInt({ min: 1 })
     .withMessage("page must be at least 1"),
 
-  query("isActive")
-    .optional()
-    .isBoolean()
-    .withMessage("isActive must be true or false"),
-
   query("sortOrder")
     .optional()
     .isIn(["asc", "desc"])
@@ -292,19 +285,56 @@ const listValidation = [
 
   query("sortBy")
     .optional()
-    .isIn(["name", "country", "pincode", "createdAt", "updatedAt", "relevance"])
+    .isIn([
+      "name",
+      "country",
+      "pincode",
+      "createdAt",
+      "updatedAt",
+      "relevance",
+    ])
     .withMessage("Invalid sortBy value"),
 
   handleValidationErrors,
 ];
 
-router.get("/get-all-location", listValidation, getAllLocation);
+const adminListValidation = [
+  ...publicListValidation.slice(0, -1),
 
-router.post("/get-location-by-ids", locationIdsValidation, getLocationIds);
+  query("isActive")
+    .optional()
+    .isBoolean()
+    .withMessage("isActive must be true or false"),
+
+  handleValidationErrors,
+];
+
+router.get(
+  "/get-all-location",
+  publicListValidation,
+  getAllLocation,
+);
+
+router.get(
+  "/admin",
+  authenticate,
+  authorizeRoles(Role.ADMIN),
+  requirePermission("location.read"),
+  adminListValidation,
+  getAllLocationsAdmin,
+);
+
+router.post(
+  "/get-location-by-ids",
+  locationIdsValidation,
+  getLocationIds,
+);
 
 router.post(
   "/create-location",
   authenticate,
+  authorizeRoles(Role.ADMIN),
+  requirePermission("location.create"),
   createLocationValidation,
   createLocation,
 );
@@ -312,12 +342,28 @@ router.post(
 router.patch(
   "/update-location/:id",
   authenticate,
+  authorizeRoles(Role.ADMIN),
+  requirePermission("location.update"),
   updateLocationValidation,
   updateLocation,
 );
 
-router.patch("/:id/status", authenticate, statusValidation, deleteLocation);
+router.patch(
+  "/:id/status",
+  authenticate,
+  authorizeRoles(Role.ADMIN),
+  requirePermission("location.status"),
+  statusValidation,
+  deleteLocation,
+);
 
-router.get("/:id", authenticate, locationIdValidation, getLocationById);
+router.get(
+  "/:id",
+  authenticate,
+  authorizeRoles(Role.ADMIN),
+  requirePermission("location.read"),
+  locationIdValidation,
+  getLocationById,
+);
 
 export default router;

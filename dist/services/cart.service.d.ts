@@ -393,6 +393,10 @@ declare class CartService {
     } & {
         id: string;
     }>;
+    static expirePendingCheckouts(): Promise<{
+        matched: number;
+        modified: number;
+    }>;
 }
 export default CartService;
 //# sourceMappingURL=cart.service.d.ts.map

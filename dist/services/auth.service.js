@@ -10,6 +10,7 @@ import nodemailer from "nodemailer";
 import { generateUniqueCode } from "../utils/generateUniqueCode.js";
 import { ApprovalStatus, AvailabilityStatus, VerificationStatus, } from "../types/enums.js";
 import { escapeRegex } from "../utils/escapeRegex.js";
+import { BookingService } from "./booking.service.js";
 class AuthService {
     static async generateUserSession(user, userAgent, ip, mongoSession) {
         const familyId = crypto.randomUUID();
@@ -54,6 +55,9 @@ class AuthService {
         const session = await mongoose.startSession();
         session.startTransaction();
         try {
+            if (role === Role.ADMIN) {
+                throw new Error("Admin registration is not allowed through public registration");
+            }
             let finalEmail = userEmail?.toLowerCase();
             let finalNumber = phoneNumber;
             const query = [];
@@ -115,6 +119,9 @@ class AuthService {
     }
     static async socialAuth(role, email, userAgent, ip) {
         try {
+            if (role === Role.ADMIN) {
+                throw new Error("Admin social registration is not allowed");
+            }
             const normalizedEmail = email.toLowerCase();
             const existingUser = await User.findOne({ role, email: normalizedEmail });
             let userReference = existingUser?.userReference;
@@ -293,6 +300,7 @@ class AuthService {
         if (!user.isComplete)
             throw new Error("Registration incomplete. Please finish setting up your profile.");
         const sessionData = await this.generateUserSession(user, userAgent, ip);
+        await BookingService.linkBeneficiaryBookingsToUser(user._id.toString());
         return sessionData;
     }
     static async refreshAccesToken(oldRefreshToken, userAgent, ip) {
@@ -497,7 +505,8 @@ class AuthService {
             }
             // Fetch data and count in parallel for better performance
             const [users, total] = await Promise.all([
-                User.find(filter).sort(sortCriteria).skip(skip).limit(limit).lean(), // Use lean() for faster read-only queries
+                User.find(filter).select("-password -otp -otpExpiresAt " +
+                    "-resetPasswordToken -resetPasswordExpires").sort(sortCriteria).skip(skip).limit(limit).lean(), // Use lean() for faster read-only queries
                 User.countDocuments(filter),
             ]);
             return {
@@ -665,6 +674,7 @@ class AuthService {
             ], { session });
             const { password: _, ...userWithoutPassword } = updatedUser;
             await session.commitTransaction();
+            await BookingService.linkBeneficiaryBookingsToUser(updatedUser._id.toString());
             return {
                 user: userWithoutPassword,
                 accessToken,
@@ -1076,6 +1086,158 @@ class AuthService {
                 hasNextPage: page * limit < total,
                 hasPreviousPage: page > 1,
             },
+        };
+    }
+    static async createAdmin(params) {
+        const { fullName, email, password, phoneNumber, } = params;
+        const normalizedEmail = email.trim().toLowerCase();
+        const existingAdmin = await User.findOne({
+            role: Role.ADMIN,
+            $or: [
+                { email: normalizedEmail },
+                ...(phoneNumber
+                    ? [{ phoneNumber }]
+                    : []),
+            ],
+        }).lean();
+        if (existingAdmin) {
+            throw new Error("Admin account with this email or phone number already exists");
+        }
+        const hashedPassword = await bcrypt.hash(password, 10);
+        const counter = await Counter.findOneAndUpdate({
+            id: "userId",
+        }, {
+            $inc: {
+                seq: 1,
+            },
+        }, {
+            new: true,
+            upsert: true,
+        });
+        if (!counter) {
+            throw new Error("Unable to generate user reference");
+        }
+        const userReference = `GX-${counter.seq
+            .toString()
+            .padStart(4, "0")}`;
+        const admin = await User.create({
+            fullName: fullName.trim(),
+            email: normalizedEmail,
+            ...(phoneNumber && {
+                phoneNumber,
+            }),
+            password: hashedPassword,
+            role: Role.ADMIN,
+            // No access until RBAC roles are assigned
+            rbacRoles: [],
+            // Admin is created directly by another admin,
+            // therefore public registration flow is skipped.
+            isOtpVerified: true,
+            isComplete: true,
+            isActive: true,
+            userReference,
+            referralCode: `REF-${generateUniqueCode()}`,
+        });
+        const adminObject = admin.toObject();
+        delete adminObject.password;
+        return adminObject;
+    }
+    static async exportUsersToCsv(userIds) {
+        const uniqueUserIds = [
+            ...new Set(userIds),
+        ];
+        const users = await User.find({
+            _id: {
+                $in: uniqueUserIds,
+            },
+        })
+            .select([
+            "userReference",
+            "fullName",
+            "email",
+            "phoneNumber",
+            "role",
+            "isActive",
+            "isComplete",
+            "isOtpVerified",
+            "isDocumentVerified",
+            "isBankDocumentVerified",
+            "documentVerification.status",
+            "bankDocumentVerification.status",
+            "coordinatorProfile.approvalStatus",
+            "coordinatorProfile.availabilityStatus",
+            "coordinatorProfile.averageRating",
+            "coordinatorProfile.totalCompletedBookings",
+            "createdAt",
+        ].join(" "))
+            .lean();
+        if (users.length === 0) {
+            throw new Error("No users found for export");
+        }
+        const escapeCsv = (value) => {
+            if (value === null ||
+                value === undefined) {
+                return "";
+            }
+            const stringValue = String(value);
+            if (stringValue.includes(",") ||
+                stringValue.includes('"') ||
+                stringValue.includes("\n")) {
+                return `"${stringValue.replace(/"/g, '""')}"`;
+            }
+            return stringValue;
+        };
+        const headers = [
+            "User Reference",
+            "Full Name",
+            "Email",
+            "Phone Number",
+            "Role",
+            "Active",
+            "Profile Complete",
+            "OTP Verified",
+            "Document Verified",
+            "Bank Verified",
+            "Document Status",
+            "Bank Status",
+            "Coordinator Approval",
+            "Coordinator Availability",
+            "Average Rating",
+            "Completed Bookings",
+            "Created At",
+        ];
+        const rows = users.map((user) => [
+            user.userReference,
+            user.fullName,
+            user.email,
+            user.phoneNumber,
+            user.role,
+            user.isActive,
+            user.isComplete,
+            user.isOtpVerified,
+            user.isDocumentVerified,
+            user.isBankDocumentVerified,
+            user.documentVerification?.status,
+            user.bankDocumentVerification?.status,
+            user.coordinatorProfile
+                ?.approvalStatus,
+            user.coordinatorProfile
+                ?.availabilityStatus,
+            user.coordinatorProfile
+                ?.averageRating,
+            user.coordinatorProfile
+                ?.totalCompletedBookings,
+            user.createdAt
+                ? new Date(user.createdAt).toISOString()
+                : "",
+        ]);
+        const csv = [
+            headers.map(escapeCsv).join(","),
+            ...rows.map((row) => row.map(escapeCsv).join(",")),
+        ].join("\n");
+        return {
+            csv,
+            total: users.length,
         };
     }
 }

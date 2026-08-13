@@ -1,7 +1,10 @@
 import { Router, } from "express";
 import { body, param, query, validationResult } from "express-validator";
-import { createTier, getAllTier, getTierById, toggleTierStatus, updateTier, } from "../controllers/tier.controllers.js";
+import { createTier, getAllTier, getAllTierAdmin, getTierById, toggleTierStatus, updateTier, } from "../controllers/tier.controllers.js";
 import { authenticate } from "../middleware/authenticate.js";
+import { authorizeRoles } from "../middleware/authorizeRoles.js";
+import { Role } from "../types/rbac.js";
+import { requirePermission } from "../middleware/rbac.js";
 const router = Router();
 const validate = (req, res, next) => {
     const errors = validationResult(req);
@@ -52,13 +55,11 @@ const updateTierValidation = [
         .isString()
         .withMessage("tierReference must be string")
         .trim(),
-    body("isActive")
-        .optional()
-        .isBoolean()
-        .withMessage("isActive must be boolean")
-        .toBoolean(),
     body().custom((payload) => {
-        const allowedFields = ["name", "tierReference", "isActive"];
+        const allowedFields = [
+            "name",
+            "tierReference",
+        ];
         const hasUpdate = allowedFields.some((field) => payload[field] !== undefined);
         if (!hasUpdate) {
             throw new Error("At least one field is required");
@@ -82,7 +83,22 @@ const toggleTierStatusValidation = [
         .toBoolean(),
     validate,
 ];
-const listTierValidation = [
+const publicTierListValidation = [
+    query("limit")
+        .optional()
+        .isInt({ min: 1, max: 100 })
+        .withMessage("limit must be between 1 and 100"),
+    query("page")
+        .optional()
+        .isInt({ min: 1 })
+        .withMessage("page must be a positive integer"),
+    query("sortOrder")
+        .optional()
+        .isIn(["asc", "desc"])
+        .withMessage("sortOrder must be asc or desc"),
+    validate,
+];
+const adminTierListValidation = [
     query("limit")
         .optional()
         .isInt({ min: 1, max: 100 })
@@ -95,16 +111,28 @@ const listTierValidation = [
         .optional()
         .isIn(["true", "false"])
         .withMessage("isActive must be true or false"),
+    query("sortBy")
+        .optional()
+        .isIn([
+        "name",
+        "tierReference",
+        "isActive",
+        "createdAt",
+        "updatedAt",
+        "relevance",
+    ])
+        .withMessage("Invalid sortBy value"),
     query("sortOrder")
         .optional()
         .isIn(["asc", "desc"])
         .withMessage("sortOrder must be asc or desc"),
     validate,
 ];
-router.get("/", listTierValidation, getAllTier);
-router.get("/:id", authenticate, tierIdValidation, getTierById);
-router.post("/", authenticate, createTierValidation, createTier);
-router.put("/:id", authenticate, updateTierValidation, updateTier);
-router.patch("/:id/status", authenticate, toggleTierStatusValidation, toggleTierStatus);
+router.get("/", publicTierListValidation, getAllTier);
+router.get("/admin", authenticate, authorizeRoles(Role.ADMIN), requirePermission("tier.read"), adminTierListValidation, getAllTierAdmin);
+router.get("/:id", authenticate, authorizeRoles(Role.ADMIN), requirePermission("tier.read"), tierIdValidation, getTierById);
+router.post("/", authenticate, authorizeRoles(Role.ADMIN), requirePermission("tier.create"), createTierValidation, createTier);
+router.put("/:id", authenticate, authorizeRoles(Role.ADMIN), requirePermission("tier.update"), updateTierValidation, updateTier);
+router.patch("/:id/status", authenticate, authorizeRoles(Role.ADMIN), requirePermission("tier.status"), toggleTierStatusValidation, toggleTierStatus);
 export default router;
 //# sourceMappingURL=tier.routes.js.map

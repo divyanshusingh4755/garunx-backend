@@ -4,6 +4,7 @@ import { TaxProfileController } from "../controllers/taxprofile.controller.js";
 import { authenticate } from "../middleware/authenticate.js";
 import { authorizeRoles } from "../middleware/authorizeRoles.js";
 import { Role } from "../types/rbac.js";
+import { requirePermission } from "../middleware/rbac.js";
 const router = Router();
 const TAX_TREATMENTS = ["TAXABLE", "EXEMPT", "NIL_RATED", "NON_GST"];
 const handleValidationErrors = (req, res, next) => {
@@ -187,11 +188,11 @@ const listTaxProfilesValidation = [
     handleValidationErrors,
 ];
 router.use(authenticate, authorizeRoles(Role.ADMIN));
-router.get("/active", TaxProfileController.listActive);
-router.post("/", createTaxProfileValidation, TaxProfileController.create);
-router.get("/", listTaxProfilesValidation, TaxProfileController.list);
-router.get("/:taxProfileId", taxProfileIdValidation, TaxProfileController.getById);
-router.patch("/:taxProfileId/status", taxProfileIdValidation, updateTaxProfileStatusValidation, TaxProfileController.updateStatus);
-router.patch("/:taxProfileId", taxProfileIdValidation, updateTaxProfileValidation, TaxProfileController.update);
+router.get("/active", requirePermission("tax_profile.read"), TaxProfileController.listActive);
+router.post("/", requirePermission("tax_profile.create"), createTaxProfileValidation, TaxProfileController.create);
+router.get("/", requirePermission("tax_profile.read"), listTaxProfilesValidation, TaxProfileController.list);
+router.get("/:taxProfileId", requirePermission("tax_profile.read"), taxProfileIdValidation, TaxProfileController.getById);
+router.patch("/:taxProfileId/status", requirePermission("tax_profile.status"), taxProfileIdValidation, updateTaxProfileStatusValidation, TaxProfileController.updateStatus);
+router.patch("/:taxProfileId", requirePermission("tax_profile.update"), taxProfileIdValidation, updateTaxProfileValidation, TaxProfileController.update);
 export default router;
 //# sourceMappingURL=taxprofile.routes.js.map

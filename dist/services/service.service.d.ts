@@ -195,8 +195,8 @@ export declare class ServiceService {
                 value: string;
                 image: string | undefined;
             } | null;
-            isActive: boolean;
-            isComplete: boolean;
+            isActive: true;
+            isComplete: true;
             serviceReference: string;
         };
         subServiceComponents: unknown[];
@@ -216,8 +216,8 @@ export declare class ServiceService {
             thumbnailImage: string;
             bannerImage: string | undefined;
             startingPrice: number;
-            isActive: boolean;
-            isComplete: boolean;
+            isActive: true;
+            isComplete: true;
             serviceReference: string;
         };
         subServiceComponents: unknown[];

@@ -313,6 +313,13 @@ export class ServicePricingService {
       throw createHttpError("Service is inactive", 400);
     }
 
+    if (!service.isComplete) {
+      throw createHttpError(
+        "Service configuration is incomplete",
+        400,
+      );
+    }
+
     const tier = service.tiers.find(
       (item) => item.tierId.toString() === tierId,
     );
@@ -384,13 +391,13 @@ export class ServicePricingService {
 
       const taxProfile = pricingRecord?.taxProfileId as
         | {
-            _id: Types.ObjectId;
-            name?: string;
-            code?: string;
-            treatment?: string;
-            totalRate?: number;
-            isActive?: boolean;
-          }
+          _id: Types.ObjectId;
+          name?: string;
+          code?: string;
+          treatment?: string;
+          totalRate?: number;
+          isActive?: boolean;
+        }
         | null
         | undefined;
 
@@ -412,22 +419,22 @@ export class ServicePricingService {
 
           tax: pricingRecord
             ? {
-                taxProfileId: taxProfile?._id ?? null,
+              taxProfileId: taxProfile?._id ?? null,
 
-                profileName: taxProfile?.name ?? null,
+              profileName: taxProfile?.name ?? null,
 
-                profileCode: taxProfile?.code ?? null,
+              profileCode: taxProfile?.code ?? null,
 
-                treatment: taxProfile?.treatment ?? null,
+              treatment: taxProfile?.treatment ?? null,
 
-                totalRate: taxProfile?.totalRate ?? 0,
+              totalRate: taxProfile?.totalRate ?? 0,
 
-                priceMode: taxProfile
-                  ? pricingRecord.taxPriceMode
-                  : "EXCLUSIVE",
+              priceMode: taxProfile
+                ? pricingRecord.taxPriceMode
+                : "EXCLUSIVE",
 
-                isTaxConfigured: Boolean(taxProfile),
-              }
+              isTaxConfigured: Boolean(taxProfile),
+            }
             : null,
 
           items: component.items ?? [],

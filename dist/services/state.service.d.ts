@@ -1,5 +1,5 @@
 import { type IState, type IGeoPoint } from "../models/state.model.js";
-type StateUpdate = Partial<Pick<IState, "country" | "name" | "gstCode" | "image" | "description" | "isActive" | "location">>;
+type StateUpdate = Partial<Pick<IState, "country" | "name" | "gstCode" | "image" | "description" | "location">>;
 export declare class StateService {
     private static applyFilter;
     static createState(params: {

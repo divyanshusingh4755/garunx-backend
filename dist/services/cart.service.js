@@ -1567,6 +1567,26 @@ class CartService {
         await cart.save();
         return cart;
     }
+    static async expirePendingCheckouts() {
+        const now = new Date();
+        const result = await Cart.updateMany({
+            status: "CHECKOUT_PENDING",
+            checkoutExpiresAt: {
+                $lte: now,
+            },
+        }, {
+            $set: {
+                status: "ACTIVE",
+            },
+            $unset: {
+                checkoutExpiresAt: 1,
+            },
+        });
+        return {
+            matched: result.matchedCount,
+            modified: result.modifiedCount,
+        };
+    }
 }
 export default CartService;
 //# sourceMappingURL=cart.service.js.map

@@ -119,9 +119,8 @@ export const toggleBannerStatus = async (req: Request, res: Response) => {
 
     return res.status(200).json({
       success: true,
-      message: `Banner ${
-        banner.isActive ? "activated" : "deactivated"
-      } successfully`,
+      message: `Banner ${banner.isActive ? "activated" : "deactivated"
+        } successfully`,
       data: banner,
     });
   } catch (error: unknown) {
@@ -156,12 +155,12 @@ export const getAllBanners = async (req: Request, res: Response) => {
       typeof format === "string" ? format : undefined,
       typeof redirectType === "string"
         ? (redirectType as
-            | "NONE"
-            | "SERVICE"
-            | "PACKAGE"
-            | "CATEGORY"
-            | "PRODUCT"
-            | "URL")
+          | "NONE"
+          | "SERVICE"
+          | "PACKAGE"
+          | "CATEGORY"
+          | "PRODUCT"
+          | "URL")
         : undefined,
       Number.isInteger(parsedLimit) && parsedLimit > 0
         ? Math.min(parsedLimit, 100)
@@ -180,6 +179,92 @@ export const getAllBanners = async (req: Request, res: Response) => {
     return res.status(400).json({
       success: false,
       message: getErrorMessage(error, "Failed to fetch banners"),
+    });
+  }
+};
+
+export const getPublicBanners = async (
+  req: Request,
+  res: Response,
+) => {
+  try {
+    const {
+      searchTerm,
+      placement,
+      format,
+      redirectType,
+      limit,
+      page,
+      sortBy,
+      sortOrder,
+    } = req.query;
+
+    const parsedLimit =
+      typeof limit === "number"
+        ? limit
+        : Number(limit);
+
+    const parsedPage =
+      typeof page === "number"
+        ? page
+        : Number(page);
+
+    const result =
+      await BannerService.findBanners(
+        typeof searchTerm === "string"
+          ? searchTerm
+          : undefined,
+
+        typeof placement === "string"
+          ? placement
+          : undefined,
+
+        typeof format === "string"
+          ? format
+          : undefined,
+
+        typeof redirectType === "string"
+          ? (redirectType as
+            | "NONE"
+            | "SERVICE"
+            | "PACKAGE"
+            | "CATEGORY"
+            | "PRODUCT"
+            | "URL")
+          : undefined,
+
+        Number.isInteger(parsedLimit) &&
+          parsedLimit > 0
+          ? Math.min(parsedLimit, 100)
+          : 20,
+
+        Number.isInteger(parsedPage) &&
+          parsedPage > 0
+          ? parsedPage
+          : 1,
+
+        true, // IMPORTANT: public only active
+
+        typeof sortBy === "string"
+          ? sortBy
+          : "displayOrder",
+
+        sortOrder === "desc"
+          ? "desc"
+          : "asc",
+      );
+
+    return res.status(200).json({
+      success: true,
+      ...result,
+    });
+  } catch (error: unknown) {
+    return res.status(400).json({
+      success: false,
+      message: getErrorMessage(
+        error,
+        "Failed to fetch banners",
+      ),
     });
   }
 };

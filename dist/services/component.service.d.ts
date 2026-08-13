@@ -9,9 +9,9 @@ type CreateComponentInput = {
     isBundled?: boolean;
     isActive?: boolean;
 };
-type ComponentUpdate = Partial<Pick<IComponent, "name" | "description" | "imageUrl" | "isActive" | "isBundled" | "isRemovable">> & {
+type ComponentUpdate = Partial<Pick<IComponent, "name" | "description" | "imageUrl" | "isBundled" | "isRemovable"> & {
     categoryId?: string;
-};
+}>;
 export declare class ComponentService {
     static createComponent(payload: CreateComponentInput): Promise<mongoose.Document<unknown, {}, IComponent, {}, mongoose.DefaultSchemaOptions> & IComponent & {
         _id: Types.ObjectId;

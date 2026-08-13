@@ -1,13 +1,14 @@
 import { Router } from "express";
 import { body, param, query } from "express-validator";
 import { Role } from "../types/rbac.js";
-import { login, register, resendOtp, verifyOtp, refreshToken, logout, forgotPassword, resetPassword, getUserById, getAllUsers, deactivateUser, completeProfile, updateProfile, uploadSingle, uploadMutliple, getUserByEmailOrPhone, submitVerificationDocuments, approveOrRejectDocs, changePassword, socialAuth, updateCoordinatorAvailability, getCurrentUser, updateCoordinatorSettings, updateServiceableLocations, getCoordinators, getCoordinatorById, updateCoordinatorApproval, } from "../controllers/auth.controllers.js";
+import { login, register, resendOtp, verifyOtp, refreshToken, logout, forgotPassword, resetPassword, getUserById, getAllUsers, deactivateUser, completeProfile, updateProfile, uploadSingle, uploadMutliple, getUserByEmailOrPhone, submitVerificationDocuments, approveOrRejectDocs, changePassword, socialAuth, updateCoordinatorAvailability, getCurrentUser, updateCoordinatorSettings, updateServiceableLocations, getCoordinators, getCoordinatorById, updateCoordinatorApproval, createAdmin, exportUsersCsv, } from "../controllers/auth.controllers.js";
 import { authRateLimiter, otpRateLimiter, passwordResetRateLimiter, } from "../utils/rateLimiter.js";
 import { authenticate } from "../middleware/authenticate.js";
 import { upload } from "../middleware/upload.js";
 import { ApprovalStatus, AvailabilityStatus, Caste, Gender, Gotra, VerificationStatus, } from "../types/enums.js";
 import { validate } from "../utils/validate.js";
 import { authorizeRoles } from "../middleware/authorizeRoles.js";
+import { requirePermission } from "../middleware/rbac.js";
 const router = Router();
 // Validation Middleware
 const registerValidation = [
@@ -23,8 +24,11 @@ const registerValidation = [
     body("role")
         .notEmpty()
         .withMessage("Role is required")
-        .isIn(Object.values(Role))
-        .withMessage("Invalid user type"),
+        .isIn([
+        Role.USER,
+        Role.COORDINATOR,
+    ])
+        .withMessage("Registration is only allowed for USER or COORDINATOR"),
     body("password")
         .optional()
         .isStrongPassword({
@@ -49,10 +53,13 @@ const socialRegisterValidation = [
         .withMessage("Please enter a valid email address")
         .normalizeEmail(),
     body("role")
-        .exists()
+        .notEmpty()
         .withMessage("Role is required")
-        .isIn(Object.values(Role))
-        .withMessage("Invalid user type"),
+        .isIn([
+        Role.USER,
+        Role.COORDINATOR,
+    ])
+        .withMessage("Registration is only allowed for USER or COORDINATOR"),
     body("idToken").notEmpty().withMessage("Token is missing"),
     validate,
 ];
@@ -435,6 +442,46 @@ const changePasswordValidation = [
         .withMessage("Password must be at least 8 characters and include uppercase, lowercase, and a number"),
     validate,
 ];
+const createAdminValidation = [
+    body("fullName")
+        .trim()
+        .notEmpty()
+        .withMessage("Full name is required")
+        .isLength({ min: 2, max: 100 })
+        .withMessage("Full name must be between 2 and 100 characters"),
+    body("email")
+        .trim()
+        .notEmpty()
+        .withMessage("Email is required")
+        .isEmail()
+        .withMessage("Please enter a valid email address")
+        .normalizeEmail(),
+    body("password")
+        .notEmpty()
+        .withMessage("Password is required")
+        .isStrongPassword({
+        minLength: 8,
+        minLowercase: 1,
+        minUppercase: 1,
+        minNumbers: 1,
+        minSymbols: 0,
+    })
+        .withMessage("Password must be at least 8 characters and include uppercase, lowercase, and a number"),
+    body("phoneNumber")
+        .optional()
+        .isMobilePhone("en-IN")
+        .withMessage("Enter valid Indian Phone Number"),
+    validate,
+];
+const exportUsersValidation = [
+    body("userIds")
+        .isArray({ min: 1, max: 1000 })
+        .withMessage("userIds must contain between 1 and 1000 user IDs"),
+    body("userIds.*")
+        .isMongoId()
+        .withMessage("Each userId must be a valid MongoDB ID"),
+    validate,
+];
 // PUBLIC AUTH
 router.post("/register", registerValidation, register);
 router.post("/verify-otp", otpRateLimiter, verifyOtpValidation, verifyOtp);
@@ -446,27 +493,29 @@ router.post("/logout", logout);
 // PASSWORD RECOVERY
 router.post("/forgot-password", passwordResetRateLimiter, forgotPasswordValidation, forgotPassword);
 router.post("/reset-password", passwordResetRateLimiter, resetPasswordValidation, resetPassword);
+router.post("/admin", authenticate, authorizeRoles(Role.ADMIN), requirePermission("admin.create"), createAdminValidation, createAdmin);
+router.post("/export-users", authenticate, authorizeRoles(Role.ADMIN), requirePermission("user.export"), exportUsersValidation, exportUsersCsv);
 // PROFILE COMPLETION
 router.patch("/complete-profile", profileValidation, completeProfile);
 // CURRENT USER
 router.get("/me", authenticate, getCurrentUser);
 router.patch("/update-profile", authenticate, updateProfileValidation, updateProfile);
 router.post("/change-password", authenticate, changePasswordValidation, changePassword);
-router.patch("/upload-documents", authenticate, documentUploadValidation, submitVerificationDocuments);
+router.patch("/upload-documents", authenticate, authorizeRoles(Role.USER, Role.COORDINATOR), documentUploadValidation, submitVerificationDocuments);
 // COORDINATOR SELF-MANAGEMENT
 router.patch("/coordinator/availability", authenticate, authorizeRoles(Role.COORDINATOR), coordinatorAvailabilityValidation, updateCoordinatorAvailability);
 router.put("/coordinator/serviceable-locations", authenticate, authorizeRoles(Role.COORDINATOR), serviceableLocationsValidation, updateServiceableLocations);
 // ADMIN USERS
-router.get("/get-all-user", authenticate, authorizeRoles(Role.ADMIN), getAllUsers);
-router.get("/get-user-by-email-or-phone/:identifier", authenticate, authorizeRoles(Role.ADMIN), getUserByEmailOrPhone);
-router.get("/get-user-by-id/:id", authenticate, authorizeRoles(Role.ADMIN), getUserById);
-router.patch("/deactivate-user/:id", authenticate, authorizeRoles(Role.ADMIN), body("status").isBoolean().withMessage("Status must be boolean").toBoolean(), validate, deactivateUser);
-router.patch("/verify-documents", authenticate, authorizeRoles(Role.ADMIN), verificationStatusValidation, approveOrRejectDocs);
+router.get("/get-all-user", authenticate, authorizeRoles(Role.ADMIN), requirePermission("user.read"), getAllUsers);
+router.get("/get-user-by-email-or-phone/:identifier", authenticate, authorizeRoles(Role.ADMIN), requirePermission("user.read"), getUserByEmailOrPhone);
+router.get("/get-user-by-id/:id", authenticate, authorizeRoles(Role.ADMIN), requirePermission("user.read"), getUserById);
+router.patch("/deactivate-user/:id", authenticate, authorizeRoles(Role.ADMIN), requirePermission("user.status"), body("status").isBoolean().withMessage("Status must be boolean").toBoolean(), validate, deactivateUser);
+router.patch("/verify-documents", authenticate, authorizeRoles(Role.ADMIN), requirePermission("user.verify_documents"), verificationStatusValidation, approveOrRejectDocs);
 // ADMIN COORDINATORS
-router.get("/coordinators", authenticate, authorizeRoles(Role.ADMIN), coordinatorListValidation, getCoordinators);
-router.get("/coordinators/:coordinatorId", authenticate, authorizeRoles(Role.ADMIN), coordinatorIdValidation, getCoordinatorById);
-router.patch("/coordinators/:coordinatorId/approval", authenticate, authorizeRoles(Role.ADMIN), coordinatorApprovalValidation, updateCoordinatorApproval);
-router.patch("/coordinators/:coordinatorId/settings", authenticate, authorizeRoles(Role.ADMIN), coordinatorSettingsValidation, updateCoordinatorSettings);
+router.get("/coordinators", authenticate, authorizeRoles(Role.ADMIN), requirePermission("coordinator.read"), coordinatorListValidation, getCoordinators);
+router.get("/coordinators/:coordinatorId", authenticate, authorizeRoles(Role.ADMIN), requirePermission("coordinator.read"), coordinatorIdValidation, getCoordinatorById);
+router.patch("/coordinators/:coordinatorId/approval", authenticate, authorizeRoles(Role.ADMIN), requirePermission("coordinator.approve"), coordinatorApprovalValidation, updateCoordinatorApproval);
+router.patch("/coordinators/:coordinatorId/settings", authenticate, authorizeRoles(Role.ADMIN), requirePermission("coordinator.settings"), coordinatorSettingsValidation, updateCoordinatorSettings);
 // UPLOADS
 router.post("/upload-single", upload.single("image"), uploadSingle);
 router.post("/upload-multiple", upload.array("images", 5), uploadMutliple);

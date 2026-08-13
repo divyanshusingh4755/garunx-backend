@@ -15,6 +15,9 @@ import {
 } from "../controllers/referralreward.controllers.js";
 
 import { authenticate } from "../middleware/authenticate.js";
+import { authorizeRoles } from "../middleware/authorizeRoles.js";
+import { Role } from "../types/rbac.js";
+import { requirePermission } from "../middleware/rbac.js";
 
 const router = Router();
 
@@ -73,12 +76,35 @@ const rewardsValidation = [
   validate,
 ];
 
-router.get("/rewards", authenticate, rewardsValidation, getReferralRewards);
+router.get(
+  "/rewards",
+  authenticate,
+  authorizeRoles(Role.ADMIN),
+  requirePermission("referral_reward.read"),
+  rewardsValidation,
+  getReferralRewards,
+);
 
-router.get("/stats", authenticate, getReferralStats);
+router.get(
+  "/stats",
+  authenticate,
+  authorizeRoles(Role.USER),
+  getReferralStats,
+);
 
-router.get("/history", authenticate, paginationValidation, getReferralHistory);
+router.get(
+  "/history",
+  authenticate,
+  authorizeRoles(Role.USER),
+  paginationValidation,
+  getReferralHistory,
+);
 
-router.get("/", authenticate, getReferralInfo);
+router.get(
+  "/",
+  authenticate,
+  authorizeRoles(Role.USER),
+  getReferralInfo,
+);
 
 export default router;

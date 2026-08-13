@@ -4,6 +4,7 @@ import { createReview, editReview, moderateReview, getAllReviews, getMyBookingRe
 import { authenticate } from "../middleware/authenticate.js";
 import { authorizeRoles } from "../middleware/authorizeRoles.js";
 import { Role } from "../types/rbac.js";
+import { requirePermission } from "../middleware/rbac.js";
 const router = Router();
 const REVIEW_DIRECTIONS = [
     "CUSTOMER_TO_COORDINATOR",
@@ -173,11 +174,11 @@ export const getAllReviewsValidation = [
     validate,
 ];
 router.get("/coordinator/:coordinatorId", getCoordinatorReviewsValidation, getCoordinatorReviews);
-router.get("/booking/:bookingId/my-review", authenticate, getMyBookingReviewValidation, getMyBookingReview);
-router.get("/my-reviews", authenticate, getMyReviewsValidation, getMyReviews);
-router.get("/get-all-reviews", authenticate, authorizeRoles(Role.ADMIN), getAllReviewsValidation, getAllReviews);
-router.post("/booking/:bookingId", authenticate, createReviewValidation, createReview);
-router.patch("/:reviewId/moderation", authenticate, authorizeRoles(Role.ADMIN), moderateReviewValidation, moderateReview);
-router.patch("/:reviewId", authenticate, editReviewValidation, editReview);
+router.get("/booking/:bookingId/my-review", authenticate, authorizeRoles(Role.USER, Role.COORDINATOR), getMyBookingReviewValidation, getMyBookingReview);
+router.get("/my-reviews", authenticate, authorizeRoles(Role.USER, Role.COORDINATOR), getMyReviewsValidation, getMyReviews);
+router.get("/get-all-reviews", authenticate, authorizeRoles(Role.ADMIN), requirePermission("review.read_all"), getAllReviewsValidation, getAllReviews);
+router.post("/booking/:bookingId", authenticate, authorizeRoles(Role.USER, Role.COORDINATOR), createReviewValidation, createReview);
+router.patch("/:reviewId/moderation", authenticate, authorizeRoles(Role.ADMIN), requirePermission("review.moderate"), moderateReviewValidation, moderateReview);
+router.patch("/:reviewId", authenticate, authorizeRoles(Role.USER, Role.COORDINATOR), editReviewValidation, editReview);
 export default router;
 //# sourceMappingURL=review.routes.js.map

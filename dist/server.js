@@ -4,6 +4,9 @@ import mongoose from "mongoose";
 import app from "./app.js";
 import { connectDB } from "./config/db.js";
 import { initializeSocket } from "./socket/index.js";
+import { startBookingCronJobs } from "./cron/booking.cron.js";
+import { startCartCronJobs } from "./cron/cart.cron.js";
+import { startNotificationReminderJob } from "./cron/notification-reminder.cron.js";
 const rawPort = process.env.PORT?.trim() ?? "3000";
 const port = Number(rawPort);
 if (!Number.isInteger(port) || port < 1 || port > 65535) {
@@ -53,6 +56,9 @@ const startServer = async () => {
     await connectDB();
     server = createServer(app);
     io = initializeSocket(server);
+    startCartCronJobs();
+    startBookingCronJobs();
+    startNotificationReminderJob();
     server.listen(port, () => {
         console.log(`Server running on port ${port}`);
         console.log("Socket.IO server initialized");

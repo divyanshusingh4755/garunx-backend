@@ -1,6 +1,7 @@
 import FamilyTreeService, {} from "../services/family-tree.service.js";
 import { FamilyRelation, Gender, MemberLifeStatus } from "../types/enums.js";
 import { resolveFamilyTreeOwnerId, } from "../services/access.service.js";
+import { Role } from "../types/rbac.js";
 const getAuthenticatedUser = (req) => {
     const userId = req.user?.userId;
     const role = req.user?.role;
@@ -28,13 +29,11 @@ const getRequiredStringParam = (value, fieldName) => {
 const getSourceFromRole = (role) => {
     const normalizedRole = role.trim().toUpperCase();
     switch (normalizedRole) {
-        case "USER":
-        case "USER":
+        case Role.USER:
             return "CUSTOMER_SELF";
-        case "COORDINATOR":
+        case Role.COORDINATOR:
             return "COORDINATOR_BOOKING";
-        case "ADMIN":
-        case "SUPER_ADMIN":
+        case Role.ADMIN:
             return "ADMIN_MANUAL";
         default:
             throw new Error("Role is not authorized to modify a family tree");

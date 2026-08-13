@@ -14,6 +14,7 @@ import { authenticate } from "../middleware/authenticate.js";
 import { authorizeRoles } from "../middleware/authorizeRoles.js";
 
 import { Role } from "../types/rbac.js";
+import { requirePermission } from "../middleware/rbac.js";
 
 const router = Router();
 
@@ -258,22 +259,41 @@ const listTaxProfilesValidation = [
   handleValidationErrors,
 ];
 
-router.use(authenticate, authorizeRoles(Role.ADMIN));
+router.use(
+  authenticate,
+  authorizeRoles(Role.ADMIN),
+);
 
-router.get("/active", TaxProfileController.listActive);
+router.get(
+  "/active",
+  requirePermission("tax_profile.read"),
+  TaxProfileController.listActive,
+);
 
-router.post("/", createTaxProfileValidation, TaxProfileController.create);
+router.post(
+  "/",
+  requirePermission("tax_profile.create"),
+  createTaxProfileValidation,
+  TaxProfileController.create,
+);
 
-router.get("/", listTaxProfilesValidation, TaxProfileController.list);
+router.get(
+  "/",
+  requirePermission("tax_profile.read"),
+  listTaxProfilesValidation,
+  TaxProfileController.list,
+);
 
 router.get(
   "/:taxProfileId",
+  requirePermission("tax_profile.read"),
   taxProfileIdValidation,
   TaxProfileController.getById,
 );
 
 router.patch(
   "/:taxProfileId/status",
+  requirePermission("tax_profile.status"),
   taxProfileIdValidation,
   updateTaxProfileStatusValidation,
   TaxProfileController.updateStatus,
@@ -281,6 +301,7 @@ router.patch(
 
 router.patch(
   "/:taxProfileId",
+  requirePermission("tax_profile.update"),
   taxProfileIdValidation,
   updateTaxProfileValidation,
   TaxProfileController.update,

@@ -46,6 +46,7 @@ export interface IUser extends Document {
     email?: string;
     password?: string;
     role: Role;
+    rbacRoles: Types.ObjectId[];
     otp?: string | null;
     otpExpiresAt?: Date | null;
     isOtpVerified: boolean;

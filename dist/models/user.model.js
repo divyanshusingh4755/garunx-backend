@@ -204,6 +204,22 @@ const userSchema = new Schema({
         required: true,
         default: Role.USER,
     },
+    rbacRoles: {
+        type: [
+            {
+                type: Schema.Types.ObjectId,
+                ref: "RbacRole",
+            },
+        ],
+        default: [],
+        validate: {
+            validator: (roles) => {
+                const ids = roles.map((id) => id.toString());
+                return new Set(ids).size === ids.length;
+            },
+            message: "Duplicate RBAC roles are not allowed",
+        },
+    },
     otp: {
         type: String,
         default: null,

@@ -10,9 +10,13 @@ import {
   createState,
   deleteState,
   getAllState,
+  getAllStatesAdmin,
   getStateById,
   updateState,
 } from "../controllers/state.controllers.js";
+import { authorizeRoles } from "../middleware/authorizeRoles.js";
+import { Role } from "../types/rbac.js";
+import { requirePermission } from "../middleware/rbac.js";
 
 const router = Router();
 
@@ -132,7 +136,6 @@ const updateStateValidation = [
       "image",
       "description",
       "location",
-      "isActive",
     ];
 
     const suppliedFields = Object.keys(value ?? {});
@@ -187,11 +190,6 @@ const updateStateValidation = [
     .withMessage("description must be a string")
     .trim(),
 
-  body("isActive")
-    .optional()
-    .isBoolean()
-    .withMessage("isActive must be a boolean"),
-
   ...locationValidation,
   validate,
 ];
@@ -214,7 +212,7 @@ const statusValidation = [
   validate,
 ];
 
-const listValidation = [
+const publicStateListValidation = [
   query("limit")
     .optional()
     .isInt({ min: 1, max: 100 })
@@ -225,11 +223,6 @@ const listValidation = [
     .isInt({ min: 1 })
     .withMessage("page must be at least 1"),
 
-  query("isActive")
-    .optional()
-    .isBoolean()
-    .withMessage("isActive must be true or false"),
-
   query("sortOrder")
     .optional()
     .isIn(["asc", "desc"])
@@ -237,25 +230,79 @@ const listValidation = [
 
   query("sortBy")
     .optional()
-    .isIn(["name", "country", "gstCode", "createdAt", "updatedAt", "relevance"])
+    .isIn([
+      "name",
+      "country",
+      "gstCode",
+      "createdAt",
+      "updatedAt",
+      "relevance",
+    ])
     .withMessage("Invalid sortBy value"),
 
   validate,
 ];
 
-router.get("/get-all-state", listValidation, getAllState);
+const adminStateListValidation = [
+  ...publicStateListValidation.slice(0, -1),
 
-router.post("/create-state", authenticate, createStateValidation, createState);
+  query("isActive")
+    .optional()
+    .isBoolean()
+    .withMessage("isActive must be true or false"),
+
+  validate,
+];
+
+router.get(
+  "/get-all-state",
+  publicStateListValidation,
+  getAllState,
+);
+
+router.get(
+  "/admin",
+  authenticate,
+  authorizeRoles(Role.ADMIN),
+  requirePermission("state.read"),
+  adminStateListValidation,
+  getAllStatesAdmin,
+);
+
+router.post(
+  "/create-state",
+  authenticate,
+  authorizeRoles(Role.ADMIN),
+  requirePermission("state.create"),
+  createStateValidation,
+  createState,
+);
 
 router.patch(
   "/update-state/:id",
   authenticate,
+  authorizeRoles(Role.ADMIN),
+  requirePermission("state.update"),
   updateStateValidation,
   updateState,
 );
 
-router.get("/:id", authenticate, stateIdValidation, getStateById);
+router.get(
+  "/:id",
+  authenticate,
+  authorizeRoles(Role.ADMIN),
+  requirePermission("state.read"),
+  stateIdValidation,
+  getStateById,
+);
 
-router.patch("/:id/status", authenticate, statusValidation, deleteState);
+router.patch(
+  "/:id/status",
+  authenticate,
+  authorizeRoles(Role.ADMIN),
+  requirePermission("state.status"),
+  statusValidation,
+  deleteState,
+);
 
 export default router;

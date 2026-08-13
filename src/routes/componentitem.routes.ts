@@ -13,6 +13,9 @@ import {
   updateComponentItem,
   updateComponentItemStatus,
 } from "../controllers/componentItem.controllers.js";
+import { authorizeRoles } from "../middleware/authorizeRoles.js";
+import { Role } from "../types/rbac.js";
+import { requirePermission } from "../middleware/rbac.js";
 
 const router = Router();
 
@@ -57,7 +60,7 @@ export const updateComponentItemValidation = [
   param("componentItemId").isMongoId().withMessage("Invalid component item ID"),
 
   body().custom((value) => {
-    const allowedFields = ["name", "price", "isActive"];
+    const allowedFields = ["name", "price"];
 
     const suppliedFields = Object.keys(value ?? {});
 
@@ -88,11 +91,6 @@ export const updateComponentItemValidation = [
     .optional()
     .isFloat({ min: 0 })
     .withMessage("price must be a non-negative number"),
-
-  body("isActive")
-    .optional()
-    .isBoolean()
-    .withMessage("isActive must be boolean"),
 
   validate,
 ];
@@ -149,13 +147,26 @@ const listValidation = [
   validate,
 ];
 
-router.get("/", listValidation, getAllComponentItems);
+router.get(
+  "/",
+  listValidation,
+  getAllComponentItems,
+);
 
-router.post("/", authenticate, componentItemValidation, createComponentItem);
+router.post(
+  "/",
+  authenticate,
+  authorizeRoles(Role.ADMIN),
+  requirePermission("component_item.create"),
+  componentItemValidation,
+  createComponentItem,
+);
 
 router.put(
   "/:componentItemId",
   authenticate,
+  authorizeRoles(Role.ADMIN),
+  requirePermission("component_item.update"),
   updateComponentItemValidation,
   updateComponentItem,
 );
@@ -169,6 +180,8 @@ router.get(
 router.patch(
   "/:componentItemId/status",
   authenticate,
+  authorizeRoles(Role.ADMIN),
+  requirePermission("component_item.status"),
   componentItemStatusValidation,
   updateComponentItemStatus,
 );

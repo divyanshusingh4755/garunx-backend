@@ -16,7 +16,11 @@ import {
   toggleCouponStatus,
   deleteCoupon,
   validateCoupon,
+  getAvailableCoupons,
 } from "../controllers/coupon.controllers.js";
+import { authorizeRoles } from "../middleware/authorizeRoles.js";
+import { Role } from "../types/rbac.js";
+import { requirePermission } from "../middleware/rbac.js";
 
 const APPLICABLE_TYPES = ["ALL", "SERVICE", "PACKAGE", "REFERRAL"] as const;
 
@@ -153,12 +157,6 @@ const commonCouponFieldValidation = [
     .isBoolean()
     .withMessage("isFirstOrderOnly must be a boolean")
     .toBoolean(),
-
-  body("isActive")
-    .optional()
-    .isBoolean()
-    .withMessage("isActive must be a boolean")
-    .toBoolean(),
 ];
 
 const validateCouponCombination = body().custom((_, { req }) => {
@@ -233,17 +231,34 @@ const validateCouponCombination = body().custom((_, { req }) => {
 });
 
 const createCouponValidation = [
-  body("name").exists().withMessage("Name is required"),
+  body("name")
+    .exists()
+    .withMessage("Name is required"),
 
-  body("couponCode").exists().withMessage("Coupon code is required"),
+  body("couponCode")
+    .exists()
+    .withMessage("Coupon code is required"),
 
-  body("applicableOn").exists().withMessage("Applicable type is required"),
+  body("applicableOn")
+    .exists()
+    .withMessage("Applicable type is required"),
 
-  body("discount").exists().withMessage("Discount is required"),
+  body("discount")
+    .exists()
+    .withMessage("Discount is required"),
 
-  body("discountType").exists().withMessage("Discount type is required"),
+  body("discountType")
+    .exists()
+    .withMessage("Discount type is required"),
 
   ...commonCouponFieldValidation,
+
+  body("isActive")
+    .optional()
+    .isBoolean()
+    .withMessage("isActive must be a boolean")
+    .toBoolean(),
+
   validateCouponCombination,
   validateRequest,
 ];
@@ -346,25 +361,103 @@ const listCouponValidation = [
   validateRequest,
 ];
 
+const availableCouponsValidation = [
+  query("serviceId")
+    .optional()
+    .isMongoId()
+    .withMessage("Invalid service ID"),
+
+  query("packageId")
+    .optional()
+    .isMongoId()
+    .withMessage("Invalid package ID"),
+
+  query("amount")
+    .optional()
+    .isFloat({ min: 0 })
+    .withMessage("amount must be a non-negative number")
+    .toFloat(),
+
+  query("isFirstOrder")
+    .optional()
+    .isBoolean()
+    .withMessage("isFirstOrder must be a boolean")
+    .toBoolean(),
+
+  validateRequest,
+];
+
 const router = Router();
 
-router.get("/", listCouponValidation, getAllCoupons);
+router.get(
+  "/available",
+  authenticate,
+  authorizeRoles(Role.USER),
+  availableCouponsValidation,
+  getAvailableCoupons,
+);
 
-router.post("/validate", authenticate, couponLookupValidation, validateCoupon);
+router.post(
+  "/validate",
+  authenticate,
+  authorizeRoles(Role.USER),
+  couponLookupValidation,
+  validateCoupon,
+);
 
-router.get("/:id", authenticate, couponIdValidation, getCouponById);
 
-router.post("/", authenticate, createCouponValidation, createCoupon);
+router.get(
+  "/",
+  authenticate,
+  authorizeRoles(Role.ADMIN),
+  requirePermission("coupon.read"),
+  listCouponValidation,
+  getAllCoupons,
+);
 
-router.put("/:id", authenticate, updateCouponValidation, updateCoupon);
+router.get(
+  "/:id",
+  authenticate,
+  authorizeRoles(Role.ADMIN),
+  requirePermission("coupon.read"),
+  couponIdValidation,
+  getCouponById,
+);
+
+router.post(
+  "/",
+  authenticate,
+  authorizeRoles(Role.ADMIN),
+  requirePermission("coupon.create"),
+  createCouponValidation,
+  createCoupon,
+);
+
+router.put(
+  "/:id",
+  authenticate,
+  authorizeRoles(Role.ADMIN),
+  requirePermission("coupon.update"),
+  updateCouponValidation,
+  updateCoupon,
+);
 
 router.patch(
   "/:id/status",
   authenticate,
+  authorizeRoles(Role.ADMIN),
+  requirePermission("coupon.status"),
   couponIdValidation,
   toggleCouponStatus,
 );
 
-router.delete("/:id", authenticate, couponIdValidation, deleteCoupon);
+router.delete(
+  "/:id",
+  authenticate,
+  authorizeRoles(Role.ADMIN),
+  requirePermission("coupon.delete"),
+  couponIdValidation,
+  deleteCoupon,
+);
 
 export default router;

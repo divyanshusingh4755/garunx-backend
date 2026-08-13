@@ -21,13 +21,12 @@ type ComponentUpdate = Partial<
     | "name"
     | "description"
     | "imageUrl"
-    | "isActive"
     | "isBundled"
     | "isRemovable"
-  >
-> & {
-  categoryId?: string;
-};
+  > & {
+    categoryId?: string;
+  }
+>;
 
 const createHttpError = (message: string, statusCode: number) => {
   const error = new Error(message) as Error & {

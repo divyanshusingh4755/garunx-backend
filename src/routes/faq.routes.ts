@@ -15,7 +15,11 @@ import {
   updateFaq,
   toggleFaqStatus,
   deleteFaq,
+  getPublicFaqs,
 } from "../controllers/faq.controllers.js";
+import { authorizeRoles } from "../middleware/authorizeRoles.js";
+import { requirePermission } from "../middleware/rbac.js";
+import { Role } from "../types/rbac.js";
 
 const FAQ_TYPES = [
   "User",
@@ -107,7 +111,6 @@ const updateFaqValidation = [
       "name",
       "question",
       "answer",
-      "isActive",
       "faqType",
       "displayOrder",
     ];
@@ -146,12 +149,6 @@ const updateFaqValidation = [
     .trim()
     .notEmpty()
     .withMessage("Answer cannot be empty"),
-
-  body("isActive")
-    .optional()
-    .isBoolean()
-    .withMessage("isActive must be a boolean")
-    .toBoolean(),
 
   body("faqType").optional().isIn(FAQ_TYPES).withMessage("Invalid FAQ type"),
 
@@ -197,18 +194,97 @@ const listFaqValidation = [
   validateRequest,
 ];
 
+const publicFaqValidation = [
+  query("faqType")
+    .optional()
+    .isIn(FAQ_TYPES)
+    .withMessage("Invalid FAQ type"),
+
+  query("page")
+    .optional()
+    .isInt({ min: 1 })
+    .withMessage("page must be a positive integer")
+    .toInt(),
+
+  query("limit")
+    .optional()
+    .isInt({ min: 1, max: 100 })
+    .withMessage("limit must be between 1 and 100")
+    .toInt(),
+
+  query("sortBy")
+    .optional()
+    .isIn(SORT_FIELDS)
+    .withMessage("Invalid sort field"),
+
+  query("sortOrder")
+    .optional()
+    .isIn(["asc", "desc"])
+    .withMessage("sortOrder must be asc or desc"),
+
+  validateRequest,
+];
+
 const router = Router();
 
-router.get("/", listFaqValidation, getAllFaqs);
+router.get(
+  "/public",
+  publicFaqValidation,
+  getPublicFaqs,
+);
 
-router.get("/:id", authenticate, faqIdValidation, getFaqById);
+router.get(
+  "/",
+  authenticate,
+  authorizeRoles(Role.ADMIN),
+  requirePermission("faq.read"),
+  listFaqValidation,
+  getAllFaqs,
+);
 
-router.post("/", authenticate, createFaqValidation, createFaq);
+router.get(
+  "/:id",
+  authenticate,
+  authorizeRoles(Role.ADMIN),
+  requirePermission("faq.read"),
+  faqIdValidation,
+  getFaqById,
+);
 
-router.put("/:id", authenticate, updateFaqValidation, updateFaq);
+router.post(
+  "/",
+  authenticate,
+  authorizeRoles(Role.ADMIN),
+  requirePermission("faq.create"),
+  createFaqValidation,
+  createFaq,
+);
 
-router.patch("/:id/status", authenticate, faqIdValidation, toggleFaqStatus);
+router.put(
+  "/:id",
+  authenticate,
+  authorizeRoles(Role.ADMIN),
+  requirePermission("faq.update"),
+  updateFaqValidation,
+  updateFaq,
+);
 
-router.delete("/:id", authenticate, faqIdValidation, deleteFaq);
+router.patch(
+  "/:id/status",
+  authenticate,
+  authorizeRoles(Role.ADMIN),
+  requirePermission("faq.status"),
+  faqIdValidation,
+  toggleFaqStatus,
+);
+
+router.delete(
+  "/:id",
+  authenticate,
+  authorizeRoles(Role.ADMIN),
+  requirePermission("faq.delete"),
+  faqIdValidation,
+  deleteFaq,
+)
 
 export default router;

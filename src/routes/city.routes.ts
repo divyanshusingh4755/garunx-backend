@@ -13,6 +13,9 @@ import {
   getCityById,
   updateCity,
 } from "../controllers/city.controllers.js";
+import { authorizeRoles } from "../middleware/authorizeRoles.js";
+import { requirePermission } from "../middleware/rbac.js";
+import { Role } from "../types/rbac.js";
 
 const router = Router();
 
@@ -135,7 +138,6 @@ const updateCityValidation = [
       "image",
       "description",
       "location",
-      "isActive",
     ];
 
     const suppliedFields = Object.keys(value ?? {});
@@ -183,11 +185,6 @@ const updateCityValidation = [
     .isString()
     .withMessage("description must be a string")
     .trim(),
-
-  body("isActive")
-    .optional()
-    .isBoolean()
-    .withMessage("isActive must be a boolean"),
 
   ...locationValidation,
   handleValidationErrors,
@@ -240,19 +237,46 @@ const listValidation = [
   handleValidationErrors,
 ];
 
-router.get("/get-all-city", listValidation, getAllCity);
+router.get(
+  "/get-all-city",
+  listValidation,
+  getAllCity,
+);
 
-router.post("/create-city", authenticate, createCityValidation, createCity);
+router.post(
+  "/create-city",
+  authenticate,
+  authorizeRoles(Role.ADMIN),
+  requirePermission("city.create"),
+  createCityValidation,
+  createCity,
+);
 
 router.patch(
   "/update-city/:id",
   authenticate,
+  authorizeRoles(Role.ADMIN),
+  requirePermission("city.update"),
   updateCityValidation,
   updateCity,
 );
 
-router.get("/:id", authenticate, cityIdValidation, getCityById);
+router.get(
+  "/:id",
+  authenticate,
+  authorizeRoles(Role.ADMIN),
+  requirePermission("city.read"),
+  cityIdValidation,
+  getCityById,
+);
 
-router.patch("/:id/status", authenticate, statusValidation, deleteCity);
+router.patch(
+  "/:id/status",
+  authenticate,
+  authorizeRoles(Role.ADMIN),
+  requirePermission("city.status"),
+  statusValidation,
+  deleteCity,
+);
 
 export default router;

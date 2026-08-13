@@ -10,7 +10,6 @@ type StateUpdate = Partial<
     | "gstCode"
     | "image"
     | "description"
-    | "isActive"
     | "location"
   >
 >;

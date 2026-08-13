@@ -2,6 +2,9 @@ import { Router, } from "express";
 import { body, param, query, validationResult } from "express-validator";
 import { createComponent, getAllComponents, getComponentById, updateComponent, toggleComponentStatus, } from "../controllers/component.controllers.js";
 import { authenticate } from "../middleware/authenticate.js";
+import { authorizeRoles } from "../middleware/authorizeRoles.js";
+import { Role } from "../types/rbac.js";
+import { requirePermission } from "../middleware/rbac.js";
 const router = Router();
 const validate = (req, res, next) => {
     const errors = validationResult(req);
@@ -61,7 +64,6 @@ const updateComponentValidation = [
             "imageUrl",
             "isRemovable",
             "isBundled",
-            "isActive",
         ];
         const suppliedFields = Object.keys(value ?? {});
         if (suppliedFields.length === 0) {
@@ -100,10 +102,6 @@ const updateComponentValidation = [
         .optional()
         .isBoolean()
         .withMessage("isBundled must be boolean"),
-    body("isActive")
-        .optional()
-        .isBoolean()
-        .withMessage("isActive must be boolean"),
     validate,
 ];
 const componentIdValidation = [
@@ -164,9 +162,9 @@ const listValidation = [
     validate,
 ];
 router.get("/", listValidation, getAllComponents);
-router.get("/:componentId", authenticate, componentIdValidation, getComponentById);
-router.post("/", authenticate, createComponentValidation, createComponent);
-router.patch("/:componentId", authenticate, updateComponentValidation, updateComponent);
-router.patch("/:componentId/status", authenticate, componentStatusValidation, toggleComponentStatus);
+router.get("/:componentId", authenticate, authorizeRoles(Role.ADMIN), requirePermission("component.read"), componentIdValidation, getComponentById);
+router.post("/", authenticate, authorizeRoles(Role.ADMIN), requirePermission("component.create"), createComponentValidation, createComponent);
+router.patch("/:componentId", authenticate, authorizeRoles(Role.ADMIN), requirePermission("component.update"), updateComponentValidation, updateComponent);
+router.patch("/:componentId/status", authenticate, authorizeRoles(Role.ADMIN), requirePermission("component.status"), componentStatusValidation, toggleComponentStatus);
 export default router;
 //# sourceMappingURL=component.routes.js.map

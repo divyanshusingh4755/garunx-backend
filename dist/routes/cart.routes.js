@@ -2,6 +2,8 @@ import { Router, } from "express";
 import { body, param, query, validationResult } from "express-validator";
 import { createServiceCart, createPackageCart, getUserCarts, getCartById, updateSelectedComponents, updateAddonComponents, updateAddonServices, updateSchedule, updateCustomerDetails, updateCartNotes, recalculateCart, validateCart, checkoutCart, deleteCart, updateSelectedServices, mergeGuestCartToUser, applyCoupon, removeCoupon, reopenCart, } from "../controllers/cart.controllers.js";
 import { authenticate, optionalAuthenticate, } from "../middleware/authenticate.js";
+import { authorizeRoles } from "../middleware/authorizeRoles.js";
+import { Role } from "../types/rbac.js";
 const router = Router();
 const validate = (req, res, next) => {
     const errors = validationResult(req);
@@ -41,7 +43,7 @@ router.post("/package", optionalAuthenticate, body("packageId")
     .withMessage("packageId is required")
     .isMongoId()
     .withMessage("Invalid packageId"), ...ownerSelectionValidation, validate, createPackageCart);
-router.post("/merge", authenticate, mergeGuestCartToUser);
+router.post("/merge", authenticate, authorizeRoles(Role.USER), mergeGuestCartToUser);
 router.get("/", optionalAuthenticate, query("page")
     .optional()
     .isInt({ min: 1 })
@@ -92,7 +94,7 @@ router.post("/:cartId/validate", optionalAuthenticate, param("cartId").isMongoId
     .isBoolean()
     .withMessage("persist must be boolean")
     .toBoolean(), validate, validateCart);
-router.post("/:cartId/checkout", authenticate, cartIdValidation, checkoutCart);
+router.post("/:cartId/checkout", authenticate, authorizeRoles(Role.USER), cartIdValidation, checkoutCart);
 router.post("/:cartId/reopen", optionalAuthenticate, cartIdValidation, reopenCart);
 router.post("/:cartId/apply-coupon", optionalAuthenticate, param("cartId").isMongoId().withMessage("Invalid cartId"), body("couponCode")
     .notEmpty()

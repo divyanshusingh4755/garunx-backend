@@ -15,7 +15,10 @@ type CreateSubServiceComponentInput = {
 };
 
 type UpdateSubServiceComponentInput = Partial<
-  Pick<ISubServiceComponent, "name" | "description" | "image" | "isActive">
+  Pick<
+    ISubServiceComponent,
+    "name" | "description" | "image"
+  >
 > & {
   serviceId?: string;
 };
@@ -45,8 +48,8 @@ export class SubServiceComponentService {
 
     return values.length > 0
       ? {
-          $in: values,
-        }
+        $in: values,
+      }
       : undefined;
   }
 

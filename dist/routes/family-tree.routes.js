@@ -6,6 +6,8 @@ import { authorizeRoles } from "../middleware/authorizeRoles.js";
 import { validate } from "../utils/validate.js";
 import { Caste, FamilyRelation, Gender, Gotra, MemberLifeStatus, } from "../types/enums.js";
 import { Role } from "../types/rbac.js";
+import { requireAdminPermission } from "../middleware/requireAdminPermission.js";
+import { requirePermission } from "../middleware/rbac.js";
 const router = Router();
 const FAMILY_TREE_ACTIVITY_ACTIONS = [
     "MEMBER_ADDED",
@@ -511,27 +513,27 @@ router.use(authenticate);
 /*
  * Authenticated user's own family tree.
  */
-router.post("/add-member", addFamilyMemberValidation, addFamilyMember);
-router.get("/get-family-tree", getFamilyTree);
-router.get("/get-members", getFamilyMembersValidation, getFamilyMembers);
-router.get("/get-member/:id", familyMemberIdValidation, getFamilyMemberById);
-router.patch("/update-member/:id", updateFamilyMemberValidation, updateFamilyMember);
-router.patch("/restore-member/:id", restoreFamilyMemberValidation, restoreFamilyMember);
-router.delete("/delete-member/:id", deleteFamilyMemberValidation, deleteFamilyMember);
-router.get("/activities", getFamilyTreeActivitiesValidation, getFamilyTreeActivities);
-router.get("/get-member/:id/activities", getFamilyMemberActivitiesValidation, getFamilyMemberActivities);
+router.post("/add-member", authorizeRoles(Role.USER), addFamilyMemberValidation, addFamilyMember);
+router.get("/get-family-tree", authorizeRoles(Role.USER), getFamilyTree);
+router.get("/get-members", authorizeRoles(Role.USER), getFamilyMembersValidation, getFamilyMembers);
+router.get("/get-member/:id", authorizeRoles(Role.USER), familyMemberIdValidation, getFamilyMemberById);
+router.patch("/update-member/:id", authorizeRoles(Role.USER), updateFamilyMemberValidation, updateFamilyMember);
+router.patch("/restore-member/:id", authorizeRoles(Role.USER), restoreFamilyMemberValidation, restoreFamilyMember);
+router.delete("/delete-member/:id", authorizeRoles(Role.USER), deleteFamilyMemberValidation, deleteFamilyMember);
+router.get("/activities", authorizeRoles(Role.USER), getFamilyTreeActivitiesValidation, getFamilyTreeActivities);
+router.get("/get-member/:id/activities", authorizeRoles(Role.USER), getFamilyMemberActivitiesValidation, getFamilyMemberActivities);
 /*
  * Admin or coordinator access to another
  * user's family tree.
  */
-router.post("/users/:ownerId/add-member", authorizeRoles(Role.ADMIN, Role.COORDINATOR), familyTreeOwnerIdValidation, addFamilyMemberValidation, addFamilyMember);
-router.get("/users/:ownerId/get-family-tree", authorizeRoles(Role.ADMIN, Role.COORDINATOR), familyTreeOwnerIdValidation, getFamilyTree);
-router.get("/users/:ownerId/get-members", authorizeRoles(Role.ADMIN, Role.COORDINATOR), familyTreeOwnerIdValidation, getFamilyMembersValidation, getFamilyMembers);
-router.get("/users/:ownerId/get-member/:id", authorizeRoles(Role.ADMIN, Role.COORDINATOR), familyTreeOwnerIdValidation, familyMemberIdValidation, getFamilyMemberById);
-router.patch("/users/:ownerId/update-member/:id", authorizeRoles(Role.ADMIN, Role.COORDINATOR), familyTreeOwnerIdValidation, updateFamilyMemberValidation, updateFamilyMember);
-router.patch("/users/:ownerId/restore-member/:id", authorizeRoles(Role.ADMIN), familyTreeOwnerIdValidation, restoreFamilyMemberValidation, restoreFamilyMember);
-router.delete("/users/:ownerId/delete-member/:id", authorizeRoles(Role.ADMIN, Role.COORDINATOR), familyTreeOwnerIdValidation, deleteFamilyMemberValidation, deleteFamilyMember);
-router.get("/users/:ownerId/activities", authorizeRoles(Role.ADMIN, Role.COORDINATOR), familyTreeOwnerIdValidation, getFamilyTreeActivitiesValidation, getFamilyTreeActivities);
-router.get("/users/:ownerId/get-member/:id/activities", authorizeRoles(Role.ADMIN, Role.COORDINATOR), familyTreeOwnerIdValidation, getFamilyMemberActivitiesValidation, getFamilyMemberActivities);
+router.post("/users/:ownerId/add-member", authorizeRoles(Role.ADMIN, Role.COORDINATOR), requireAdminPermission("family_tree.create_any"), familyTreeOwnerIdValidation, addFamilyMemberValidation, addFamilyMember);
+router.get("/users/:ownerId/get-family-tree", authorizeRoles(Role.ADMIN, Role.COORDINATOR), requireAdminPermission("family_tree.read_any"), familyTreeOwnerIdValidation, getFamilyTree);
+router.get("/users/:ownerId/get-members", authorizeRoles(Role.ADMIN, Role.COORDINATOR), requireAdminPermission("family_tree.read_any"), familyTreeOwnerIdValidation, getFamilyMembersValidation, getFamilyMembers);
+router.get("/users/:ownerId/get-member/:id", authorizeRoles(Role.ADMIN, Role.COORDINATOR), requireAdminPermission("family_tree.read_any"), familyTreeOwnerIdValidation, familyMemberIdValidation, getFamilyMemberById);
+router.get("/users/:ownerId/activities", authorizeRoles(Role.ADMIN, Role.COORDINATOR), requireAdminPermission("family_tree.read_any"), familyTreeOwnerIdValidation, getFamilyTreeActivitiesValidation, getFamilyTreeActivities);
+router.get("/users/:ownerId/get-member/:id/activities", authorizeRoles(Role.ADMIN, Role.COORDINATOR), requireAdminPermission("family_tree.read_any"), familyTreeOwnerIdValidation, getFamilyMemberActivitiesValidation, getFamilyMemberActivities);
+router.patch("/users/:ownerId/update-member/:id", authorizeRoles(Role.ADMIN, Role.COORDINATOR), requireAdminPermission("family_tree.update_any"), familyTreeOwnerIdValidation, updateFamilyMemberValidation, updateFamilyMember);
+router.delete("/users/:ownerId/delete-member/:id", authorizeRoles(Role.ADMIN, Role.COORDINATOR), requireAdminPermission("family_tree.delete_any"), familyTreeOwnerIdValidation, deleteFamilyMemberValidation, deleteFamilyMember);
+router.patch("/users/:ownerId/restore-member/:id", authorizeRoles(Role.ADMIN), requirePermission("family_tree.restore_any"), familyTreeOwnerIdValidation, restoreFamilyMemberValidation, restoreFamilyMember);
 export default router;
 //# sourceMappingURL=family-tree.routes.js.map

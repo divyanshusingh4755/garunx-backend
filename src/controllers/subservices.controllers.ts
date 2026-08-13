@@ -79,33 +79,41 @@ export const getAllSubServiceComponents = async (
   res: Response,
 ) => {
   try {
-    const { searchTerm, serviceId, limit, page, isActive, sortBy, sortOrder } =
-      req.query;
+    const {
+      searchTerm,
+      serviceId,
+      limit,
+      page,
+      sortBy,
+      sortOrder,
+    } = req.query;
 
-    const activeStatus =
-      isActive === "true" ? true : isActive === "false" ? false : undefined;
+    const result =
+      await SubServiceComponentService.findSubServiceComponents({
+        limit: limit ? Number(limit) : 40,
+        page: page ? Number(page) : 1,
 
-    const result = await SubServiceComponentService.findSubServiceComponents({
-      limit: limit ? Number(limit) : 40,
-      page: page ? Number(page) : 1,
+        isActive: true,
 
-      sortBy: typeof sortBy === "string" ? sortBy : "name",
+        sortBy:
+          typeof sortBy === "string"
+            ? sortBy
+            : "name",
 
-      sortOrder:
-        sortOrder === "asc" || sortOrder === "desc" ? sortOrder : "asc",
+        sortOrder:
+          sortOrder === "asc" ||
+            sortOrder === "desc"
+            ? sortOrder
+            : "asc",
 
-      ...(typeof searchTerm === "string" && {
-        searchTerm,
-      }),
+        ...(typeof searchTerm === "string" && {
+          searchTerm,
+        }),
 
-      ...(typeof serviceId === "string" && {
-        serviceId,
-      }),
-
-      ...(activeStatus !== undefined && {
-        isActive: activeStatus,
-      }),
-    });
+        ...(typeof serviceId === "string" && {
+          serviceId,
+        }),
+      });
 
     return res.status(200).json({
       success: true,
@@ -117,10 +125,83 @@ export const getAllSubServiceComponents = async (
   } catch (error: any) {
     return res.status(getStatusCode(error)).json({
       success: false,
-      message: error.message || "Failed to fetch Sub Service Components",
+      message:
+        error.message ||
+        "Failed to fetch Sub Service Components",
     });
   }
 };
+
+export const getAllSubServiceComponentsAdmin =
+  async (
+    req: Request,
+    res: Response,
+  ) => {
+    try {
+      const {
+        searchTerm,
+        serviceId,
+        limit,
+        page,
+        isActive,
+        sortBy,
+        sortOrder,
+      } = req.query;
+
+      const activeStatus =
+        isActive === "true"
+          ? true
+          : isActive === "false"
+            ? false
+            : undefined;
+
+      const result =
+        await SubServiceComponentService.findSubServiceComponents({
+          limit: limit ? Number(limit) : 40,
+          page: page ? Number(page) : 1,
+
+          sortBy:
+            typeof sortBy === "string"
+              ? sortBy
+              : "name",
+
+          sortOrder:
+            sortOrder === "asc" ||
+              sortOrder === "desc"
+              ? sortOrder
+              : "asc",
+
+          ...(typeof searchTerm === "string" && {
+            searchTerm,
+          }),
+
+          ...(typeof serviceId === "string" && {
+            serviceId,
+          }),
+
+          ...(typeof activeStatus === "boolean" && {
+            isActive: activeStatus,
+          }),
+        });
+
+      return res.status(200).json({
+        success: true,
+        data: result.data,
+        total: result.total,
+        currentPage: result.page,
+        totalPages: result.totalPages,
+      });
+    } catch (error: any) {
+      return res
+        .status(getStatusCode(error))
+        .json({
+          success: false,
+          message:
+            error.message ||
+            "Failed to fetch Sub Service Components",
+        });
+    }
+  };
 
 export const getSubServiceComponentById = async (
   req: Request,
@@ -159,9 +240,8 @@ export const toggleSubServiceComponent = async (
 
     return res.status(200).json({
       success: true,
-      message: `Sub Service Component ${
-        status ? "activated" : "deactivated"
-      } successfully`,
+      message: `Sub Service Component ${status ? "activated" : "deactivated"
+        } successfully`,
       data: subServiceComponent,
     });
   } catch (error: any) {

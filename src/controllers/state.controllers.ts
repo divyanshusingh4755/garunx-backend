@@ -70,22 +70,92 @@ export const getAllState = async (req: Request, res: Response) => {
       countryFilter,
       limit,
       page,
+      sortBy,
+      sortOrder,
+    } = req.query;
+
+    const result = await StateService.findState({
+      limit: limit ? Number(limit) : 40,
+      page: page ? Number(page) : 1,
+
+      isActive: true,
+
+      sortBy:
+        typeof sortBy === "string"
+          ? sortBy
+          : "createdAt",
+
+      sortOrder:
+        sortOrder === "asc" ||
+          sortOrder === "desc"
+          ? sortOrder
+          : "desc",
+
+      ...(typeof searchTerm === "string" && {
+        searchTerm,
+      }),
+
+      ...(typeof countryFilter === "string" && {
+        countryFilter,
+      }),
+
+      ...(typeof stateFilter === "string" && {
+        stateFilter,
+      }),
+    });
+
+    return res.status(200).json({
+      success: true,
+      data: result.data,
+      total: result.total,
+      currentPage: result.page,
+      totalPages: result.totalPages,
+    });
+  } catch (error: any) {
+    return res.status(getStatusCode(error)).json({
+      success: false,
+      message: error.message || "Failed to fetch states",
+    });
+  }
+};
+
+export const getAllStatesAdmin = async (
+  req: Request,
+  res: Response,
+) => {
+  try {
+    const {
+      searchTerm,
+      stateFilter,
+      countryFilter,
+      limit,
+      page,
       isActive,
       sortBy,
       sortOrder,
     } = req.query;
 
     const activeStatus =
-      isActive === "true" ? true : isActive === "false" ? false : undefined;
+      isActive === "true"
+        ? true
+        : isActive === "false"
+          ? false
+          : undefined;
 
     const result = await StateService.findState({
       limit: limit ? Number(limit) : 40,
       page: page ? Number(page) : 1,
 
-      sortBy: typeof sortBy === "string" ? sortBy : "createdAt",
+      sortBy:
+        typeof sortBy === "string"
+          ? sortBy
+          : "createdAt",
 
       sortOrder:
-        sortOrder === "asc" || sortOrder === "desc" ? sortOrder : "desc",
+        sortOrder === "asc" ||
+          sortOrder === "desc"
+          ? sortOrder
+          : "desc",
 
       ...(typeof searchTerm === "string" && {
         searchTerm,
@@ -114,7 +184,9 @@ export const getAllState = async (req: Request, res: Response) => {
   } catch (error: any) {
     return res.status(getStatusCode(error)).json({
       success: false,
-      message: error.message || "Failed to fetch states",
+      message:
+        error.message ||
+        "Failed to fetch states",
     });
   }
 };

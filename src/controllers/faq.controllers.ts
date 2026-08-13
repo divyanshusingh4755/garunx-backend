@@ -6,7 +6,11 @@ import type { IFAQ } from "../models/faq.model.js";
 type FaqUpdateData = Partial<
   Pick<
     IFAQ,
-    "name" | "question" | "answer" | "faqType" | "displayOrder" | "isActive"
+    | "name"
+    | "question"
+    | "answer"
+    | "faqType"
+    | "displayOrder"
   >
 >;
 
@@ -170,6 +174,66 @@ export const getAllFaqs = async (req: Request, res: Response) => {
     return res.status(400).json({
       success: false,
       message: getErrorMessage(error, "Failed to fetch FAQs"),
+    });
+  }
+};
+
+export const getPublicFaqs = async (
+  req: Request,
+  res: Response,
+) => {
+  try {
+    const {
+      searchTerm,
+      faqType,
+      limit,
+      page,
+      sortBy,
+      sortOrder,
+    } = req.query;
+
+    const parsedLimit = Number(limit);
+    const parsedPage = Number(page);
+
+    const result = await FAQService.findFaqs(
+      typeof searchTerm === "string"
+        ? searchTerm
+        : undefined,
+
+      typeof faqType === "string"
+        ? faqType
+        : undefined,
+
+      Number.isInteger(parsedLimit) && parsedLimit > 0
+        ? Math.min(parsedLimit, 100)
+        : 20,
+
+      Number.isInteger(parsedPage) && parsedPage > 0
+        ? parsedPage
+        : 1,
+
+      true,
+
+      typeof sortBy === "string"
+        ? sortBy
+        : "displayOrder",
+
+      sortOrder === "desc"
+        ? "desc"
+        : "asc",
+    );
+
+    return res.status(200).json({
+      success: true,
+      ...result,
+    });
+  } catch (error: unknown) {
+    return res.status(400).json({
+      success: false,
+      message: getErrorMessage(
+        error,
+        "Failed to fetch FAQs",
+      ),
     });
   }
 };

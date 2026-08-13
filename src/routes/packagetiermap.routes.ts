@@ -12,6 +12,9 @@ import {
   getServicesByPackageAndTier,
   updatePackageTierService,
 } from "../controllers/packagetiermap.controllers.js";
+import { authorizeRoles } from "../middleware/authorizeRoles.js";
+import { Role } from "../types/rbac.js";
+import { requirePermission } from "../middleware/rbac.js";
 
 const router = Router();
 
@@ -92,6 +95,8 @@ const mappingBodyValidation = [
 router.post(
   "/bulk",
   authenticate,
+  authorizeRoles(Role.ADMIN),
+  requirePermission("package_tier_map.upsert"),
   mappingBodyValidation,
   bulkUpsertPackageTierMappings,
 );
@@ -99,6 +104,8 @@ router.post(
 router.put(
   "/replace",
   authenticate,
+  authorizeRoles(Role.ADMIN),
+  requirePermission("package_tier_map.replace"),
   mappingBodyValidation,
   replacePackageTierMappings,
 );
@@ -106,6 +113,8 @@ router.put(
 router.get(
   "/:packageId/:tierId",
   authenticate,
+  authorizeRoles(Role.ADMIN),
+  requirePermission("package_tier_map.read"),
   packageTierValidation,
   getServicesByPackageAndTier,
 );
@@ -113,6 +122,8 @@ router.get(
 router.patch(
   "/",
   authenticate,
+  authorizeRoles(Role.ADMIN),
+  requirePermission("package_tier_map.update"),
 
   body("packageId")
     .notEmpty()
@@ -143,15 +154,25 @@ router.patch(
     .withMessage("isRelated must be boolean"),
 
   body().custom((payload) => {
-    const hasIsRequired = typeof payload.isRequired === "boolean";
-    const hasIsRelated = typeof payload.isRelated === "boolean";
+    const hasIsRequired =
+      typeof payload.isRequired === "boolean";
+
+    const hasIsRelated =
+      typeof payload.isRelated === "boolean";
 
     if (!hasIsRequired && !hasIsRelated) {
-      throw new Error("isRequired or isRelated is required");
+      throw new Error(
+        "isRequired or isRelated is required",
+      );
     }
 
-    if (payload.isRequired === true && payload.isRelated === true) {
-      throw new Error("Service cannot be both required and related");
+    if (
+      payload.isRequired === true &&
+      payload.isRelated === true
+    ) {
+      throw new Error(
+        "Service cannot be both required and related",
+      );
     }
 
     return true;

@@ -126,6 +126,60 @@ export const getAllPackages = async (req: Request, res: Response) => {
       tierId,
       limit,
       page,
+      sortBy,
+      sortOrder,
+    } = req.query;
+
+    const parsedLimit = parsePositiveInteger(limit, 20, 100);
+    const parsedPage = parsePositiveInteger(page, 1);
+
+    const {
+      data,
+      total,
+      page: currentPage,
+      totalPages,
+    } = await PackageService.findPackages(
+      searchTerm as string,
+      categoryId as string,
+      locationId as string,
+      tierId as string,
+      parsedLimit,
+      parsedPage,
+
+      true, // isActive
+      true, // isComplete
+
+      (sortBy as string) || "name",
+      (sortOrder as "asc" | "desc") || "asc",
+    );
+
+    return res.status(200).json({
+      success: true,
+      data,
+      total,
+      currentPage,
+      totalPages,
+    });
+  } catch (error: any) {
+    return res.status(400).json({
+      success: false,
+      message: error.message || "Failed to fetch packages",
+    });
+  }
+};
+
+export const getAllPackagesAdmin = async (
+  req: Request,
+  res: Response,
+) => {
+  try {
+    const {
+      searchTerm,
+      categoryId,
+      locationId,
+      tierId,
+      limit,
+      page,
       isActive,
       isComplete,
       sortBy,
@@ -133,13 +187,24 @@ export const getAllPackages = async (req: Request, res: Response) => {
     } = req.query;
 
     const activeBool =
-      isActive === "true" ? true : isActive === "false" ? false : undefined;
+      isActive === "true"
+        ? true
+        : isActive === "false"
+          ? false
+          : undefined;
 
     const completeBool =
-      isComplete === "true" ? true : isComplete === "false" ? false : undefined;
+      isComplete === "true"
+        ? true
+        : isComplete === "false"
+          ? false
+          : undefined;
 
-    const parsedLimit = parsePositiveInteger(limit, 20, 100);
-    const parsedPage = parsePositiveInteger(page, 1);
+    const parsedLimit =
+      parsePositiveInteger(limit, 20, 100);
+
+    const parsedPage =
+      parsePositiveInteger(page, 1);
 
     const {
       data,
@@ -169,7 +234,9 @@ export const getAllPackages = async (req: Request, res: Response) => {
   } catch (error: any) {
     return res.status(400).json({
       success: false,
-      message: error.message || "Failed to fetch packages",
+      message:
+        error.message ||
+        "Failed to fetch packages",
     });
   }
 };

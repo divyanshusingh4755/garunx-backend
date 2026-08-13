@@ -1,7 +1,10 @@
 import { Router, } from "express";
 import { body, param, query, validationResult } from "express-validator";
 import { authenticate } from "../middleware/authenticate.js";
-import { createLocation, deleteLocation, getAllLocation, getLocationById, getLocationIds, updateLocation, } from "../controllers/location.controllers.js";
+import { createLocation, deleteLocation, getAllLocation, getAllLocationsAdmin, getLocationById, getLocationIds, updateLocation, } from "../controllers/location.controllers.js";
+import { authorizeRoles } from "../middleware/authorizeRoles.js";
+import { requirePermission } from "../middleware/rbac.js";
+import { Role } from "../types/rbac.js";
 const router = Router();
 const handleValidationErrors = (req, res, next) => {
     const errors = validationResult(req);
@@ -111,7 +114,6 @@ const updateLocationValidation = [
             "image",
             "description",
             "location",
-            "isActive",
         ];
         const suppliedFields = Object.keys(value ?? {});
         if (suppliedFields.length === 0) {
@@ -162,10 +164,6 @@ const updateLocationValidation = [
         .isString()
         .withMessage("description must be a string")
         .trim(),
-    body("isActive")
-        .optional()
-        .isBoolean()
-        .withMessage("isActive must be a boolean"),
     ...coordinatesValidation,
     handleValidationErrors,
 ];
@@ -195,7 +193,7 @@ const locationIdsValidation = [
         .withMessage("Each location ID must be valid"),
     handleValidationErrors,
 ];
-const listValidation = [
+const publicListValidation = [
     query("limit")
         .optional()
         .isInt({ min: 1, max: 100 })
@@ -204,25 +202,37 @@ const listValidation = [
         .optional()
         .isInt({ min: 1 })
         .withMessage("page must be at least 1"),
-    query("isActive")
-        .optional()
-        .isBoolean()
-        .withMessage("isActive must be true or false"),
     query("sortOrder")
         .optional()
         .isIn(["asc", "desc"])
         .withMessage("sortOrder must be asc or desc"),
     query("sortBy")
         .optional()
-        .isIn(["name", "country", "pincode", "createdAt", "updatedAt", "relevance"])
+        .isIn([
+        "name",
+        "country",
+        "pincode",
+        "createdAt",
+        "updatedAt",
+        "relevance",
+    ])
         .withMessage("Invalid sortBy value"),
     handleValidationErrors,
 ];
-router.get("/get-all-location", listValidation, getAllLocation);
+const adminListValidation = [
+    ...publicListValidation.slice(0, -1),
+    query("isActive")
+        .optional()
+        .isBoolean()
+        .withMessage("isActive must be true or false"),
+    handleValidationErrors,
+];
+router.get("/get-all-location", publicListValidation, getAllLocation);
+router.get("/admin", authenticate, authorizeRoles(Role.ADMIN), requirePermission("location.read"), adminListValidation, getAllLocationsAdmin);
 router.post("/get-location-by-ids", locationIdsValidation, getLocationIds);
-router.post("/create-location", authenticate, createLocationValidation, createLocation);
-router.patch("/update-location/:id", authenticate, updateLocationValidation, updateLocation);
-router.patch("/:id/status", authenticate, statusValidation, deleteLocation);
-router.get("/:id", authenticate, locationIdValidation, getLocationById);
+router.post("/create-location", authenticate, authorizeRoles(Role.ADMIN), requirePermission("location.create"), createLocationValidation, createLocation);
+router.patch("/update-location/:id", authenticate, authorizeRoles(Role.ADMIN), requirePermission("location.update"), updateLocationValidation, updateLocation);
+router.patch("/:id/status", authenticate, authorizeRoles(Role.ADMIN), requirePermission("location.status"), statusValidation, deleteLocation);
+router.get("/:id", authenticate, authorizeRoles(Role.ADMIN), requirePermission("location.read"), locationIdValidation, getLocationById);
 export default router;
 //# sourceMappingURL=location.routes.js.map

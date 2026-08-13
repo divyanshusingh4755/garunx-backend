@@ -1,8 +1,8 @@
 import { Types } from "mongoose";
 import { type ICity, type IGeoPoint } from "../models/city.model.js";
-type CityUpdate = Partial<Pick<ICity, "name" | "country" | "image" | "description" | "isActive" | "location">> & {
+type CityUpdate = Partial<Pick<ICity, "name" | "country" | "image" | "description" | "location"> & {
     stateId?: string;
-};
+}>;
 export declare class CityService {
     private static applyStringFilter;
     private static applyObjectIdFilter;

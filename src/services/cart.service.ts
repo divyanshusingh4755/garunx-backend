@@ -231,14 +231,14 @@ class CartService {
 
       ...(totals.taxSummary.supplierStateCode
         ? {
-            supplierStateCode: totals.taxSummary.supplierStateCode,
-          }
+          supplierStateCode: totals.taxSummary.supplierStateCode,
+        }
         : {}),
 
       ...(totals.taxSummary.placeOfSupplyStateCode
         ? {
-            placeOfSupplyStateCode: totals.taxSummary.placeOfSupplyStateCode,
-          }
+          placeOfSupplyStateCode: totals.taxSummary.placeOfSupplyStateCode,
+        }
         : {}),
     };
 
@@ -1952,8 +1952,8 @@ class CartService {
 
             ...(lockedCart.notes
               ? {
-                  notes: lockedCart.notes,
-                }
+                notes: lockedCart.notes,
+              }
               : {}),
 
             cartSnapshot: lockedCart.toObject(),
@@ -2317,6 +2317,32 @@ class CartService {
     await cart.save();
 
     return cart;
+  }
+
+  static async expirePendingCheckouts() {
+    const now = new Date();
+
+    const result = await Cart.updateMany(
+      {
+        status: "CHECKOUT_PENDING",
+        checkoutExpiresAt: {
+          $lte: now,
+        },
+      },
+      {
+        $set: {
+          status: "ACTIVE",
+        },
+        $unset: {
+          checkoutExpiresAt: 1,
+        },
+      },
+    );
+
+    return {
+      matched: result.matchedCount,
+      modified: result.modifiedCount,
+    };
   }
 }
 

@@ -1,7 +1,10 @@
 import { Router, } from "express";
 import { body, param, validationResult } from "express-validator";
 import { authenticate } from "../middleware/authenticate.js";
-import { getAllPackages, createPackage, updatePackage, getPackageById, togglePackageStatus, getFullPackage, updatePackageLocations, removePackageLocation, updatePackageTiers, removePackageTier, getPackageDiagnostics, getPackagesByLocation, getFullPackageByCities, getRelatedPackageService, } from "../controllers/package.controllers.js";
+import { getAllPackages, createPackage, updatePackage, getPackageById, togglePackageStatus, getFullPackage, updatePackageLocations, removePackageLocation, updatePackageTiers, removePackageTier, getPackageDiagnostics, getPackagesByLocation, getFullPackageByCities, getRelatedPackageService, getAllPackagesAdmin, } from "../controllers/package.controllers.js";
+import { authorizeRoles } from "../middleware/authorizeRoles.js";
+import { Role } from "../types/rbac.js";
+import { requirePermission } from "../middleware/rbac.js";
 const router = Router();
 const validate = (req, res, next) => {
     const errors = validationResult(req);
@@ -125,18 +128,19 @@ const removeTierValidation = [
     validate,
 ];
 router.get("/", getAllPackages);
-router.get("/getPackagesByLocation", authenticate, getPackagesByLocation);
-router.post("/:packageId/getFullPackagesByCities", packageIdValidation, getFullPackageByCities);
+router.get("/admin", authenticate, authorizeRoles(Role.ADMIN), requirePermission("package.read"), getAllPackagesAdmin);
+router.get("/getPackagesByLocation", authenticate, authorizeRoles(Role.USER), getPackagesByLocation);
+router.get("/:packageId/diagnostics", authenticate, authorizeRoles(Role.ADMIN), requirePermission("package.diagnostics"), packageIdValidation, getPackageDiagnostics);
+router.get("/:packageId", authenticate, authorizeRoles(Role.ADMIN), requirePermission("package.read"), packageIdValidation, getPackageById);
 router.get("/:packageId/full", packageIdValidation, getFullPackage);
 router.get("/:packageId/:tierId/:locationId/relatedService", relatedServiceValidation, getRelatedPackageService);
-router.get("/:packageId/diagnostics", authenticate, packageIdValidation, getPackageDiagnostics);
-router.get("/:packageId", packageIdValidation, getPackageById);
-router.post("/", authenticate, packageValidation, createPackage);
-router.patch("/:packageId", authenticate, updatePackageValidation, updatePackage);
-router.patch("/:packageId/status", authenticate, packageStatusValidation, togglePackageStatus);
-router.post("/:id/locations", authenticate, updateLocationsValidation, updatePackageLocations);
-router.delete("/:id/locations/:locationId", authenticate, removeLocationValidation, removePackageLocation);
-router.post("/:id/tiers", authenticate, updateTiersValidation, updatePackageTiers);
-router.delete("/:id/tiers/:tierId", authenticate, removeTierValidation, removePackageTier);
+router.post("/", authenticate, authorizeRoles(Role.ADMIN), requirePermission("package.create"), packageValidation, createPackage);
+router.post("/:packageId/getFullPackagesByCities", packageIdValidation, getFullPackageByCities);
+router.patch("/:packageId", authenticate, authorizeRoles(Role.ADMIN), requirePermission("package.update"), updatePackageValidation, updatePackage);
+router.patch("/:packageId/status", authenticate, authorizeRoles(Role.ADMIN), requirePermission("package.status"), packageStatusValidation, togglePackageStatus);
+router.post("/:id/locations", authenticate, authorizeRoles(Role.ADMIN), requirePermission("package.manage_locations"), updateLocationsValidation, updatePackageLocations);
+router.delete("/:id/locations/:locationId", authenticate, authorizeRoles(Role.ADMIN), requirePermission("package.manage_locations"), removeLocationValidation, removePackageLocation);
+router.post("/:id/tiers", authenticate, authorizeRoles(Role.ADMIN), requirePermission("package.manage_tiers"), updateTiersValidation, updatePackageTiers);
+router.delete("/:id/tiers/:tierId", authenticate, authorizeRoles(Role.ADMIN), requirePermission("package.manage_tiers"), removeTierValidation, removePackageTier);
 export default router;
 //# sourceMappingURL=package.routes.js.map

@@ -190,6 +190,20 @@ declare class AuthService {
             hasPreviousPage: boolean;
         };
     }>;
+    static createAdmin(params: {
+        fullName: string;
+        email: string;
+        password: string;
+        phoneNumber?: string;
+    }): Promise<IUser & Required<{
+        _id: Types.ObjectId;
+    }> & {
+        __v: number;
+    }>;
+    static exportUsersToCsv(userIds: string[]): Promise<{
+        csv: string;
+        total: number;
+    }>;
 }
 export default AuthService;
 //# sourceMappingURL=auth.service.d.ts.map

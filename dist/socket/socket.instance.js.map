@@ -1,0 +1,1 @@
+{"version":3,"file":"socket.instance.js","sourceRoot":"","sources":["../../src/socket/socket.instance.ts"],"names":[],"mappings":"AAEA,IAAI,UAAU,GAA4B,IAAI,CAAC;AAE/C,MAAM,CAAC,MAAM,eAAe,GAAG,CAC3B,EAAoB,EAChB,EAAE;IACN,UAAU,GAAG,EAAE,CAAC;AACpB,CAAC,CAAC;AAEF,MAAM,CAAC,MAAM,eAAe,GACxB,GAA4B,EAAE;IAC1B,OAAO,UAAU,CAAC;AACtB,CAAC,CAAC"}

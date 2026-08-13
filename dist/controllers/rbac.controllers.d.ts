@@ -1,0 +1,18 @@
+import type { Request, Response } from "express";
+export declare const createPermission: (req: Request, res: Response) => Promise<void>;
+export declare const getPermissions: (req: Request, res: Response) => Promise<void>;
+export declare const getPermissionById: (req: Request, res: Response) => Promise<void>;
+export declare const updatePermission: (req: Request, res: Response) => Promise<void>;
+export declare const updatePermissionStatus: (req: Request, res: Response) => Promise<void>;
+export declare const createRole: (req: Request, res: Response) => Promise<void>;
+export declare const getRoles: (req: Request, res: Response) => Promise<void>;
+export declare const getRoleById: (req: Request, res: Response) => Promise<void>;
+export declare const updateRole: (req: Request, res: Response) => Promise<void>;
+export declare const updateRoleStatus: (req: Request, res: Response) => Promise<void>;
+export declare const addRolePermissions: (req: Request, res: Response) => Promise<void>;
+export declare const removeRolePermission: (req: Request, res: Response) => Promise<void>;
+export declare const assignUserRoles: (req: Request, res: Response) => Promise<void>;
+export declare const removeUserRole: (req: Request, res: Response) => Promise<void>;
+export declare const removeAllUserRoles: (req: Request, res: Response) => Promise<void>;
+export declare const getUserAccess: (req: Request, res: Response) => Promise<void>;
+//# sourceMappingURL=rbac.controllers.d.ts.map

@@ -7,7 +7,7 @@ type CreateSubServiceComponentInput = {
     image?: string;
     isActive?: boolean;
 };
-type UpdateSubServiceComponentInput = Partial<Pick<ISubServiceComponent, "name" | "description" | "image" | "isActive">> & {
+type UpdateSubServiceComponentInput = Partial<Pick<ISubServiceComponent, "name" | "description" | "image">> & {
     serviceId?: string;
 };
 export declare class SubServiceComponentService {

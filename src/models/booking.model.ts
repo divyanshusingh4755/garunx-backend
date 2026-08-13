@@ -848,6 +848,14 @@ export interface IBooking extends Document {
   bookedBy: BookedBy;
   entries: IBookingEntry[];
   bookingFor: BookingFor;
+
+  beneficiaryUserId?: Types.ObjectId;
+  beneficiaryAccess?: {
+    tokenHash: string;
+    expiresAt: Date;
+    createdAt: Date;
+  };
+
   customerDetails: {
     name?: string;
     email?: string;
@@ -951,6 +959,7 @@ export interface IBooking extends Document {
       requestedByRole: ReassignmentRequestedByRole;
       reason?: string;
       requestedAt: Date;
+      previousCoordinatorId?: Types.ObjectId;
     };
   };
 
@@ -1003,6 +1012,22 @@ const bookingSchema = new Schema<IBooking>(
       enum: ["MYSELF", "OTHER"] as BookingFor[],
       default: "MYSELF",
       required: true,
+    },
+
+    beneficiaryUserId: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      index: true,
+    },
+
+    beneficiaryAccess: {
+      tokenHash: {
+        type: String,
+        select: false,
+      },
+
+      expiresAt: Date,
+      createdAt: Date,
     },
 
     customerDetails: {
@@ -1181,7 +1206,7 @@ const bookingSchema = new Schema<IBooking>(
       // deadline for one coordinator
       responseDeadlineAt: Date,
 
-      // final deadline for the complete coordinator-selection process
+      // deadline for customer to manually select the first coordinator
       assignmentExpiresAt: Date,
 
       currentRound: {
@@ -1217,6 +1242,10 @@ const bookingSchema = new Schema<IBooking>(
         },
         reason: String,
         requestedAt: Date,
+        previousCoordinatorId: {
+          type: Schema.Types.ObjectId,
+          ref: "User",
+        },
       },
     },
 
@@ -1452,6 +1481,21 @@ bookingSchema.index({
 bookingSchema.index({
   "assignment.status": 1,
   "assignment.assignmentExpiresAt": 1,
+});
+
+bookingSchema.index({
+  beneficiaryUserId: 1,
+  status: 1,
+});
+
+bookingSchema.index({
+  bookingFor: 1,
+  "customerDetails.email": 1,
+});
+
+bookingSchema.index({
+  bookingFor: 1,
+  "customerDetails.phone": 1,
 });
 
 export const Booking: Model<IBooking> = model<IBooking>(

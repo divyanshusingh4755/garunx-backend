@@ -5,6 +5,7 @@ export declare const toggleServiceStatus: (req: Request, res: Response) => Promi
 export declare const getServiceById: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
 export declare const getServicesByLocation: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
 export declare const getAllServices: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
+export declare const getAllServicesAdmin: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
 export declare const updateServiceLocations: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
 export declare const removeServiceLocation: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
 export declare const updateServiceTiers: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
