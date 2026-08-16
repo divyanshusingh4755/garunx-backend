@@ -1,7 +1,7 @@
 import { Router, } from "express";
 import { body, param, query, validationResult } from "express-validator";
 import { authenticate } from "../middleware/authenticate.js";
-import { getAllBanners, getBannerById, createBanner, updateBanner, toggleBannerStatus, deleteBanner, getPublicBanners, } from "../controllers/banner.controllers.js";
+import { getAllBanners, getBannerById, createBanner, updateBanner, toggleBannerStatus, deleteBanner, getPublicBanners, exportBannersCsv, } from "../controllers/banner.controllers.js";
 import { authorizeRoles } from "../middleware/authorizeRoles.js";
 import { Role } from "../types/rbac.js";
 import { requirePermission } from "../middleware/rbac.js";
@@ -141,9 +141,27 @@ const updateBannerValidation = [
     body().custom((value) => {
         if (!value ||
             typeof value !== "object" ||
-            Array.isArray(value) ||
-            Object.keys(value).length === 0) {
+            Array.isArray(value)) {
+            throw new Error("Request body must be an object");
+        }
+        const allowedFields = [
+            "name",
+            "placement",
+            "format",
+            "image",
+            "description",
+            "buttonText",
+            "isActive",
+            "displayOrder",
+            "redirect",
+        ];
+        const suppliedFields = Object.keys(value);
+        if (suppliedFields.length === 0) {
             throw new Error("At least one field is required for update");
+        }
+        const invalidFields = suppliedFields.filter((field) => !allowedFields.includes(field));
+        if (invalidFields.length > 0) {
+            throw new Error(`Invalid update fields: ${invalidFields.join(", ")}`);
         }
         return true;
     }),
@@ -261,13 +279,49 @@ const listPublicBannerValidation = [
         .withMessage("sortOrder must be asc or desc"),
     validateRequest,
 ];
+const exportBannersValidation = [
+    body("bannerIds")
+        .isArray({
+        min: 1,
+        max: 1000,
+    })
+        .withMessage("bannerIds must contain between 1 and 1000 banner IDs"),
+    body("bannerIds.*")
+        .isMongoId()
+        .withMessage("Each bannerId must be a valid MongoDB ID"),
+    body("bannerIds").custom((bannerIds) => {
+        if (!Array.isArray(bannerIds)) {
+            return true;
+        }
+        const uniqueIds = new Set(bannerIds);
+        if (uniqueIds.size !==
+            bannerIds.length) {
+            throw new Error("Duplicate banner IDs are not allowed");
+        }
+        return true;
+    }),
+    validateRequest,
+];
 const router = Router();
-router.get("/admin", authenticate, authorizeRoles(Role.ADMIN), requirePermission("banner.read"), listBannerValidation, getAllBanners);
+// =========================================================
+// PUBLIC
+// =========================================================
 router.get("/", listPublicBannerValidation, getPublicBanners);
-router.get("/:id", authenticate, authorizeRoles(Role.ADMIN), requirePermission("banner.read"), bannerIdValidation, getBannerById);
+// =========================================================
+// ADMIN - STATIC ROUTES
+// =========================================================
+router.get("/admin", authenticate, authorizeRoles(Role.ADMIN), requirePermission("banner.read"), listBannerValidation, getAllBanners);
+router.post("/export", authenticate, authorizeRoles(Role.ADMIN), requirePermission("banner.read"), exportBannersValidation, exportBannersCsv);
 router.post("/", authenticate, authorizeRoles(Role.ADMIN), requirePermission("banner.create"), createBannerValidation, createBanner);
-router.put("/:id", authenticate, authorizeRoles(Role.ADMIN), requirePermission("banner.update"), updateBannerValidation, updateBanner);
+// =========================================================
+// ADMIN - SPECIFIC ID ACTIONS
+// =========================================================
 router.patch("/:id/status", authenticate, authorizeRoles(Role.ADMIN), requirePermission("banner.status"), bannerIdValidation, toggleBannerStatus);
+// =========================================================
+// ADMIN - GENERIC ID ROUTES
+// =========================================================
+router.get("/:id", authenticate, authorizeRoles(Role.ADMIN), requirePermission("banner.read"), bannerIdValidation, getBannerById);
+router.put("/:id", authenticate, authorizeRoles(Role.ADMIN), requirePermission("banner.update"), updateBannerValidation, updateBanner);
 router.delete("/:id", authenticate, authorizeRoles(Role.ADMIN), requirePermission("banner.delete"), bannerIdValidation, deleteBanner);
 export default router;
 //# sourceMappingURL=banner.routes.js.map

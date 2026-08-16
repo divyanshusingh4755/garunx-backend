@@ -47,11 +47,13 @@ const mappingBodyValidation = [
     body("services.*.isRequired")
         .optional()
         .isBoolean()
-        .withMessage("isRequired must be boolean"),
+        .withMessage("isRequired must be boolean")
+        .toBoolean(),
     body("services.*.isRelated")
         .optional()
         .isBoolean()
-        .withMessage("isRelated must be boolean"),
+        .withMessage("isRelated must be boolean")
+        .toBoolean(),
     body("services").custom((services) => {
         if (!Array.isArray(services)) {
             return true;
@@ -65,9 +67,14 @@ const mappingBodyValidation = [
     }),
     validate,
 ];
+// =========================================================
+// ADMIN - STATIC BULK / REPLACE OPERATIONS
+// =========================================================
 router.post("/bulk", authenticate, authorizeRoles(Role.ADMIN), requirePermission("package_tier_map.upsert"), mappingBodyValidation, bulkUpsertPackageTierMappings);
 router.put("/replace", authenticate, authorizeRoles(Role.ADMIN), requirePermission("package_tier_map.replace"), mappingBodyValidation, replacePackageTierMappings);
-router.get("/:packageId/:tierId", authenticate, authorizeRoles(Role.ADMIN), requirePermission("package_tier_map.read"), packageTierValidation, getServicesByPackageAndTier);
+// =========================================================
+// ADMIN - UPDATE SINGLE PACKAGE/TIER SERVICE MAPPING
+// =========================================================
 router.patch("/", authenticate, authorizeRoles(Role.ADMIN), requirePermission("package_tier_map.update"), body("packageId")
     .notEmpty()
     .withMessage("packageId is required")
@@ -83,13 +90,30 @@ router.patch("/", authenticate, authorizeRoles(Role.ADMIN), requirePermission("p
     .withMessage("Invalid serviceId"), body("isRequired")
     .optional()
     .isBoolean()
-    .withMessage("isRequired must be boolean"), body("isRelated")
+    .withMessage("isRequired must be boolean")
+    .toBoolean(), body("isRelated")
     .optional()
     .isBoolean()
-    .withMessage("isRelated must be boolean"), body().custom((payload) => {
-    const hasIsRequired = typeof payload.isRequired === "boolean";
-    const hasIsRelated = typeof payload.isRelated === "boolean";
-    if (!hasIsRequired && !hasIsRelated) {
+    .withMessage("isRelated must be boolean")
+    .toBoolean(), body().custom((payload) => {
+    const allowedFields = [
+        "packageId",
+        "tierId",
+        "serviceId",
+        "isRequired",
+        "isRelated",
+    ];
+    const suppliedFields = Object.keys(payload ?? {});
+    const invalidFields = suppliedFields.filter((field) => !allowedFields.includes(field));
+    if (invalidFields.length > 0) {
+        throw new Error(`Invalid update fields: ${invalidFields.join(", ")}`);
+    }
+    const hasIsRequired = typeof payload.isRequired ===
+        "boolean";
+    const hasIsRelated = typeof payload.isRelated ===
+        "boolean";
+    if (!hasIsRequired &&
+        !hasIsRelated) {
         throw new Error("isRequired or isRelated is required");
     }
     if (payload.isRequired === true &&
@@ -98,5 +122,10 @@ router.patch("/", authenticate, authorizeRoles(Role.ADMIN), requirePermission("p
     }
     return true;
 }), validate, updatePackageTierService);
+// =========================================================
+// ADMIN - DYNAMIC PACKAGE/TIER LOOKUP
+// Keep dynamic route last.
+// =========================================================
+router.get("/:packageId/:tierId", authenticate, authorizeRoles(Role.ADMIN), requirePermission("package_tier_map.read"), packageTierValidation, getServicesByPackageAndTier);
 export default router;
 //# sourceMappingURL=packagetiermap.routes.js.map

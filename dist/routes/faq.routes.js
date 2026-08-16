@@ -1,7 +1,7 @@
 import { Router, } from "express";
 import { body, param, query, validationResult } from "express-validator";
 import { authenticate } from "../middleware/authenticate.js";
-import { getAllFaqs, getFaqById, createFaq, updateFaq, toggleFaqStatus, deleteFaq, getPublicFaqs, } from "../controllers/faq.controllers.js";
+import { getAllFaqs, getFaqById, createFaq, updateFaq, toggleFaqStatus, deleteFaq, getPublicFaqs, exportFaqsCsv, } from "../controllers/faq.controllers.js";
 import { authorizeRoles } from "../middleware/authorizeRoles.js";
 import { requirePermission } from "../middleware/rbac.js";
 import { Role } from "../types/rbac.js";
@@ -71,7 +71,9 @@ const createFaqValidation = [
 const updateFaqValidation = [
     param("id").isMongoId().withMessage("Invalid FAQ ID"),
     body().custom((value) => {
-        if (!value || typeof value !== "object" || Array.isArray(value)) {
+        if (!value ||
+            typeof value !== "object" ||
+            Array.isArray(value)) {
             throw new Error("Request body must be an object");
         }
         const allowedFields = [
@@ -81,9 +83,13 @@ const updateFaqValidation = [
             "faqType",
             "displayOrder",
         ];
-        const hasUpdatableField = allowedFields.some((field) => Object.prototype.hasOwnProperty.call(value, field));
-        if (!hasUpdatableField) {
-            throw new Error("At least one valid field is required for update");
+        const suppliedFields = Object.keys(value);
+        if (suppliedFields.length === 0) {
+            throw new Error("At least one field is required for update");
+        }
+        const invalidFields = suppliedFields.filter((field) => !allowedFields.includes(field));
+        if (invalidFields.length > 0) {
+            throw new Error(`Invalid update fields: ${invalidFields.join(", ")}`);
         }
         return true;
     }),
@@ -167,13 +173,49 @@ const publicFaqValidation = [
         .withMessage("sortOrder must be asc or desc"),
     validateRequest,
 ];
+const exportFaqsValidation = [
+    body("faqIds")
+        .isArray({
+        min: 1,
+        max: 1000,
+    })
+        .withMessage("faqIds must contain between 1 and 1000 FAQ IDs"),
+    body("faqIds.*")
+        .isMongoId()
+        .withMessage("Each faqId must be a valid MongoDB ID"),
+    body("faqIds").custom((faqIds) => {
+        if (!Array.isArray(faqIds)) {
+            return true;
+        }
+        const uniqueIds = new Set(faqIds);
+        if (uniqueIds.size !==
+            faqIds.length) {
+            throw new Error("Duplicate FAQ IDs are not allowed");
+        }
+        return true;
+    }),
+    validateRequest,
+];
 const router = Router();
+// =========================================================
+// PUBLIC
+// =========================================================
 router.get("/public", publicFaqValidation, getPublicFaqs);
+// =========================================================
+// ADMIN - STATIC ROUTES
+// =========================================================
 router.get("/", authenticate, authorizeRoles(Role.ADMIN), requirePermission("faq.read"), listFaqValidation, getAllFaqs);
-router.get("/:id", authenticate, authorizeRoles(Role.ADMIN), requirePermission("faq.read"), faqIdValidation, getFaqById);
+router.post("/export", authenticate, authorizeRoles(Role.ADMIN), requirePermission("faq.read"), exportFaqsValidation, exportFaqsCsv);
 router.post("/", authenticate, authorizeRoles(Role.ADMIN), requirePermission("faq.create"), createFaqValidation, createFaq);
-router.put("/:id", authenticate, authorizeRoles(Role.ADMIN), requirePermission("faq.update"), updateFaqValidation, updateFaq);
+// =========================================================
+// ADMIN - SPECIFIC FAQ ACTIONS
+// =========================================================
 router.patch("/:id/status", authenticate, authorizeRoles(Role.ADMIN), requirePermission("faq.status"), faqIdValidation, toggleFaqStatus);
+// =========================================================
+// ADMIN - GENERIC FAQ ID ROUTES
+// =========================================================
+router.get("/:id", authenticate, authorizeRoles(Role.ADMIN), requirePermission("faq.read"), faqIdValidation, getFaqById);
+router.put("/:id", authenticate, authorizeRoles(Role.ADMIN), requirePermission("faq.update"), updateFaqValidation, updateFaq);
 router.delete("/:id", authenticate, authorizeRoles(Role.ADMIN), requirePermission("faq.delete"), faqIdValidation, deleteFaq);
 export default router;
 //# sourceMappingURL=faq.routes.js.map

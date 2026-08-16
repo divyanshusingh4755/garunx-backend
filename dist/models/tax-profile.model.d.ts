@@ -4,6 +4,7 @@ export interface ITaxProfile extends Document {
     name: string;
     code: string;
     treatment: TaxTreatment;
+    pricingRevision: number;
     totalRate: number;
     description?: string;
     isActive: boolean;

@@ -4,6 +4,9 @@ import { Category } from "../models/category.model.js";
 import { ServiceComponent } from "../models/servicecomponent.model.js";
 import { ServicePricing } from "../models/servicepricing.model.js";
 import { escapeRegex } from "../utils/escapeRegex.js";
+import { RedisCacheService } from "./redis-cache.service.js";
+import { CacheKeys } from "../cache/cache-keys.js";
+import { CACHE_TTL_SECONDS } from "../cache/constants.js";
 
 type CreateComponentInput = {
   name: string;
@@ -38,6 +41,118 @@ const createHttpError = (message: string, statusCode: number) => {
 };
 
 export class ComponentService {
+  private static async invalidateComponentCache(
+    componentId?: string,
+  ): Promise<void> {
+    const operations: Promise<unknown>[] = [
+      RedisCacheService.deleteByPattern(
+        CacheKeys.componentListPattern(),
+      ),
+    ];
+
+    if (componentId) {
+      operations.push(
+        RedisCacheService.delete(
+          CacheKeys.componentDetail(
+            componentId,
+          ),
+        ),
+      );
+    }
+
+    await Promise.all(operations);
+  }
+
+  private static async invalidateAffectedServiceCaches(
+    componentId: string,
+  ): Promise<void> {
+    const affectedMappings =
+      await ServiceComponent.find({
+        componentId:
+          new Types.ObjectId(
+            componentId,
+          ),
+      })
+        .select("serviceId")
+        .lean();
+
+    const serviceIds = [
+      ...new Set(
+        affectedMappings.map(
+          (mapping) =>
+            mapping.serviceId.toString(),
+        ),
+      ),
+    ];
+
+    const operations: Promise<unknown>[] = [
+      /*
+       * Component changes may affect
+       * any cached ServiceComponent response.
+       */
+      RedisCacheService.deleteByPattern(
+        CacheKeys.serviceComponentPattern(),
+      ),
+
+      /*
+       * Service lists may contain populated
+       * or derived component information.
+       */
+      RedisCacheService.deleteByPattern(
+        CacheKeys.serviceListPattern(),
+      ),
+
+      RedisCacheService.deleteByPattern(
+        CacheKeys.serviceByLocationListPattern(),
+      ),
+    ];
+
+    for (const serviceId of serviceIds) {
+      operations.push(
+        /*
+         * Standard service detail.
+         */
+        RedisCacheService.delete(
+          CacheKeys.serviceDetail(
+            serviceId,
+          ),
+        ),
+
+        /*
+         * Full aggregate service response.
+         */
+        RedisCacheService.delete(
+          CacheKeys.serviceFull(
+            serviceId,
+          ),
+        ),
+
+        /*
+         * City-specific full service responses.
+         */
+        RedisCacheService.deleteByPattern(
+          CacheKeys.serviceFullByCitiesPattern(
+            serviceId,
+          ),
+        ),
+
+        /*
+         * Component status changes can
+         * deactivate pricing records.
+         */
+        RedisCacheService.deleteByPattern(
+          CacheKeys.serviceResolvedPricingByServicePattern(
+            serviceId,
+          ),
+        ),
+      );
+    }
+
+    await Promise.all(
+      operations,
+    );
+  }
+
   static async createComponent(payload: CreateComponentInput) {
     const categoryExists = await Category.exists({
       _id: payload.categoryId,
@@ -48,10 +163,23 @@ export class ComponentService {
     }
 
     try {
-      return await Component.create(payload);
+      const component =
+        await Component.create(
+          payload,
+        );
+
+      await this.invalidateComponentCache();
+
+      return component;
     } catch (error: any) {
-      if (error?.code === 11000) {
-        throw createHttpError("Component already exists", 409);
+      if (
+        error?.code ===
+        11000
+      ) {
+        throw createHttpError(
+          "Component already exists",
+          409,
+        );
       }
 
       throw error;
@@ -87,6 +215,16 @@ export class ComponentService {
       if (!component) {
         throw createHttpError("Component not found", 404);
       }
+
+      await Promise.all([
+        this.invalidateComponentCache(
+          componentId,
+        ),
+
+        this.invalidateAffectedServiceCaches(
+          componentId,
+        ),
+      ]);
 
       return component;
     } catch (error: any) {
@@ -203,6 +341,16 @@ export class ComponentService {
 
       await session.commitTransaction();
 
+      await Promise.all([
+        this.invalidateComponentCache(
+          componentId,
+        ),
+
+        this.invalidateAffectedServiceCaches(
+          componentId,
+        ),
+      ]);
+
       return {
         success: true,
         component: updatedComponent,
@@ -218,14 +366,36 @@ export class ComponentService {
     }
   }
 
-  static async getComponentById(componentId: string) {
-    const component = await Component.findById(componentId).lean();
+  static async getComponentById(
+    componentId: string,
+  ) {
+    return RedisCacheService.getOrSet({
+      key:
+        CacheKeys.componentDetail(
+          componentId,
+        ),
 
-    if (!component) {
-      throw createHttpError("Component not found", 404);
-    }
+      ttlSeconds:
+        CACHE_TTL_SECONDS
+          .COMPONENT_DETAIL,
 
-    return component;
+      loader:
+        async () => {
+          const component =
+            await Component.findById(
+              componentId,
+            ).lean();
+
+          if (!component) {
+            throw createHttpError(
+              "Component not found",
+              404,
+            );
+          }
+
+          return component;
+        },
+    });
   }
 
   static async findComponents(params: {
@@ -251,64 +421,38 @@ export class ComponentService {
       sortOrder = "desc",
     } = params;
 
-    const safeLimit = Math.min(Math.max(limit, 1), 100);
+    const safeLimit =
+      Math.min(
+        Math.max(limit, 1),
+        100,
+      );
 
-    const safePage = Math.max(page, 1);
-    const skip = (safePage - 1) * safeLimit;
+    const safePage =
+      Math.max(page, 1);
 
-    const query: QueryFilter<IComponent> = {};
-
-    if (typeof isActive === "boolean") {
-      query.isActive = isActive;
+    if (
+      categoryId &&
+      !Types.ObjectId.isValid(
+        categoryId,
+      )
+    ) {
+      throw createHttpError(
+        "Invalid categoryId",
+        400,
+      );
     }
 
-    if (typeof isRemovable === "boolean") {
-      query.isRemovable = isRemovable;
-    }
+    const term =
+      searchTerm?.trim();
 
-    if (typeof isBundled === "boolean") {
-      query.isBundled = isBundled;
-    }
+    const isTextSearch =
+      Boolean(
+        term &&
+        term.length > 4,
+      );
 
-    if (categoryId) {
-      query.categoryId = new Types.ObjectId(categoryId);
-    }
-
-    const term = searchTerm?.trim();
-
-    const isTextSearch = Boolean(term && term.length > 4);
-
-    if (term) {
-      if (isTextSearch) {
-        query.$text = {
-          $search: term,
-        };
-      } else {
-        query.name = {
-          $regex: `^${escapeRegex(term)}`,
-          $options: "i",
-        };
-      }
-    }
-
-    let projection: Record<string, unknown> | undefined;
-
-    let sortCriteria: Record<string, SortOrder | { $meta: "textScore" }>;
-
-    if (isTextSearch && sortBy === "relevance") {
-      projection = {
-        score: {
-          $meta: "textScore",
-        },
-      };
-
-      sortCriteria = {
-        score: {
-          $meta: "textScore",
-        },
-      };
-    } else {
-      const allowedSortFields = new Set([
+    const allowedSortFields =
+      new Set([
         "name",
         "createdAt",
         "updatedAt",
@@ -317,32 +461,370 @@ export class ComponentService {
         "isBundled",
       ]);
 
-      const safeSortBy = allowedSortFields.has(sortBy) ? sortBy : "createdAt";
+    const safeSortBy =
+      isTextSearch &&
+        sortBy === "relevance"
+        ? "relevance"
+        : allowedSortFields.has(
+          sortBy,
+        )
+          ? sortBy
+          : "createdAt";
 
-      sortCriteria = {
-        [safeSortBy]: sortOrder === "asc" ? 1 : -1,
-      };
+    const cacheKey =
+      CacheKeys.componentList({
+        searchTerm:
+          term,
+        categoryId,
+        limit:
+          safeLimit,
+        page:
+          safePage,
+        isRemovable,
+        isActive,
+        isBundled,
+        sortBy:
+          safeSortBy,
+        sortOrder,
+      });
 
-      if (safeSortBy !== "createdAt") {
-        sortCriteria.createdAt = -1;
-      }
+    return RedisCacheService.getOrSet({
+      key:
+        cacheKey,
+
+      ttlSeconds:
+        CACHE_TTL_SECONDS
+          .COMPONENT_LIST,
+
+      loader:
+        async () => {
+          const skip =
+            (safePage - 1) *
+            safeLimit;
+
+          const query:
+            QueryFilter<IComponent> = {};
+
+          if (
+            typeof isActive ===
+            "boolean"
+          ) {
+            query.isActive =
+              isActive;
+          }
+
+          if (
+            typeof isRemovable ===
+            "boolean"
+          ) {
+            query.isRemovable =
+              isRemovable;
+          }
+
+          if (
+            typeof isBundled ===
+            "boolean"
+          ) {
+            query.isBundled =
+              isBundled;
+          }
+
+          if (categoryId) {
+            query.categoryId =
+              new Types.ObjectId(
+                categoryId,
+              );
+          }
+
+          if (term) {
+            if (isTextSearch) {
+              query.$text = {
+                $search:
+                  term,
+              };
+            } else {
+              query.name = {
+                $regex:
+                  `^${escapeRegex(term)}`,
+
+                $options:
+                  "i",
+              };
+            }
+          }
+
+          let projection:
+            Record<
+              string,
+              unknown
+            > |
+            undefined;
+
+          let sortCriteria:
+            Record<
+              string,
+              SortOrder |
+              {
+                $meta:
+                "textScore";
+              }
+            >;
+
+          if (
+            isTextSearch &&
+            safeSortBy ===
+            "relevance"
+          ) {
+            projection = {
+              score: {
+                $meta:
+                  "textScore",
+              },
+            };
+
+            sortCriteria = {
+              score: {
+                $meta:
+                  "textScore",
+              },
+            };
+          } else {
+            sortCriteria = {
+              [safeSortBy]:
+                sortOrder === "asc"
+                  ? 1
+                  : -1,
+            };
+
+            if (
+              safeSortBy !==
+              "createdAt"
+            ) {
+              sortCriteria.createdAt =
+                -1;
+            }
+          }
+
+          const [
+            components,
+            total,
+          ] =
+            await Promise.all([
+              Component.find(
+                query,
+                projection,
+              )
+                .sort(
+                  sortCriteria,
+                )
+                .skip(
+                  skip,
+                )
+                .limit(
+                  safeLimit,
+                )
+                .lean(),
+
+              Component.countDocuments(
+                query,
+              ),
+            ]);
+
+          return {
+            data:
+              components,
+
+            total,
+
+            page:
+              safePage,
+
+            totalPages:
+              Math.ceil(
+                total /
+                safeLimit,
+              ),
+          };
+        },
+    });
+  }
+
+  static async exportComponentsToCsv(
+    componentIds: string[],
+  ) {
+    const uniqueComponentIds = [
+      ...new Set(componentIds),
+    ];
+
+    /*
+     * Defensive validation.
+     * Route validation already checks this,
+     * but the service should remain safe
+     * when called from elsewhere.
+     */
+    if (
+      uniqueComponentIds.some(
+        (id) =>
+          !Types.ObjectId.isValid(id),
+      )
+    ) {
+      throw createHttpError(
+        "One or more component IDs are invalid",
+        400,
+      );
     }
 
-    const [components, total] = await Promise.all([
-      Component.find(query, projection)
-        .sort(sortCriteria)
-        .skip(skip)
-        .limit(safeLimit)
-        .lean(),
+    const components =
+      await Component.find({
+        _id: {
+          $in: uniqueComponentIds.map(
+            (id) =>
+              new Types.ObjectId(id),
+          ),
+        },
+      })
+        .select(
+          [
+            "name",
+            "categoryId",
+            "description",
+            "imageUrl",
+            "isRemovable",
+            "isBundled",
+            "isActive",
+            "createdAt",
+            "updatedAt",
+          ].join(" "),
+        )
+        .populate(
+          "categoryId",
+          "label value",
+        )
+        .lean();
 
-      Component.countDocuments(query),
-    ]);
+    if (
+      components.length === 0
+    ) {
+      throw createHttpError(
+        "No components found for export",
+        404,
+      );
+    }
+
+    const escapeCsv = (
+      value: unknown,
+    ): string => {
+      if (
+        value === null ||
+        value === undefined
+      ) {
+        return "";
+      }
+
+      let stringValue =
+        String(value);
+
+      /*
+       * Prevent spreadsheet formula
+       * interpretation when CSV is opened
+       * in Excel/Sheets.
+       */
+      if (
+        /^[=+\-@]/.test(
+          stringValue,
+        )
+      ) {
+        stringValue =
+          `'${stringValue}`;
+      }
+
+      if (
+        stringValue.includes(",") ||
+        stringValue.includes('"') ||
+        stringValue.includes("\n") ||
+        stringValue.includes("\r")
+      ) {
+        return `"${stringValue.replace(
+          /"/g,
+          '""',
+        )}"`;
+      }
+
+      return stringValue;
+    };
+
+    const headers = [
+      "Component ID",
+      "Name",
+      "Category ID",
+      "Category Label",
+      "Category Value",
+      "Description",
+      "Image URL",
+      "Removable",
+      "Bundled",
+      "Active",
+      "Created At",
+      "Updated At",
+    ];
+
+    const rows =
+      components.map(
+        (component: any) => [
+          component._id,
+
+          component.name,
+
+          component.categoryId?._id ??
+          "",
+
+          component.categoryId?.label ??
+          "",
+
+          component.categoryId?.value ??
+          "",
+
+          component.description,
+
+          component.imageUrl,
+
+          component.isRemovable,
+
+          component.isBundled,
+
+          component.isActive,
+
+          component.createdAt
+            ? new Date(
+              component.createdAt,
+            ).toISOString()
+            : "",
+
+          component.updatedAt
+            ? new Date(
+              component.updatedAt,
+            ).toISOString()
+            : "",
+        ],
+      );
+
+    const csv = [
+      headers
+        .map(escapeCsv)
+        .join(","),
+
+      ...rows.map(
+        (row) =>
+          row
+            .map(escapeCsv)
+            .join(","),
+      ),
+    ].join("\n");
 
     return {
-      data: components,
-      total,
-      page: safePage,
-      totalPages: Math.ceil(total / safeLimit),
+      csv,
+      total:
+        components.length,
     };
   }
 }

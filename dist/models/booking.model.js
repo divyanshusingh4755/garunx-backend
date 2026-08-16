@@ -63,6 +63,7 @@ const assignmentRequestSchema = new Schema({
         enum: [
             "ANOTHER_COORDINATOR_ACCEPTED",
             "REASSIGNMENT_STARTED",
+            "RESCHEDULE_COORDINATOR_CHANGE",
             "USER_CANCELLED",
             "SYSTEM_CANCELLED",
         ],
@@ -119,8 +120,6 @@ const serviceExecutionSchema = new Schema({
     startedAt: Date,
     completedAt: {
         type: Date,
-        default: Date.now,
-        required: true,
     },
     completedBy: {
         type: Schema.Types.ObjectId,
@@ -227,6 +226,10 @@ const bookingComponentSchema = new Schema({
     },
     name: { type: String, required: true },
     description: String,
+    imageUrl: {
+        type: String,
+        trim: true,
+    },
     isRequired: { type: Boolean, default: false },
     isRemovable: { type: Boolean, default: true },
     isBundled: { type: Boolean, default: false },
@@ -457,11 +460,120 @@ const bookingRescheduleSchema = new Schema({
 }, {
     _id: false,
 });
+const bookingTierSnapshotSchema = new Schema({
+    tierId: {
+        type: Schema.Types.ObjectId,
+        ref: "Tier",
+        required: true,
+    },
+    name: {
+        type: String,
+        required: true,
+        trim: true,
+    },
+}, {
+    _id: false,
+});
+const bookingLocationSnapshotSchema = new Schema({
+    locationId: {
+        type: Schema.Types.ObjectId,
+        ref: "Location",
+        required: true,
+    },
+    name: {
+        type: String,
+        required: true,
+        trim: true,
+    },
+}, {
+    _id: false,
+});
+const reassignmentSchema = new Schema({
+    requestedBy: {
+        type: Schema.Types.ObjectId,
+        ref: "User",
+        required: true,
+    },
+    requestedByRole: {
+        type: String,
+        enum: [
+            "USER",
+            "COORDINATOR",
+            "ADMIN",
+            "SYSTEM",
+        ],
+        required: true,
+    },
+    reason: {
+        type: String,
+        required: true,
+        trim: true,
+        maxlength: 500,
+    },
+    requestedAt: {
+        type: Date,
+        required: true,
+        default: Date.now,
+    },
+    previousCoordinatorId: {
+        type: Schema.Types.ObjectId,
+        ref: "User",
+        required: true,
+    },
+    replacementCoordinatorId: {
+        type: Schema.Types.ObjectId,
+        ref: "User",
+    },
+    assignmentRound: {
+        type: Number,
+        required: true,
+        min: 1,
+    },
+    mode: {
+        type: String,
+        enum: [
+            "AUTO",
+            "NOMINATED",
+        ],
+        required: true,
+    },
+    status: {
+        type: String,
+        enum: [
+            "PENDING_REPLACEMENT",
+            "REPLACEMENT_REQUESTED",
+            "COMPLETED",
+            "FAILED",
+        ],
+        required: true,
+    },
+    completedAt: {
+        type: Date,
+    },
+    failedAt: {
+        type: Date,
+    },
+    failureReason: {
+        type: String,
+        trim: true,
+        maxlength: 500,
+    },
+}, {
+    _id: false,
+});
 const bookingSchema = new Schema({
     userId: { type: Schema.Types.ObjectId, ref: "User", index: true },
     cartId: {
         type: Schema.Types.ObjectId,
         ref: "Cart",
+        required: true,
+    },
+    tierSnapshot: {
+        type: bookingTierSnapshotSchema,
+        required: true,
+    },
+    locationSnapshot: {
+        type: bookingLocationSnapshotSchema,
         required: true,
     },
     bookingReference: {
@@ -591,6 +703,11 @@ const bookingSchema = new Schema({
             type: Number,
             default: 0,
         },
+        refundReservedAmount: {
+            type: Number,
+            default: 0,
+            min: 0,
+        },
         refunds: {
             type: [bookingRefundSchema],
             default: [],
@@ -673,26 +790,8 @@ const bookingSchema = new Schema({
             default: undefined,
         },
         reassignment: {
-            requestedBy: {
-                type: Schema.Types.ObjectId,
-                ref: "User",
-            },
-            requestedByRole: {
-                type: String,
-                enum: [
-                    "USER",
-                    "COORDINATOR",
-                    "ADMIN",
-                    "SYSTEM",
-                ],
-                default: "USER",
-            },
-            reason: String,
-            requestedAt: Date,
-            previousCoordinatorId: {
-                type: Schema.Types.ObjectId,
-                ref: "User",
-            },
+            type: reassignmentSchema,
+            default: undefined,
         },
     },
     execution: {

@@ -9,6 +9,11 @@ import { Booking } from "../models/booking.model.js";
 import { Coupon } from "../models/coupon.model.js";
 
 import { generateCouponCode } from "../utils/generateCouponCode.js";
+import { RedisCacheService } from "./redis-cache.service.js";
+import { CacheKeys } from "../cache/cache-keys.js";
+import { CACHE_TTL_SECONDS } from "../cache/constants.js";
+import { Role } from "../types/rbac.js";
+import { NotificationService } from "./notification.service.js";
 
 type RewardStatus = "PENDING" | "AWARDED" | "FAILED";
 
@@ -18,294 +23,813 @@ interface RewardQuery {
 }
 
 export class ReferralRewardService {
+  private static async invalidateReferralCache(
+    referrerUserId: string,
+  ): Promise<void> {
+    await Promise.all([
+      RedisCacheService.delete(
+        CacheKeys.referralInfo(
+          referrerUserId,
+        ),
+      ),
+
+      RedisCacheService.delete(
+        CacheKeys.referralStats(
+          referrerUserId,
+        ),
+      ),
+
+      RedisCacheService.deleteByPattern(
+        CacheKeys.referralHistoryPattern(
+          referrerUserId,
+        ),
+      ),
+
+      RedisCacheService.deleteByPattern(
+        CacheKeys.referralRewardListPattern(),
+      ),
+    ]);
+  }
+
   private static ensureValidObjectId(value: string, fieldName: string): void {
     if (!Types.ObjectId.isValid(value)) {
       throw new Error(`Invalid ${fieldName}`);
     }
   }
 
-  static async processReferralReward(userId: string, bookingId: string) {
-    this.ensureValidObjectId(userId, "userId");
+  private static async sendReferralCouponNotification(params: {
+    couponId: string;
+    assignedUserId: string;
+    couponCode: string;
+    couponName: string;
+    discount: number;
+  }): Promise<void> {
+    try {
+      const recipient =
+        await User.findById(
+          params.assignedUserId,
+        )
+          .select(
+            "_id role email",
+          )
+          .lean();
 
-    this.ensureValidObjectId(bookingId, "bookingId");
+      if (!recipient) {
+        console.error(
+          `[REFERRAL NOTIFICATION] User ${params.assignedUserId} not found`,
+        );
 
-    const session = await mongoose.startSession();
+        return;
+      }
+
+      await NotificationService.createFromTemplate({
+        recipientId:
+          recipient._id,
+
+        recipientRole:
+          recipient.role,
+
+        templateCode:
+          "REFERRAL_COUPON_ASSIGNED",
+
+        variables: {
+          couponCode:
+            params.couponCode,
+
+          couponName:
+            params.couponName,
+
+          discountText:
+            `₹${params.discount}`,
+
+          validityText:
+            "No expiry date",
+        },
+
+        referenceId:
+          params.couponId,
+
+        dedupeKey:
+          `referral-coupon:${params.couponId}`,
+
+        channels: {
+          email:
+            Boolean(
+              recipient.email,
+            ),
+
+          push:
+            true,
+        },
+      });
+    } catch (error) {
+      /*
+       * Reward and coupon are already committed.
+       * Notification failure must never undo
+       * the successful referral reward.
+       */
+      console.error(
+        `[REFERRAL NOTIFICATION] Failed for coupon ${params.couponId}:`,
+        error,
+      );
+    }
+  }
+
+  static async processReferralReward(
+    userId: string,
+    bookingId: string,
+  ) {
+    this.ensureValidObjectId(
+      userId,
+      "userId",
+    );
+
+    this.ensureValidObjectId(
+      bookingId,
+      "bookingId",
+    );
+
+    const session =
+      await mongoose.startSession();
+
+    let affectedReferrerUserId:
+      string | null = null;
+
+    let createdReferrerCoupon:
+      {
+        couponId: string;
+        assignedUserId: string;
+        couponCode: string;
+        couponName: string;
+        discount: number;
+      } | null = null;
+
+    let createdReferredCoupon:
+      {
+        couponId: string;
+        assignedUserId: string;
+        couponCode: string;
+        couponName: string;
+        discount: number;
+      } | null = null;
 
     try {
-      await session.withTransaction(async () => {
-        const user = await User.findById(userId).session(session);
+      await session.withTransaction(
+        async () => {
+          const user =
+            await User.findById(
+              userId,
+            ).session(
+              session,
+            );
 
-        if (!user) {
-          throw new Error("User not found");
-        }
+          if (!user) {
+            throw new Error(
+              "User not found",
+            );
+          }
 
-        if (!user.referredBy) {
-          return;
-        }
+          if (!user.referredBy) {
+            return;
+          }
 
-        if (user.referredBy.toString() === user._id.toString()) {
-          return;
-        }
+          if (
+            user.referredBy.toString() ===
+            user._id.toString()
+          ) {
+            return;
+          }
 
-        const qualifyingBooking = await Booking.findOne({
-          _id: bookingId,
-          userId: user._id,
-          "payment.status": "PAID",
-        })
-          .select("_id")
-          .session(session)
-          .lean();
+          const qualifyingBooking =
+            await Booking.findOne({
+              _id:
+                bookingId,
 
-        if (!qualifyingBooking) {
-          throw new Error("Paid booking not found for user");
-        }
+              userId:
+                user._id,
 
-        const existingReward = await ReferralReward.findOne({
-          referredUserId: user._id,
-        })
-          .select("_id")
-          .session(session)
-          .lean();
+              "payment.status":
+                "PAID",
+            })
+              .select(
+                "_id",
+              )
+              .session(
+                session,
+              )
+              .lean();
 
-        if (existingReward) {
-          return;
-        }
+          if (
+            !qualifyingBooking
+          ) {
+            throw new Error(
+              "Paid booking not found for user",
+            );
+          }
 
-        const paidBookings = await Booking.countDocuments({
-          userId: user._id,
-          "payment.status": "PAID",
-        }).session(session);
+          const existingReward =
+            await ReferralReward.findOne({
+              referredUserId:
+                user._id,
+            })
+              .select(
+                "_id",
+              )
+              .session(
+                session,
+              )
+              .lean();
 
-        if (paidBookings !== 1) {
-          return;
-        }
+          if (
+            existingReward
+          ) {
+            return;
+          }
 
-        const referrer = await User.findById(user.referredBy).session(session);
+          const paidBookings =
+            await Booking.countDocuments({
+              userId:
+                user._id,
 
-        if (!referrer) {
-          return;
-        }
+              "payment.status":
+                "PAID",
+            }).session(
+              session,
+            );
 
-        const referrerRewardAmount = 200;
-        const referredRewardAmount = 100;
+          if (
+            paidBookings !==
+            1
+          ) {
+            return;
+          }
 
-        const [referrerCoupon] = await Coupon.create(
-          [
-            {
-              name: "Referral Reward",
-              couponCode: generateCouponCode("REF"),
-              assignedUserId: referrer._id,
-              applicableOn: "REFERRAL",
-              services: [],
-              packages: [],
-              discount: referrerRewardAmount,
-              discountType: "FIXED",
-              usageLimit: 1,
-              minOrderAmount: 0,
+          const referrer =
+            await User.findOne({
+              _id: user.referredBy,
+              role: Role.USER,
               isActive: true,
-            },
-          ],
-          { session },
-        );
+            }).session(session);
 
-        const [referredCoupon] = await Coupon.create(
-          [
+          if (!referrer) {
+            return;
+          }
+
+          const referrerRewardAmount =
+            200;
+
+          const referredRewardAmount =
+            100;
+
+          const [
+            referrerCoupon,
+          ] =
+            await Coupon.create(
+              [
+                {
+                  name:
+                    "Referral Reward",
+
+                  couponCode:
+                    generateCouponCode(
+                      "REF",
+                    ),
+
+                  assignedUserId:
+                    referrer._id,
+
+                  applicableOn:
+                    "REFERRAL",
+
+                  services:
+                    [],
+
+                  packages:
+                    [],
+
+                  discount:
+                    referrerRewardAmount,
+
+                  discountType:
+                    "FIXED",
+
+                  usageLimit:
+                    1,
+
+                  minOrderAmount:
+                    0,
+
+                  isActive:
+                    true,
+                },
+              ],
+              {
+                session,
+              },
+            );
+
+          const [
+            referredCoupon,
+          ] =
+            await Coupon.create(
+              [
+                {
+                  name:
+                    "Welcome Referral Reward",
+
+                  couponCode:
+                    generateCouponCode(
+                      "WELCOME",
+                    ),
+
+                  assignedUserId:
+                    user._id,
+
+                  applicableOn:
+                    "REFERRAL",
+
+                  services:
+                    [],
+
+                  packages:
+                    [],
+
+                  discount:
+                    referredRewardAmount,
+
+                  discountType:
+                    "FIXED",
+
+                  usageLimit:
+                    1,
+
+                  minOrderAmount:
+                    0,
+
+                  isActive:
+                    true,
+                },
+              ],
+              {
+                session,
+              },
+            );
+
+          if (
+            !referrerCoupon ||
+            !referredCoupon
+          ) {
+            throw new Error(
+              "Failed to create referral coupons",
+            );
+          }
+
+          await ReferralReward.create(
+            [
+              {
+                referrerUserId:
+                  referrer._id,
+
+                referredUserId:
+                  user._id,
+
+                bookingId:
+                  qualifyingBooking._id,
+
+                referrerCouponId:
+                  referrerCoupon._id,
+
+                referredCouponId:
+                  referredCoupon._id,
+
+                referrerRewardAmount,
+
+                referredRewardAmount,
+
+                status:
+                  "AWARDED",
+              },
+            ],
             {
-              name: "Welcome Referral Reward",
-              couponCode: generateCouponCode("WELCOME"),
-              assignedUserId: user._id,
-              applicableOn: "REFERRAL",
-              services: [],
-              packages: [],
-              discount: referredRewardAmount,
-              discountType: "FIXED",
-              usageLimit: 1,
-              minOrderAmount: 0,
-              isActive: true,
+              session,
             },
-          ],
-          { session },
-        );
+          );
 
-        if (!referrerCoupon || !referredCoupon) {
-          throw new Error("Failed to create referral coupons");
-        }
+          /*
+           * Only mark cache invalidation
+           * after the reward is actually created.
+           */
+          affectedReferrerUserId =
+            referrer._id
+              .toString();
+        },
+      );
 
-        await ReferralReward.create(
-          [
-            {
-              referrerUserId: referrer._id,
-              referredUserId: user._id,
-              bookingId: qualifyingBooking._id,
-              referrerCouponId: referrerCoupon._id,
-              referredCouponId: referredCoupon._id,
-              referrerRewardAmount,
-              referredRewardAmount,
-              status: "AWARDED",
-            },
-          ],
-          { session },
+      /*
+       * Mongo transaction has committed here.
+       */
+      if (
+        affectedReferrerUserId
+      ) {
+        await Promise.all([
+          this.invalidateReferralCache(
+            affectedReferrerUserId,
+          ),
+
+          RedisCacheService.deleteByPattern(
+            CacheKeys.couponListPattern(),
+          ),
+        ]);
+      }
+
+      const notificationTasks:
+        Promise<void>[] = [];
+
+      if (createdReferrerCoupon) {
+        notificationTasks.push(
+          this.sendReferralCouponNotification(
+            createdReferrerCoupon,
+          ),
         );
-      });
+      }
+
+      if (createdReferredCoupon) {
+        notificationTasks.push(
+          this.sendReferralCouponNotification(
+            createdReferredCoupon,
+          ),
+        );
+      }
+
+      if (notificationTasks.length > 0) {
+        await Promise.all(
+          notificationTasks,
+        );
+      }
     } finally {
       await session.endSession();
     }
   }
 
-  static async getReferralInfo(userId: string) {
-    this.ensureValidObjectId(userId, "userId");
+  static async getReferralInfo(
+    userId: string,
+  ) {
+    this.ensureValidObjectId(
+      userId,
+      "userId",
+    );
 
-    const user = await User.findById(userId).select("name referralCode").lean();
+    return RedisCacheService.getOrSet({
+      key:
+        CacheKeys.referralInfo(
+          userId,
+        ),
 
-    if (!user) {
-      throw new Error("User not found");
-    }
+      ttlSeconds:
+        CACHE_TTL_SECONDS
+          .REFERRAL_INFO,
 
-    const userObjectId = new Types.ObjectId(userId);
+      loader:
+        async () => {
+          const user =
+            await User.findById(
+              userId,
+            )
+              .select(
+                "fullName referralCode",
+              )
+              .lean();
 
-    const [totalReferrals, successfulReferrals, totalRewards] =
-      await Promise.all([
-        ReferralReward.countDocuments({
-          referrerUserId: userObjectId,
-        }),
+          if (!user) {
+            throw new Error(
+              "User not found",
+            );
+          }
 
-        ReferralReward.countDocuments({
-          referrerUserId: userObjectId,
-          status: "AWARDED",
-        }),
+          const userObjectId =
+            new Types.ObjectId(
+              userId,
+            );
 
-        ReferralReward.aggregate<{
-          _id: null;
-          total: number;
-        }>([
-          {
-            $match: {
-              referrerUserId: userObjectId,
-              status: "AWARDED",
-            },
-          },
-          {
-            $group: {
-              _id: null,
-              total: {
-                $sum: "$referrerRewardAmount",
+          const [
+            totalReferrals,
+            successfulReferrals,
+            totalRewards,
+          ] =
+            await Promise.all([
+              User.countDocuments({
+                referredBy:
+                  userObjectId,
+
+                role:
+                  Role.USER,
+              }),
+
+              ReferralReward.countDocuments({
+                referrerUserId:
+                  userObjectId,
+
+                status:
+                  "AWARDED",
+              }),
+
+              ReferralReward.aggregate<{
+                _id: null;
+                total: number;
+              }>([
+                {
+                  $match: {
+                    referrerUserId:
+                      userObjectId,
+
+                    status:
+                      "AWARDED",
+                  },
+                },
+
+                {
+                  $group: {
+                    _id:
+                      null,
+
+                    total: {
+                      $sum:
+                        "$referrerRewardAmount",
+                    },
+                  },
+                },
+              ]),
+            ]);
+
+          return {
+            referralCode:
+              user.referralCode,
+
+            totalReferrals,
+
+            successfulReferrals,
+
+            totalRewardsEarned:
+              totalRewards[0]
+                ?.total ??
+              0,
+          };
+        },
+    });
+  }
+
+  static async getReferralStats(
+    userId: string,
+  ) {
+    this.ensureValidObjectId(
+      userId,
+      "userId",
+    );
+
+    return RedisCacheService.getOrSet({
+      key:
+        CacheKeys.referralStats(
+          userId,
+        ),
+
+      ttlSeconds:
+        CACHE_TTL_SECONDS
+          .REFERRAL_STATS,
+
+      loader:
+        async () => {
+          const stats =
+            await ReferralReward.aggregate<{
+              _id:
+              RewardStatus;
+
+              count:
+              number;
+
+              totalReward:
+              number;
+            }>([
+              {
+                $match: {
+                  referrerUserId:
+                    new Types.ObjectId(
+                      userId,
+                    ),
+                },
               },
+
+              {
+                $group: {
+                  _id:
+                    "$status",
+
+                  count: {
+                    $sum:
+                      1,
+                  },
+
+                  totalReward: {
+                    $sum:
+                      "$referrerRewardAmount",
+                  },
+                },
+              },
+            ]);
+
+          const result = {
+            pending: {
+              count:
+                0,
+
+              reward:
+                0,
             },
-          },
-        ]),
-      ]);
 
-    return {
-      referralCode: user.referralCode,
-      totalReferrals,
-      successfulReferrals,
-      totalRewardsEarned: totalRewards[0]?.total ?? 0,
-    };
+            awarded: {
+              count:
+                0,
+
+              reward:
+                0,
+            },
+
+            failed: {
+              count:
+                0,
+
+              reward:
+                0,
+            },
+          };
+
+          for (
+            const item
+            of stats
+          ) {
+            const value = {
+              count:
+                item.count,
+
+              reward:
+                item.totalReward,
+            };
+
+            if (
+              item._id ===
+              "PENDING"
+            ) {
+              result.pending =
+                value;
+            } else if (
+              item._id ===
+              "AWARDED"
+            ) {
+              result.awarded =
+                value;
+            } else if (
+              item._id ===
+              "FAILED"
+            ) {
+              result.failed =
+                value;
+            }
+          }
+
+          return result;
+        },
+    });
   }
 
-  static async getReferralStats(userId: string) {
-    this.ensureValidObjectId(userId, "userId");
+  static async getReferralHistory(
+    userId: string,
+    page = 1,
+    limit = 20,
+  ) {
+    this.ensureValidObjectId(
+      userId,
+      "userId",
+    );
 
-    const stats = await ReferralReward.aggregate<{
-      _id: RewardStatus;
-      count: number;
-      totalReward: number;
-    }>([
-      {
-        $match: {
-          referrerUserId: new Types.ObjectId(userId),
-        },
-      },
-      {
-        $group: {
-          _id: "$status",
-          count: {
-            $sum: 1,
-          },
-          totalReward: {
-            $sum: "$referrerRewardAmount",
-          },
-        },
-      },
-    ]);
-
-    const result = {
-      pending: {
-        count: 0,
-        reward: 0,
-      },
-      awarded: {
-        count: 0,
-        reward: 0,
-      },
-      failed: {
-        count: 0,
-        reward: 0,
-      },
-    };
-
-    for (const item of stats) {
-      const value = {
-        count: item.count,
-        reward: item.totalReward,
-      };
-
-      if (item._id === "PENDING") {
-        result.pending = value;
-      } else if (item._id === "AWARDED") {
-        result.awarded = value;
-      } else if (item._id === "FAILED") {
-        result.failed = value;
-      }
-    }
-
-    return result;
-  }
-
-  static async getReferralHistory(userId: string, page = 1, limit = 20) {
-    this.ensureValidObjectId(userId, "userId");
-
-    const safePage = Number.isInteger(page) && page > 0 ? page : 1;
+    const safePage =
+      Number.isInteger(
+        page,
+      ) &&
+        page > 0
+        ? page
+        : 1;
 
     const safeLimit =
-      Number.isInteger(limit) && limit > 0 ? Math.min(limit, 100) : 20;
+      Number.isInteger(
+        limit,
+      ) &&
+        limit > 0
+        ? Math.min(
+          limit,
+          100,
+        )
+        : 20;
 
-    const skip = (safePage - 1) * safeLimit;
+    const cacheKey =
+      CacheKeys.referralHistory(
+        userId,
+        {
+          page:
+            safePage,
 
-    const query = {
-      referrerUserId: new Types.ObjectId(userId),
-    };
+          limit:
+            safeLimit,
+        },
+      );
 
-    const [data, total] = await Promise.all([
-      ReferralReward.find(query)
-        .populate({
-          path: "referredUserId",
-          select: "name email phone",
-        })
-        .select({
-          referredUserId: 1,
-          referrerRewardAmount: 1,
-          referredRewardAmount: 1,
-          status: 1,
-          createdAt: 1,
-        })
-        .sort({
-          createdAt: -1,
-        })
-        .skip(skip)
-        .limit(safeLimit)
-        .lean(),
+    return RedisCacheService.getOrSet({
+      key:
+        cacheKey,
 
-      ReferralReward.countDocuments(query),
-    ]);
+      ttlSeconds:
+        CACHE_TTL_SECONDS
+          .REFERRAL_HISTORY,
 
-    return {
-      data,
-      total,
-      page: safePage,
-      limit: safeLimit,
-      totalPages: Math.ceil(total / safeLimit),
-    };
+      loader:
+        async () => {
+          const skip =
+            (
+              safePage -
+              1
+            ) *
+            safeLimit;
+
+          const query = {
+            referrerUserId:
+              new Types.ObjectId(
+                userId,
+              ),
+          };
+
+          const [
+            data,
+            total,
+          ] =
+            await Promise.all([
+              ReferralReward.find(
+                query,
+              )
+                .populate({
+                  path: "referredUserId",
+                  select:
+                    "fullName email phoneNumber",
+                })
+                .select({
+                  referredUserId:
+                    1,
+
+                  referrerRewardAmount:
+                    1,
+
+                  referredRewardAmount:
+                    1,
+
+                  status:
+                    1,
+
+                  createdAt:
+                    1,
+                })
+                .sort({
+                  createdAt:
+                    -1,
+                })
+                .skip(
+                  skip,
+                )
+                .limit(
+                  safeLimit,
+                )
+                .lean(),
+
+              ReferralReward.countDocuments(
+                query,
+              ),
+            ]);
+
+          return {
+            data,
+
+            total,
+
+            page:
+              safePage,
+
+            limit:
+              safeLimit,
+
+            totalPages:
+              Math.ceil(
+                total /
+                safeLimit,
+              ),
+          };
+        },
+    });
   }
 
   static async getReferralRewards(
@@ -315,52 +839,396 @@ export class ReferralRewardService {
     status?: RewardStatus,
   ) {
     if (userId) {
-      this.ensureValidObjectId(userId, "userId");
+      this.ensureValidObjectId(
+        userId,
+        "userId",
+      );
     }
 
-    const safePage = Number.isInteger(page) && page > 0 ? page : 1;
+    const safePage =
+      Number.isInteger(
+        page,
+      ) &&
+        page > 0
+        ? page
+        : 1;
 
     const safeLimit =
-      Number.isInteger(limit) && limit > 0 ? Math.min(limit, 100) : 20;
+      Number.isInteger(
+        limit,
+      ) &&
+        limit > 0
+        ? Math.min(
+          limit,
+          100,
+        )
+        : 20;
 
-    const skip = (safePage - 1) * safeLimit;
+    const cacheKey =
+      CacheKeys.referralRewardList({
+        userId,
 
-    const query: RewardQuery = {};
+        status,
 
-    if (userId) {
-      query.referrerUserId = userId;
+        page:
+          safePage,
+
+        limit:
+          safeLimit,
+      });
+
+    return RedisCacheService.getOrSet({
+      key:
+        cacheKey,
+
+      ttlSeconds:
+        CACHE_TTL_SECONDS
+          .REFERRAL_REWARD_LIST,
+
+      loader:
+        async () => {
+          const skip =
+            (
+              safePage -
+              1
+            ) *
+            safeLimit;
+
+          const query:
+            RewardQuery = {};
+
+          if (userId) {
+            query.referrerUserId =
+              userId;
+          }
+
+          if (status) {
+            query.status =
+              status;
+          }
+
+          const [
+            data,
+            total,
+          ] =
+            await Promise.all([
+              ReferralReward.find(
+                query,
+              )
+                .populate({
+                  path:
+                    "bookingId",
+
+                  select:
+                    "bookingReference status",
+                })
+                .populate({
+                  path: "referredUserId",
+                  select:
+                    "fullName email phoneNumber",
+                })
+                .sort({
+                  createdAt:
+                    -1,
+                })
+                .skip(
+                  skip,
+                )
+                .limit(
+                  safeLimit,
+                )
+                .lean(),
+
+              ReferralReward.countDocuments(
+                query,
+              ),
+            ]);
+
+          return {
+            data,
+
+            total,
+
+            page:
+              safePage,
+
+            limit:
+              safeLimit,
+
+            totalPages:
+              Math.ceil(
+                total /
+                safeLimit,
+              ),
+          };
+        },
+    });
+  }
+
+  static async exportReferralRewardsToCsv(
+    rewardIds: string[],
+  ) {
+    const uniqueRewardIds = [
+      ...new Set(rewardIds),
+    ];
+
+    /*
+     * Route validation already protects this,
+     * but keeping service validation makes the
+     * service safe when called from elsewhere.
+     */
+    if (
+      uniqueRewardIds.length === 0 ||
+      uniqueRewardIds.length > 1000
+    ) {
+      throw new Error(
+        "rewardIds must contain between 1 and 1000 reward IDs",
+      );
     }
 
-    if (status) {
-      query.status = status;
+    if (
+      !uniqueRewardIds.every((id) =>
+        Types.ObjectId.isValid(id),
+      )
+    ) {
+      throw new Error(
+        "One or more reward IDs are invalid",
+      );
     }
 
-    const [data, total] = await Promise.all([
-      ReferralReward.find(query)
+    const rewards =
+      await ReferralReward.find({
+        _id: {
+          $in: uniqueRewardIds,
+        },
+      })
         .populate({
-          path: "bookingId",
-          select: "bookingReference status",
+          path:
+            "referrerUserId",
+
+          select:
+            "userReference fullName email phoneNumber",
         })
         .populate({
-          path: "referredUserId",
-          select: "name email phone",
+          path:
+            "referredUserId",
+
+          select:
+            "userReference fullName email phoneNumber",
+        })
+        .populate({
+          path:
+            "bookingId",
+
+          select:
+            "bookingReference status",
+        })
+        .populate({
+          path:
+            "referrerCouponId",
+
+          select:
+            "couponCode",
+        })
+        .populate({
+          path:
+            "referredCouponId",
+
+          select:
+            "couponCode",
         })
         .sort({
-          createdAt: -1,
+          createdAt:
+            -1,
         })
-        .skip(skip)
-        .limit(safeLimit)
-        .lean(),
+        .lean();
 
-      ReferralReward.countDocuments(query),
-    ]);
+    if (
+      rewards.length === 0
+    ) {
+      throw new Error(
+        "No referral rewards found for export",
+      );
+    }
+
+    const escapeCsv = (
+      value: unknown,
+    ): string => {
+      if (
+        value === null ||
+        value === undefined
+      ) {
+        return "";
+      }
+
+      let stringValue =
+        String(value);
+
+      /*
+       * Protect exported CSV files from
+       * spreadsheet formula injection.
+       */
+      if (
+        /^[=+\-@]/.test(
+          stringValue,
+        )
+      ) {
+        stringValue =
+          `'${stringValue}`;
+      }
+
+      if (
+        stringValue.includes(",") ||
+        stringValue.includes('"') ||
+        stringValue.includes("\n") ||
+        stringValue.includes("\r")
+      ) {
+        return `"${stringValue.replace(
+          /"/g,
+          '""',
+        )}"`;
+      }
+
+      return stringValue;
+    };
+
+    const getPopulatedValue = (
+      value: unknown,
+    ): Record<string, any> | null => {
+      if (
+        value &&
+        typeof value === "object" &&
+        !Array.isArray(value)
+      ) {
+        return value as Record<
+          string,
+          any
+        >;
+      }
+
+      return null;
+    };
+
+    const headers = [
+      "Reward ID",
+
+      "Referrer Reference",
+      "Referrer Name",
+      "Referrer Email",
+      "Referrer Phone",
+
+      "Referred User Reference",
+      "Referred User Name",
+      "Referred User Email",
+      "Referred User Phone",
+
+      "Booking Reference",
+      "Booking Status",
+
+      "Referrer Reward Amount",
+      "Referred Reward Amount",
+
+      "Referrer Coupon Code",
+      "Referred Coupon Code",
+
+      "Reward Status",
+      "Created At",
+    ];
+
+    const rows =
+      rewards.map(
+        (reward) => {
+          const referrer =
+            getPopulatedValue(
+              reward.referrerUserId,
+            );
+
+          const referredUser =
+            getPopulatedValue(
+              reward.referredUserId,
+            );
+
+          const booking =
+            getPopulatedValue(
+              reward.bookingId,
+            );
+
+          const referrerCoupon =
+            getPopulatedValue(
+              reward.referrerCouponId,
+            );
+
+          const referredCoupon =
+            getPopulatedValue(
+              reward.referredCouponId,
+            );
+
+          return [
+            reward._id.toString(),
+
+            referrer
+              ?.userReference,
+            referrer
+              ?.fullName,
+            referrer
+              ?.email,
+            referrer
+              ?.phoneNumber,
+
+            referredUser
+              ?.userReference,
+            referredUser
+              ?.fullName,
+            referredUser
+              ?.email,
+            referredUser
+              ?.phoneNumber,
+
+            booking
+              ?.bookingReference,
+            booking
+              ?.status,
+
+            reward
+              .referrerRewardAmount,
+
+            reward
+              .referredRewardAmount,
+
+            referrerCoupon
+              ?.couponCode,
+
+            referredCoupon
+              ?.couponCode,
+
+            reward.status,
+
+            reward.createdAt
+              ? new Date(
+                reward.createdAt,
+              ).toISOString()
+              : "",
+          ];
+        },
+      );
+
+    const csv = [
+      headers
+        .map(escapeCsv)
+        .join(","),
+
+      ...rows.map(
+        (row) =>
+          row
+            .map(escapeCsv)
+            .join(","),
+      ),
+    ].join("\n");
 
     return {
-      data,
-      total,
-      page: safePage,
-      limit: safeLimit,
-      totalPages: Math.ceil(total / safeLimit),
+      csv,
+      total:
+        rewards.length,
     };
   }
 }

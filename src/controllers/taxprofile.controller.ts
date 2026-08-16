@@ -8,6 +8,22 @@ import {
 } from "../services/taxprofile.service.js";
 import type { TaxTreatment } from "../types/tax.types.js";
 
+const getStatusCode = (error: any): number => {
+  if (typeof error?.statusCode === "number") {
+    return error.statusCode;
+  }
+
+  if (error?.name === "ValidationError") {
+    return 400;
+  }
+
+  if (error?.code === 11000) {
+    return 409;
+  }
+
+  return 500;
+};
+
 function getAuthenticatedUserId(req: Request): string | null {
   const userId = req.user?.userId;
 
@@ -45,8 +61,11 @@ export class TaxProfileController {
         message: "Tax profile created successfully",
         data: taxProfile,
       });
-    } catch (error: unknown) {
-      return next(error);
+    } catch (error: any) {
+      return res.status(getStatusCode(error)).json({
+        success: false,
+        message: error.message || "Failed to create tax profile",
+      });
     }
   }
 
@@ -93,8 +112,11 @@ export class TaxProfileController {
         message: "Tax profiles fetched successfully",
         ...result,
       });
-    } catch (error: unknown) {
-      return next(error);
+    } catch (error: any) {
+      return res.status(getStatusCode(error)).json({
+        success: false,
+        message: error.message || "Failed to list tax profile",
+      });
     }
   }
 
@@ -107,8 +129,11 @@ export class TaxProfileController {
         message: "Active tax profiles fetched successfully",
         data: taxProfiles,
       });
-    } catch (error: unknown) {
-      return next(error);
+    } catch (error: any) {
+      return res.status(getStatusCode(error)).json({
+        success: false,
+        message: error.message || "Failed to list active tax profile",
+      });
     }
   }
 
@@ -122,8 +147,11 @@ export class TaxProfileController {
         success: true,
         data: taxProfile,
       });
-    } catch (error: unknown) {
-      return next(error);
+    } catch (error: any) {
+      return res.status(getStatusCode(error)).json({
+        success: false,
+        message: error.message || "Failed to get tax profile",
+      });
     }
   }
 
@@ -168,8 +196,11 @@ export class TaxProfileController {
         message: "Tax profile updated successfully",
         data: taxProfile,
       });
-    } catch (error: unknown) {
-      return next(error);
+    } catch (error: any) {
+      return res.status(getStatusCode(error)).json({
+        success: false,
+        message: error.message || "Failed to update tax profile",
+      });
     }
   }
 
@@ -197,6 +228,49 @@ export class TaxProfileController {
           : "Tax profile deactivated successfully",
         data: taxProfile,
       });
+    } catch (error: any) {
+      return res.status(getStatusCode(error)).json({
+        success: false,
+        message: error.message || "Failed to update status tax profile",
+      });
+    }
+  }
+
+  static async exportCsv(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ) {
+    try {
+      const {
+        taxProfileIds,
+      }: {
+        taxProfileIds: string[];
+      } = req.body;
+
+      const result =
+        await TaxProfileService.exportTaxProfilesToCsv(
+          taxProfileIds,
+        );
+
+      const timestamp =
+        new Date()
+          .toISOString()
+          .replace(/[:.]/g, "-");
+
+      res.setHeader(
+        "Content-Type",
+        "text/csv; charset=utf-8",
+      );
+
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename="tax-profiles-${timestamp}.csv"`,
+      );
+
+      return res
+        .status(200)
+        .send(result.csv);
     } catch (error: unknown) {
       return next(error);
     }

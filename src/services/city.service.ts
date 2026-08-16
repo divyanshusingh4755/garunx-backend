@@ -2,6 +2,9 @@ import { Types, type QueryFilter, type SortOrder } from "mongoose";
 import { City, type ICity, type IGeoPoint } from "../models/city.model.js";
 import { State } from "../models/state.model.js";
 import { escapeRegex } from "../utils/escapeRegex.js";
+import { RedisCacheService } from "./redis-cache.service.js";
+import { CacheKeys } from "../cache/cache-keys.js";
+import { CACHE_TTL_SECONDS } from "../cache/constants.js";
 
 type CityUpdate = Partial<
   Pick<
@@ -22,6 +25,40 @@ const createHttpError = (message: string, statusCode: number) => {
 };
 
 export class CityService {
+  private static async invalidateCityCache(
+    cityId?: string,
+  ): Promise<void> {
+    const operations: Promise<unknown>[] = [
+      RedisCacheService.deleteByPattern(
+        CacheKeys.cityListPattern(),
+      ),
+
+      RedisCacheService.deleteByPattern(
+        CacheKeys.locationListPattern(),
+      ),
+
+      RedisCacheService.deleteByPattern(
+        CacheKeys.locationDetailPattern(),
+      ),
+
+      RedisCacheService.deleteByPattern(
+        CacheKeys.locationIdsPattern(),
+      ),
+    ];
+
+    if (cityId) {
+      operations.push(
+        RedisCacheService.delete(
+          CacheKeys.cityDetail(
+            cityId,
+          ),
+        ),
+      );
+    }
+
+    await Promise.all(operations);
+  }
+
   private static applyStringFilter(
     filterValue?: string,
   ): { $in: string[] } | undefined {
@@ -68,36 +105,44 @@ export class CityService {
       throw createHttpError("State does not belong to country", 400);
     }
 
-    return City.create({
-      name,
-      country,
-      stateId,
+    const city =
+      await City.create({
+        name,
+        country,
+        stateId,
 
-      ...(image !== undefined && {
-        image,
-      }),
+        ...(image !== undefined && {
+          image,
+        }),
 
-      ...(description !== undefined && {
-        description,
-      }),
+        ...(description !== undefined && {
+          description,
+        }),
 
-      ...(location !== undefined && {
-        location,
-      }),
-    });
+        ...(location !== undefined && {
+          location,
+        }),
+      });
+
+    await this.invalidateCityCache();
+
+    return city;
   }
 
-  static async findCity(params: {
-    searchTerm?: string;
-    cityFilter?: string;
-    stateIdFilter?: string;
-    countryFilter?: string;
-    limit?: number;
-    page?: number;
-    isActive?: boolean;
-    sortBy?: string;
-    sortOrder?: "asc" | "desc";
-  }) {
+  static async findCity(
+    params: {
+      searchTerm?: string;
+      cityFilter?: string;
+      stateIdFilter?: string;
+      countryFilter?: string;
+      limit?: number;
+      page?: number;
+      isActive?: boolean;
+      sortBy?: string;
+      sortOrder?:
+      "asc" | "desc";
+    },
+  ) {
     const {
       searchTerm,
       cityFilter,
@@ -110,92 +155,241 @@ export class CityService {
       sortOrder = "desc",
     } = params;
 
-    const safeLimit = Math.min(Math.max(limit, 1), 100);
-    const safePage = Math.max(page, 1);
-    const skip = (safePage - 1) * safeLimit;
+    const safeLimit =
+      Math.min(
+        Math.max(
+          limit,
+          1,
+        ),
+        100,
+      );
 
-    const query: QueryFilter<ICity> = {};
+    const safePage =
+      Math.max(
+        page,
+        1,
+      );
 
-    if (typeof isActive === "boolean") {
-      query.isActive = isActive;
-    }
+    const term =
+      searchTerm?.trim();
 
-    const cityQuery = this.applyStringFilter(cityFilter);
-    const stateQuery = this.applyObjectIdFilter(stateIdFilter);
-    const countryQuery = this.applyStringFilter(countryFilter);
+    const isTextSearch =
+      Boolean(
+        term &&
+        term.length >
+        4,
+      );
 
-    if (cityQuery) query.name = cityQuery;
-    if (stateQuery) query.stateId = stateQuery;
-    if (countryQuery) query.country = countryQuery;
-
-    const term = searchTerm?.trim();
-    const isTextSearch = Boolean(term && term.length > 4);
-
-    if (term) {
-      if (isTextSearch) {
-        query.$text = {
-          $search: term,
-        };
-      } else {
-        query.name = {
-          $regex: `^${escapeRegex(term)}`,
-          $options: "i",
-        };
-      }
-    }
-
-    let projection: Record<string, unknown> | undefined;
-
-    let sortCriteria: Record<string, SortOrder | { $meta: "textScore" }>;
-
-    if (isTextSearch && sortBy === "relevance") {
-      projection = {
-        score: {
-          $meta: "textScore",
-        },
-      };
-
-      sortCriteria = {
-        score: {
-          $meta: "textScore",
-        },
-      };
-    } else {
-      const allowedSortFields = new Set([
+    const allowedSortFields =
+      new Set([
         "name",
         "country",
         "createdAt",
         "updatedAt",
       ]);
 
-      const safeSortBy = allowedSortFields.has(sortBy) ? sortBy : "createdAt";
+    const safeSortBy =
+      isTextSearch &&
+        sortBy ===
+        "relevance"
+        ? "relevance"
+        : allowedSortFields.has(
+          sortBy,
+        )
+          ? sortBy
+          : "createdAt";
 
-      sortCriteria = {
-        [safeSortBy]: sortOrder === "asc" ? 1 : -1,
-      };
+    const cacheKey =
+      CacheKeys.cityList({
+        searchTerm,
+        cityFilter,
+        stateIdFilter,
+        countryFilter,
+        limit:
+          safeLimit,
+        page:
+          safePage,
+        isActive,
+        sortBy:
+          safeSortBy,
+        sortOrder,
+      });
 
-      if (safeSortBy !== "createdAt") {
-        sortCriteria.createdAt = -1;
-      }
-    }
+    return RedisCacheService.getOrSet({
+      key:
+        cacheKey,
 
-    const [data, total] = await Promise.all([
-      City.find(query, projection)
-        .populate("stateId", "name")
-        .sort(sortCriteria)
-        .skip(skip)
-        .limit(safeLimit)
-        .lean(),
+      ttlSeconds:
+        CACHE_TTL_SECONDS
+          .CITY_LIST,
 
-      City.countDocuments(query),
-    ]);
+      loader:
+        async () => {
+          const skip =
+            (safePage - 1) *
+            safeLimit;
 
-    return {
-      data,
-      total,
-      page: safePage,
-      totalPages: Math.ceil(total / safeLimit),
-    };
+          const query:
+            QueryFilter<ICity> =
+            {};
+
+          if (
+            typeof isActive ===
+            "boolean"
+          ) {
+            query.isActive =
+              isActive;
+          }
+
+          const cityQuery =
+            this.applyStringFilter(
+              cityFilter,
+            );
+
+          const stateQuery =
+            this.applyObjectIdFilter(
+              stateIdFilter,
+            );
+
+          const countryQuery =
+            this.applyStringFilter(
+              countryFilter,
+            );
+
+          if (countryQuery) {
+            query.country = countryQuery;
+          }
+
+          if (stateQuery) {
+            query.stateId = stateQuery;
+          }
+
+          if (term && !isTextSearch) {
+            const nameSearch = {
+              $regex: `^${escapeRegex(term)}`,
+              $options: "i",
+            };
+
+            if (cityQuery) {
+              query.$and = [
+                {
+                  name: cityQuery,
+                },
+                {
+                  name: nameSearch,
+                },
+              ];
+            } else {
+              query.name = nameSearch;
+            }
+          } else {
+            if (cityQuery) {
+              query.name = cityQuery;
+            }
+
+            if (term && isTextSearch) {
+              query.$text = {
+                $search: term,
+              };
+            }
+          }
+
+          let projection:
+            Record<
+              string,
+              unknown
+            > |
+            undefined;
+
+          let sortCriteria:
+            Record<
+              string,
+              SortOrder | {
+                $meta:
+                "textScore";
+              }
+            >;
+
+          if (
+            isTextSearch &&
+            safeSortBy ===
+            "relevance"
+          ) {
+            projection = {
+              score: {
+                $meta:
+                  "textScore",
+              },
+            };
+
+            sortCriteria = {
+              score: {
+                $meta:
+                  "textScore",
+              },
+            };
+          } else {
+            sortCriteria = {
+              [safeSortBy]:
+                sortOrder ===
+                  "asc"
+                  ? 1
+                  : -1,
+            };
+
+            if (
+              safeSortBy !==
+              "createdAt"
+            ) {
+              sortCriteria.createdAt =
+                -1;
+            }
+          }
+
+          const [
+            data,
+            total,
+          ] =
+            await Promise.all([
+              City.find(
+                query,
+                projection,
+              )
+                .populate(
+                  "stateId",
+                  "name",
+                )
+                .sort(
+                  sortCriteria,
+                )
+                .skip(
+                  skip,
+                )
+                .limit(
+                  safeLimit,
+                )
+                .lean(),
+
+              City.countDocuments(
+                query,
+              ),
+            ]);
+
+          return {
+            data,
+            total,
+
+            page:
+              safePage,
+
+            totalPages:
+              Math.ceil(
+                total /
+                safeLimit,
+              ),
+          };
+        },
+    });
   }
 
   static async updateCity(cityId: string, updateData: CityUpdate) {
@@ -239,6 +433,10 @@ export class CityService {
       throw createHttpError("City not found", 404);
     }
 
+    await this.invalidateCityCache(
+      cityId,
+    );
+
     return updatedCity;
   }
 
@@ -260,16 +458,216 @@ export class CityService {
       throw createHttpError("City not found", 404);
     }
 
+    await this.invalidateCityCache(
+      cityId,
+    );
+
     return updatedCity;
   }
 
-  static async getCityById(cityId: string) {
-    const city = await City.findById(cityId).populate("stateId", "name").lean();
+  static async getCityById(
+    cityId:
+      string,
+  ) {
+    return RedisCacheService.getOrSet({
+      key:
+        CacheKeys.cityDetail(
+          cityId,
+        ),
 
-    if (!city) {
-      throw createHttpError("City not found", 404);
+      ttlSeconds:
+        CACHE_TTL_SECONDS
+          .CITY_DETAIL,
+
+      loader:
+        async () => {
+          const city =
+            await City.findById(
+              cityId,
+            )
+              .populate(
+                "stateId",
+                "name",
+              )
+              .lean();
+
+          if (
+            !city
+          ) {
+            throw createHttpError(
+              "City not found",
+              404,
+            );
+          }
+
+          return city;
+        },
+    });
+  }
+
+  static async exportCitiesToCsv(
+    cityIds?: string[],
+  ) {
+    const query:
+      QueryFilter<ICity> = {};
+
+    /*
+     * cityIds omitted:
+     * export ALL cities.
+     *
+     * cityIds supplied:
+     * export only selected cities.
+     */
+    if (cityIds !== undefined) {
+      const uniqueCityIds = [
+        ...new Set(cityIds),
+      ];
+
+      query._id = {
+        $in: uniqueCityIds,
+      };
     }
 
-    return city;
+    const cities =
+      await City.find(query)
+        .select(
+          [
+            "_id",
+            "name",
+            "country",
+            "stateId",
+            "image",
+            "description",
+            "isActive",
+            "location",
+            "createdAt",
+            "updatedAt",
+          ].join(" "),
+        )
+        .sort({
+          name: 1,
+          createdAt: -1,
+        })
+        .lean();
+
+    if (cities.length === 0) {
+      throw createHttpError(
+        "No cities found for export",
+        404,
+      );
+    }
+
+    const escapeCsv = (
+      value: unknown,
+    ): string => {
+      if (
+        value === null ||
+        value === undefined
+      ) {
+        return "";
+      }
+
+      let stringValue =
+        String(value);
+
+      /*
+       * Prevent spreadsheet applications
+       * from interpreting exported values
+       * as formulas.
+       */
+      if (
+        /^[=+\-@]/.test(
+          stringValue,
+        )
+      ) {
+        stringValue =
+          `'${stringValue}`;
+      }
+
+      if (
+        stringValue.includes(",") ||
+        stringValue.includes('"') ||
+        stringValue.includes("\n") ||
+        stringValue.includes("\r")
+      ) {
+        return `"${stringValue.replace(
+          /"/g,
+          '""',
+        )}"`;
+      }
+
+      return stringValue;
+    };
+
+    const headers = [
+      "City ID",
+      "City Name",
+      "Country",
+      "State ID",
+      "Active",
+      "Longitude",
+      "Latitude",
+      "Image",
+      "Description",
+      "Created At",
+      "Updated At",
+    ];
+
+    const rows =
+      cities.map(
+        (city) => [
+          city._id.toString(),
+
+          city.name,
+
+          city.country,
+
+          city.stateId.toString(),
+
+          city.isActive,
+
+          city.location
+            ?.coordinates?.[0] ??
+          "",
+
+          city.location
+            ?.coordinates?.[1] ??
+          "",
+
+          city.image ?? "",
+
+          city.description ?? "",
+
+          city.createdAt
+            ? new Date(
+              city.createdAt,
+            ).toISOString()
+            : "",
+
+          city.updatedAt
+            ? new Date(
+              city.updatedAt,
+            ).toISOString()
+            : "",
+        ],
+      );
+
+    const csv = [
+      headers
+        .map(escapeCsv)
+        .join(","),
+
+      ...rows.map(
+        (row) =>
+          row
+            .map(escapeCsv)
+            .join(","),
+      ),
+    ].join("\n");
+
+    return {
+      csv,
+      total: cities.length,
+    };
   }
 }

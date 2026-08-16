@@ -8,4 +8,5 @@ export declare const deleteFamilyMember: (req: Request, res: Response) => Promis
 export declare const getFamilyTreeActivities: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
 export declare const getFamilyMemberActivities: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
 export declare const restoreFamilyMember: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
+export declare const exportFamilyMembersCsv: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
 //# sourceMappingURL=family-tree-controllers.d.ts.map

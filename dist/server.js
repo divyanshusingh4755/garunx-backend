@@ -56,6 +56,11 @@ const startServer = async () => {
     await connectDB();
     server = createServer(app);
     io = initializeSocket(server);
+    /*
+     * Workers may depend on MongoDB and Socket.IO.
+     * Start them only after both are initialized.
+     */
+    await import("./workers/index.js");
     startCartCronJobs();
     startBookingCronJobs();
     startNotificationReminderJob();

@@ -641,23 +641,58 @@ const exportUsersValidation = [
   validate,
 ];
 
+// =========================================================
 // PUBLIC AUTH
+// =========================================================
 
-router.post("/register", registerValidation, register);
+router.post(
+  "/register",
+  registerValidation,
+  register,
+);
 
-router.post("/verify-otp", otpRateLimiter, verifyOtpValidation, verifyOtp);
+router.post(
+  "/verify-otp",
+  otpRateLimiter,
+  verifyOtpValidation,
+  verifyOtp,
+);
 
-router.post("/resend-otp", otpRateLimiter, resendOtpValidation, resendOtp);
+router.post(
+  "/resend-otp",
+  otpRateLimiter,
+  resendOtpValidation,
+  resendOtp,
+);
 
-router.post("/login", authRateLimiter, loginValidation, login);
+router.post(
+  "/login",
+  authRateLimiter,
+  loginValidation,
+  login,
+);
 
-router.post("/social", authRateLimiter, socialRegisterValidation, socialAuth);
+router.post(
+  "/social",
+  authRateLimiter,
+  socialRegisterValidation,
+  socialAuth,
+);
 
-router.post("/refresh-token", refreshToken);
+router.post(
+  "/refresh-token",
+  refreshToken,
+);
 
-router.post("/logout", logout);
+router.post(
+  "/logout",
+  logout,
+);
 
+
+// =========================================================
 // PASSWORD RECOVERY
+// =========================================================
 
 router.post(
   "/forgot-password",
@@ -673,31 +708,27 @@ router.post(
   resetPassword,
 );
 
-router.post(
-  "/admin",
-  authenticate,
-  authorizeRoles(Role.ADMIN),
-  requirePermission("admin.create"),
-  createAdminValidation,
-  createAdmin,
-);
 
-router.post(
-  "/export-users",
-  authenticate,
-  authorizeRoles(Role.ADMIN),
-  requirePermission("user.export"),
-  exportUsersValidation,
-  exportUsersCsv,
-);
-
+// =========================================================
 // PROFILE COMPLETION
+// =========================================================
 
-router.patch("/complete-profile", profileValidation, completeProfile);
+router.patch(
+  "/complete-profile",
+  profileValidation,
+  completeProfile,
+);
 
-// CURRENT USER
 
-router.get("/me", authenticate, getCurrentUser);
+// =========================================================
+// CURRENT AUTHENTICATED USER
+// =========================================================
+
+router.get(
+  "/me",
+  authenticate,
+  getCurrentUser,
+);
 
 router.patch(
   "/update-profile",
@@ -724,12 +755,17 @@ router.patch(
   submitVerificationDocuments,
 );
 
+
+// =========================================================
 // COORDINATOR SELF-MANAGEMENT
+// =========================================================
 
 router.patch(
   "/coordinator/availability",
   authenticate,
-  authorizeRoles(Role.COORDINATOR),
+  authorizeRoles(
+    Role.COORDINATOR,
+  ),
   coordinatorAvailabilityValidation,
   updateCoordinatorAvailability,
 );
@@ -737,51 +773,62 @@ router.patch(
 router.put(
   "/coordinator/serviceable-locations",
   authenticate,
-  authorizeRoles(Role.COORDINATOR),
+  authorizeRoles(
+    Role.COORDINATOR,
+  ),
   serviceableLocationsValidation,
   updateServiceableLocations,
 );
 
-// ADMIN USERS
+
+// =========================================================
+// ADMIN - STATIC ROUTES
+// =========================================================
+
+router.post(
+  "/admin",
+  authenticate,
+  authorizeRoles(
+    Role.ADMIN,
+  ),
+  requirePermission(
+    "admin.create",
+  ),
+  createAdminValidation,
+  createAdmin,
+);
+
+router.post(
+  "/export-users",
+  authenticate,
+  authorizeRoles(
+    Role.ADMIN,
+  ),
+  requirePermission(
+    "user.export",
+  ),
+  exportUsersValidation,
+  exportUsersCsv,
+);
 
 router.get(
   "/get-all-user",
   authenticate,
-  authorizeRoles(Role.ADMIN),
-  requirePermission("user.read"),
+  authorizeRoles(
+    Role.ADMIN,
+  ),
+  requirePermission(
+    "user.read",
+  ),
   getAllUsers,
-);
-
-router.get(
-  "/get-user-by-email-or-phone/:identifier",
-  authenticate,
-  authorizeRoles(Role.ADMIN),
-  requirePermission("user.read"),
-  getUserByEmailOrPhone,
-);
-
-router.get(
-  "/get-user-by-id/:id",
-  authenticate,
-  authorizeRoles(Role.ADMIN),
-  requirePermission("user.read"),
-  getUserById,
-);
-
-router.patch(
-  "/deactivate-user/:id",
-  authenticate,
-  authorizeRoles(Role.ADMIN),
-  requirePermission("user.status"),
-  body("status").isBoolean().withMessage("Status must be boolean").toBoolean(),
-  validate,
-  deactivateUser,
 );
 
 router.patch(
   "/verify-documents",
   authenticate,
-  authorizeRoles(Role.ADMIN),
+  authorizeRoles(
+    Role.ADMIN,
+  ),
   requirePermission(
     "user.verify_documents",
   ),
@@ -789,30 +836,86 @@ router.patch(
   approveOrRejectDocs,
 );
 
-// ADMIN COORDINATORS
 
+// =========================================================
+// ADMIN - USER PARAMETERIZED ROUTES
+// =========================================================
+
+router.get(
+  "/get-user-by-email-or-phone/:identifier",
+  authenticate,
+  authorizeRoles(
+    Role.ADMIN,
+  ),
+  requirePermission(
+    "user.read",
+  ),
+  getUserByEmailOrPhone,
+);
+
+router.get(
+  "/get-user-by-id/:id",
+  authenticate,
+  authorizeRoles(
+    Role.ADMIN,
+  ),
+  requirePermission(
+    "user.read",
+  ),
+  getUserById,
+);
+
+router.patch(
+  "/deactivate-user/:id",
+  authenticate,
+  authorizeRoles(
+    Role.ADMIN,
+  ),
+  requirePermission(
+    "user.status",
+  ),
+  body("status")
+    .isBoolean()
+    .withMessage(
+      "Status must be boolean",
+    )
+    .toBoolean(),
+  validate,
+  deactivateUser,
+);
+
+
+// =========================================================
+// ADMIN - COORDINATORS
+// =========================================================
+
+/*
+ * Static coordinator collection route first.
+ */
 router.get(
   "/coordinators",
   authenticate,
-  authorizeRoles(Role.ADMIN),
-  requirePermission("coordinator.read"),
+  authorizeRoles(
+    Role.ADMIN,
+  ),
+  requirePermission(
+    "coordinator.read",
+  ),
   coordinatorListValidation,
   getCoordinators,
 );
 
-router.get(
-  "/coordinators/:coordinatorId",
-  authenticate,
-  authorizeRoles(Role.ADMIN),
-  requirePermission("coordinator.read"),
-  coordinatorIdValidation,
-  getCoordinatorById,
-);
+/*
+ * More specific coordinator actions before
+ * the generic /:coordinatorId route.
+ */
 
 router.patch(
   "/coordinators/:coordinatorId/approval",
   authenticate,
-  authorizeRoles(Role.ADMIN),
+  authorizeRoles(
+    Role.ADMIN,
+  ),
   requirePermission(
     "coordinator.approve",
   ),
@@ -823,7 +926,9 @@ router.patch(
 router.patch(
   "/coordinators/:coordinatorId/settings",
   authenticate,
-  authorizeRoles(Role.ADMIN),
+  authorizeRoles(
+    Role.ADMIN,
+  ),
   requirePermission(
     "coordinator.settings",
   ),
@@ -831,10 +936,41 @@ router.patch(
   updateCoordinatorSettings,
 );
 
+/*
+ * Generic coordinator detail route last.
+ */
+router.get(
+  "/coordinators/:coordinatorId",
+  authenticate,
+  authorizeRoles(
+    Role.ADMIN,
+  ),
+  requirePermission(
+    "coordinator.read",
+  ),
+  coordinatorIdValidation,
+  getCoordinatorById,
+);
+
+
+// =========================================================
 // UPLOADS
+// =========================================================
 
-router.post("/upload-single", upload.single("image"), uploadSingle);
+router.post(
+  "/upload-single",
+  upload.single("image"),
+  uploadSingle,
+);
 
-router.post("/upload-multiple", upload.array("images", 5), uploadMutliple);
+router.post(
+  "/upload-multiple",
+  upload.array(
+    "images",
+    5,
+  ),
+  uploadMutliple,
+);
+
 
 export default router;

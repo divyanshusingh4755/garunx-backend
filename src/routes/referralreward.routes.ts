@@ -5,13 +5,14 @@ import {
   type NextFunction,
 } from "express";
 
-import { query, validationResult } from "express-validator";
+import { body, query, validationResult } from "express-validator";
 
 import {
   getReferralInfo,
   getReferralHistory,
   getReferralRewards,
   getReferralStats,
+  exportReferralRewardsCsv,
 } from "../controllers/referralreward.controllers.js";
 
 import { authenticate } from "../middleware/authenticate.js";
@@ -76,13 +77,34 @@ const rewardsValidation = [
   validate,
 ];
 
+const exportRewardsValidation = [
+  body("rewardIds")
+    .isArray({
+      min: 1,
+      max: 1000,
+    })
+    .withMessage(
+      "rewardIds must contain between 1 and 1000 reward IDs",
+    ),
+
+  body("rewardIds.*")
+    .isMongoId()
+    .withMessage(
+      "Each rewardId must be a valid MongoDB ID",
+    ),
+
+  validate,
+];
+
+// =========================================================
+// USER - REFERRAL INFO
+// =========================================================
+
 router.get(
-  "/rewards",
+  "/",
   authenticate,
-  authorizeRoles(Role.ADMIN),
-  requirePermission("referral_reward.read"),
-  rewardsValidation,
-  getReferralRewards,
+  authorizeRoles(Role.USER),
+  getReferralInfo,
 );
 
 router.get(
@@ -100,11 +122,28 @@ router.get(
   getReferralHistory,
 );
 
+
+// =========================================================
+// ADMIN - REFERRAL REWARDS
+// =========================================================
+
 router.get(
-  "/",
+  "/rewards",
   authenticate,
-  authorizeRoles(Role.USER),
-  getReferralInfo,
+  authorizeRoles(Role.ADMIN),
+  requirePermission("referral_reward.read"),
+  rewardsValidation,
+  getReferralRewards,
 );
+
+router.post(
+  "/export",
+  authenticate,
+  authorizeRoles(Role.ADMIN),
+  requirePermission("referral_reward.export"),
+  exportRewardsValidation,
+  exportReferralRewardsCsv,
+);
+
 
 export default router;

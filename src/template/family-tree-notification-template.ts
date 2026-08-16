@@ -1,0 +1,89 @@
+import type {
+    NotificationCategory,
+    NotificationPreferenceMode,
+} from "../models/notification-template.model.js";
+
+import type {
+    NotificationType,
+} from "../models/notification.model.js";
+
+interface FamilyTreeNotificationTemplateSeed {
+    code: string;
+    type: NotificationType;
+    category: NotificationCategory;
+    preferenceMode: NotificationPreferenceMode;
+    title: string;
+    message: string;
+    emailSubject?: string;
+    emailBody?: string;
+    pushTitle?: string;
+    pushMessage?: string;
+    isActive: boolean;
+}
+
+export const FAMILY_TREE_NOTIFICATION_TEMPLATES:
+    FamilyTreeNotificationTemplateSeed[] = [
+        {
+            code: "FAMILY_TREE_MEMBER_ADDED",
+            type: "SYSTEM",
+            category: "SYSTEM",
+            preferenceMode: "REQUIRED",
+            title: "Family tree updated",
+            message:
+                "{{fullName}} was added to your family tree by {{actorLabel}}{{bookingContext}}.",
+            pushTitle:
+                "Family tree updated",
+            pushMessage:
+                "{{fullName}} was added to your family tree.",
+            isActive: true,
+        },
+
+        {
+            code: "FAMILY_TREE_MEMBER_UPDATED",
+            type: "SYSTEM",
+            category: "SYSTEM",
+            preferenceMode: "REQUIRED",
+            title: "Family tree updated",
+            message:
+                "{{fullName}} was updated by {{actorLabel}}{{bookingContext}}. Updated fields: {{changedFields}}.",
+            pushTitle:
+                "Family member updated",
+            pushMessage:
+                "{{fullName}} was updated in your family tree.",
+            isActive: true,
+        },
+
+        {
+            code: "FAMILY_TREE_MEMBER_DELETED",
+            type: "SYSTEM",
+            category: "SYSTEM",
+            preferenceMode: "REQUIRED",
+            title: "Family member removed",
+            message:
+                "{{fullName}} was removed from your family tree by {{actorLabel}}{{bookingContext}}. Reason: {{reason}}.",
+            emailSubject:
+                "A family member was removed from your family tree",
+            emailBody:
+                "{{fullName}} was removed from your family tree by {{actorLabel}}{{bookingContext}}. Reason: {{reason}}.",
+            pushTitle:
+                "Family member removed",
+            pushMessage:
+                "{{fullName}} was removed from your family tree.",
+            isActive: true,
+        },
+
+        {
+            code: "FAMILY_TREE_MEMBER_RESTORED",
+            type: "SYSTEM",
+            category: "SYSTEM",
+            preferenceMode: "REQUIRED",
+            title: "Family member restored",
+            message:
+                "{{fullName}} was restored to your family tree by {{actorLabel}}{{bookingContext}}.",
+            pushTitle:
+                "Family member restored",
+            pushMessage:
+                "{{fullName}} was restored to your family tree.",
+            isActive: true,
+        },
+    ];

@@ -9,6 +9,7 @@ import { authenticate } from "../middleware/authenticate.js";
 import {
   createState,
   deleteState,
+  exportStatesCsv,
   getAllState,
   getAllStatesAdmin,
   getStateById,
@@ -207,7 +208,8 @@ const statusValidation = [
     .exists({ checkNull: true })
     .withMessage("status is required")
     .isBoolean()
-    .withMessage("status must be a boolean"),
+    .withMessage("status must be a boolean")
+    .toBoolean(),
 
   validate,
 ];
@@ -240,6 +242,92 @@ const publicStateListValidation = [
     ])
     .withMessage("Invalid sortBy value"),
 
+  query("searchTerm")
+    .optional()
+    .isString()
+    .trim()
+    .isLength({ max: 100 })
+    .withMessage(
+      "searchTerm cannot exceed 100 characters",
+    ),
+
+  query("countryFilter")
+    .optional()
+    .isString()
+    .trim()
+    .isLength({ max: 500 })
+    .withMessage(
+      "countryFilter cannot exceed 500 characters",
+    ),
+
+  query("stateFilter")
+    .optional()
+    .isString()
+    .trim()
+    .isLength({ max: 500 })
+    .withMessage(
+      "stateFilter cannot exceed 500 characters",
+    ),
+
+  validate,
+];
+
+const exportStatesValidation = [
+  body("exportAll")
+    .optional()
+    .isBoolean()
+    .withMessage("exportAll must be a boolean")
+    .toBoolean(),
+
+  body("stateIds")
+    .optional()
+    .isArray({
+      min: 1,
+      max: 1000,
+    })
+    .withMessage(
+      "stateIds must contain between 1 and 1000 state IDs",
+    ),
+
+  body("stateIds.*")
+    .optional()
+    .isMongoId()
+    .withMessage(
+      "Each stateId must be a valid MongoDB ID",
+    ),
+
+  body().custom((value) => {
+    const exportAll =
+      value?.exportAll === true;
+
+    const stateIds =
+      value?.stateIds;
+
+    if (
+      exportAll &&
+      Array.isArray(stateIds) &&
+      stateIds.length > 0
+    ) {
+      throw new Error(
+        "Provide either exportAll=true or stateIds, not both",
+      );
+    }
+
+    if (
+      !exportAll &&
+      (
+        !Array.isArray(stateIds) ||
+        stateIds.length === 0
+      )
+    ) {
+      throw new Error(
+        "Provide stateIds or set exportAll to true",
+      );
+    }
+
+    return true;
+  }),
+
   validate,
 ];
 
@@ -254,11 +342,20 @@ const adminStateListValidation = [
   validate,
 ];
 
+// =========================================================
+// PUBLIC
+// =========================================================
+
 router.get(
   "/get-all-state",
   publicStateListValidation,
   getAllState,
 );
+
+
+// =========================================================
+// ADMIN - STATIC ROUTES
+// =========================================================
 
 router.get(
   "/admin",
@@ -278,6 +375,20 @@ router.post(
   createState,
 );
 
+router.post(
+  "/export",
+  authenticate,
+  authorizeRoles(Role.ADMIN),
+  requirePermission("state.export"),
+  exportStatesValidation,
+  exportStatesCsv,
+);
+
+
+// =========================================================
+// ADMIN - PREFIXED STATE ACTIONS
+// =========================================================
+
 router.patch(
   "/update-state/:id",
   authenticate,
@@ -286,6 +397,26 @@ router.patch(
   updateStateValidation,
   updateState,
 );
+
+
+// =========================================================
+// ADMIN - SPECIFIC ID ACTIONS
+// =========================================================
+
+router.patch(
+  "/:id/status",
+  authenticate,
+  authorizeRoles(Role.ADMIN),
+  requirePermission("state.status"),
+  statusValidation,
+  deleteState,
+);
+
+
+// =========================================================
+// ADMIN - GENERIC STATE DETAIL
+// Keep this last among dynamic GET routes.
+// =========================================================
 
 router.get(
   "/:id",
@@ -296,13 +427,5 @@ router.get(
   getStateById,
 );
 
-router.patch(
-  "/:id/status",
-  authenticate,
-  authorizeRoles(Role.ADMIN),
-  requirePermission("state.status"),
-  statusValidation,
-  deleteState,
-);
 
 export default router;

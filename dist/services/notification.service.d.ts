@@ -117,8 +117,8 @@ export declare class NotificationService {
         skipped: boolean;
         delivery: {
             inApp: boolean;
-            email: boolean;
-            push: boolean;
+            email: string | boolean;
+            push: string | boolean;
         };
         skipReason?: never;
     } | {
@@ -132,22 +132,57 @@ export declare class NotificationService {
         created: boolean;
         delivery: {
             inApp: boolean;
-            email: boolean;
-            push: boolean;
+            email: string | boolean;
+            push: string | boolean;
         };
         skipped?: never;
         skipReason?: never;
     }>;
-    static retryEmail(notificationId: string): Promise<{
+    static deliverEmail(notificationId: string): Promise<{
+        skipped: boolean;
+        reason: string;
+        emailSent?: never;
+        messageId?: never;
+    } | {
+        skipped: boolean;
         emailSent: boolean;
         messageId: string;
+        reason?: never;
     }>;
-    static retryPush(notificationId: string): Promise<{
-        status: "FAILED" | "SENT" | "PARTIAL";
+    static deliverPush(notificationId: string): Promise<{
+        skipped: boolean;
+        reason: string;
+        status?: never;
+        attempted?: never;
+        successCount?: never;
+        failureCount?: never;
+        deactivatedCount?: never;
+    } | {
+        status: "SENT";
         attempted: number;
         successCount: number;
         failureCount: number;
         deactivatedCount: number;
+        skipped?: never;
+        reason?: never;
+    } | {
+        status: "PARTIAL";
+        attempted: number;
+        successCount: number;
+        failureCount: number;
+        deactivatedCount: number;
+        skipped?: never;
+        reason?: never;
+    }>;
+    static markEmailDeliveryFailed(notificationId: string, error: unknown): Promise<void>;
+    static markPushDeliveryFailed(notificationId: string, error: unknown): Promise<void>;
+    static retryEmail(notificationId: string): Promise<{
+        queued: boolean;
+        notificationId: Types.ObjectId;
+    }>;
+    static retryPush(notificationId: string): Promise<{
+        queued: boolean;
+        notificationId: Types.ObjectId;
     }>;
 }
 //# sourceMappingURL=notification.service.d.ts.map

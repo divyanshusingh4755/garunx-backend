@@ -94,9 +94,9 @@ declare class CartService {
             __v: number;
         };
         selectedComponents: {
-            component: (import("../models/component.model.js").IComponent & {
+            component: (import("../models/component.model.js").IComponent & Required<{
                 _id: Types.ObjectId;
-            } & {
+            }> & {
                 __v: number;
             }) | undefined;
             items: {
@@ -116,9 +116,9 @@ declare class CartService {
             tax?: ILineTax;
         }[];
         addonComponents: {
-            component: (import("../models/component.model.js").IComponent & {
+            component: (import("../models/component.model.js").IComponent & Required<{
                 _id: Types.ObjectId;
-            } & {
+            }> & {
                 __v: number;
             }) | undefined;
             items: {
@@ -192,9 +192,9 @@ declare class CartService {
         package: any;
         services: {
             components: {
-                component: (import("../models/component.model.js").IComponent & {
+                component: (import("../models/component.model.js").IComponent & Required<{
                     _id: Types.ObjectId;
-                } & {
+                }> & {
                     __v: number;
                 }) | undefined;
                 items: {
@@ -396,6 +396,10 @@ declare class CartService {
     static expirePendingCheckouts(): Promise<{
         matched: number;
         modified: number;
+    }>;
+    static exportCartsToCsv(cartIds: string[]): Promise<{
+        csv: string;
+        total: number;
     }>;
 }
 export default CartService;

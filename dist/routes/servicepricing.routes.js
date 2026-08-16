@@ -62,7 +62,13 @@ const bulkPricingValidation = [
         .isIn(["EXCLUSIVE", "INCLUSIVE"])
         .withMessage("taxPriceMode must be EXCLUSIVE or INCLUSIVE"),
 ];
+// =========================================================
+// ADMIN - BULK SERVICE PRICING UPDATE
+// =========================================================
 router.post("/bulk", authenticate, authorizeRoles(Role.ADMIN), requirePermission("service_pricing.update"), ...bulkPricingValidation, validate, bulkUpsertTierPricing);
+// =========================================================
+// USER - RESOLVE SERVICE PRICING
+// =========================================================
 router.get("/resolve", authenticate, authorizeRoles(Role.USER), query("serviceId")
     .notEmpty()
     .withMessage("serviceId is required")

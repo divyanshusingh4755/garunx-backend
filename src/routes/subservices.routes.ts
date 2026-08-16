@@ -67,7 +67,8 @@ const createSubServiceComponentValidation = [
   body("isActive")
     .optional()
     .isBoolean()
-    .withMessage("isActive must be boolean"),
+    .withMessage("isActive must be boolean")
+    .toBoolean(),
 
   validate,
 ];
@@ -139,7 +140,8 @@ const statusValidation = [
     .exists({ checkNull: true })
     .withMessage("status is required")
     .isBoolean()
-    .withMessage("status must be boolean"),
+    .withMessage("status must be boolean")
+    .toBoolean(),
 
   validate,
 ];
@@ -211,11 +213,20 @@ const adminListValidation = [
   validate,
 ];
 
+// =========================================================
+// PUBLIC
+// =========================================================
+
 router.get(
   "/",
   publicListValidation,
   getAllSubServiceComponents,
 );
+
+
+// =========================================================
+// ADMIN - STATIC ROUTES
+// =========================================================
 
 router.get(
   "/admin",
@@ -235,14 +246,25 @@ router.post(
   createSubServiceComponent,
 );
 
+
+// =========================================================
+// ADMIN - SPECIFIC ID ACTIONS
+// =========================================================
+
 router.patch(
-  "/:id",
+  "/:id/status",
   authenticate,
   authorizeRoles(Role.ADMIN),
-  requirePermission("sub_service_component.update"),
-  updateSubServiceComponentValidation,
-  updateSubServiceComponent,
+  requirePermission("sub_service_component.status"),
+  statusValidation,
+  toggleSubServiceComponent,
 );
+
+
+// =========================================================
+// ADMIN - GENERIC ID ROUTES
+// Keep these after more-specific /:id/... routes.
+// =========================================================
 
 router.get(
   "/:id",
@@ -254,12 +276,13 @@ router.get(
 );
 
 router.patch(
-  "/:id/status",
+  "/:id",
   authenticate,
   authorizeRoles(Role.ADMIN),
-  requirePermission("sub_service_component.status"),
-  statusValidation,
-  toggleSubServiceComponent,
+  requirePermission("sub_service_component.update"),
+  updateSubServiceComponentValidation,
+  updateSubServiceComponent,
 );
+
 
 export default router;

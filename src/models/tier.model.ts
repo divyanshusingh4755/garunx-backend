@@ -4,6 +4,8 @@ export interface ITier {
   name: string;
   tierReference?: string;
   isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 const tierSchema = new Schema<ITier>(

@@ -15,4 +15,5 @@ export declare const assignUserRoles: (req: Request, res: Response) => Promise<v
 export declare const removeUserRole: (req: Request, res: Response) => Promise<void>;
 export declare const removeAllUserRoles: (req: Request, res: Response) => Promise<void>;
 export declare const getUserAccess: (req: Request, res: Response) => Promise<void>;
+export declare const exportRolesCsv: (req: Request, res: Response) => Promise<void>;
 //# sourceMappingURL=rbac.controllers.d.ts.map

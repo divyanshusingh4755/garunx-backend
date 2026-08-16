@@ -17,12 +17,12 @@ type PatchPayload = {
     tierId: string;
     componentId: string;
     isRequired?: boolean;
-    name?: string;
     items?: Array<string | {
         itemId: string;
     }>;
 };
 export declare class ServiceComponentService {
+    private static invalidateServiceComponentCache;
     private static normalizeItemIds;
     private static validateServiceTier;
     private static prepareComponents;

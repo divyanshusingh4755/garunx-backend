@@ -1,6 +1,9 @@
-import { Types } from "mongoose";
+import mongoose, { Types } from "mongoose";
 import { ChatConversation, ChatConversationStatus, } from "../models/chatconversation.model.js";
 import { ChatMessage } from "../models/chatmessage.model.js";
+import { RedisCacheService } from "./redis-cache.service.js";
+import { CacheKeys } from "../cache/cache-keys.js";
+import { CACHE_TTL_SECONDS } from "../cache/constants.js";
 export class ChatConversationService {
     static isMessageAtOrBefore(message, target) {
         if (message.createdAt < target.createdAt) {
@@ -25,26 +28,74 @@ export class ChatConversationService {
         const bookingObjectId = new Types.ObjectId(bookingId);
         const userObjectId = new Types.ObjectId(userId);
         const coordinatorObjectId = new Types.ObjectId(coordinatorId);
-        const conversation = await ChatConversation.findOneAndUpdate({ bookingId: bookingObjectId }, {
+        /*
+         * createForBooking is intentionally idempotent, but it also synchronizes
+         * participants. This prevents a stale coordinator from retaining access if
+         * this method is ever called after an assignment change.
+         *
+         * Existing read/delivery pointers are preserved when the participant is
+         * still the same person.
+         */
+        const existingConversation = await ChatConversation.findOne({
+            bookingId: bookingObjectId,
+        });
+        const existingUserParticipant = existingConversation?.participants.find((participant) => participant.userId.toString() === userId);
+        const existingCoordinatorParticipant = existingConversation?.participants.find((participant) => participant.userId.toString() === coordinatorId);
+        const participants = [
+            {
+                userId: userObjectId,
+                role: "USER",
+                ...(existingUserParticipant?.lastDeliveredMessageId && {
+                    lastDeliveredMessageId: existingUserParticipant.lastDeliveredMessageId,
+                }),
+                ...(existingUserParticipant?.lastDeliveredAt && {
+                    lastDeliveredAt: existingUserParticipant.lastDeliveredAt,
+                }),
+                ...(existingUserParticipant?.lastReadMessageId && {
+                    lastReadMessageId: existingUserParticipant.lastReadMessageId,
+                }),
+                ...(existingUserParticipant?.lastReadAt && {
+                    lastReadAt: existingUserParticipant.lastReadAt,
+                }),
+            },
+            {
+                userId: coordinatorObjectId,
+                role: "COORDINATOR",
+                ...(existingCoordinatorParticipant?.lastDeliveredMessageId && {
+                    lastDeliveredMessageId: existingCoordinatorParticipant.lastDeliveredMessageId,
+                }),
+                ...(existingCoordinatorParticipant?.lastDeliveredAt && {
+                    lastDeliveredAt: existingCoordinatorParticipant.lastDeliveredAt,
+                }),
+                ...(existingCoordinatorParticipant?.lastReadMessageId && {
+                    lastReadMessageId: existingCoordinatorParticipant.lastReadMessageId,
+                }),
+                ...(existingCoordinatorParticipant?.lastReadAt && {
+                    lastReadAt: existingCoordinatorParticipant.lastReadAt,
+                }),
+            },
+        ];
+        const conversation = await ChatConversation.findOneAndUpdate({
+            bookingId: bookingObjectId,
+        }, {
+            $set: {
+                participants,
+                status: ChatConversationStatus.ACTIVE,
+            },
             $setOnInsert: {
                 bookingId: bookingObjectId,
-                participants: [
-                    {
-                        userId: userObjectId,
-                        role: "USER",
-                    },
-                    {
-                        userId: coordinatorObjectId,
-                        role: "COORDINATOR",
-                    },
-                ],
-                status: ChatConversationStatus.ACTIVE,
             },
         }, {
             new: true,
             upsert: true,
             setDefaultsOnInsert: true,
         });
+        const participantIdsToInvalidate = new Set([
+            userId,
+            coordinatorId,
+            ...(existingConversation?.participants.map((participant) => participant.userId.toString()) ?? []),
+        ]);
+        await Promise.all(Array.from(participantIdsToInvalidate).map((participantId) => RedisCacheService.delete(CacheKeys.chatParticipantIds(participantId))));
         return conversation;
     }
     static async getByBookingId(params) {
@@ -118,70 +169,120 @@ export class ChatConversationService {
         const conversationObjectId = new Types.ObjectId(conversationId);
         const userObjectId = new Types.ObjectId(userId);
         const messageObjectId = new Types.ObjectId(messageId);
-        const conversation = await ChatConversation.findOne({
-            _id: conversationObjectId,
-            "participants.userId": userObjectId,
-        });
-        if (!conversation) {
-            throw new Error("Chat conversation not found or access denied");
-        }
-        const message = await ChatMessage.findOne({
-            _id: messageObjectId,
-            conversationId: conversationObjectId
-        }).select({ senderId: 1, createdAt: 1 });
-        if (!message) {
-            throw new Error("Chat message not found");
-        }
-        if (message.senderId.toString() === userId) {
-            throw new Error("Cannot mark own message as read");
-        }
-        const participant = conversation.participants.find((participant) => participant.userId.toString() === userId);
-        if (!participant) {
-            throw new Error("Chat participant not found");
-        }
-        // Prevent read pointer from moving backwards
-        if (participant.lastReadMessageId) {
-            const previousMessage = await ChatMessage.findOne({
-                _id: participant.lastReadMessageId,
-                conversationId: conversationObjectId
-            }).select({ createdAt: 1 });
-            if (previousMessage && this.isMessageAtOrBefore(message, previousMessage)) {
-                return {
+        let result = null;
+        const session = await mongoose.startSession();
+        try {
+            /*
+             * Read/check/write are kept in one transaction.
+             *
+             * If two read acknowledgements race, MongoDB will make one transaction
+             * retry after the competing write. The retried transaction then sees the
+             * newer pointer and cannot move it backwards.
+             */
+            await session.withTransaction(async () => {
+                const conversation = await ChatConversation.findOne({
+                    _id: conversationObjectId,
+                    "participants.userId": userObjectId,
+                }).session(session);
+                if (!conversation) {
+                    throw new Error("Chat conversation not found or access denied");
+                }
+                const message = await ChatMessage.findOne({
+                    _id: messageObjectId,
+                    conversationId: conversationObjectId,
+                })
+                    .select({
+                    senderId: 1,
+                    createdAt: 1,
+                })
+                    .session(session);
+                if (!message) {
+                    throw new Error("Chat message not found");
+                }
+                if (message.senderId.toString() === userId) {
+                    throw new Error("Cannot mark own message as read");
+                }
+                const participant = conversation.participants.find((item) => item.userId.toString() === userId);
+                if (!participant) {
+                    throw new Error("Chat participant not found");
+                }
+                if (participant.lastReadMessageId) {
+                    const previousReadMessage = await ChatMessage.findOne({
+                        _id: participant.lastReadMessageId,
+                        conversationId: conversationObjectId,
+                    })
+                        .select({
+                        _id: 1,
+                        createdAt: 1,
+                    })
+                        .session(session);
+                    if (previousReadMessage &&
+                        this.isMessageAtOrBefore(message, previousReadMessage)) {
+                        result = {
+                            conversationId,
+                            userId,
+                            messageId: participant.lastReadMessageId.toString(),
+                            readAt: participant.lastReadAt ??
+                                previousReadMessage.createdAt,
+                        };
+                        return;
+                    }
+                }
+                const readAt = new Date();
+                const fieldsToSet = {
+                    "participants.$.lastReadMessageId": messageObjectId,
+                    "participants.$.lastReadAt": readAt,
+                };
+                /*
+                 * Reading implies delivery, but do not move the delivery pointer
+                 * backwards if it already points to a newer message.
+                 */
+                let shouldAdvanceDelivery = true;
+                if (participant.lastDeliveredMessageId) {
+                    const previousDeliveredMessage = await ChatMessage.findOne({
+                        _id: participant.lastDeliveredMessageId,
+                        conversationId: conversationObjectId,
+                    })
+                        .select({
+                        _id: 1,
+                        createdAt: 1,
+                    })
+                        .session(session);
+                    if (previousDeliveredMessage &&
+                        this.isMessageAtOrBefore(message, previousDeliveredMessage)) {
+                        shouldAdvanceDelivery = false;
+                    }
+                }
+                if (shouldAdvanceDelivery) {
+                    fieldsToSet["participants.$.lastDeliveredMessageId"] = messageObjectId;
+                    fieldsToSet["participants.$.lastDeliveredAt"] = readAt;
+                }
+                const updateResult = await ChatConversation.updateOne({
+                    _id: conversationObjectId,
+                    "participants.userId": userObjectId,
+                }, {
+                    $set: fieldsToSet,
+                }, {
+                    session,
+                });
+                if (updateResult.matchedCount === 0) {
+                    throw new Error("Failed to update read status");
+                }
+                result = {
                     conversationId,
                     userId,
-                    messageId: participant.lastReadMessageId.toString(),
-                    readAt: participant.lastReadAt ?? previousMessage.createdAt
+                    messageId,
+                    readAt,
                 };
-            }
+            });
         }
-        const readAt = new Date();
-        const updatedConversation = await ChatConversation.findOneAndUpdate({
-            _id: conversationObjectId,
-            participants: {
-                $elemMatch: {
-                    userId: userObjectId
-                }
-            }
-        }, {
-            $set: {
-                "participants.$.lastReadMessageId": messageObjectId,
-                "participants.$.lastReadAt": readAt,
-                // Read also implies delivered
-                "participants.$.lastDeliveredMessageId": messageObjectId,
-                "participants.$.lastDeliveredAt": readAt
-            }
-        }, {
-            new: true
-        });
-        if (!updatedConversation) {
+        finally {
+            await session.endSession();
+        }
+        if (!result) {
             throw new Error("Failed to update read status");
         }
-        return {
-            conversationId,
-            userId,
-            messageId,
-            readAt
-        };
+        return result;
     }
     static async closeConversation(params) {
         const { conversationId } = params;
@@ -198,6 +299,7 @@ export class ChatConversationService {
         if (!conversation) {
             throw new Error("Chat conversation not found");
         }
+        await Promise.all(conversation.participants.map((participant) => RedisCacheService.delete(CacheKeys.chatParticipantIds(participant.userId.toString()))));
         return conversation;
     }
     static async closeForBooking(params) {
@@ -209,31 +311,48 @@ export class ChatConversationService {
             bookingId: new Types.ObjectId(bookingId),
         }, {
             $set: {
-                status: ChatConversationStatus.CLOSED
-            }
+                status: ChatConversationStatus.CLOSED,
+            },
         }, {
             new: true,
         });
+        if (conversation) {
+            await Promise.all(conversation.participants.map((participant) => RedisCacheService.delete(CacheKeys.chatParticipantIds(participant.userId.toString()))));
+        }
         return conversation;
     }
     static async getParticipantUserIds(params) {
-        const { userId } = params;
+        const { userId, } = params;
         if (!Types.ObjectId.isValid(userId)) {
             throw new Error("Invalid user ID");
         }
-        const conversations = await ChatConversation.find({
-            "participants.userId": new Types.ObjectId(userId)
-        }).select({ participants: 1 });
-        const participantIds = new Set();
-        for (const conversation of conversations) {
-            for (const participant of conversation.participants) {
-                const participantId = participant.userId.toString();
-                if (participantId !== userId) {
-                    participantIds.add(participantId);
+        return RedisCacheService.getOrSet({
+            key: CacheKeys.chatParticipantIds(userId),
+            ttlSeconds: CACHE_TTL_SECONDS
+                .CHAT_PARTICIPANT_IDS,
+            loader: async () => {
+                const conversations = await ChatConversation.find({
+                    "participants.userId": new Types.ObjectId(userId),
+                    status: ChatConversationStatus.ACTIVE,
+                })
+                    .select({
+                    participants: 1,
+                })
+                    .lean();
+                const participantIds = new Set();
+                for (const conversation of conversations) {
+                    for (const participant of conversation.participants) {
+                        const participantId = participant.userId
+                            .toString();
+                        if (participantId !==
+                            userId) {
+                            participantIds.add(participantId);
+                        }
+                    }
                 }
-            }
-        }
-        return Array.from(participantIds);
+                return Array.from(participantIds);
+            },
+        });
     }
     static async markAsDelivered(params) {
         const { conversationId, userId, messageId } = params;
@@ -249,66 +368,95 @@ export class ChatConversationService {
         const conversationObjectId = new Types.ObjectId(conversationId);
         const userObjectId = new Types.ObjectId(userId);
         const messageObjectId = new Types.ObjectId(messageId);
-        const conversation = await ChatConversation.findOne({
-            _id: conversationObjectId,
-            "participants.userId": userObjectId
-        });
-        if (!conversation) {
-            throw new Error("Chat conversation not found or access denied");
-        }
-        const message = await ChatMessage.findOne({
-            _id: messageObjectId,
-            conversationId: conversationObjectId,
-        }).select({ senderId: 1, createdAt: 1 });
-        if (!message) {
-            throw new Error("Chat message not found");
-        }
-        if (message.senderId.toString() === userId) {
-            throw new Error("Sender cannot mark own message as delivered");
-        }
-        const participant = conversation.participants.find((participant) => participant.userId.toString() === userId);
-        if (!participant) {
-            throw new Error("Chat participant not found");
-        }
-        if (participant.lastDeliveredMessageId) {
-            const previousMessage = await ChatMessage.findOne({
-                _id: participant.lastDeliveredMessageId,
-                conversationId: conversationObjectId
-            }).select({ createdAt: 1 });
-            if (previousMessage && this.isMessageAtOrBefore(message, previousMessage)) {
-                return {
+        let result = null;
+        const session = await mongoose.startSession();
+        try {
+            /*
+             * Keep check + update in one transaction so concurrent delivery
+             * acknowledgements cannot move the pointer backwards.
+             */
+            await session.withTransaction(async () => {
+                const conversation = await ChatConversation.findOne({
+                    _id: conversationObjectId,
+                    "participants.userId": userObjectId,
+                }).session(session);
+                if (!conversation) {
+                    throw new Error("Chat conversation not found or access denied");
+                }
+                const message = await ChatMessage.findOne({
+                    _id: messageObjectId,
+                    conversationId: conversationObjectId,
+                })
+                    .select({
+                    senderId: 1,
+                    createdAt: 1,
+                })
+                    .session(session);
+                if (!message) {
+                    throw new Error("Chat message not found");
+                }
+                if (message.senderId.toString() ===
+                    userId) {
+                    throw new Error("Sender cannot mark own message as delivered");
+                }
+                const participant = conversation.participants.find((item) => item.userId.toString() ===
+                    userId);
+                if (!participant) {
+                    throw new Error("Chat participant not found");
+                }
+                if (participant.lastDeliveredMessageId) {
+                    const previousMessage = await ChatMessage.findOne({
+                        _id: participant.lastDeliveredMessageId,
+                        conversationId: conversationObjectId,
+                    })
+                        .select({
+                        _id: 1,
+                        createdAt: 1,
+                    })
+                        .session(session);
+                    if (previousMessage &&
+                        this.isMessageAtOrBefore(message, previousMessage)) {
+                        result = {
+                            conversationId,
+                            userId,
+                            messageId: participant.lastDeliveredMessageId.toString(),
+                            deliveredAt: participant.lastDeliveredAt ??
+                                previousMessage.createdAt,
+                        };
+                        return;
+                    }
+                }
+                const deliveredAt = new Date();
+                const updateResult = await ChatConversation.updateOne({
+                    _id: conversationObjectId,
+                    "participants.userId": userObjectId,
+                }, {
+                    $set: {
+                        "participants.$.lastDeliveredMessageId": messageObjectId,
+                        "participants.$.lastDeliveredAt": deliveredAt,
+                    },
+                }, {
+                    session,
+                });
+                if (updateResult.matchedCount ===
+                    0) {
+                    throw new Error("Failed to update delivery status");
+                }
+                result = {
                     conversationId,
                     userId,
-                    messageId: participant.lastDeliveredMessageId.toString(),
-                    deliveredAt: participant.lastDeliveredAt ?? previousMessage.createdAt
+                    messageId,
+                    deliveredAt,
                 };
-            }
+            });
         }
-        const deliveredAt = new Date();
-        const updatedConversation = await ChatConversation.findOneAndUpdate({
-            _id: conversationObjectId,
-            participants: {
-                $elemMatch: {
-                    userId: userObjectId
-                }
-            }
-        }, {
-            $set: {
-                "participants.$.lastDeliveredMessageId": messageObjectId,
-                "participants.$.lastDeliveredAt": deliveredAt
-            }
-        }, {
-            new: true
-        });
-        if (!updatedConversation) {
-            throw new Error("Failed to update deilvery status");
+        finally {
+            await session.endSession();
         }
-        return {
-            conversationId,
-            userId,
-            messageId,
-            deliveredAt
-        };
+        if (!result) {
+            throw new Error("Failed to update delivery status");
+        }
+        return result;
     }
 }
 //# sourceMappingURL=chatconversation.service.js.map

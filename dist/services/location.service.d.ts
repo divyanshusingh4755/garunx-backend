@@ -5,6 +5,8 @@ type LocationUpdate = Partial<Pick<ILocation, "name" | "country" | "fullAddress"
     cityId?: string;
 }>;
 export declare class LocationService {
+    private static invalidateLocationCache;
+    private static validateHierarchy;
     static createLocation(data: {
         name: string;
         country: string;
@@ -138,6 +140,10 @@ export declare class LocationService {
         description: any;
         location: any;
     }[]>;
+    static exportLocationsToCsv(locationIds: string[]): Promise<{
+        csv: string;
+        total: number;
+    }>;
 }
 export {};
 //# sourceMappingURL=location.service.d.ts.map

@@ -3,6 +3,9 @@ import { Permission } from "../models/permission.model.js";
 import { RbacRole } from "../models/role.model.js";
 import { User } from "../models/user.model.js";
 import { Role } from "../types/rbac.js";
+import { RedisCacheService } from "./redis-cache.service.js";
+import { CacheKeys } from "../cache/cache-keys.js";
+import { CACHE_TTL_SECONDS } from "../cache/constants.js";
 
 interface CreatePermissionParams {
     name: string;
@@ -52,6 +55,90 @@ interface AddRolePermissionsParams {
 }
 
 export class RbacService {
+    private static async invalidatePermissionCaches(
+        permissionId?: string,
+    ): Promise<void> {
+        const operations: Promise<unknown>[] = [
+            RedisCacheService.deleteByPattern(
+                CacheKeys.rbacPermissionListPattern(),
+            ),
+
+            RedisCacheService.deleteByPattern(
+                CacheKeys.rbacRoleListPattern(),
+            ),
+
+            RedisCacheService.deleteByPattern(
+                CacheKeys.rbacRoleDetailPattern(),
+            ),
+
+            /*
+             * Permission changes can affect
+             * every user's effective access.
+             */
+            RedisCacheService.deleteByPattern(
+                CacheKeys.rbacUserAccessPattern(),
+            ),
+        ];
+
+        if (permissionId) {
+            operations.push(
+                RedisCacheService.delete(
+                    CacheKeys.rbacPermissionDetail(
+                        permissionId,
+                    ),
+                ),
+            );
+        }
+
+        await Promise.all(
+            operations,
+        );
+    }
+
+    private static async invalidateRoleCaches(
+        roleId?: string,
+    ): Promise<void> {
+        const operations: Promise<unknown>[] = [
+            RedisCacheService.deleteByPattern(
+                CacheKeys.rbacRoleListPattern(),
+            ),
+
+            /*
+             * Role changes can affect users
+             * assigned to that role.
+             *
+             * Broad invalidation is safer here.
+             */
+            RedisCacheService.deleteByPattern(
+                CacheKeys.rbacUserAccessPattern(),
+            ),
+        ];
+
+        if (roleId) {
+            operations.push(
+                RedisCacheService.delete(
+                    CacheKeys.rbacRoleDetail(
+                        roleId,
+                    ),
+                ),
+            );
+        }
+
+        await Promise.all(
+            operations,
+        );
+    }
+
+    private static async invalidateUserAccessCache(
+        userId: string,
+    ): Promise<void> {
+        await RedisCacheService.delete(
+            CacheKeys.rbacUserAccess(
+                userId,
+            ),
+        );
+    }
+
     static async createPermission(
         params: CreatePermissionParams,
     ) {
@@ -98,6 +185,8 @@ export class RbacService {
             }),
         });
 
+        await this.invalidatePermissionCaches();
+
         return permission;
     }
 
@@ -111,58 +200,164 @@ export class RbacService {
             limit = 20,
         } = params;
 
-        const query: Record<string, unknown> = {};
+        const safePage =
+            Number.isInteger(page) &&
+                page > 0
+                ? page
+                : 1;
 
-        if (module) {
-            query.module = module.trim().toLowerCase();
-        }
+        const safeLimit =
+            Number.isInteger(limit) &&
+                limit > 0
+                ? Math.min(
+                    limit,
+                    100,
+                )
+                : 20;
 
-        if (typeof isActive === "boolean") {
-            query.isActive = isActive;
-        }
+        const normalizedModule =
+            module
+                ?.trim()
+                .toLowerCase();
 
-        const skip = (page - 1) * limit;
+        const cacheKey =
+            CacheKeys.rbacPermissionList({
+                module:
+                    normalizedModule,
 
-        const [permissions, total] = await Promise.all([
-            Permission.find(query)
-                .sort({
-                    module: 1,
-                    name: 1,
-                })
-                .skip(skip)
-                .limit(limit)
-                .lean(),
+                isActive,
 
-            Permission.countDocuments(query),
-        ]);
+                page:
+                    safePage,
 
-        return {
-            permissions,
-            pagination: {
-                page,
-                limit,
-                total,
-                totalPages: Math.ceil(total / limit),
-            },
-        };
+                limit:
+                    safeLimit,
+            });
+
+        return RedisCacheService.getOrSet({
+            key:
+                cacheKey,
+
+            ttlSeconds:
+                CACHE_TTL_SECONDS
+                    .RBAC_PERMISSION_LIST,
+
+            loader:
+                async () => {
+                    const query:
+                        Record<string, unknown> = {};
+
+                    if (
+                        normalizedModule
+                    ) {
+                        query.module =
+                            normalizedModule;
+                    }
+
+                    if (
+                        typeof isActive ===
+                        "boolean"
+                    ) {
+                        query.isActive =
+                            isActive;
+                    }
+
+                    const skip =
+                        (safePage - 1) *
+                        safeLimit;
+
+                    const [
+                        permissions,
+                        total,
+                    ] =
+                        await Promise.all([
+                            Permission.find(
+                                query,
+                            )
+                                .sort({
+                                    module:
+                                        1,
+
+                                    name:
+                                        1,
+                                })
+                                .skip(
+                                    skip,
+                                )
+                                .limit(
+                                    safeLimit,
+                                )
+                                .lean(),
+
+                            Permission.countDocuments(
+                                query,
+                            ),
+                        ]);
+
+                    return {
+                        permissions,
+
+                        pagination: {
+                            page:
+                                safePage,
+
+                            limit:
+                                safeLimit,
+
+                            total,
+
+                            totalPages:
+                                Math.ceil(
+                                    total /
+                                    safeLimit,
+                                ),
+                        },
+                    };
+                },
+        });
     }
 
     static async getPermissionById(
         permissionId: string,
     ) {
-        if (!Types.ObjectId.isValid(permissionId)) {
-            throw new Error("Invalid permission ID");
+        if (
+            !Types.ObjectId.isValid(
+                permissionId,
+            )
+        ) {
+            throw new Error(
+                "Invalid permission ID",
+            );
         }
 
-        const permission = await Permission.findById(
-            permissionId,
-        ).lean();
+        return RedisCacheService.getOrSet({
+            key:
+                CacheKeys.rbacPermissionDetail(
+                    permissionId,
+                ),
 
-        if (!permission) {
-            throw new Error("Permission not found");
-        }
+            ttlSeconds:
+                CACHE_TTL_SECONDS
+                    .RBAC_PERMISSION_DETAIL,
 
-        return permission;
+            loader:
+                async () => {
+                    const permission =
+                        await Permission.findById(
+                            permissionId,
+                        ).lean();
+
+                    if (
+                        !permission
+                    ) {
+                        throw new Error(
+                            "Permission not found",
+                        );
+                    }
+
+                    return permission;
+                },
+        });
     }
 
     static async updatePermission(
@@ -236,6 +431,10 @@ export class RbacService {
 
         await permission.save();
 
+        await this.invalidatePermissionCaches(
+            permissionId,
+        );
+
         return permission;
     }
 
@@ -257,6 +456,10 @@ export class RbacService {
         permission.isActive = isActive;
 
         await permission.save();
+
+        await this.invalidatePermissionCaches(
+            permissionId,
+        );
 
         return permission;
     }
@@ -328,6 +531,10 @@ export class RbacService {
             isSystem: false,
         });
 
+        await RedisCacheService.deleteByPattern(
+            CacheKeys.rbacRoleListPattern(),
+        );
+
         return role;
     }
 
@@ -340,62 +547,159 @@ export class RbacService {
             limit = 20,
         } = params;
 
-        const query: Record<string, unknown> = {};
+        const safePage =
+            Number.isInteger(page) &&
+                page > 0
+                ? page
+                : 1;
 
-        if (typeof isActive === "boolean") {
-            query.isActive = isActive;
-        }
+        const safeLimit =
+            Number.isInteger(limit) &&
+                limit > 0
+                ? Math.min(
+                    limit,
+                    100,
+                )
+                : 20;
 
-        const skip = (page - 1) * limit;
+        const cacheKey =
+            CacheKeys.rbacRoleList({
+                isActive,
 
-        const [roles, total] = await Promise.all([
-            RbacRole.find(query)
-                .populate({
-                    path: "permissions",
-                    select:
-                        "name key module description isActive",
-                })
-                .sort({
-                    createdAt: -1,
-                })
-                .skip(skip)
-                .limit(limit)
-                .lean(),
+                page:
+                    safePage,
 
-            RbacRole.countDocuments(query),
-        ]);
+                limit:
+                    safeLimit,
+            });
 
-        return {
-            roles,
-            pagination: {
-                page,
-                limit,
-                total,
-                totalPages: Math.ceil(total / limit),
-            },
-        };
+        return RedisCacheService.getOrSet({
+            key:
+                cacheKey,
+
+            ttlSeconds:
+                CACHE_TTL_SECONDS
+                    .RBAC_ROLE_LIST,
+
+            loader:
+                async () => {
+                    const query:
+                        Record<string, unknown> = {};
+
+                    if (
+                        typeof isActive ===
+                        "boolean"
+                    ) {
+                        query.isActive =
+                            isActive;
+                    }
+
+                    const skip =
+                        (safePage - 1) *
+                        safeLimit;
+
+                    const [
+                        roles,
+                        total,
+                    ] =
+                        await Promise.all([
+                            RbacRole.find(
+                                query,
+                            )
+                                .populate({
+                                    path:
+                                        "permissions",
+
+                                    select:
+                                        "name key module description isActive",
+                                })
+                                .sort({
+                                    createdAt:
+                                        -1,
+                                })
+                                .skip(
+                                    skip,
+                                )
+                                .limit(
+                                    safeLimit,
+                                )
+                                .lean(),
+
+                            RbacRole.countDocuments(
+                                query,
+                            ),
+                        ]);
+
+                    return {
+                        roles,
+
+                        pagination: {
+                            page:
+                                safePage,
+
+                            limit:
+                                safeLimit,
+
+                            total,
+
+                            totalPages:
+                                Math.ceil(
+                                    total /
+                                    safeLimit,
+                                ),
+                        },
+                    };
+                },
+        });
     }
 
     static async getRoleById(
         roleId: string,
     ) {
-        if (!Types.ObjectId.isValid(roleId)) {
-            throw new Error("Invalid role ID");
+        if (
+            !Types.ObjectId.isValid(
+                roleId,
+            )
+        ) {
+            throw new Error(
+                "Invalid role ID",
+            );
         }
 
-        const role = await RbacRole.findById(roleId)
-            .populate({
-                path: "permissions",
-                select:
-                    "name key module description isActive",
-            })
-            .lean();
+        return RedisCacheService.getOrSet({
+            key:
+                CacheKeys.rbacRoleDetail(
+                    roleId,
+                ),
 
-        if (!role) {
-            throw new Error("Role not found");
-        }
+            ttlSeconds:
+                CACHE_TTL_SECONDS
+                    .RBAC_ROLE_DETAIL,
 
-        return role;
+            loader:
+                async () => {
+                    const role =
+                        await RbacRole.findById(
+                            roleId,
+                        )
+                            .populate({
+                                path:
+                                    "permissions",
+
+                                select:
+                                    "name key module description isActive",
+                            })
+                            .lean();
+
+                    if (!role) {
+                        throw new Error(
+                            "Role not found",
+                        );
+                    }
+
+                    return role;
+                },
+        });
     }
 
     static async updateRole(
@@ -456,6 +760,10 @@ export class RbacService {
 
         await role.save();
 
+        await this.invalidateRoleCaches(
+            roleId,
+        );
+
         return role;
     }
 
@@ -482,6 +790,10 @@ export class RbacService {
         role.isActive = isActive;
 
         await role.save();
+
+        await this.invalidateRoleCaches(
+            roleId,
+        );
 
         return role;
     }
@@ -562,13 +874,24 @@ export class RbacService {
             await role.save();
         }
 
-        return RbacRole.findById(roleId)
-            .populate({
-                path: "permissions",
-                select:
-                    "name key module description isActive",
-            })
-            .lean();
+        const updatedRole =
+            await RbacRole.findById(
+                roleId,
+            )
+                .populate({
+                    path:
+                        "permissions",
+
+                    select:
+                        "name key module description isActive",
+                })
+                .lean();
+
+        await this.invalidateRoleCaches(
+            roleId,
+        );
+
+        return updatedRole;
     }
 
     static async removeRolePermission(
@@ -624,6 +947,10 @@ export class RbacService {
 
         await role.save();
 
+        await this.invalidateRoleCaches(
+            roleId,
+        );
+
         return RbacRole.findById(roleId)
             .populate({
                 path: "permissions",
@@ -657,21 +984,25 @@ export class RbacService {
             ...new Set(roleIds),
         ];
 
-        const roles = await RbacRole.find({
-            _id: {
-                $in: uniqueRoleIds,
-            },
-            isActive: true,
-        })
-            .select("_id")
-            .lean();
+        const roles =
+            await RbacRole.find({
+                _id: {
+                    $in: uniqueRoleIds,
+                },
+
+                isActive: true,
+
+                isSystem: false,
+            })
+                .select("_id")
+                .lean();
 
         if (
             roles.length !==
             uniqueRoleIds.length
         ) {
             throw new Error(
-                "One or more roles are invalid or inactive",
+                "One or more roles are invalid, inactive, or cannot be assigned",
             );
         }
 
@@ -682,6 +1013,10 @@ export class RbacService {
             );
 
         await user.save();
+
+        await this.invalidateUserAccessCache(
+            userId,
+        );
 
         return User.findById(userId)
             .select(
@@ -716,6 +1051,10 @@ export class RbacService {
         user.rbacRoles = [];
 
         await user.save();
+
+        await this.invalidateUserAccessCache(
+            userId,
+        );
 
         return User.findById(userId)
             .select(
@@ -761,6 +1100,10 @@ export class RbacService {
 
         await user.save();
 
+        await this.invalidateUserAccessCache(
+            userId,
+        );
+
         return User.findById(userId)
             .select(
                 "_id userReference fullName email phoneNumber role rbacRoles",
@@ -776,36 +1119,314 @@ export class RbacService {
     static async getUserAccess(
         userId: string,
     ) {
-        if (!Types.ObjectId.isValid(userId)) {
-            throw new Error("Invalid user ID");
+        if (
+            !Types.ObjectId.isValid(
+                userId,
+            )
+        ) {
+            throw new Error(
+                "Invalid user ID",
+            );
         }
 
-        const user = await User.findById(userId)
-            .select(
-                "_id userReference fullName email phoneNumber role rbacRoles",
-            )
-            .populate({
-                path: "rbacRoles",
-                match: {
-                    isActive: true,
+        return RedisCacheService.getOrSet({
+            key:
+                CacheKeys.rbacUserAccess(
+                    userId,
+                ),
+
+            ttlSeconds:
+                CACHE_TTL_SECONDS
+                    .RBAC_USER_ACCESS,
+
+            loader:
+                async () => {
+                    const user =
+                        await User.findById(
+                            userId,
+                        )
+                            .select(
+                                "_id userReference fullName email phoneNumber role rbacRoles",
+                            )
+                            .populate({
+                                path:
+                                    "rbacRoles",
+
+                                match: {
+                                    isActive:
+                                        true,
+                                },
+
+                                select:
+                                    "name key description isActive isSystem permissions",
+
+                                populate: {
+                                    path:
+                                        "permissions",
+
+                                    match: {
+                                        isActive:
+                                            true,
+                                    },
+
+                                    select:
+                                        "name key module description isActive",
+                                },
+                            })
+                            .lean();
+
+                    if (!user) {
+                        throw new Error(
+                            "User not found",
+                        );
+                    }
+
+                    return user;
                 },
-                select:
-                    "name key description isActive isSystem permissions",
-                populate: {
-                    path: "permissions",
-                    match: {
-                        isActive: true,
-                    },
-                    select:
-                        "name key module description isActive",
+        });
+    }
+
+    static async exportRolesToCsv(
+        roleIds: string[],
+    ) {
+        if (
+            !Array.isArray(roleIds) ||
+            roleIds.length === 0
+        ) {
+            throw new Error(
+                "At least one role ID is required",
+            );
+        }
+
+        const uniqueRoleIds = [
+            ...new Set(roleIds),
+        ];
+
+        /*
+         * Defensive validation because service
+         * methods should not rely only on the route.
+         */
+        if (
+            uniqueRoleIds.some(
+                (roleId) =>
+                    !Types.ObjectId.isValid(
+                        roleId,
+                    ),
+            )
+        ) {
+            throw new Error(
+                "One or more role IDs are invalid",
+            );
+        }
+
+        const roles =
+            await RbacRole.find({
+                _id: {
+                    $in:
+                        uniqueRoleIds.map(
+                            (roleId) =>
+                                new Types.ObjectId(
+                                    roleId,
+                                ),
+                        ),
                 },
             })
-            .lean();
+                .select(
+                    "name key description permissions isActive isSystem createdAt updatedAt",
+                )
+                .populate({
+                    path: "permissions",
 
-        if (!user) {
-            throw new Error("User not found");
+                    select:
+                        "name key module isActive",
+                })
+                .lean();
+
+        if (
+            roles.length === 0
+        ) {
+            throw new Error(
+                "No roles found for export",
+            );
         }
 
-        return user;
+        /*
+         * Keep output order the same as
+         * the roleIds received from frontend.
+         */
+        const roleMap =
+            new Map(
+                roles.map(
+                    (role) => [
+                        role._id.toString(),
+                        role,
+                    ],
+                ),
+            );
+
+        const orderedRoles =
+            uniqueRoleIds
+                .map(
+                    (roleId) =>
+                        roleMap.get(roleId),
+                )
+                .filter(
+                    (
+                        role,
+                    ): role is NonNullable<
+                        typeof role
+                    > =>
+                        role !== undefined,
+                );
+
+        const escapeCsv = (
+            value: unknown,
+        ): string => {
+            if (
+                value === null ||
+                value === undefined
+            ) {
+                return "";
+            }
+
+            const stringValue =
+                String(value);
+
+            /*
+             * CSV formula injection protection.
+             *
+             * Excel may interpret cells beginning
+             * with =, +, -, or @ as formulas.
+             */
+            const safeValue =
+                /^[=+\-@]/.test(
+                    stringValue,
+                )
+                    ? `'${stringValue}`
+                    : stringValue;
+
+            if (
+                safeValue.includes(",") ||
+                safeValue.includes('"') ||
+                safeValue.includes("\n") ||
+                safeValue.includes("\r")
+            ) {
+                return `"${safeValue.replace(
+                    /"/g,
+                    '""',
+                )}"`;
+            }
+
+            return safeValue;
+        };
+
+        const headers = [
+            "Role ID",
+            "Role Name",
+            "Role Key",
+            "Description",
+            "Active",
+            "System Role",
+            "Permission Count",
+            "Permission Names",
+            "Permission Keys",
+            "Permission Modules",
+            "Created At",
+            "Updated At",
+        ];
+
+        const rows =
+            orderedRoles.map(
+                (role) => {
+                    const permissions =
+                        Array.isArray(
+                            role.permissions,
+                        )
+                            ? role.permissions
+                            : [];
+
+                    const permissionNames =
+                        permissions
+                            .map(
+                                (permission: any) =>
+                                    permission.name,
+                            )
+                            .filter(Boolean)
+                            .join(" | ");
+
+                    const permissionKeys =
+                        permissions
+                            .map(
+                                (permission: any) =>
+                                    permission.key,
+                            )
+                            .filter(Boolean)
+                            .join(" | ");
+
+                    const permissionModules =
+                        [
+                            ...new Set(
+                                permissions
+                                    .map(
+                                        (
+                                            permission: any,
+                                        ) =>
+                                            permission.module,
+                                    )
+                                    .filter(Boolean),
+                            ),
+                        ].join(" | ");
+
+                    return [
+                        role._id,
+                        role.name,
+                        role.key,
+                        role.description ?? "",
+                        role.isActive,
+                        role.isSystem,
+                        permissions.length,
+                        permissionNames,
+                        permissionKeys,
+                        permissionModules,
+
+                        role.createdAt
+                            ? new Date(
+                                role.createdAt,
+                            ).toISOString()
+                            : "",
+
+                        role.updatedAt
+                            ? new Date(
+                                role.updatedAt,
+                            ).toISOString()
+                            : "",
+                    ];
+                },
+            );
+
+        /*
+         * BOM helps Microsoft Excel correctly
+         * recognize UTF-8 CSV files.
+         */
+        const csv =
+            "\uFEFF" +
+            [
+                headers
+                    .map(escapeCsv)
+                    .join(","),
+
+                ...rows.map(
+                    (row) =>
+                        row
+                            .map(escapeCsv)
+                            .join(","),
+                ),
+            ].join("\n");
+
+        return {
+            csv,
+            total:
+                orderedRoles.length,
+        };
     }
 }

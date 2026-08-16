@@ -2,6 +2,7 @@ import multer from "multer";
 import multerS3 from "multer-s3";
 import { s3 } from "../config/s3.js";
 import { randomUUID } from "crypto";
+import { HttpError } from "../utils/httpError.js";
 const bucket = process.env.AWS_S3_BUCKET;
 if (!bucket) {
     throw new Error("AWS_S3_BUCKET is not configured");
@@ -34,7 +35,7 @@ export const chatImageUpload = multer({
     },
     fileFilter: (_req, file, callback) => {
         if (!ALLOWED_CHAT_IMAGE_TYPES.has(file.mimetype)) {
-            callback(new Error("Only JPEG, PNG and WebP images are allowed"));
+            callback(new HttpError(400, "Only JPEG, PNG and WebP images are allowed"));
             return;
         }
         callback(null, true);

@@ -12,7 +12,18 @@ interface RefundPaymentInput {
     amount: number;
     reason: string;
 }
+interface CashfreePaymentAttempt {
+    cf_payment_id: string | number;
+    order_id: string;
+    payment_status: string;
+    payment_amount: number;
+    payment_group?: string;
+    payment_time?: string;
+    payment_completion_time?: string;
+    is_captured?: boolean;
+}
 export declare class CashfreeService {
+    static getSuccessfulPaymentForOrder(orderId: string): Promise<CashfreePaymentAttempt | null>;
     private static readonly baseUrl;
     private static readonly apiVersion;
     private static wait;

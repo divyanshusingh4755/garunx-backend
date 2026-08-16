@@ -5,6 +5,7 @@ export interface ITaxProfile extends Document {
   name: string;
   code: string;
   treatment: TaxTreatment;
+  pricingRevision: number;
   totalRate: number;
   description?: string;
   isActive: boolean;
@@ -40,6 +41,14 @@ const taxProfileSchema = new Schema<ITaxProfile>(
       enum: Object.values(TaxTreatment),
       required: true,
       index: true,
+    },
+
+    pricingRevision: {
+      type: Number,
+      required: true,
+      default: 0,
+      min: 0,
+      select: false,
     },
 
     totalRate: {

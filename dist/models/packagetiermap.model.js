@@ -42,6 +42,9 @@ const packageTierMapSchema = new Schema({
 packageTierMapSchema.index({
     packageId: 1,
     tierId: 1,
+}, {
+    unique: true,
+    name: "UniquePackageTierMapping",
 });
 packageTierServiceSchema.pre("validate", function () {
     if (this.isRequired && this.isRelated) {

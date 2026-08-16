@@ -1,5 +1,11 @@
 import { validationResult } from "express-validator";
 import { RbacService } from "../services/rbac.service.js";
+const isDuplicateKeyError = (error) => {
+    return (typeof error === "object" &&
+        error !== null &&
+        "code" in error &&
+        error.code === 11000);
+};
 export const createPermission = async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -172,10 +178,11 @@ export const updatePermission = async (req, res) => {
             return;
         }
         if (message ===
-            "Permission with this key already exists") {
+            "Permission with this key already exists" ||
+            isDuplicateKeyError(error)) {
             res.status(409).json({
                 success: false,
-                message,
+                message: "Permission with this key already exists",
             });
             return;
         }
@@ -258,10 +265,10 @@ export const createRole = async (req, res) => {
             ? error.message
             : "Unable to create role";
         if (message ===
-            "Role with this key already exists") {
+            "Role with this key already exists" || isDuplicateKeyError(error)) {
             res.status(409).json({
                 success: false,
-                message,
+                message: "Role with this key already exists",
             });
             return;
         }
@@ -394,10 +401,11 @@ export const updateRole = async (req, res) => {
             return;
         }
         if (message ===
-            "Role with this key already exists") {
+            "Role with this key already exists" ||
+            isDuplicateKeyError(error)) {
             res.status(409).json({
                 success: false,
-                message,
+                message: "Role with this key already exists",
             });
             return;
         }
@@ -720,6 +728,37 @@ export const getUserAccess = async (req, res) => {
         res.status(500).json({
             success: false,
             message: "Unable to fetch user access",
+        });
+    }
+};
+export const exportRolesCsv = async (req, res) => {
+    try {
+        const { roleIds, } = req.body;
+        const result = await RbacService.exportRolesToCsv(roleIds);
+        const timestamp = new Date()
+            .toISOString()
+            .replace(/[:.]/g, "-");
+        res.setHeader("Content-Type", "text/csv; charset=utf-8");
+        res.setHeader("Content-Disposition", `attachment; filename="rbac-roles-${timestamp}.csv"`);
+        res.status(200).send(result.csv);
+    }
+    catch (error) {
+        const message = error instanceof Error
+            ? error.message
+            : "Unable to export roles";
+        if (message ===
+            "No roles found for export") {
+            res.status(404).json({
+                success: false,
+                message,
+            });
+            return;
+        }
+        res.status(400).json({
+            success: false,
+            message: error instanceof Error
+                ? error.message
+                : "Unable to export roles",
         });
     }
 };

@@ -100,7 +100,7 @@ export const getComponentById = async (req, res) => {
 };
 export const getAllComponents = async (req, res) => {
     try {
-        const { searchTerm, categoryId, limit, page, isRemovable, isActive, isBundled, sortBy, sortOrder, } = req.query;
+        const { searchTerm, categoryId, limit, page, isRemovable, isBundled, sortBy, sortOrder, } = req.query;
         const parseBoolean = (value) => {
             if (value === "true")
                 return true;
@@ -109,26 +109,36 @@ export const getAllComponents = async (req, res) => {
             return undefined;
         };
         const removableStatus = parseBoolean(isRemovable);
-        const activeStatus = parseBoolean(isActive);
         const bundledStatus = parseBoolean(isBundled);
         const result = await ComponentService.findComponents({
             limit: limit ? Number(limit) : 20,
             page: page ? Number(page) : 1,
-            sortBy: typeof sortBy === "string" ? sortBy : "name",
-            sortOrder: sortOrder === "asc" || sortOrder === "desc" ? sortOrder : "asc",
-            ...(typeof searchTerm === "string" && {
+            /*
+             * Public API must never expose
+             * inactive components.
+             */
+            isActive: true,
+            sortBy: typeof sortBy === "string"
+                ? sortBy
+                : "name",
+            sortOrder: sortOrder === "asc" ||
+                sortOrder === "desc"
+                ? sortOrder
+                : "asc",
+            ...(typeof searchTerm ===
+                "string" && {
                 searchTerm,
             }),
-            ...(typeof categoryId === "string" && {
+            ...(typeof categoryId ===
+                "string" && {
                 categoryId,
             }),
-            ...(removableStatus !== undefined && {
+            ...(removableStatus !==
+                undefined && {
                 isRemovable: removableStatus,
             }),
-            ...(activeStatus !== undefined && {
-                isActive: activeStatus,
-            }),
-            ...(bundledStatus !== undefined && {
+            ...(bundledStatus !==
+                undefined && {
                 isBundled: bundledStatus,
             }),
         });
@@ -141,9 +151,100 @@ export const getAllComponents = async (req, res) => {
         });
     }
     catch (error) {
-        return res.status(getStatusCode(error)).json({
+        return res
+            .status(getStatusCode(error))
+            .json({
             success: false,
-            message: error.message || "Failed to fetch components",
+            message: error.message ||
+                "Failed to fetch components",
+        });
+    }
+};
+export const getAllComponentsAdmin = async (req, res) => {
+    try {
+        const { searchTerm, categoryId, limit, page, isRemovable, isActive, isBundled, sortBy, sortOrder, } = req.query;
+        const parseBoolean = (value) => {
+            if (value === "true") {
+                return true;
+            }
+            if (value === "false") {
+                return false;
+            }
+            return undefined;
+        };
+        const removableStatus = parseBoolean(isRemovable);
+        const activeStatus = parseBoolean(isActive);
+        const bundledStatus = parseBoolean(isBundled);
+        const result = await ComponentService.findComponents({
+            limit: limit ? Number(limit) : 20,
+            page: page ? Number(page) : 1,
+            sortBy: typeof sortBy === "string"
+                ? sortBy
+                : "name",
+            sortOrder: sortOrder === "asc" ||
+                sortOrder === "desc"
+                ? sortOrder
+                : "asc",
+            ...(typeof searchTerm ===
+                "string" && {
+                searchTerm,
+            }),
+            ...(typeof categoryId ===
+                "string" && {
+                categoryId,
+            }),
+            ...(removableStatus !==
+                undefined && {
+                isRemovable: removableStatus,
+            }),
+            ...(activeStatus !==
+                undefined && {
+                isActive: activeStatus,
+            }),
+            ...(bundledStatus !==
+                undefined && {
+                isBundled: bundledStatus,
+            }),
+        });
+        return res.status(200).json({
+            success: true,
+            data: result.data,
+            total: result.total,
+            currentPage: result.page,
+            totalPages: result.totalPages,
+        });
+    }
+    catch (error) {
+        return res
+            .status(getStatusCode(error))
+            .json({
+            success: false,
+            message: error.message ||
+                "Failed to fetch components",
+        });
+    }
+};
+export const exportComponentsCsv = async (req, res) => {
+    try {
+        const { componentIds, } = req.body;
+        const result = await ComponentService
+            .exportComponentsToCsv(componentIds);
+        const timestamp = new Date()
+            .toISOString()
+            .replace(/[:.]/g, "-");
+        res.setHeader("Content-Type", "text/csv; charset=utf-8");
+        res.setHeader("Content-Disposition", `attachment; filename="components-${timestamp}.csv"`);
+        return res
+            .status(200)
+            .send(result.csv);
+    }
+    catch (error) {
+        return res
+            .status(getStatusCode(error))
+            .json({
+            success: false,
+            message: error.message ||
+                "Failed to export components",
         });
     }
 };

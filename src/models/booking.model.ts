@@ -8,6 +8,16 @@ import { lineTaxSchema } from "./tax.schema.js";
 
 export type RescheduledByRole = "USER" | "ADMIN" | "SUBADMIN";
 
+export type ReassignmentStatus =
+  | "PENDING_REPLACEMENT"
+  | "REPLACEMENT_REQUESTED"
+  | "COMPLETED"
+  | "FAILED";
+
+export type ReassignmentMode =
+  | "AUTO"
+  | "NOMINATED";
+
 export type BookingStatus =
   | "PENDING_PAYMENT"
   | "CONFIRMED"
@@ -74,6 +84,8 @@ export type AssignmentRequestStatus =
 export type AssignmentRequestClosureReason =
   | "ANOTHER_COORDINATOR_ACCEPTED"
   | "REASSIGNMENT_STARTED"
+  | "REASSIGNMENT_COMPLETED"
+  | "RESCHEDULE_COORDINATOR_CHANGE"
   | "USER_CANCELLED"
   | "SYSTEM_CANCELLED";
 
@@ -106,6 +118,16 @@ export type BookedBy = "USER" | "ADMIN" | "SUBADMIN";
 export type EntryType = "SERVICE" | "PACKAGE";
 export type ComponentType = "DEFAULT" | "ADDON";
 export type ServiceRole = "PRIMARY" | "INCLUDED" | "ADDON";
+
+export interface IBookingTierSnapshot {
+  tierId: Types.ObjectId;
+  name: string;
+}
+
+export interface IBookingLocationSnapshot {
+  locationId: Types.ObjectId;
+  name: string;
+}
 
 export interface IBookingReschedule {
   previousScheduledAt?: Date;
@@ -251,6 +273,7 @@ const assignmentRequestSchema = new Schema<IAssignmentRequest>(
       enum: [
         "ANOTHER_COORDINATOR_ACCEPTED",
         "REASSIGNMENT_STARTED",
+        "RESCHEDULE_COORDINATOR_CHANGE",
         "USER_CANCELLED",
         "SYSTEM_CANCELLED",
       ],
@@ -321,8 +344,6 @@ const serviceExecutionSchema = new Schema<IServiceExecution>(
     startedAt: Date,
     completedAt: {
       type: Date,
-      default: Date.now,
-      required: true,
     },
 
     completedBy: {
@@ -357,6 +378,7 @@ export interface IBookingComponent {
 
   name: string;
   description?: string;
+  imageUrl?: string;
 
   isRequired: boolean;
   isRemovable: boolean;
@@ -485,6 +507,11 @@ const bookingComponentSchema = new Schema<IBookingComponent>(
 
     name: { type: String, required: true },
     description: String,
+
+    imageUrl: {
+      type: String,
+      trim: true,
+    },
 
     isRequired: { type: Boolean, default: false },
     isRemovable: { type: Boolean, default: true },
@@ -677,6 +704,36 @@ export interface IBookingPackageConfiguration {
   };
 }
 
+export interface IReassignment {
+  requestedBy: Types.ObjectId;
+
+  requestedByRole: ReassignmentRequestedByRole;
+
+  reason: string;
+
+  requestedAt: Date;
+
+  previousCoordinatorId: Types.ObjectId;
+
+  replacementCoordinatorId?: Types.ObjectId;
+
+  assignmentRound: number;
+
+  mode: "AUTO" | "NOMINATED";
+
+  status:
+  | "PENDING_REPLACEMENT"
+  | "REPLACEMENT_REQUESTED"
+  | "COMPLETED"
+  | "FAILED";
+
+  completedAt?: Date;
+
+  failedAt?: Date;
+
+  failureReason?: string;
+}
+
 const bookingPackageConfigurationSchema =
   new Schema<IBookingPackageConfiguration>(
     {
@@ -841,6 +898,135 @@ const bookingRescheduleSchema = new Schema<IBookingReschedule>(
   },
 );
 
+const bookingTierSnapshotSchema =
+  new Schema<IBookingTierSnapshot>(
+    {
+      tierId: {
+        type: Schema.Types.ObjectId,
+        ref: "Tier",
+        required: true,
+      },
+
+      name: {
+        type: String,
+        required: true,
+        trim: true,
+      },
+    },
+    {
+      _id: false,
+    },
+  );
+
+const bookingLocationSnapshotSchema =
+  new Schema<IBookingLocationSnapshot>(
+    {
+      locationId: {
+        type: Schema.Types.ObjectId,
+        ref: "Location",
+        required: true,
+      },
+
+      name: {
+        type: String,
+        required: true,
+        trim: true,
+      },
+    },
+    {
+      _id: false,
+    },
+  );
+
+const reassignmentSchema = new Schema<IReassignment>(
+  {
+    requestedBy: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+    },
+
+    requestedByRole: {
+      type: String,
+      enum: [
+        "USER",
+        "COORDINATOR",
+        "ADMIN",
+        "SYSTEM",
+      ] as ReassignmentRequestedByRole[],
+      required: true,
+    },
+
+    reason: {
+      type: String,
+      required: true,
+      trim: true,
+      maxlength: 500,
+    },
+
+    requestedAt: {
+      type: Date,
+      required: true,
+      default: Date.now,
+    },
+
+    previousCoordinatorId: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+    },
+
+    replacementCoordinatorId: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+    },
+
+    assignmentRound: {
+      type: Number,
+      required: true,
+      min: 1,
+    },
+
+    mode: {
+      type: String,
+      enum: [
+        "AUTO",
+        "NOMINATED",
+      ],
+      required: true,
+    },
+
+    status: {
+      type: String,
+      enum: [
+        "PENDING_REPLACEMENT",
+        "REPLACEMENT_REQUESTED",
+        "COMPLETED",
+        "FAILED",
+      ],
+      required: true,
+    },
+
+    completedAt: {
+      type: Date,
+    },
+
+    failedAt: {
+      type: Date,
+    },
+
+    failureReason: {
+      type: String,
+      trim: true,
+      maxlength: 500,
+    },
+  },
+  {
+    _id: false,
+  },
+);
+
+
 export interface IBooking extends Document {
   userId?: Types.ObjectId;
   cartId: Types.ObjectId;
@@ -848,6 +1034,9 @@ export interface IBooking extends Document {
   bookedBy: BookedBy;
   entries: IBookingEntry[];
   bookingFor: BookingFor;
+
+  tierSnapshot: IBookingTierSnapshot;
+  locationSnapshot: IBookingLocationSnapshot;
 
   beneficiaryUserId?: Types.ObjectId;
   beneficiaryAccess?: {
@@ -913,6 +1102,7 @@ export interface IBooking extends Document {
     gateway?: string;
     amountPaid?: number;
     refundAmount?: number;
+    refundReservedAmount?: number;
     paidAt?: Date;
     refundedAt?: Date;
     currency?: string;
@@ -954,13 +1144,7 @@ export interface IBooking extends Document {
       requestedAt: Date;
       assignmentRound: number;
     };
-    reassignment?: {
-      requestedBy: Types.ObjectId;
-      requestedByRole: ReassignmentRequestedByRole;
-      reason?: string;
-      requestedAt: Date;
-      previousCoordinatorId?: Types.ObjectId;
-    };
+    reassignment?: IReassignment;
   };
 
   scheduledAt?: Date;
@@ -983,6 +1167,16 @@ const bookingSchema = new Schema<IBooking>(
     cartId: {
       type: Schema.Types.ObjectId,
       ref: "Cart",
+      required: true,
+    },
+
+    tierSnapshot: {
+      type: bookingTierSnapshotSchema,
+      required: true,
+    },
+
+    locationSnapshot: {
+      type: bookingLocationSnapshotSchema,
       required: true,
     },
 
@@ -1130,6 +1324,11 @@ const bookingSchema = new Schema<IBooking>(
         type: Number,
         default: 0,
       },
+      refundReservedAmount: {
+        type: Number,
+        default: 0,
+        min: 0,
+      },
       refunds: {
         type: [bookingRefundSchema],
         default: [],
@@ -1226,26 +1425,8 @@ const bookingSchema = new Schema<IBooking>(
       },
 
       reassignment: {
-        requestedBy: {
-          type: Schema.Types.ObjectId,
-          ref: "User",
-        },
-        requestedByRole: {
-          type: String,
-          enum: [
-            "USER",
-            "COORDINATOR",
-            "ADMIN",
-            "SYSTEM",
-          ] as ReassignmentRequestedByRole[],
-          default: "USER",
-        },
-        reason: String,
-        requestedAt: Date,
-        previousCoordinatorId: {
-          type: Schema.Types.ObjectId,
-          ref: "User",
-        },
+        type: reassignmentSchema,
+        default: undefined,
       },
     },
 

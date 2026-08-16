@@ -141,9 +141,8 @@ export const toggleCategoryStatus = async (req: Request, res: Response) => {
 
     return res.status(200).json({
       success: true,
-      message: `Category ${
-        result.isActive ? "activated" : "deactivated"
-      } successfully`,
+      message: `Category ${result.isActive ? "activated" : "deactivated"
+        } successfully`,
       data: result,
     });
   } catch (error: any) {
@@ -154,28 +153,66 @@ export const toggleCategoryStatus = async (req: Request, res: Response) => {
   }
 };
 
-export const getAllCategories = async (req: Request, res: Response) => {
+export const getAllCategories = async (
+  req: Request,
+  res: Response,
+) => {
   try {
-    const { searchTerm, type, limit, page, isActive, sortBy, sortOrder } =
-      req.query;
+    const {
+      searchTerm,
+      type,
+      limit,
+      page,
+      sortBy,
+      sortOrder,
+    } = req.query;
 
-    const parsedLimit = parsePositiveInteger(limit, 40, 100);
-    const parsedPage = parsePositiveInteger(page, 1);
+    const parsedLimit =
+      parsePositiveInteger(
+        limit,
+        40,
+        100,
+      );
+
+    const parsedPage =
+      parsePositiveInteger(
+        page,
+        1,
+      );
 
     const {
       data,
       total,
       page: currentPage,
       totalPages,
-    } = await CategoryService.findCategories(
-      searchTerm as string,
-      type as "service" | "product",
-      parsedLimit,
-      parsedPage,
-      isActive === "true" ? true : isActive === "false" ? false : undefined,
-      (sortBy as string) || "displayOrder",
-      (sortOrder as "asc" | "desc") || "asc",
-    );
+    } =
+      await CategoryService.findCategories(
+        typeof searchTerm === "string"
+          ? searchTerm
+          : undefined,
+
+        type === "service" ||
+          type === "product"
+          ? type
+          : undefined,
+
+        parsedLimit,
+        parsedPage,
+
+        /*
+         * Public API must only expose
+         * active categories.
+         */
+        true,
+
+        typeof sortBy === "string"
+          ? sortBy
+          : "displayOrder",
+
+        sortOrder === "desc"
+          ? "desc"
+          : "asc",
+      );
 
     return res.status(200).json({
       success: true,
@@ -187,7 +224,150 @@ export const getAllCategories = async (req: Request, res: Response) => {
   } catch (error: any) {
     return res.status(400).json({
       success: false,
-      message: error.message || "Failed to fetch categories",
+      message:
+        error.message ||
+        "Failed to fetch categories",
+    });
+  }
+};
+
+export const getAllCategoriesAdmin = async (
+  req: Request,
+  res: Response,
+) => {
+  try {
+    const {
+      searchTerm,
+      type,
+      limit,
+      page,
+      isActive,
+      sortBy,
+      sortOrder,
+    } = req.query;
+
+    const parsedLimit =
+      parsePositiveInteger(
+        limit,
+        40,
+        100,
+      );
+
+    const parsedPage =
+      parsePositiveInteger(
+        page,
+        1,
+      );
+
+    const activeStatus =
+      isActive === "true"
+        ? true
+        : isActive === "false"
+          ? false
+          : undefined;
+
+    const {
+      data,
+      total,
+      page: currentPage,
+      totalPages,
+    } =
+      await CategoryService.findCategories(
+        typeof searchTerm === "string"
+          ? searchTerm
+          : undefined,
+
+        type === "service" ||
+          type === "product"
+          ? type
+          : undefined,
+
+        parsedLimit,
+        parsedPage,
+
+        activeStatus,
+
+        typeof sortBy === "string"
+          ? sortBy
+          : "displayOrder",
+
+        sortOrder === "desc"
+          ? "desc"
+          : "asc",
+      );
+
+    return res.status(200).json({
+      success: true,
+      data,
+      total,
+      currentPage,
+      totalPages,
+    });
+  } catch (error: any) {
+    return res.status(400).json({
+      success: false,
+      message:
+        error.message ||
+        "Failed to fetch categories",
+    });
+  }
+};
+
+
+export const exportCategoriesCsv = async (
+  req: Request,
+  res: Response,
+) => {
+  try {
+    const {
+      categoryIds,
+    }: {
+      categoryIds: string[];
+    } = req.body;
+
+    const result =
+      await CategoryService
+        .exportCategoriesToCsv(
+          categoryIds,
+        );
+
+    const timestamp =
+      new Date()
+        .toISOString()
+        .replace(
+          /[:.]/g,
+          "-",
+        );
+
+    res.setHeader(
+      "Content-Type",
+      "text/csv; charset=utf-8",
+    );
+
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="categories-${timestamp}.csv"`,
+    );
+
+    return res
+      .status(200)
+      .send(result.csv);
+  } catch (error: any) {
+    if (
+      error.message ===
+      "No categories found for export"
+    ) {
+      return res.status(404).json({
+        success: false,
+        message: error.message,
+      });
+    }
+
+    return res.status(400).json({
+      success: false,
+      message:
+        error.message ||
+        "Failed to export categories",
     });
   }
 };

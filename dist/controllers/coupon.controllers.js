@@ -11,7 +11,7 @@ const getErrorStatus = (error) => {
 };
 export const createCoupon = async (req, res) => {
     try {
-        const { name, couponCode, applicableOn, services, packages, assignedUserId, discount, discountType, usageLimit, validFrom, validTill, minOrderAmount, maxDiscountAmount, isFirstOrderOnly, isActive, } = req.body;
+        const { name, couponCode, applicableOn, services, packages, assignedUserId, discount, discountType, usageLimit, validFrom, validTill, minOrderAmount, maxDiscountAmount, isFirstOrderOnly, } = req.body;
         const couponData = {
             name,
             couponCode,
@@ -104,14 +104,17 @@ export const validateCoupon = async (req, res) => {
                 message: "Unauthorized access",
             });
         }
-        const { couponCode, serviceId, packageId, amount, isFirstOrder } = req.body;
+        const { couponCode, serviceId, packageId, amount, } = req.body;
         const input = {
             couponCode,
             orderAmount: amount,
             userId,
-            isFirstOrder: isFirstOrder ?? false,
-            ...(serviceId !== undefined ? { serviceId } : {}),
-            ...(packageId !== undefined ? { packageId } : {}),
+            ...(serviceId !== undefined && {
+                serviceId,
+            }),
+            ...(packageId !== undefined && {
+                packageId,
+            }),
         };
         const result = await CouponService.validateCoupon(input);
         return res.status(200).json({
@@ -203,12 +206,7 @@ export const getAvailableCoupons = async (req, res) => {
                 message: "Unauthorized access",
             });
         }
-        const { serviceId, packageId, amount, isFirstOrder, } = req.query;
-        const firstOrder = isFirstOrder === "true"
-            ? true
-            : isFirstOrder === "false"
-                ? false
-                : undefined;
+        const { serviceId, packageId, amount, } = req.query;
         const coupons = await CouponService.getAvailableCoupons({
             userId,
             ...(typeof serviceId === "string" && {
@@ -219,9 +217,6 @@ export const getAvailableCoupons = async (req, res) => {
             }),
             ...(amount !== undefined && {
                 orderAmount: Number(amount),
-            }),
-            ...(firstOrder !== undefined && {
-                isFirstOrder: firstOrder,
             }),
         });
         return res.status(200).json({
@@ -234,6 +229,32 @@ export const getAvailableCoupons = async (req, res) => {
         return res.status(400).json({
             success: false,
             message: getErrorMessage(error, "Failed to fetch available coupons"),
+        });
+    }
+};
+export const exportCouponsCsv = async (req, res) => {
+    try {
+        const { couponIds, } = req.body;
+        const result = await CouponService.exportCouponsToCsv(couponIds);
+        const timestamp = new Date()
+            .toISOString()
+            .replace(/[:.]/g, "-");
+        res.setHeader("Content-Type", "text/csv; charset=utf-8");
+        res.setHeader("Content-Disposition", `attachment; filename="coupons-${timestamp}.csv"`);
+        return res.status(200).send(result.csv);
+    }
+    catch (error) {
+        const message = getErrorMessage(error, "Failed to export coupons");
+        if (message ===
+            "No coupons found for export") {
+            return res.status(404).json({
+                success: false,
+                message,
+            });
+        }
+        return res.status(400).json({
+            success: false,
+            message,
         });
     }
 };

@@ -1,6 +1,6 @@
 import { Router, } from "express";
 import { body, param, query, validationResult } from "express-validator";
-import { createTier, getAllTier, getAllTierAdmin, getTierById, toggleTierStatus, updateTier, } from "../controllers/tier.controllers.js";
+import { createTier, exportTiersCsv, getAllTier, getAllTierAdmin, getTierById, toggleTierStatus, updateTier, } from "../controllers/tier.controllers.js";
 import { authenticate } from "../middleware/authenticate.js";
 import { authorizeRoles } from "../middleware/authorizeRoles.js";
 import { Role } from "../types/rbac.js";
@@ -128,11 +128,34 @@ const adminTierListValidation = [
         .withMessage("sortOrder must be asc or desc"),
     validate,
 ];
+const exportTiersValidation = [
+    body("tierIds")
+        .isArray({ min: 1, max: 1000 })
+        .withMessage("tierIds must contain between 1 and 1000 tier IDs"),
+    body("tierIds.*")
+        .isMongoId()
+        .withMessage("Each tierId must be a valid MongoDB ID"),
+    validate,
+];
+// =========================================================
+// PUBLIC
+// =========================================================
 router.get("/", publicTierListValidation, getAllTier);
+// =========================================================
+// ADMIN - STATIC ROUTES
+// =========================================================
 router.get("/admin", authenticate, authorizeRoles(Role.ADMIN), requirePermission("tier.read"), adminTierListValidation, getAllTierAdmin);
-router.get("/:id", authenticate, authorizeRoles(Role.ADMIN), requirePermission("tier.read"), tierIdValidation, getTierById);
+router.post("/export", authenticate, authorizeRoles(Role.ADMIN), requirePermission("tier.export"), exportTiersValidation, exportTiersCsv);
 router.post("/", authenticate, authorizeRoles(Role.ADMIN), requirePermission("tier.create"), createTierValidation, createTier);
-router.put("/:id", authenticate, authorizeRoles(Role.ADMIN), requirePermission("tier.update"), updateTierValidation, updateTier);
+// =========================================================
+// ADMIN - SPECIFIC ID ACTIONS
+// =========================================================
 router.patch("/:id/status", authenticate, authorizeRoles(Role.ADMIN), requirePermission("tier.status"), toggleTierStatusValidation, toggleTierStatus);
+// =========================================================
+// ADMIN - GENERIC ID ROUTES
+// Keep these after more-specific /:id/... routes.
+// =========================================================
+router.get("/:id", authenticate, authorizeRoles(Role.ADMIN), requirePermission("tier.read"), tierIdValidation, getTierById);
+router.put("/:id", authenticate, authorizeRoles(Role.ADMIN), requirePermission("tier.update"), updateTierValidation, updateTier);
 export default router;
 //# sourceMappingURL=tier.routes.js.map

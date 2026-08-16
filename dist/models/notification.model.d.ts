@@ -1,8 +1,8 @@
 import { Types, Document, Model } from "mongoose";
 import { Role } from "../types/rbac.js";
-export declare const PUSH_DELIVERY_STATUSES: readonly ["NOT_REQUESTED", "PENDING", "SENT", "PARTIAL", "FAILED"];
+export declare const PUSH_DELIVERY_STATUSES: readonly ["NOT_REQUESTED", "PENDING", "RETRYING", "SENT", "PARTIAL", "FAILED"];
 export type PushDeliveryStatus = (typeof PUSH_DELIVERY_STATUSES)[number];
-export declare const EMAIL_DELIVERY_STATUSES: readonly ["NOT_REQUESTED", "PENDING", "SENT", "FAILED"];
+export declare const EMAIL_DELIVERY_STATUSES: readonly ["NOT_REQUESTED", "PENDING", "RETRYING", "SENT", "FAILED"];
 export type EmailDeliveryStatus = (typeof EMAIL_DELIVERY_STATUSES)[number];
 export declare const NOTIFICATION_TYPES: readonly ["BOOKING", "PAYMENT", "QUERY", "REVIEW", "SYSTEM"];
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];

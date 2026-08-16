@@ -19,8 +19,102 @@ import {
 } from "../types/enums.js";
 import { escapeRegex } from "../utils/escapeRegex.js";
 import { BookingService } from "./booking.service.js";
+import { NotificationService } from "./notification.service.js";
+import { RedisCacheService } from "./redis-cache.service.js";
+import { CacheKeys } from "../cache/cache-keys.js";
+import { CACHE_TTL_SECONDS } from "../cache/constants.js";
 
 class AuthService {
+  private static async invalidateUserCache(
+    userId:
+      string,
+  ): Promise<void> {
+    await Promise.all([
+      RedisCacheService.delete(
+        CacheKeys.userDetail(
+          userId,
+        ),
+      ),
+
+      RedisCacheService.delete(
+        CacheKeys.currentUser(
+          userId,
+        ),
+      ),
+
+      RedisCacheService.delete(
+        CacheKeys.coordinatorDetail(
+          userId,
+        ),
+      ),
+
+      RedisCacheService.deleteByPattern(
+        CacheKeys.userListPattern(),
+      ),
+
+      RedisCacheService.deleteByPattern(
+        CacheKeys.coordinatorListPattern(),
+      ),
+    ]);
+  }
+
+  private static async invalidateUserListCache():
+    Promise<void> {
+    await Promise.all([
+      RedisCacheService.deleteByPattern(
+        CacheKeys.userListPattern(),
+      ),
+
+      RedisCacheService.deleteByPattern(
+        CacheKeys.coordinatorListPattern(),
+      ),
+    ]);
+  }
+
+  /**
+   * Auth/security notifications must never break the primary auth action.
+   *
+   * Example:
+   * - password was already changed successfully
+   * - admin already approved/rejected verification
+   *
+   * If Redis / BullMQ / Firebase / template configuration has a problem,
+   * we log it and keep the successful business action successful.
+   */
+  private static async sendAuthNotificationSafely(params: {
+    recipientId: string;
+    recipientRole: Role;
+    templateCode: string;
+    variables?: Record<
+      string,
+      string | number | boolean | Date | null | undefined
+    >;
+    dedupeKey: string;
+    email?: boolean;
+    push?: boolean;
+  }): Promise<void> {
+    try {
+      await NotificationService.createFromTemplate({
+        recipientId: params.recipientId,
+        recipientRole: params.recipientRole,
+        templateCode: params.templateCode,
+        ...(params.variables && {
+          variables: params.variables,
+        }),
+        dedupeKey: params.dedupeKey,
+        channels: {
+          email: params.email ?? false,
+          push: params.push ?? true,
+        },
+      });
+    } catch (error) {
+      console.error(
+        `[AUTH NOTIFICATION] Failed to send ${params.templateCode} to ${params.recipientId}:`,
+        error,
+      );
+    }
+  }
+
   private static async generateUserSession(
     user: HydratedDocument<IUser>,
     userAgent?: string,
@@ -169,6 +263,11 @@ class AuthService {
       )) as HydratedDocument<IUser>;
 
       await session.commitTransaction();
+
+      await RedisCacheService.deleteByPattern(
+        CacheKeys.userListPattern(),
+      );
+
       return user;
     } catch (error: any) {
       await session.abortTransaction();
@@ -185,6 +284,7 @@ class AuthService {
 
   static async socialAuth(
     role: Role,
+    idToken: string,
     email: string,
     userAgent?: string,
     ip?: string,
@@ -210,7 +310,7 @@ class AuthService {
       }
 
       const user = await User.findOneAndUpdate(
-        { role, email: normalizedEmail },
+        { role, email: normalizedEmail, token: idToken },
         {
           $set: { isOtpVerified: true, userReference },
           $setOnInsert: {
@@ -444,9 +544,15 @@ class AuthService {
 
     const sessionData = await this.generateUserSession(user, userAgent, ip);
 
-    await BookingService.linkBeneficiaryBookingsToUser(
-      user._id.toString(),
-    );
+    // Non-blocking extra operation
+    try {
+      await BookingService.linkBeneficiaryBookingsToUser(
+        user._id.toString(),
+      );
+    } catch (bookingError) {
+      // Log the error so you can debug it later, but let the user log in anyway
+      console.error("Failed to link beneficiary bookings:", bookingError);
+    }
 
     return sessionData as {
       user: IUser;
@@ -473,6 +579,23 @@ class AuthService {
       // Reuse detection: if token not found, someone might have stolen and used it already!
       if (!session) {
         await Session.deleteMany({ familyId: decoded.familyId });
+
+        const affectedUser = await User.findById(
+          decoded.userId,
+        ).select("_id role email");
+
+        if (affectedUser) {
+          await this.sendAuthNotificationSafely({
+            recipientId: affectedUser._id.toString(),
+            recipientRole: affectedUser.role,
+            templateCode: "AUTH_SECURITY_SESSION_REVOKED",
+            dedupeKey:
+              `AUTH:SECURITY:REFRESH_REUSE:${decoded.familyId}`,
+            email: Boolean(affectedUser.email),
+            push: true,
+          });
+        }
+
         throw new Error(
           "Security Alert: Refresh token reuse detected. All sessions revoked",
         );
@@ -611,6 +734,20 @@ class AuthService {
 
     // security: Invalidate all existing sessions
     await Session.deleteMany({ userId: user._id });
+
+    await this.sendAuthNotificationSafely({
+      recipientId: user._id.toString(),
+      recipientRole: user.role,
+      templateCode: "AUTH_PASSWORD_UPDATED",
+      variables: {
+        action: "reset",
+      },
+      dedupeKey:
+        `AUTH:PASSWORD_RESET:${user._id}:${user.updatedAt.getTime()}`,
+      email: Boolean(user.email),
+      push: true,
+    });
+
     return { success: true, message: "Password updated sucessfully" };
   }
 
@@ -643,6 +780,20 @@ class AuthService {
 
     // security: Invalidate all existing sessions
     await Session.deleteMany({ userId: user._id });
+
+    await this.sendAuthNotificationSafely({
+      recipientId: user._id.toString(),
+      recipientRole: user.role,
+      templateCode: "AUTH_PASSWORD_UPDATED",
+      variables: {
+        action: "changed",
+      },
+      dedupeKey:
+        `AUTH:PASSWORD_CHANGED:${user._id}:${user.updatedAt.getTime()}`,
+      email: Boolean(user.email),
+      push: true,
+    });
+
     return { success: true, message: "Password updated sucessfully" };
   }
 
@@ -654,112 +805,271 @@ class AuthService {
     isActive?: boolean,
     search?: string,
     sortBy: string = "createdAt",
-    sortOrder: "asc" | "desc" = "desc",
+    sortOrder:
+      "asc" | "desc" =
+      "desc",
   ) {
-    try {
-      const skip = (page - 1) * limit;
+    const cacheKey =
+      CacheKeys.userList({
+        page,
+        limit,
+        role,
+        isComplete,
+        isActive,
+        search,
+        sortBy,
+        sortOrder,
+      });
 
-      // Build a dynamic filter object
-      const filter: any = {};
-      if (role) filter.role = role;
-      if (typeof isComplete === "boolean") filter.isComplete = isComplete;
-      if (typeof isActive === "boolean") filter.isActive = isActive;
+    return RedisCacheService.getOrSet({
+      key:
+        cacheKey,
 
-      const isTextSearch = !!search?.trim() && search.trim().length > 4;
+      ttlSeconds:
+        CACHE_TTL_SECONDS
+          .USER_LIST,
 
-      if (search?.trim()) {
-        const term = search.trim();
+      loader:
+        async () => {
+          try {
+            const skip =
+              (page - 1) *
+              limit;
 
-        if (isTextSearch) {
-          filter.$text = {
-            $search: term,
-          };
-        } else {
-          filter.$or = [
-            {
-              fullName: {
-                $regex: `^${escapeRegex(term)}`,
-                $options: "i",
+            const filter:
+              Record<
+                string,
+                any
+              > = {};
+
+            if (
+              role
+            ) {
+              filter.role =
+                role;
+            }
+
+            if (
+              typeof isComplete ===
+              "boolean"
+            ) {
+              filter.isComplete =
+                isComplete;
+            }
+
+            if (
+              typeof isActive ===
+              "boolean"
+            ) {
+              filter.isActive =
+                isActive;
+            }
+
+            const isTextSearch =
+              !!search?.trim() &&
+              search.trim().length >
+              4;
+
+            if (
+              search?.trim()
+            ) {
+              const term =
+                search.trim();
+
+              if (
+                isTextSearch
+              ) {
+                filter.$text = {
+                  $search:
+                    term,
+                };
+              } else {
+                filter.$or = [
+                  {
+                    fullName: {
+                      $regex:
+                        `^${escapeRegex(term)}`,
+
+                      $options:
+                        "i",
+                    },
+                  },
+
+                  {
+                    email: {
+                      $regex:
+                        `^${escapeRegex(term)}`,
+
+                      $options:
+                        "i",
+                    },
+                  },
+
+                  {
+                    phoneNumber: {
+                      $regex:
+                        `^${escapeRegex(term)}`,
+
+                      $options:
+                        "i",
+                    },
+                  },
+
+                  {
+                    userReference: {
+                      $regex:
+                        `^${escapeRegex(term)}`,
+
+                      $options:
+                        "i",
+                    },
+                  },
+                ];
+              }
+            }
+
+            let sortCriteria:
+              Record<
+                string,
+                any
+              > = {};
+
+            if (
+              isTextSearch &&
+              sortBy ===
+              "relevance"
+            ) {
+              sortCriteria = {
+                score: {
+                  $meta:
+                    "textScore",
+                },
+              };
+            } else {
+              sortCriteria[
+                sortBy
+              ] =
+                sortOrder ===
+                  "desc"
+                  ? -1
+                  : 1;
+
+              sortCriteria.createdAt =
+                -1;
+            }
+
+            const [
+              users,
+              total,
+            ] =
+              await Promise.all([
+                User.find(
+                  filter,
+                )
+                  .select(
+                    "-password -otp -otpExpiresAt " +
+                    "-resetPasswordToken -resetPasswordExpires",
+                  )
+                  .sort(
+                    sortCriteria,
+                  )
+                  .skip(
+                    skip,
+                  )
+                  .limit(
+                    limit,
+                  )
+                  .lean(),
+
+                User.countDocuments(
+                  filter,
+                ),
+              ]);
+
+            return {
+              users,
+
+              pagination: {
+                total,
+                page,
+                limit,
+
+                pages:
+                  Math.ceil(
+                    total /
+                    limit,
+                  ),
               },
-            },
-            {
-              email: {
-                $regex: `^${escapeRegex(term)}`,
-                $options: "i",
-              },
-            },
-            {
-              phoneNumber: {
-                $regex: `^${escapeRegex(term)}`,
-                $options: "i",
-              },
-            },
-            {
-              userReference: {
-                $regex: `^${escapeRegex(term)}`,
-                $options: "i",
-              },
-            },
-          ];
-        }
-      }
-
-      // Defined sort order
-      let sortCriteria: any = {};
-
-      if (isTextSearch && sortBy === "relevance") {
-        sortCriteria = {
-          score: {
-            $meta: "textScore",
-          },
-        };
-      } else {
-        sortCriteria[sortBy] = sortOrder === "desc" ? -1 : 1;
-        sortCriteria.createdAt = -1;
-      }
-
-      // Fetch data and count in parallel for better performance
-      const [users, total] = await Promise.all([
-        User.find(filter).select(
-          "-password -otp -otpExpiresAt " +
-          "-resetPasswordToken -resetPasswordExpires",
-        ).sort(sortCriteria).skip(skip).limit(limit).lean(), // Use lean() for faster read-only queries
-        User.countDocuments(filter),
-      ]);
-
-      return {
-        users,
-        pagination: {
-          total,
-          page,
-          limit,
-          pages: Math.ceil(total / limit),
+            };
+          } catch (
+          error:
+            any
+          ) {
+            throw new Error(
+              error.message ||
+              "Failed to fetch users",
+            );
+          }
         },
-      };
-    } catch (error: any) {
-      throw new Error(error.message || "Failed to fetch users");
-    }
+    });
   }
 
-  static async GetUserById(userId: string) {
-    try {
-      const user = await User.findById(userId)
-        .select(
-          "-password -otp -otpExpiresAt -resetPasswordToken -resetPasswordExpires",
-        )
-        .lean();
+  static async GetUserById(
+    userId:
+      string,
+  ) {
+    const cacheKey =
+      CacheKeys.userDetail(
+        userId,
+      );
 
-      if (!user) {
-        throw new Error("User not found with the provided ID");
-      }
+    return RedisCacheService.getOrSet({
+      key:
+        cacheKey,
 
-      return user;
-    } catch (error: any) {
-      if (error.name === "CastError") {
-        throw new Error("Invalid User ID format");
-      }
-      throw error;
-    }
+      ttlSeconds:
+        CACHE_TTL_SECONDS
+          .USER_DETAIL,
+
+      loader:
+        async () => {
+          try {
+            const user =
+              await User.findById(
+                userId,
+              )
+                .select(
+                  "-password -otp -otpExpiresAt " +
+                  "-resetPasswordToken -resetPasswordExpires",
+                )
+                .lean();
+
+            if (
+              !user
+            ) {
+              throw new Error(
+                "User not found with the provided ID",
+              );
+            }
+
+            return user;
+          } catch (
+          error:
+            any
+          ) {
+            if (
+              error.name ===
+              "CastError"
+            ) {
+              throw new Error(
+                "Invalid User ID format",
+              );
+            }
+
+            throw error;
+          }
+        },
+    });
   }
 
   static async GetUserByEmailOrPhone(identifier: string, role: Role) {
@@ -812,6 +1122,23 @@ class AuthService {
 
       await session.commitTransaction();
 
+      await this.invalidateUserCache(
+        userId,
+      );
+
+      await this.sendAuthNotificationSafely({
+        recipientId: user._id.toString(),
+        recipientRole: user.role,
+        templateCode: "AUTH_ACCOUNT_STATUS_CHANGED",
+        variables: {
+          accountStatus: status ? "activated" : "deactivated",
+        },
+        dedupeKey:
+          `AUTH:ACCOUNT_STATUS:${user._id}:${status}:${user.updatedAt.getTime()}`,
+        email: Boolean(user.email),
+        push: true,
+      });
+
       return user;
     } catch (error) {
       await session.abortTransaction();
@@ -841,14 +1168,34 @@ class AuthService {
 
     try {
       const user = await User.findById(userId).session(session);
-      if (!user) throw new Error("User not found. Please register first.");
-      if (user.isComplete) throw new Error("Profile is already complete.");
+      if (!user) {
+        throw new Error(
+          "User not found. Please register first."
+        );
+      }
+
+      if (!user.isOtpVerified) {
+        throw new Error(
+          "Please verify your OTP before completing your profile."
+        );
+      }
+
+      if (user.isComplete) {
+        throw new Error(
+          "Profile is already complete."
+        );
+      }
 
       let referredById: Types.ObjectId | null = null;
 
       if (referralCode && !user.referredBy) {
         const referrer = await User.findOne({
-          referralCode: referralCode.trim().toUpperCase(),
+          referralCode:
+            referralCode.trim().toUpperCase(),
+
+          role: Role.USER,
+
+          isActive: true,
         }).session(session);
 
         if (referrer) {
@@ -952,9 +1299,19 @@ class AuthService {
 
       await session.commitTransaction();
 
-      await BookingService.linkBeneficiaryBookingsToUser(
+      await this.invalidateUserCache(
         updatedUser._id.toString(),
       );
+
+      // Non-blocking extra operation
+      try {
+        await BookingService.linkBeneficiaryBookingsToUser(
+          updatedUser._id.toString(),
+        );
+      } catch (bookingError) {
+        // Log the error for debugging, but don't stop the return flow
+        console.error("Failed to link beneficiary bookings during profile completion:", bookingError);
+      }
 
       return {
         user: userWithoutPassword as unknown as IUser,
@@ -1018,6 +1375,10 @@ class AuthService {
     if (!updatedUser) {
       throw new Error("User not found");
     }
+
+    await this.invalidateUserCache(
+      userId,
+    );
 
     return updatedUser;
   }
@@ -1131,6 +1492,10 @@ class AuthService {
       throw new Error("User not found");
     }
 
+    await this.invalidateUserCache(
+      userId,
+    );
+
     return updatedUser;
   }
 
@@ -1214,7 +1579,36 @@ class AuthService {
        */
     }
 
+    await this.invalidateUserCache(
+      userId,
+    );
+
     await user.save();
+
+    const verificationLabel =
+      type === "document"
+        ? "identity document"
+        : "bank";
+
+    const verificationDetails =
+      status === VerificationStatus.REJECTED
+        ? `Reason: ${rejectionReason!.trim()}`
+        : `Your ${verificationLabel} verification has been approved.`;
+
+    await this.sendAuthNotificationSafely({
+      recipientId: user._id.toString(),
+      recipientRole: user.role,
+      templateCode: "AUTH_VERIFICATION_STATUS_CHANGED",
+      variables: {
+        verificationType: verificationLabel,
+        status: status.toLowerCase(),
+        details: verificationDetails,
+      },
+      dedupeKey:
+        `AUTH:VERIFICATION:${user._id}:${type}:${status}:${user.updatedAt.getTime()}`,
+      email: Boolean(user.email),
+      push: true,
+    });
 
     return User.findById(userId)
       .select(
@@ -1224,19 +1618,46 @@ class AuthService {
       .lean();
   }
 
-  static async getCurrentUser(userId: string) {
-    const user = await User.findById(userId)
-      .select(
-        "-password -otp -otpExpiresAt -resetPasswordToken -resetPasswordExpires",
-      )
-      .populate("coordinatorProfile.serviceableLocations.locationId")
-      .lean();
+  static async getCurrentUser(
+    userId:
+      string,
+  ) {
+    return RedisCacheService.getOrSet({
+      key:
+        CacheKeys.currentUser(
+          userId,
+        ),
 
-    if (!user) {
-      throw new Error("User not found");
-    }
+      ttlSeconds:
+        CACHE_TTL_SECONDS
+          .CURRENT_USER,
 
-    return user;
+      loader:
+        async () => {
+          const user =
+            await User.findById(
+              userId,
+            )
+              .select(
+                "-password -otp -otpExpiresAt " +
+                "-resetPasswordToken -resetPasswordExpires",
+              )
+              .populate(
+                "coordinatorProfile.serviceableLocations.locationId",
+              )
+              .lean();
+
+          if (
+            !user
+          ) {
+            throw new Error(
+              "User not found",
+            );
+          }
+
+          return user;
+        },
+    });
   }
 
   static async updateCoordinatorApproval(
@@ -1306,6 +1727,29 @@ class AuthService {
 
     await coordinator.save();
 
+    await this.invalidateUserCache(
+      coordinatorId,
+    );
+
+    const approvalDetails =
+      status === ApprovalStatus.REJECTED
+        ? `Reason: ${rejectionReason!.trim()}`
+        : "Your coordinator account is approved and eligible for assignments.";
+
+    await this.sendAuthNotificationSafely({
+      recipientId: coordinator._id.toString(),
+      recipientRole: Role.COORDINATOR,
+      templateCode: "AUTH_COORDINATOR_APPROVAL_CHANGED",
+      variables: {
+        status: status.toLowerCase(),
+        details: approvalDetails,
+      },
+      dedupeKey:
+        `AUTH:COORDINATOR_APPROVAL:${coordinator._id}:${status}:${coordinator.updatedAt.getTime()}`,
+      email: Boolean(coordinator.email),
+      push: true,
+    });
+
     return User.findById(coordinatorId)
       .select(
         "-password -otp -otpExpiresAt " +
@@ -1344,6 +1788,10 @@ class AuthService {
     coordinator.coordinatorProfile.lastAvailabilityChangedAt = new Date();
 
     await coordinator.save();
+
+    await this.invalidateUserCache(
+      coordinatorId,
+    );
 
     return {
       availabilityStatus: coordinator.coordinatorProfile.availabilityStatus,
@@ -1394,6 +1842,10 @@ class AuthService {
 
     await coordinator.save();
 
+    await this.invalidateUserCache(
+      coordinatorId,
+    );
+
     return {
       maxDailyBookings: coordinator.coordinatorProfile.maxDailyBookings,
       autoAssignmentEnabled:
@@ -1431,6 +1883,10 @@ class AuthService {
 
     await coordinator.save();
 
+    await this.invalidateUserCache(
+      coordinatorId,
+    );
+
     const updatedCoordinator = await User.findById(coordinatorId)
       .select(
         "-password -otp -otpExpiresAt -resetPasswordToken -resetPasswordExpires",
@@ -1441,22 +1897,50 @@ class AuthService {
     return updatedCoordinator;
   }
 
-  static async getCoordinatorById(coordinatorId: string) {
-    const coordinator = await User.findOne({
-      _id: coordinatorId,
-      role: Role.COORDINATOR,
-    })
-      .select(
-        "-password -otp -otpExpiresAt -resetPasswordToken -resetPasswordExpires",
-      )
-      .populate("coordinatorProfile.serviceableLocations.locationId")
-      .lean();
+  static async getCoordinatorById(
+    coordinatorId:
+      string,
+  ) {
+    return RedisCacheService.getOrSet({
+      key:
+        CacheKeys.coordinatorDetail(
+          coordinatorId,
+        ),
 
-    if (!coordinator) {
-      throw new Error("Coordinator not found");
-    }
+      ttlSeconds:
+        CACHE_TTL_SECONDS
+          .COORDINATOR_DETAIL,
 
-    return coordinator;
+      loader:
+        async () => {
+          const coordinator =
+            await User.findOne({
+              _id:
+                coordinatorId,
+
+              role:
+                Role.COORDINATOR,
+            })
+              .select(
+                "-password -otp -otpExpiresAt " +
+                "-resetPasswordToken -resetPasswordExpires",
+              )
+              .populate(
+                "coordinatorProfile.serviceableLocations.locationId",
+              )
+              .lean();
+
+          if (
+            !coordinator
+          ) {
+            throw new Error(
+              "Coordinator not found",
+            );
+          }
+
+          return coordinator;
+        },
+    });
   }
 
   static async getCoordinators(filters: {
@@ -1488,122 +1972,150 @@ class AuthService {
       sortOrder = "desc",
     } = filters;
 
-    const skip = (page - 1) * limit;
-
-    const query: Record<string, unknown> = {
-      role: Role.COORDINATOR,
-    };
-
-    if (approvalStatus) {
-      query["coordinatorProfile.approvalStatus"] = approvalStatus;
-    }
-
-    if (availabilityStatus) {
-      query["coordinatorProfile.availabilityStatus"] = availabilityStatus;
-    }
-
-    if (locationId || caste || gotra) {
-      const locationMatch: Record<string, unknown> = {};
-
-      if (locationId) {
-        locationMatch.locationId = new mongoose.Types.ObjectId(locationId);
-      }
-      if (caste) {
-        locationMatch.caste = caste;
-      }
-      if (gotra) {
-        locationMatch.gotra = gotra;
-      }
-
-      query["coordinatorProfile.serviceableLocations"] = {
-        $elemMatch: locationMatch,
-      };
-    }
-
-    if (typeof autoAssignmentEnabled === "boolean") {
-      query["coordinatorProfile.autoAssignmentEnabled"] = autoAssignmentEnabled;
-    }
-
-    if (minimumRating !== undefined) {
-      query["coordinatorProfile.averageRating"] = {
-        $gte: minimumRating,
-      };
-    }
-
-    if (search?.trim()) {
-      const escapedSearch = escapeRegex(search.trim());
-
-      query.$or = [
-        {
-          fullName: {
-            $regex: escapedSearch,
-            $options: "i",
-          },
-        },
-        {
-          email: {
-            $regex: escapedSearch,
-            $options: "i",
-          },
-        },
-        {
-          phoneNumber: {
-            $regex: escapedSearch,
-            $options: "i",
-          },
-        },
-        {
-          userReference: {
-            $regex: escapedSearch,
-            $options: "i",
-          },
-        },
-      ];
-    }
-
-    const sortFieldMap: Record<string, string> = {
-      createdAt: "createdAt",
-      fullName: "fullName",
-      averageRating: "coordinatorProfile.averageRating",
-      totalCompletedBookings: "coordinatorProfile.totalCompletedBookings",
-      acceptanceRate: "coordinatorProfile.acceptanceRate",
-    };
-
-    const selectedSortField = sortFieldMap[sortBy] ?? "createdAt";
-
-    const sort: Record<string, 1 | -1> = {
-      [selectedSortField]: sortOrder === "asc" ? 1 : -1,
-    };
-
-    if (selectedSortField !== "createdAt") {
-      sort.createdAt = -1;
-    }
-
-    const [coordinators, total] = await Promise.all([
-      User.find(query)
-        .select(
-          "-password -otp -otpExpiresAt -resetPasswordToken -resetPasswordExpires",
-        )
-        .populate("coordinatorProfile.serviceableLocations.locationId")
-        .sort(sort)
-        .skip(skip)
-        .limit(limit)
-        .lean(),
-
-      User.countDocuments(query),
-    ]);
-
-    return {
-      coordinators,
-      pagination: {
-        total,
+    const cacheKey =
+      CacheKeys.coordinatorList({
         page,
         limit,
-        pages: Math.ceil(total / limit),
-        hasNextPage: page * limit < total,
-        hasPreviousPage: page > 1,
-      },
-    };
+        approvalStatus,
+        availabilityStatus,
+        locationId,
+        caste,
+        gotra,
+        autoAssignmentEnabled,
+        minimumRating,
+        search,
+        sortBy,
+        sortOrder,
+      });
+
+    return RedisCacheService.getOrSet({
+      key:
+        cacheKey,
+
+      ttlSeconds:
+        CACHE_TTL_SECONDS
+          .COORDINATOR_LIST,
+
+      loader:
+        async () => {
+          const skip = (page - 1) * limit;
+
+          const query: Record<string, unknown> = {
+            role: Role.COORDINATOR,
+          };
+
+          if (approvalStatus) {
+            query["coordinatorProfile.approvalStatus"] = approvalStatus;
+          }
+
+          if (availabilityStatus) {
+            query["coordinatorProfile.availabilityStatus"] = availabilityStatus;
+          }
+
+          if (locationId || caste || gotra) {
+            const locationMatch: Record<string, unknown> = {};
+
+            if (locationId) {
+              locationMatch.locationId = new mongoose.Types.ObjectId(locationId);
+            }
+            if (caste) {
+              locationMatch.caste = caste;
+            }
+            if (gotra) {
+              locationMatch.gotra = gotra;
+            }
+
+            query["coordinatorProfile.serviceableLocations"] = {
+              $elemMatch: locationMatch,
+            };
+          }
+
+          if (typeof autoAssignmentEnabled === "boolean") {
+            query["coordinatorProfile.autoAssignmentEnabled"] = autoAssignmentEnabled;
+          }
+
+          if (minimumRating !== undefined) {
+            query["coordinatorProfile.averageRating"] = {
+              $gte: minimumRating,
+            };
+          }
+
+          if (search?.trim()) {
+            const escapedSearch = escapeRegex(search.trim());
+
+            query.$or = [
+              {
+                fullName: {
+                  $regex: escapedSearch,
+                  $options: "i",
+                },
+              },
+              {
+                email: {
+                  $regex: escapedSearch,
+                  $options: "i",
+                },
+              },
+              {
+                phoneNumber: {
+                  $regex: escapedSearch,
+                  $options: "i",
+                },
+              },
+              {
+                userReference: {
+                  $regex: escapedSearch,
+                  $options: "i",
+                },
+              },
+            ];
+          }
+
+          const sortFieldMap: Record<string, string> = {
+            createdAt: "createdAt",
+            fullName: "fullName",
+            averageRating: "coordinatorProfile.averageRating",
+            totalCompletedBookings: "coordinatorProfile.totalCompletedBookings",
+            acceptanceRate: "coordinatorProfile.acceptanceRate",
+          };
+
+          const selectedSortField = sortFieldMap[sortBy] ?? "createdAt";
+
+          const sort: Record<string, 1 | -1> = {
+            [selectedSortField]: sortOrder === "asc" ? 1 : -1,
+          };
+
+          if (selectedSortField !== "createdAt") {
+            sort.createdAt = -1;
+          }
+
+          const [coordinators, total] = await Promise.all([
+            User.find(query)
+              .select(
+                "-password -otp -otpExpiresAt -resetPasswordToken -resetPasswordExpires",
+              )
+              .populate("coordinatorProfile.serviceableLocations.locationId")
+              .sort(sort)
+              .skip(skip)
+              .limit(limit)
+              .lean(),
+
+            User.countDocuments(query),
+          ]);
+
+          return {
+            coordinators,
+            pagination: {
+              total,
+              page,
+              limit,
+              pages: Math.ceil(total / limit),
+              hasNextPage: page * limit < total,
+              hasPreviousPage: page > 1,
+            },
+          };
+        },
+    });
   }
 
   static async createAdmin(params: {
@@ -1700,6 +2212,10 @@ class AuthService {
       admin.toObject();
 
     delete adminObject.password;
+
+    await RedisCacheService.deleteByPattern(
+      CacheKeys.userListPattern(),
+    );
 
     return adminObject;
   }

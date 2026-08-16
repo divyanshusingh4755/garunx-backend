@@ -2,6 +2,7 @@ import { Types } from "mongoose";
 import { type IBanner } from "../models/banner.model.js";
 type RedirectType = "NONE" | "SERVICE" | "PACKAGE" | "CATEGORY" | "PRODUCT" | "URL";
 export declare class BannerService {
+    private static invalidateBannerCache;
     private static ensureValidId;
     static createBanner(bannerData: Partial<IBanner>): Promise<import("mongoose").Document<unknown, {}, IBanner, {}, import("mongoose").DefaultSchemaOptions> & IBanner & Required<{
         _id: Types.ObjectId;
@@ -46,6 +47,10 @@ export declare class BannerService {
         page: number;
         limit: number;
         totalPages: number;
+    }>;
+    static exportBannersToCsv(bannerIds: string[]): Promise<{
+        csv: string;
+        total: number;
     }>;
 }
 export {};

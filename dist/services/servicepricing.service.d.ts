@@ -16,6 +16,7 @@ interface BulkTierPricingPayload {
     pricing: LocationPricingInput[];
 }
 export declare class ServicePricingService {
+    private static invalidatePricingCache;
     static bulkUpsertTierPricing(payload: BulkTierPricingPayload): Promise<{
         success: boolean;
         message: string;
@@ -56,7 +57,10 @@ export declare class ServicePricingService {
                 priceMode: import("../models/servicepricing.model.js").TaxPriceMode;
                 isTaxConfigured: boolean;
             } | null;
-            items: import("../models/servicecomponent.model.js").IServiceComponentItem[];
+            items: {
+                itemId: Types.ObjectId;
+                name: string;
+            }[];
         }[];
         summary: {
             totalComponents: number;

@@ -24,6 +24,13 @@ const taxProfileSchema = new Schema({
         required: true,
         index: true,
     },
+    pricingRevision: {
+        type: Number,
+        required: true,
+        default: 0,
+        min: 0,
+        select: false,
+    },
     totalRate: {
         type: Number,
         required: true,

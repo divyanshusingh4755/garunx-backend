@@ -194,6 +194,35 @@ const updateNotificationTemplateValidation = [
     param("id")
         .isMongoId()
         .withMessage("Invalid notification template ID"),
+    body().custom((value) => {
+        if (!value ||
+            typeof value !== "object" ||
+            Array.isArray(value)) {
+            throw new Error("Request body must be an object");
+        }
+        const allowedFields = [
+            "code",
+            "type",
+            "category",
+            "preferenceMode",
+            "title",
+            "message",
+            "emailSubject",
+            "emailBody",
+            "pushTitle",
+            "pushMessage",
+            "isActive",
+        ];
+        const suppliedFields = Object.keys(value);
+        if (suppliedFields.length === 0) {
+            throw new Error("At least one update field is required");
+        }
+        const invalidFields = suppliedFields.filter((field) => !allowedFields.includes(field));
+        if (invalidFields.length > 0) {
+            throw new Error(`Invalid update fields: ${invalidFields.join(", ")}`);
+        }
+        return true;
+    }),
     body("code")
         .optional()
         .isString()
@@ -351,6 +380,40 @@ const unregisterNotificationDeviceValidation = [
     validate,
 ];
 const updateNotificationPreferencesValidation = [
+    body("categories").custom((categories) => {
+        if (!categories) {
+            return true;
+        }
+        const allowedFields = [
+            "booking",
+            "payment",
+            "query",
+            "review",
+            "promotional",
+            "appUpdate",
+            "newFeature",
+        ];
+        const invalidFields = Object.keys(categories).filter((field) => !allowedFields.includes(field));
+        if (invalidFields.length > 0) {
+            throw new Error(`Invalid category fields: ${invalidFields.join(", ")}`);
+        }
+        return true;
+    }),
+    body("channels").custom((channels) => {
+        if (!channels) {
+            return true;
+        }
+        const allowedFields = [
+            "inApp",
+            "email",
+            "push",
+        ];
+        const invalidFields = Object.keys(channels).filter((field) => !allowedFields.includes(field));
+        if (invalidFields.length > 0) {
+            throw new Error(`Invalid channel fields: ${invalidFields.join(", ")}`);
+        }
+        return true;
+    }),
     body("categories")
         .optional()
         .isObject()
@@ -399,6 +462,26 @@ const updateNotificationPreferencesValidation = [
         .optional()
         .isBoolean()
         .withMessage("channels.push must be a boolean"),
+    body().custom((value) => {
+        if (!value ||
+            typeof value !== "object" ||
+            Array.isArray(value)) {
+            throw new Error("Request body must be an object");
+        }
+        const allowedFields = [
+            "categories",
+            "channels",
+        ];
+        const suppliedFields = Object.keys(value);
+        if (suppliedFields.length === 0) {
+            throw new Error("At least one notification preference is required");
+        }
+        const invalidFields = suppliedFields.filter((field) => !allowedFields.includes(field));
+        if (invalidFields.length > 0) {
+            throw new Error(`Invalid fields: ${invalidFields.join(", ")}`);
+        }
+        return true;
+    }),
     validate,
 ];
 /*
@@ -406,26 +489,47 @@ const updateNotificationPreferencesValidation = [
 | User Routes
 |--------------------------------------------------------------------------
 */
+// Notification list
 router.get("/", authenticate, getMyNotificationsValidation, getMyNotifications);
+// Unread count
 router.get("/unread-count", authenticate, getUnreadCount);
+// Preferences
 router.get("/preferences", authenticate, getMyNotificationPreferences);
 router.patch("/preferences", authenticate, updateNotificationPreferencesValidation, updateMyNotificationPreferences);
+// Devices
 router.post("/devices", authenticate, registerNotificationDeviceValidation, registerNotificationDevice);
-router.patch("/read-all", authenticate, markAllAsRead);
-router.patch("/:id/read", authenticate, notificationIdValidation, markAsRead);
 router.delete("/devices", authenticate, unregisterNotificationDeviceValidation, unregisterNotificationDevice);
-router.delete("/:id", authenticate, notificationIdValidation, deleteNotification);
+// Read all
+router.patch("/read-all", authenticate, markAllAsRead);
 /*
 |--------------------------------------------------------------------------
-| Admin Routes
+| Admin Routes - Static / Collection
+|--------------------------------------------------------------------------
+*/
+router.post("/admin/send", authenticate, authorizeRoles(Role.ADMIN), requirePermission("notifications.send"), sendAdminNotificationValidation, sendAdminNotification);
+router.post("/admin/templates", authenticate, authorizeRoles(Role.ADMIN), requirePermission("notifications.manage_templates"), createNotificationTemplateValidation, createNotificationTemplate);
+router.get("/admin/templates", authenticate, authorizeRoles(Role.ADMIN), requirePermission("notifications.manage_templates"), getNotificationTemplatesValidation, getNotificationTemplates);
+/*
+|--------------------------------------------------------------------------
+| Admin Routes - Specific Notification Actions
 |--------------------------------------------------------------------------
 */
 router.post("/admin/:id/retry-push", authenticate, authorizeRoles(Role.ADMIN), requirePermission("notifications.send"), notificationIdValidation, retryNotificationPush);
 router.post("/admin/:id/retry-email", authenticate, authorizeRoles(Role.ADMIN), requirePermission("notifications.send"), notificationIdValidation, retryNotificationEmail);
-router.post("/admin/templates", authenticate, authorizeRoles(Role.ADMIN), requirePermission("notifications.manage_templates"), createNotificationTemplateValidation, createNotificationTemplate);
-router.get("/admin/templates", authenticate, authorizeRoles(Role.ADMIN), requirePermission("notifications.manage_templates"), getNotificationTemplatesValidation, getNotificationTemplates);
+/*
+|--------------------------------------------------------------------------
+| Admin Routes - Template Detail / Update
+|--------------------------------------------------------------------------
+*/
 router.get("/admin/templates/:id", authenticate, authorizeRoles(Role.ADMIN), requirePermission("notifications.manage_templates"), notificationTemplateIdValidation, getNotificationTemplateById);
 router.patch("/admin/templates/:id", authenticate, authorizeRoles(Role.ADMIN), requirePermission("notifications.manage_templates"), updateNotificationTemplateValidation, updateNotificationTemplate);
-router.post("/admin/send", authenticate, authorizeRoles(Role.ADMIN), requirePermission("notifications.send"), sendAdminNotificationValidation, sendAdminNotification);
+/*
+|--------------------------------------------------------------------------
+| User Routes - Generic Notification ID
+|--------------------------------------------------------------------------
+*/
+// Keep dynamic user notification routes at the bottom.
+router.patch("/:id/read", authenticate, notificationIdValidation, markAsRead);
+router.delete("/:id", authenticate, notificationIdValidation, deleteNotification);
 export default router;
 //# sourceMappingURL=notification.routes.js.map

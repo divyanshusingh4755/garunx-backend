@@ -14,7 +14,7 @@ import type { ICart, ISelectedComponent } from "../models/cart.model.js";
 
 import type { Types } from "mongoose";
 
-import { Component } from "../models/component.model.js";
+import { Component, type IComponent } from "../models/component.model.js";
 
 import { ServiceComponent } from "../models/servicecomponent.model.js";
 
@@ -82,13 +82,13 @@ export class BookingBuilder {
       totalTax: taxSummary?.totalTax ?? 0,
       ...(taxSummary?.supplierStateCode
         ? {
-            supplierStateCode: taxSummary.supplierStateCode,
-          }
+          supplierStateCode: taxSummary.supplierStateCode,
+        }
         : {}),
       ...(taxSummary?.placeOfSupplyStateCode
         ? {
-            placeOfSupplyStateCode: taxSummary.placeOfSupplyStateCode,
-          }
+          placeOfSupplyStateCode: taxSummary.placeOfSupplyStateCode,
+        }
         : {}),
     };
   }
@@ -100,9 +100,9 @@ export class BookingBuilder {
       subtotal: cart.subtotal,
       ...(cart.couponId && cart.couponCode
         ? {
-            couponId: cart.couponId,
-            couponCode: cart.couponCode,
-          }
+          couponId: cart.couponId,
+          couponCode: cart.couponCode,
+        }
         : {}),
       discountAmount: cart.discountAmount,
       taxSummary: this.buildTaxSummary(cart.taxSummary),
@@ -160,18 +160,18 @@ export class BookingBuilder {
           name: service.name,
           ...(service.shortDescription
             ? {
-                shortDescription: service.shortDescription,
-              }
+              shortDescription: service.shortDescription,
+            }
             : {}),
           ...(service.thumbnailImage
             ? {
-                thumbnailImage: service.thumbnailImage,
-              }
+              thumbnailImage: service.thumbnailImage,
+            }
             : {}),
           ...(service.serviceReference
             ? {
-                serviceReference: service.serviceReference,
-              }
+              serviceReference: service.serviceReference,
+            }
             : {}),
         },
         serviceRole: "PRIMARY",
@@ -226,10 +226,10 @@ export class BookingBuilder {
     const services =
       allServiceIds.length > 0
         ? await Service.find({
-            _id: {
-              $in: allServiceIds,
-            },
-          }).lean()
+          _id: {
+            $in: allServiceIds,
+          },
+        }).lean()
         : [];
 
     const serviceMap = new Map(
@@ -286,18 +286,18 @@ export class BookingBuilder {
           name: packageDocument.name,
           ...(packageDocument.shortDescription
             ? {
-                shortDescription: packageDocument.shortDescription,
-              }
+              shortDescription: packageDocument.shortDescription,
+            }
             : {}),
           ...(packageDocument.thumbnailImage
             ? {
-                thumbnailImage: packageDocument.thumbnailImage,
-              }
+              thumbnailImage: packageDocument.thumbnailImage,
+            }
             : {}),
           ...(packageDocument.packageReference
             ? {
-                packageReference: packageDocument.packageReference,
-              }
+              packageReference: packageDocument.packageReference,
+            }
             : {}),
         },
         selectedServices,
@@ -337,18 +337,18 @@ export class BookingBuilder {
         name: service.name,
         ...(service.shortDescription
           ? {
-              shortDescription: service.shortDescription,
-            }
+            shortDescription: service.shortDescription,
+          }
           : {}),
         ...(service.thumbnailImage
           ? {
-              thumbnailImage: service.thumbnailImage,
-            }
+            thumbnailImage: service.thumbnailImage,
+          }
           : {}),
         ...(service.serviceReference
           ? {
-              serviceReference: service.serviceReference,
-            }
+            serviceReference: service.serviceReference,
+          }
           : {}),
       },
       serviceRole,
@@ -367,8 +367,8 @@ export class BookingBuilder {
         finalAmount: selectedService.price,
         ...(selectedService.tax
           ? {
-              tax: selectedService.tax,
-            }
+            tax: selectedService.tax,
+          }
           : {}),
         taxSummary: this.buildTaxSummaryFromLine(selectedService.tax),
       },
@@ -429,7 +429,7 @@ export class BookingBuilder {
     ]);
 
     const componentMap = new Map(
-      componentDocs.map((component) => [component._id.toString(), component]),
+      componentDocs.map((component: IComponent) => [component._id.toString(), component]),
     );
 
     const serviceComponentMap = new Map(
@@ -447,35 +447,74 @@ export class BookingBuilder {
       const serviceComponent = serviceComponentMap.get(componentId);
 
       const bookingComponent: IBookingComponent = {
-        componentType: component.componentType,
-        componentId: component.componentId,
-        name: componentDocument?.name ?? component.name,
-        isRequired: serviceComponent?.isRequired ?? false,
-        isRemovable: componentDocument?.isRemovable ?? false,
-        isBundled: componentDocument?.isBundled ?? false,
-        selected: true,
-        selectedItems: (component.items ?? []).map((item) => ({
-          itemId: item.itemId,
-          name: item.name,
-        })),
+        componentType:
+          component.componentType,
+
+        componentId:
+          component.componentId,
+
+        name:
+          componentDocument?.name ??
+          component.name,
+
+        isRequired:
+          serviceComponent?.isRequired ??
+          false,
+
+        isRemovable:
+          componentDocument?.isRemovable ??
+          false,
+
+        isBundled:
+          componentDocument?.isBundled ??
+          false,
+
+        selected:
+          true,
+
+        selectedItems:
+          (component.items ?? []).map(
+            (item) => ({
+              itemId:
+                item.itemId,
+
+              name:
+                item.name,
+            }),
+          ),
+
         pricing: {
-          priceBeforeDiscount: component.priceBeforeDiscount,
-          discountAmount: component.discountAmount,
-          finalAmount: component.totalPrice,
+          priceBeforeDiscount:
+            component.priceBeforeDiscount,
+
+          discountAmount:
+            component.discountAmount,
+
+          finalAmount:
+            component.totalPrice,
+
           ...(component.tax
             ? {
-                tax: component.tax,
-              }
+              tax:
+                component.tax,
+            }
             : {}),
         },
       };
 
       if (serviceComponent?._id) {
-        bookingComponent.serviceComponentId = serviceComponent._id;
+        bookingComponent.serviceComponentId =
+          serviceComponent._id;
       }
 
       if (componentDocument?.description) {
-        bookingComponent.description = componentDocument.description;
+        bookingComponent.description =
+          componentDocument.description;
+      }
+
+      if (componentDocument?.imageUrl) {
+        bookingComponent.imageUrl =
+          componentDocument.imageUrl;
       }
 
       return bookingComponent;

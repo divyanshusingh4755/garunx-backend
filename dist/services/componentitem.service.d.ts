@@ -7,6 +7,8 @@ type CreateComponentItemInput = {
 };
 type ComponentItemUpdate = Partial<Pick<IComponentItem, "name" | "price">>;
 export declare class ComponentItemService {
+    private static invalidateComponentItemCache;
+    private static invalidateAffectedServiceCaches;
     static createComponentItem(payload: CreateComponentItemInput): Promise<import("mongoose").Document<unknown, {}, IComponentItem, {}, import("mongoose").DefaultSchemaOptions> & IComponentItem & {
         _id: Types.ObjectId;
     } & {
@@ -82,6 +84,10 @@ export declare class ComponentItemService {
         unchanged?: never;
         requiresConfirmation?: never;
         impact?: never;
+    }>;
+    static exportComponentItemsToCsv(componentItemIds: string[]): Promise<{
+        csv: string;
+        total: number;
     }>;
 }
 export default ComponentItemService;

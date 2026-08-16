@@ -13,6 +13,7 @@ import {
   getAllPolicies,
   togglePolicyStatus,
   getPolicyByType,
+  exportPoliciesCsv,
 } from "../controllers/policy.controllers.js";
 
 import { authenticate } from "../middleware/authenticate.js";
@@ -68,16 +69,44 @@ const updatePolicyValidation = [
   param("id").isMongoId().withMessage("Invalid policy id"),
 
   body().custom((value) => {
-    if (!value || typeof value !== "object" || Array.isArray(value)) {
-      throw new Error("Request body must be an object");
+    if (
+      !value ||
+      typeof value !== "object" ||
+      Array.isArray(value)
+    ) {
+      throw new Error(
+        "Request body must be an object",
+      );
     }
 
-    const hasAllowedField = ["title", "content"].some((field) =>
-      Object.prototype.hasOwnProperty.call(value, field),
-    );
+    const allowedFields = [
+      "title",
+      "content",
+    ];
 
-    if (!hasAllowedField) {
-      throw new Error("At least one valid field is required for update");
+    const suppliedFields =
+      Object.keys(value);
+
+    if (suppliedFields.length === 0) {
+      throw new Error(
+        "At least one field is required for update",
+      );
+    }
+
+    const invalidFields =
+      suppliedFields.filter(
+        (field) =>
+          !allowedFields.includes(
+            field,
+          ),
+      );
+
+    if (
+      invalidFields.length > 0
+    ) {
+      throw new Error(
+        `Invalid update fields: ${invalidFields.join(", ")}`,
+      );
     }
 
     return true;
@@ -146,6 +175,45 @@ const getPoliciesValidation = [
   validate,
 ];
 
+const exportPoliciesValidation = [
+  body("policyIds")
+    .isArray({
+      min: 1,
+      max: 1000,
+    })
+    .withMessage(
+      "policyIds must contain between 1 and 1000 policy IDs",
+    ),
+
+  body("policyIds.*")
+    .isMongoId()
+    .withMessage(
+      "Each policyId must be a valid MongoDB ID",
+    ),
+
+  body("policyIds").custom((policyIds) => {
+    if (!Array.isArray(policyIds)) {
+      return true;
+    }
+
+    const uniqueIds =
+      new Set(policyIds);
+
+    if (
+      uniqueIds.size !==
+      policyIds.length
+    ) {
+      throw new Error(
+        "Duplicate policy IDs are not allowed",
+      );
+    }
+
+    return true;
+  }),
+
+  validate,
+];
+
 const getPolicyByTypeValidation = [
   param("type").isIn(POLICY_TYPES).withMessage("Invalid policy type"),
 
@@ -157,6 +225,10 @@ const getPolicyByTypeValidation = [
 
   validate,
 ];
+
+// =========================================================
+// ADMIN - STATIC ROUTES
+// =========================================================
 
 router.get(
   "/",
@@ -176,14 +248,19 @@ router.post(
   createPolicy,
 );
 
-router.put(
-  "/:id",
+router.post(
+  "/export",
   authenticate,
   authorizeRoles(Role.ADMIN),
-  requirePermission("policy.update"),
-  updatePolicyValidation,
-  updatePolicy,
+  requirePermission("policy.read"),
+  exportPoliciesValidation,
+  exportPoliciesCsv,
 );
+
+
+// =========================================================
+// ADMIN - SPECIFIC POLICY ACTIONS
+// =========================================================
 
 router.patch(
   "/:id/status",
@@ -194,10 +271,27 @@ router.patch(
   togglePolicyStatus,
 );
 
+router.put(
+  "/:id",
+  authenticate,
+  authorizeRoles(Role.ADMIN),
+  requirePermission("policy.update"),
+  updatePolicyValidation,
+  updatePolicy,
+);
+
+
+// =========================================================
+// PUBLIC - POLICY BY TYPE
+//
+// Keep this dynamic route last.
+// =========================================================
+
 router.get(
   "/:type",
   getPolicyByTypeValidation,
   getPolicyByType,
 );
+
 
 export default router;

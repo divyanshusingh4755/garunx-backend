@@ -22,6 +22,8 @@ import {
   getFullServiceByCities,
   getServiceDiagnostics,
   getAllServicesAdmin,
+  exportServicesCsv,
+  getFullServiceAdmin,
 } from "../controllers/service.controllers.js";
 
 import { authenticate } from "../middleware/authenticate.js";
@@ -93,43 +95,6 @@ const serviceValidation = [
     .optional({ values: "falsy" })
     .isURL()
     .withMessage("Banner image must be valid URL"),
-
-  body("locations").optional().isArray().withMessage("locations must be array"),
-
-  body("locations.*.name")
-    .optional()
-    .isString()
-    .withMessage("Location name must be a string")
-    .trim()
-    .notEmpty()
-    .withMessage("Location name cannot be empty"),
-
-  body("locations.*.locationId")
-    .optional()
-    .isMongoId()
-    .withMessage("Invalid location ID"),
-
-  body("locations.*.isActive")
-    .optional()
-    .isBoolean()
-    .withMessage("Location isActive must be boolean"),
-
-  body("tiers").optional().isArray().withMessage("tiers must be array"),
-
-  body("tiers.*.name")
-    .optional()
-    .isString()
-    .withMessage("Tier name must be a string")
-    .trim()
-    .notEmpty()
-    .withMessage("Tier name cannot be empty"),
-
-  body("tiers.*.tierId").optional().isMongoId().withMessage("Invalid tier ID"),
-
-  body("isActive")
-    .optional()
-    .isBoolean()
-    .withMessage("isActive must be boolean"),
 
   validate,
 ];
@@ -206,34 +171,34 @@ const updateServiceValidation = [
 ];
 
 const serviceStatusValidation = [
-  param("serviceId").isMongoId().withMessage("Invalid service ID"),
+  param("serviceId")
+    .isMongoId()
+    .withMessage("Invalid service ID"),
 
   body("isActive")
     .exists({ checkNull: true })
     .withMessage("isActive is required")
     .isBoolean()
-    .withMessage("isActive must be boolean"),
+    .withMessage("isActive must be boolean")
+    .toBoolean(),
 
   body("confirmed")
     .optional()
     .isBoolean()
-    .withMessage("confirmed must be boolean"),
+    .withMessage("confirmed must be boolean")
+    .toBoolean(),
 
   validate,
 ];
 
 const updateLocationsValidation = [
-  param("id").isMongoId().withMessage("Invalid service ID"),
+  param("id")
+    .isMongoId()
+    .withMessage("Invalid service ID"),
 
   body("locations")
     .isArray({ min: 1 })
     .withMessage("locations array is required"),
-
-  body("locations.*.name")
-    .optional()
-    .isString()
-    .withMessage("Location name must be a string")
-    .trim(),
 
   body("locations.*.locationId")
     .notEmpty()
@@ -241,10 +206,25 @@ const updateLocationsValidation = [
     .isMongoId()
     .withMessage("Invalid location ID"),
 
-  body("locations.*.isActive")
-    .optional()
-    .isBoolean()
-    .withMessage("isActive must be boolean"),
+  body("locations.*").custom((value) => {
+    const allowedFields = [
+      "locationId",
+    ];
+
+    const invalidFields =
+      Object.keys(value ?? {}).filter(
+        (field) =>
+          !allowedFields.includes(field),
+      );
+
+    if (invalidFields.length > 0) {
+      throw new Error(
+        `Invalid location fields: ${invalidFields.join(", ")}`,
+      );
+    }
+
+    return true;
+  }),
 
   validate,
 ];
@@ -258,21 +238,39 @@ const removeLocationValidation = [
 ];
 
 const updateTiersValidation = [
-  param("id").isMongoId().withMessage("Invalid service ID"),
+  param("id")
+    .isMongoId()
+    .withMessage("Invalid service ID"),
 
-  body("tiers").isArray({ min: 1 }).withMessage("tiers array is required"),
-
-  body("tiers.*.name")
-    .optional()
-    .isString()
-    .withMessage("Tier name must be a string")
-    .trim(),
+  body("tiers")
+    .isArray({ min: 1 })
+    .withMessage("tiers array is required"),
 
   body("tiers.*.tierId")
     .notEmpty()
     .withMessage("Tier ID is required")
     .isMongoId()
     .withMessage("Invalid tier ID"),
+
+  body("tiers.*").custom((value) => {
+    const allowedFields = [
+      "tierId",
+    ];
+
+    const invalidFields =
+      Object.keys(value ?? {}).filter(
+        (field) =>
+          !allowedFields.includes(field),
+      );
+
+    if (invalidFields.length > 0) {
+      throw new Error(
+        `Invalid tier fields: ${invalidFields.join(", ")}`,
+      );
+    }
+
+    return true;
+  }),
 
   validate,
 ];
@@ -352,8 +350,15 @@ const servicesByLocationValidation = [
         .map((id) => id.trim())
         .filter(Boolean);
 
-      if (ids.some((id) => !/^[a-f\d]{24}$/i.test(id))) {
-        throw new Error("One or more city IDs are invalid");
+      if (
+        ids.some(
+          (id) =>
+            !/^[a-f\d]{24}$/i.test(id),
+        )
+      ) {
+        throw new Error(
+          "One or more city IDs are invalid",
+        );
       }
 
       return true;
@@ -367,14 +372,55 @@ const servicesByLocationValidation = [
         .map((id) => id.trim())
         .filter(Boolean);
 
-      if (ids.some((id) => !/^[a-f\d]{24}$/i.test(id))) {
-        throw new Error("One or more category IDs are invalid");
+      if (
+        ids.some(
+          (id) =>
+            !/^[a-f\d]{24}$/i.test(id),
+        )
+      ) {
+        throw new Error(
+          "One or more category IDs are invalid",
+        );
       }
 
       return true;
     }),
 
-  ...listValidation.filter((validator) => validator !== validate),
+  query("limit")
+    .optional()
+    .isInt({ min: 1, max: 100 })
+    .withMessage(
+      "limit must be between 1 and 100",
+    ),
+
+  query("page")
+    .optional()
+    .isInt({ min: 1 })
+    .withMessage(
+      "page must be at least 1",
+    ),
+
+  query("sortBy")
+    .optional()
+    .isIn([
+      "name",
+      "createdAt",
+      "updatedAt",
+      "startingPrice",
+    ])
+    .withMessage(
+      "Invalid sortBy value",
+    ),
+
+  query("sortOrder")
+    .optional()
+    .isIn([
+      "asc",
+      "desc",
+    ])
+    .withMessage(
+      "sortOrder must be asc or desc",
+    ),
 
   validate,
 ];
@@ -471,6 +517,29 @@ const adminServiceListValidation = [
   validate,
 ];
 
+const exportServicesValidation = [
+  body("serviceIds")
+    .isArray({
+      min: 1,
+      max: 1000,
+    })
+    .withMessage(
+      "serviceIds must contain between 1 and 1000 service IDs",
+    ),
+
+  body("serviceIds.*")
+    .isMongoId()
+    .withMessage(
+      "Each serviceId must be a valid MongoDB ID",
+    ),
+
+  validate,
+];
+
+// =========================================================
+// PUBLIC / USER - STATIC ROUTES
+// =========================================================
+
 router.get(
   "/",
   publicServiceListValidation,
@@ -485,6 +554,63 @@ router.get(
   getServicesByLocation,
 );
 
+
+// =========================================================
+// ADMIN - STATIC ROUTES
+// =========================================================
+
+router.get(
+  "/admin",
+  authenticate,
+  authorizeRoles(Role.ADMIN),
+  requirePermission("service.read"),
+  adminServiceListValidation,
+  getAllServicesAdmin,
+);
+
+router.post(
+  "/export",
+  authenticate,
+  authorizeRoles(Role.ADMIN),
+  requirePermission(
+    "service.export",
+  ),
+  exportServicesValidation,
+  exportServicesCsv,
+);
+
+router.post(
+  "/",
+  authenticate,
+  authorizeRoles(Role.ADMIN),
+  requirePermission("service.create"),
+  serviceValidation,
+  createService,
+);
+
+
+// =========================================================
+// ADMIN - PREFIXED SERVICE ROUTES
+// =========================================================
+
+router.get(
+  "/admin/:serviceId/full",
+  authenticate,
+  authorizeRoles(
+    Role.ADMIN,
+  ),
+  requirePermission(
+    "service.read",
+  ),
+  serviceIdValidation,
+  getFullServiceAdmin,
+);
+
+
+// =========================================================
+// SERVICE - SPECIFIC READ / ACTION ROUTES
+// =========================================================
+
 router.get(
   "/:serviceId/full",
   serviceIdValidation,
@@ -498,22 +624,89 @@ router.post(
 );
 
 router.get(
-  "/admin",
-  authenticate,
-  authorizeRoles(Role.ADMIN),
-  requirePermission("service.read"),
-  adminServiceListValidation,
-  getAllServicesAdmin,
-);
-
-router.get(
   "/:serviceId/diagnostics",
   authenticate,
   authorizeRoles(Role.ADMIN),
-  requirePermission("service.diagnostics"),
+  requirePermission(
+    "service.diagnostics",
+  ),
   serviceIdValidation,
   getServiceDiagnostics,
 );
+
+
+// =========================================================
+// SERVICE - LOCATION MANAGEMENT
+// =========================================================
+
+router.post(
+  "/:id/locations",
+  authenticate,
+  authorizeRoles(Role.ADMIN),
+  requirePermission(
+    "service.manage_locations",
+  ),
+  updateLocationsValidation,
+  updateServiceLocations,
+);
+
+router.delete(
+  "/:id/locations/:locationId",
+  authenticate,
+  authorizeRoles(Role.ADMIN),
+  requirePermission(
+    "service.manage_locations",
+  ),
+  removeLocationValidation,
+  removeServiceLocation,
+);
+
+
+// =========================================================
+// SERVICE - TIER MANAGEMENT
+// =========================================================
+
+router.post(
+  "/:id/tiers",
+  authenticate,
+  authorizeRoles(Role.ADMIN),
+  requirePermission(
+    "service.manage_tiers",
+  ),
+  updateTiersValidation,
+  updateServiceTiers,
+);
+
+router.delete(
+  "/:id/tiers/:tierId",
+  authenticate,
+  authorizeRoles(Role.ADMIN),
+  requirePermission(
+    "service.manage_tiers",
+  ),
+  removeTierValidation,
+  removeServiceTier,
+);
+
+
+// =========================================================
+// SERVICE - STATUS
+// =========================================================
+
+router.patch(
+  "/:serviceId/status",
+  authenticate,
+  authorizeRoles(Role.ADMIN),
+  requirePermission("service.status"),
+  serviceStatusValidation,
+  toggleServiceStatus,
+);
+
+
+// =========================================================
+// SERVICE - GENERIC ID ROUTES
+// Keep these last.
+// =========================================================
 
 router.get(
   "/:serviceId",
@@ -522,15 +715,6 @@ router.get(
   requirePermission("service.read"),
   serviceIdValidation,
   getServiceById,
-);
-
-router.post(
-  "/",
-  authenticate,
-  authorizeRoles(Role.ADMIN),
-  requirePermission("service.create"),
-  serviceValidation,
-  createService,
 );
 
 router.patch(
@@ -542,49 +726,5 @@ router.patch(
   updateService,
 );
 
-router.patch(
-  "/:serviceId/status",
-  authenticate,
-  authorizeRoles(Role.ADMIN),
-  requirePermission("service.status"),
-  serviceStatusValidation,
-  toggleServiceStatus,
-);
-
-router.post(
-  "/:id/locations",
-  authenticate,
-  authorizeRoles(Role.ADMIN),
-  requirePermission("service.manage_locations"),
-  updateLocationsValidation,
-  updateServiceLocations,
-);
-
-router.delete(
-  "/:id/locations/:locationId",
-  authenticate,
-  authorizeRoles(Role.ADMIN),
-  requirePermission("service.manage_locations"),
-  removeLocationValidation,
-  removeServiceLocation,
-);
-
-router.post(
-  "/:id/tiers",
-  authenticate,
-  authorizeRoles(Role.ADMIN),
-  requirePermission("service.manage_tiers"),
-  updateTiersValidation,
-  updateServiceTiers,
-);
-
-router.delete(
-  "/:id/tiers/:tierId",
-  authenticate,
-  authorizeRoles(Role.ADMIN),
-  requirePermission("service.manage_tiers"),
-  removeTierValidation,
-  removeServiceTier,
-);
 
 export default router;

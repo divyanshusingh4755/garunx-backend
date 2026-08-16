@@ -1,7 +1,6 @@
 import type { Request, Response } from "express"
 import { ChatMessageService } from "../services/chatmessage.service.js";
 import type { ChatMessageType } from "../models/chatmessage.model.js";
-import { ChatConversationService } from "../services/chatconversation.service.js";
 
 interface S3UploadedFile extends Express.Multer.File {
   key: string;

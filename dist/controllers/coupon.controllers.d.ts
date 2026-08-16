@@ -7,4 +7,5 @@ export declare const deleteCoupon: (req: Request, res: Response) => Promise<Resp
 export declare const toggleCouponStatus: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
 export declare const getAllCoupons: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
 export declare const getAvailableCoupons: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
+export declare const exportCouponsCsv: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
 //# sourceMappingURL=coupon.controllers.d.ts.map

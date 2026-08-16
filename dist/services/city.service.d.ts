@@ -4,6 +4,7 @@ type CityUpdate = Partial<Pick<ICity, "name" | "country" | "image" | "descriptio
     stateId?: string;
 }>;
 export declare class CityService {
+    private static invalidateCityCache;
     private static applyStringFilter;
     private static applyObjectIdFilter;
     static createCity(params: {
@@ -54,6 +55,10 @@ export declare class CityService {
         _id: Types.ObjectId;
     } & {
         __v: number;
+    }>;
+    static exportCitiesToCsv(cityIds?: string[]): Promise<{
+        csv: string;
+        total: number;
     }>;
 }
 export {};

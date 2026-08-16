@@ -42,3 +42,70 @@ export const updateTheme = async (req: Request, res: Response) => {
     });
   }
 };
+
+export const exportBrandingCsv = async (
+  req: Request,
+  res: Response,
+) => {
+  try {
+    const {
+      brandingIds,
+    }: {
+      brandingIds: string[];
+    } = req.body;
+
+    const result =
+      await BrandingService.exportBrandingToCsv(
+        brandingIds,
+      );
+
+    const timestamp =
+      new Date()
+        .toISOString()
+        .replace(
+          /[:.]/g,
+          "-",
+        );
+
+    res.setHeader(
+      "Content-Type",
+      "text/csv; charset=utf-8",
+    );
+
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="branding-${timestamp}.csv"`,
+    );
+
+    return res
+      .status(200)
+      .send(
+        result.csv,
+      );
+  } catch (
+  error: unknown
+  ) {
+    const message =
+      error instanceof Error
+        ? error.message
+        : "Failed to export branding";
+
+    const statusCode =
+      message
+        .toLowerCase()
+        .includes(
+          "not found",
+        )
+        ? 404
+        : 400;
+
+    return res
+      .status(
+        statusCode,
+      )
+      .json({
+        success: false,
+        message,
+      });
+  }
+};

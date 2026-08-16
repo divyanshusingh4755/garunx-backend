@@ -1,7 +1,7 @@
 import { Router, } from "express";
 import { body, param, query, validationResult } from "express-validator";
 import { authenticate } from "../middleware/authenticate.js";
-import { getAllCoupons, getCouponById, createCoupon, updateCoupon, toggleCouponStatus, deleteCoupon, validateCoupon, getAvailableCoupons, } from "../controllers/coupon.controllers.js";
+import { getAllCoupons, getCouponById, createCoupon, updateCoupon, toggleCouponStatus, deleteCoupon, validateCoupon, getAvailableCoupons, exportCouponsCsv, } from "../controllers/coupon.controllers.js";
 import { authorizeRoles } from "../middleware/authorizeRoles.js";
 import { Role } from "../types/rbac.js";
 import { requirePermission } from "../middleware/rbac.js";
@@ -185,13 +185,38 @@ const createCouponValidation = [
     validateRequest,
 ];
 const updateCouponValidation = [
-    param("id").isMongoId().withMessage("Invalid coupon ID"),
+    param("id")
+        .isMongoId()
+        .withMessage("Invalid coupon ID"),
     body().custom((value) => {
         if (!value ||
             typeof value !== "object" ||
-            Array.isArray(value) ||
-            Object.keys(value).length === 0) {
+            Array.isArray(value)) {
+            throw new Error("Request body must be an object");
+        }
+        const allowedFields = [
+            "name",
+            "couponCode",
+            "applicableOn",
+            "services",
+            "packages",
+            "assignedUserId",
+            "discount",
+            "discountType",
+            "usageLimit",
+            "validFrom",
+            "validTill",
+            "minOrderAmount",
+            "maxDiscountAmount",
+            "isFirstOrderOnly",
+        ];
+        const suppliedFields = Object.keys(value);
+        if (suppliedFields.length === 0) {
             throw new Error("At least one field is required for update");
+        }
+        const invalidFields = suppliedFields.filter((field) => !allowedFields.includes(field));
+        if (invalidFields.length > 0) {
+            throw new Error(`Invalid update fields: ${invalidFields.join(", ")}`);
         }
         return true;
     }),
@@ -206,17 +231,18 @@ const couponLookupValidation = [
         .notEmpty()
         .withMessage("Coupon code is required")
         .toUpperCase(),
-    body("serviceId").optional().isMongoId().withMessage("Invalid service ID"),
-    body("packageId").optional().isMongoId().withMessage("Invalid package ID"),
+    body("serviceId")
+        .optional()
+        .isMongoId()
+        .withMessage("Invalid service ID"),
+    body("packageId")
+        .optional()
+        .isMongoId()
+        .withMessage("Invalid package ID"),
     body("amount")
         .isFloat({ min: 0 })
         .withMessage("Amount must be a non-negative number")
         .toFloat(),
-    body("isFirstOrder")
-        .optional()
-        .isBoolean()
-        .withMessage("isFirstOrder must be a boolean")
-        .toBoolean(),
     validateRequest,
 ];
 const listCouponValidation = [
@@ -271,21 +297,41 @@ const availableCouponsValidation = [
         .isFloat({ min: 0 })
         .withMessage("amount must be a non-negative number")
         .toFloat(),
-    query("isFirstOrder")
-        .optional()
-        .isBoolean()
-        .withMessage("isFirstOrder must be a boolean")
-        .toBoolean(),
+    validateRequest,
+];
+const exportCouponsValidation = [
+    body("couponIds")
+        .isArray({
+        min: 1,
+        max: 1000,
+    })
+        .withMessage("couponIds must contain between 1 and 1000 coupon IDs"),
+    body("couponIds.*")
+        .isMongoId()
+        .withMessage("Each couponId must be a valid MongoDB ID"),
     validateRequest,
 ];
 const router = Router();
+// =========================================================
+// USER COUPON ROUTES
+// =========================================================
 router.get("/available", authenticate, authorizeRoles(Role.USER), availableCouponsValidation, getAvailableCoupons);
 router.post("/validate", authenticate, authorizeRoles(Role.USER), couponLookupValidation, validateCoupon);
+// =========================================================
+// ADMIN - STATIC ROUTES
+// =========================================================
 router.get("/", authenticate, authorizeRoles(Role.ADMIN), requirePermission("coupon.read"), listCouponValidation, getAllCoupons);
-router.get("/:id", authenticate, authorizeRoles(Role.ADMIN), requirePermission("coupon.read"), couponIdValidation, getCouponById);
+router.post("/export", authenticate, authorizeRoles(Role.ADMIN), requirePermission("coupon.export"), exportCouponsValidation, exportCouponsCsv);
 router.post("/", authenticate, authorizeRoles(Role.ADMIN), requirePermission("coupon.create"), createCouponValidation, createCoupon);
-router.put("/:id", authenticate, authorizeRoles(Role.ADMIN), requirePermission("coupon.update"), updateCouponValidation, updateCoupon);
+// =========================================================
+// ADMIN - SPECIFIC COUPON ACTIONS
+// =========================================================
 router.patch("/:id/status", authenticate, authorizeRoles(Role.ADMIN), requirePermission("coupon.status"), couponIdValidation, toggleCouponStatus);
+// =========================================================
+// ADMIN - GENERIC COUPON ID ROUTES
+// =========================================================
+router.get("/:id", authenticate, authorizeRoles(Role.ADMIN), requirePermission("coupon.read"), couponIdValidation, getCouponById);
+router.put("/:id", authenticate, authorizeRoles(Role.ADMIN), requirePermission("coupon.update"), updateCouponValidation, updateCoupon);
 router.delete("/:id", authenticate, authorizeRoles(Role.ADMIN), requirePermission("coupon.delete"), couponIdValidation, deleteCoupon);
 export default router;
 //# sourceMappingURL=coupon.routes.js.map

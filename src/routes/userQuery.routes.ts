@@ -27,7 +27,9 @@ import {
   updateUserQueryCategory,
   assignUserQuery,
   deleteUserQuery,
+  exportUserQueriesCsv,
 } from "../controllers/userQuery.controllers.js";
+import { requirePermission } from "../middleware/rbac.js";
 
 const router = Router();
 
@@ -338,25 +340,121 @@ export const deleteUserQueryValidation = [
   validate,
 ];
 
-router.post("/", authenticate, createUserQueryValidation, createUserQuery);
+const exportUserQueriesValidation = [
+  body("queryIds")
+    .isArray({
+      min: 1,
+      max: 1000,
+    })
+    .withMessage(
+      "queryIds must contain between 1 and 1000 query IDs",
+    ),
 
-router.get("/my-queries", authenticate, getMyQueriesValidation, getMyQueries);
+  body("queryIds.*")
+    .isMongoId()
+    .withMessage(
+      "Each queryId must be a valid MongoDB ID",
+    ),
+
+  body("queryIds").custom(
+    (
+      queryIds,
+    ) => {
+      if (
+        !Array.isArray(
+          queryIds,
+        )
+      ) {
+        return true;
+      }
+
+      const uniqueIds =
+        new Set(
+          queryIds,
+        );
+
+      if (
+        uniqueIds.size !==
+        queryIds.length
+      ) {
+        throw new Error(
+          "Duplicate query IDs are not allowed",
+        );
+      }
+
+      return true;
+    },
+  ),
+
+  validate,
+];
+
+// =========================================================
+// USER - CREATE / OWN QUERIES
+// =========================================================
+
+router.post(
+  "/",
+  authenticate,
+  createUserQueryValidation,
+  createUserQuery,
+);
+
+router.get(
+  "/my-queries",
+  authenticate,
+  getMyQueriesValidation,
+  getMyQueries,
+);
+
+
+// =========================================================
+// ADMIN - STATIC ROUTES
+// =========================================================
 
 router.get(
   "/admin",
   authenticate,
   authorizeRoles(Role.ADMIN),
+  requirePermission(
+    "user_query.read",
+  ),
   getAllUserQueriesValidation,
   getAllUserQueries,
 );
+
+router.post(
+  "/export",
+  authenticate,
+  authorizeRoles(Role.ADMIN),
+  requirePermission(
+    "user_query.read",
+  ),
+  exportUserQueriesValidation,
+  exportUserQueriesCsv,
+);
+
+
+// =========================================================
+// ADMIN - PREFIXED DETAIL ROUTE
+// Keep before generic /:queryId
+// =========================================================
 
 router.get(
   "/admin/:queryId",
   authenticate,
   authorizeRoles(Role.ADMIN),
+  requirePermission(
+    "user_query.read",
+  ),
   getUserQueryByIdValidation,
   getAdminUserQueryById,
 );
+
+
+// =========================================================
+// QUERY - MESSAGE / READ ACTIONS
+// =========================================================
 
 router.post(
   "/:queryId/messages",
@@ -372,10 +470,18 @@ router.patch(
   markUserQueryAsRead,
 );
 
+
+// =========================================================
+// ADMIN - QUERY-SPECIFIC ACTIONS
+// =========================================================
+
 router.post(
   "/:queryId/admin-reply",
   authenticate,
   authorizeRoles(Role.ADMIN),
+  requirePermission(
+    "user_query.reply",
+  ),
   sendAdminQueryReplyValidation,
   sendAdminQueryReply,
 );
@@ -384,6 +490,9 @@ router.patch(
   "/:queryId/status",
   authenticate,
   authorizeRoles(Role.ADMIN),
+  requirePermission(
+    "user_query.status",
+  ),
   updateUserQueryStatusValidation,
   updateUserQueryStatus,
 );
@@ -392,6 +501,9 @@ router.patch(
   "/:queryId/priority",
   authenticate,
   authorizeRoles(Role.ADMIN),
+  requirePermission(
+    "user_query.priority",
+  ),
   updateUserQueryPriorityValidation,
   updateUserQueryPriority,
 );
@@ -400,6 +512,9 @@ router.patch(
   "/:queryId/category",
   authenticate,
   authorizeRoles(Role.ADMIN),
+  requirePermission(
+    "user_query.category",
+  ),
   updateUserQueryCategoryValidation,
   updateUserQueryCategory,
 );
@@ -408,17 +523,34 @@ router.patch(
   "/:queryId/assign",
   authenticate,
   authorizeRoles(Role.ADMIN),
+  requirePermission(
+    "user_query.assign",
+  ),
   assignUserQueryValidation,
   assignUserQuery,
 );
+
+
+// =========================================================
+// ADMIN - DELETE
+// =========================================================
 
 router.delete(
   "/:queryId",
   authenticate,
   authorizeRoles(Role.ADMIN),
+  requirePermission(
+    "user_query.delete",
+  ),
   deleteUserQueryValidation,
   deleteUserQuery,
 );
+
+
+// =========================================================
+// GENERIC QUERY DETAIL
+// Keep this LAST among GET /:queryId routes.
+// =========================================================
 
 router.get(
   "/:queryId",
@@ -426,5 +558,6 @@ router.get(
   getUserQueryByIdValidation,
   getUserQueryById,
 );
+
 
 export default router;

@@ -40,6 +40,9 @@ interface AddRolePermissionsParams {
     permissions: string[];
 }
 export declare class RbacService {
+    private static invalidatePermissionCaches;
+    private static invalidateRoleCaches;
+    private static invalidateUserAccessCache;
     static createPermission(params: CreatePermissionParams): Promise<import("mongoose").Document<unknown, {}, import("../models/permission.model.js").IPermission, {}, import("mongoose").DefaultSchemaOptions> & import("../models/permission.model.js").IPermission & Required<{
         _id: Types.ObjectId;
     }> & {
@@ -147,6 +150,10 @@ export declare class RbacService {
         _id: Types.ObjectId;
     }> & {
         __v: number;
+    }>;
+    static exportRolesToCsv(roleIds: string[]): Promise<{
+        csv: string;
+        total: number;
     }>;
 }
 export {};

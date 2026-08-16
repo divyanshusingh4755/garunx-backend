@@ -18,13 +18,19 @@ interface PackageCascadeDocument {
     }): Promise<unknown>;
 }
 export declare class PackageCascadingEngine {
-    static run(packageId: string): Promise<void>;
+    static evaluateConfiguration(packageId: string): Promise<{
+        isComplete: boolean;
+        issues: string[];
+        startingPrice: number;
+    }>;
+    static run(packageId: string, externalSession?: ClientSession): Promise<void>;
+    private static runInSession;
     private static getValidIdStrings;
     static cleanupTierOrphans(packageDocument: PackageCascadeDocument, session: ClientSession): Promise<void>;
     static cleanupLocationOrphans(packageDocument: PackageCascadeDocument, session: ClientSession): Promise<void>;
     static cleanupMappingOrphans(packageDocument: PackageCascadeDocument, session: ClientSession): Promise<void>;
     static cleanupPricing(packageDocument: PackageCascadeDocument, session: ClientSession): Promise<void>;
-    private static computeStartingPrice;
+    static computeStartingPrice(packageDocument: PackageCascadeDocument, session: ClientSession): Promise<number>;
     static computeIsComplete(packageDocument: PackageCascadeDocument, session: ClientSession): Promise<boolean>;
 }
 export {};

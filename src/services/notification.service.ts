@@ -17,6 +17,7 @@ import { EmailService } from "../utils/sendEmail.js";
 import { NotificationDeviceService } from "./notification-device.service.js";
 import { NotificationPreferenceService } from "./notification-preference.service.js";
 import type { NotificationCategory } from "../models/notification-template.model.js";
+import { NotificationQueueService } from "./notification-queue.service.js";
 
 export interface NotificationChannels {
     email?: boolean;
@@ -755,6 +756,12 @@ export class NotificationService {
                 .renderTemplate({
                     templateCode,
                     variables,
+
+                    includeEmail:
+                        channels.email === true,
+
+                    includePush:
+                        channels.push === true,
                 });
 
         let showInApp = true;
@@ -934,6 +941,41 @@ export class NotificationService {
          * Do NOT send email/push again.
          */
         if (!created) {
+            /*
+             * Notification already exists.
+             *
+             * Normally we don't want duplicate
+             * deliveries.
+             *
+             * But if delivery is still PENDING,
+             * the previous attempt may have failed
+             * before the BullMQ job was created.
+             *
+             * Deterministic BullMQ job IDs make
+             * re-enqueueing safe while the original
+             * job still exists.
+             */
+
+            if (
+                notification.emailDelivery.status ===
+                "PENDING"
+            ) {
+                await NotificationQueueService
+                    .enqueueEmail(
+                        notification._id.toString(),
+                    );
+            }
+
+            if (
+                notification.pushDelivery.status ===
+                "PENDING"
+            ) {
+                await NotificationQueueService
+                    .enqueuePush(
+                        notification._id.toString(),
+                    );
+            }
+
             return {
                 notification,
 
@@ -945,335 +987,52 @@ export class NotificationService {
                     inApp:
                         notification.showInApp,
 
-                    email: false,
+                    email:
+                        notification
+                            .emailDelivery
+                            .status ===
+                            "PENDING"
+                            ? "QUEUED"
+                            : false,
 
-                    push: false,
+                    push:
+                        notification
+                            .pushDelivery
+                            .status ===
+                            "PENDING"
+                            ? "QUEUED"
+                            : false,
                 },
             };
         }
 
         /*
-         * ------------------------------------------------
-         * EMAIL DELIVERY
-         * ------------------------------------------------
-         */
-
-        let emailSent = false;
+    * ------------------------------------------------
+    * QUEUE DELIVERY
+    * ------------------------------------------------
+    *
+    * Notification is already persisted.
+    *
+    * Email and push are now processed
+    * asynchronously by BullMQ workers.
+    */
 
         if (emailRequested) {
-            try {
-                const user =
-                    await User.findById(
-                        recipientId,
-                    ).select(
-                        "email",
-                    );
-
-                if (!user?.email) {
-                    await Notification.updateOne(
-                        {
-                            _id:
-                                notification._id,
-                        },
-                        {
-                            $set: {
-                                "emailDelivery.status":
-                                    "FAILED",
-
-                                "emailDelivery.failedAt":
-                                    new Date(),
-
-                                "emailDelivery.error":
-                                    "Recipient email not found",
-                            },
-                        },
-                    );
-                } else {
-                    const emailResult =
-                        await EmailService
-                            .sendEmail({
-                                to:
-                                    user.email,
-
-                                subject:
-                                    rendered.emailSubject!,
-
-                                html:
-                                    rendered.emailBody!,
-                            });
-
-                    await Notification.updateOne(
-                        {
-                            _id:
-                                notification._id,
-                        },
-                        {
-                            $set: {
-                                "emailDelivery.status":
-                                    "SENT",
-
-                                "emailDelivery.sentAt":
-                                    new Date(),
-
-                                "emailDelivery.messageId":
-                                    emailResult.messageId,
-                            },
-
-                            $unset: {
-                                "emailDelivery.failedAt":
-                                    "",
-
-                                "emailDelivery.error":
-                                    "",
-                            },
-                        },
-                    );
-
-                    emailSent = true;
-                }
-            } catch (error) {
-                const errorMessage =
-                    error instanceof Error
-                        ? error.message
-                        : "Failed to send email";
-
-                await Notification.updateOne(
-                    {
-                        _id:
-                            notification._id,
-                    },
-                    {
-                        $set: {
-                            "emailDelivery.status":
-                                "FAILED",
-
-                            "emailDelivery.failedAt":
-                                new Date(),
-
-                            "emailDelivery.error":
-                                errorMessage,
-                        },
-                    },
+            await NotificationQueueService
+                .enqueueEmail(
+                    notification._id.toString(),
                 );
-
-                console.error(
-                    `Failed to send notification email to user ${recipientId.toString()}:`,
-                    error,
-                );
-            }
         }
-
-        /*
-         * ------------------------------------------------
-         * PUSH DELIVERY
-         * ------------------------------------------------
-         */
-
-        let pushSent = false;
 
         if (pushRequested) {
-            try {
-                const pushResult =
-                    await NotificationDeviceService
-                        .sendToUser({
-                            userId:
-                                recipientId.toString(),
-
-                            title:
-                                rendered.pushTitle!,
-
-                            message:
-                                rendered.pushMessage!,
-
-                            data: {
-                                notificationId:
-                                    notification._id.toString(),
-
-                                type:
-                                    notification.type,
-
-                                ...(notification.referenceId && {
-                                    referenceId:
-                                        notification.referenceId.toString(),
-                                }),
-                            },
-                        });
-
-                /*
-                 * No active FCM devices.
-                 */
-                if (
-                    pushResult.attempted === 0
-                ) {
-                    await Notification.updateOne(
-                        {
-                            _id:
-                                notification._id,
-                        },
-                        {
-                            $set: {
-                                "pushDelivery.status":
-                                    "FAILED",
-
-                                "pushDelivery.attemptedCount":
-                                    0,
-
-                                "pushDelivery.successCount":
-                                    0,
-
-                                "pushDelivery.failureCount":
-                                    0,
-
-                                "pushDelivery.failedAt":
-                                    new Date(),
-
-                                "pushDelivery.error":
-                                    "No active notification devices found",
-                            },
-
-                            $unset: {
-                                "pushDelivery.sentAt":
-                                    "",
-                            },
-                        },
-                    );
-                } else {
-                    let pushStatus:
-                        | "SENT"
-                        | "PARTIAL"
-                        | "FAILED";
-
-                    if (
-                        pushResult.successCount > 0 &&
-                        pushResult.failureCount === 0
-                    ) {
-                        pushStatus =
-                            "SENT";
-                    } else if (
-                        pushResult.successCount > 0
-                    ) {
-                        pushStatus =
-                            "PARTIAL";
-                    } else {
-                        pushStatus =
-                            "FAILED";
-                    }
-
-                    const now =
-                        new Date();
-
-                    const setData:
-                        Record<string, unknown> = {
-                        "pushDelivery.status":
-                            pushStatus,
-
-                        "pushDelivery.attemptedCount":
-                            pushResult.attempted,
-
-                        "pushDelivery.successCount":
-                            pushResult.successCount,
-
-                        "pushDelivery.failureCount":
-                            pushResult.failureCount,
-                    };
-
-                    /*
-                     * At least one device received it.
-                     */
-                    if (
-                        pushResult.successCount > 0
-                    ) {
-                        setData[
-                            "pushDelivery.sentAt"
-                        ] = now;
-                    }
-
-                    /*
-                     * All attempts failed.
-                     */
-                    if (
-                        pushStatus === "FAILED"
-                    ) {
-                        setData[
-                            "pushDelivery.failedAt"
-                        ] = now;
-                    }
-
-                    const unsetData:
-                        Record<string, ""> = {
-                        "pushDelivery.error":
-                            "",
-                    };
-
-                    if (
-                        pushStatus !== "FAILED"
-                    ) {
-                        unsetData[
-                            "pushDelivery.failedAt"
-                        ] = "";
-                    }
-
-                    await Notification.updateOne(
-                        {
-                            _id:
-                                notification._id,
-                        },
-                        {
-                            $set:
-                                setData,
-
-                            $unset:
-                                unsetData,
-                        },
-                    );
-
-                    pushSent =
-                        pushResult.successCount > 0;
-                }
-            } catch (error) {
-                const errorMessage =
-                    error instanceof Error
-                        ? error.message
-                        : "Failed to send push notification";
-
-                await Notification.updateOne(
-                    {
-                        _id:
-                            notification._id,
-                    },
-                    {
-                        $set: {
-                            "pushDelivery.status":
-                                "FAILED",
-
-                            "pushDelivery.failedAt":
-                                new Date(),
-
-                            "pushDelivery.error":
-                                errorMessage,
-                        },
-                    },
+            await NotificationQueueService
+                .enqueuePush(
+                    notification._id.toString(),
                 );
-
-                console.error(
-                    `Failed to send push notification to user ${recipientId.toString()}:`,
-                    error,
-                );
-            }
         }
 
-        const finalNotification =
-            await Notification.findById(
-                notification._id,
-            );
-
-        /*
-         * 5. Final result
-         */
         return {
-            notification:
-                finalNotification ??
-                notification,
+            notification,
 
             created: true,
 
@@ -1282,12 +1041,629 @@ export class NotificationService {
                     showInApp,
 
                 email:
-                    emailSent,
+                    emailRequested
+                        ? "QUEUED"
+                        : false,
 
                 push:
-                    pushSent,
-            }
+                    pushRequested
+                        ? "QUEUED"
+                        : false,
+            },
         };
+    }
+
+    static async deliverEmail(
+        notificationId: string,
+    ) {
+        if (
+            !Types.ObjectId.isValid(
+                notificationId,
+            )
+        ) {
+            throw new Error(
+                "Invalid notification ID",
+            );
+        }
+
+        const notification =
+            await Notification.findById(
+                notificationId,
+            );
+
+        if (!notification) {
+            throw new Error(
+                "Notification not found",
+            );
+        }
+
+        /*
+         * Don't accidentally send an email
+         * that was never requested.
+         */
+        if (
+            notification.emailDelivery.status ===
+            "NOT_REQUESTED"
+        ) {
+            return {
+                skipped: true,
+                reason:
+                    "EMAIL_NOT_REQUESTED",
+            };
+        }
+
+        /*
+         * Important for idempotency.
+         *
+         * If BullMQ somehow processes this
+         * job again after successful delivery,
+         * don't send the email again.
+         */
+        if (
+            notification.emailDelivery.status ===
+            "SENT"
+        ) {
+            return {
+                skipped: true,
+                reason:
+                    "EMAIL_ALREADY_SENT",
+            };
+        }
+
+        const {
+            subject,
+            body,
+        } =
+            notification.emailDelivery;
+
+        if (
+            !subject ||
+            !body
+        ) {
+            await Notification.updateOne(
+                {
+                    _id:
+                        notification._id,
+                },
+                {
+                    $set: {
+                        "emailDelivery.status":
+                            "FAILED",
+
+                        "emailDelivery.failedAt":
+                            new Date(),
+
+                        "emailDelivery.error":
+                            "Email content not found",
+                    },
+                },
+            );
+
+            /*
+             * Configuration/data problem.
+             * Retrying will not fix it.
+             */
+            return {
+                skipped: true,
+                reason:
+                    "EMAIL_CONTENT_MISSING",
+            };
+        }
+
+        const user =
+            await User.findById(
+                notification.recipientId,
+            ).select(
+                "email",
+            );
+
+        if (!user?.email) {
+            await Notification.updateOne(
+                {
+                    _id:
+                        notification._id,
+                },
+                {
+                    $set: {
+                        "emailDelivery.status":
+                            "FAILED",
+
+                        "emailDelivery.failedAt":
+                            new Date(),
+
+                        "emailDelivery.error":
+                            "Recipient email not found",
+                    },
+                },
+            );
+
+            /*
+             * Permanent failure.
+             *
+             * Retrying cannot create an email
+             * address for the user.
+             */
+            return {
+                skipped: true,
+                reason:
+                    "RECIPIENT_EMAIL_NOT_FOUND",
+            };
+        }
+
+        /*
+         * Keep status PENDING while BullMQ
+         * is attempting/retrying the job.
+         */
+        await Notification.updateOne(
+            {
+                _id:
+                    notification._id,
+            },
+            {
+                $set: {
+                    "emailDelivery.status":
+                        "PENDING",
+                },
+
+                $unset: {
+                    "emailDelivery.failedAt":
+                        "",
+
+                    "emailDelivery.error":
+                        "",
+                },
+            },
+        );
+
+        /*
+         * IMPORTANT:
+         *
+         * Do NOT swallow provider errors here.
+         *
+         * If sendEmail throws, let it reach
+         * the BullMQ worker so BullMQ can retry.
+         */
+        const result =
+            await EmailService.sendEmail({
+                to:
+                    user.email,
+
+                subject,
+
+                html:
+                    body,
+            });
+
+        await Notification.updateOne(
+            {
+                _id:
+                    notification._id,
+            },
+            {
+                $set: {
+                    "emailDelivery.status":
+                        "SENT",
+
+                    "emailDelivery.sentAt":
+                        new Date(),
+
+                    "emailDelivery.messageId":
+                        result.messageId,
+                },
+
+                $unset: {
+                    "emailDelivery.failedAt":
+                        "",
+
+                    "emailDelivery.error":
+                        "",
+                },
+            },
+        );
+
+        return {
+            skipped:
+                false,
+
+            emailSent:
+                true,
+
+            messageId:
+                result.messageId,
+        };
+    }
+
+    static async deliverPush(
+        notificationId: string,
+    ) {
+        if (
+            !Types.ObjectId.isValid(
+                notificationId,
+            )
+        ) {
+            throw new Error(
+                "Invalid notification ID",
+            );
+        }
+
+        const notification =
+            await Notification.findById(
+                notificationId,
+            );
+
+        if (!notification) {
+            throw new Error(
+                "Notification not found",
+            );
+        }
+
+        if (
+            notification.pushDelivery.status ===
+            "NOT_REQUESTED"
+        ) {
+            return {
+                skipped: true,
+                reason:
+                    "PUSH_NOT_REQUESTED",
+            };
+        }
+
+        /*
+         * Prevent resending an already
+         * successful push notification.
+         */
+        if (
+            notification.pushDelivery.status ===
+            "SENT"
+        ) {
+            return {
+                skipped: true,
+                reason:
+                    "PUSH_ALREADY_SENT",
+            };
+        }
+
+        const {
+            title,
+            message,
+        } =
+            notification.pushDelivery;
+
+        if (
+            !title ||
+            !message
+        ) {
+            await Notification.updateOne(
+                {
+                    _id:
+                        notification._id,
+                },
+                {
+                    $set: {
+                        "pushDelivery.status":
+                            "FAILED",
+
+                        "pushDelivery.failedAt":
+                            new Date(),
+
+                        "pushDelivery.error":
+                            "Push notification content not found",
+                    },
+                },
+            );
+
+            return {
+                skipped: true,
+                reason:
+                    "PUSH_CONTENT_MISSING",
+            };
+        }
+
+        await Notification.updateOne(
+            {
+                _id:
+                    notification._id,
+            },
+            {
+                $set: {
+                    "pushDelivery.status":
+                        "PENDING",
+                },
+
+                $unset: {
+                    "pushDelivery.failedAt":
+                        "",
+
+                    "pushDelivery.error":
+                        "",
+                },
+            },
+        );
+
+        const result =
+            await NotificationDeviceService
+                .sendToUser({
+                    userId:
+                        notification.recipientId.toString(),
+
+                    title,
+
+                    message,
+
+                    data: {
+                        notificationId:
+                            notification._id.toString(),
+
+                        type:
+                            notification.type,
+
+                        ...(notification.referenceId && {
+                            referenceId:
+                                notification.referenceId.toString(),
+                        }),
+                    },
+                });
+
+        /*
+         * No devices means retrying won't help.
+         */
+        if (
+            result.attempted === 0
+        ) {
+            await Notification.updateOne(
+                {
+                    _id:
+                        notification._id,
+                },
+                {
+                    $set: {
+                        "pushDelivery.status":
+                            "FAILED",
+
+                        "pushDelivery.attemptedCount":
+                            0,
+
+                        "pushDelivery.successCount":
+                            0,
+
+                        "pushDelivery.failureCount":
+                            0,
+
+                        "pushDelivery.failedAt":
+                            new Date(),
+
+                        "pushDelivery.error":
+                            "No active notification devices found",
+                    },
+
+                    $unset: {
+                        "pushDelivery.sentAt":
+                            "",
+                    },
+                },
+            );
+
+            return {
+                skipped: true,
+
+                reason:
+                    "NO_ACTIVE_DEVICES",
+            };
+        }
+
+        /*
+         * All devices succeeded.
+         */
+        if (
+            result.successCount > 0 &&
+            result.failureCount === 0
+        ) {
+            await Notification.updateOne(
+                {
+                    _id:
+                        notification._id,
+                },
+                {
+                    $set: {
+                        "pushDelivery.status":
+                            "SENT",
+
+                        "pushDelivery.attemptedCount":
+                            result.attempted,
+
+                        "pushDelivery.successCount":
+                            result.successCount,
+
+                        "pushDelivery.failureCount":
+                            result.failureCount,
+
+                        "pushDelivery.sentAt":
+                            new Date(),
+                    },
+
+                    $unset: {
+                        "pushDelivery.failedAt":
+                            "",
+
+                        "pushDelivery.error":
+                            "",
+                    },
+                },
+            );
+
+            return {
+                status:
+                    "SENT" as const,
+
+                attempted:
+                    result.attempted,
+
+                successCount:
+                    result.successCount,
+
+                failureCount:
+                    result.failureCount,
+
+                deactivatedCount:
+                    result.deactivatedCount,
+            };
+        }
+
+        /*
+         * Some devices succeeded.
+         *
+         * IMPORTANT:
+         * We do NOT automatically retry PARTIAL
+         * delivery because successful devices
+         * could receive the same push twice.
+         */
+        if (
+            result.successCount > 0
+        ) {
+            await Notification.updateOne(
+                {
+                    _id:
+                        notification._id,
+                },
+                {
+                    $set: {
+                        "pushDelivery.status":
+                            "PARTIAL",
+
+                        "pushDelivery.attemptedCount":
+                            result.attempted,
+
+                        "pushDelivery.successCount":
+                            result.successCount,
+
+                        "pushDelivery.failureCount":
+                            result.failureCount,
+
+                        "pushDelivery.sentAt":
+                            new Date(),
+                    },
+
+                    $unset: {
+                        "pushDelivery.failedAt":
+                            "",
+
+                        "pushDelivery.error":
+                            "",
+                    },
+                },
+            );
+
+            return {
+                status:
+                    "PARTIAL" as const,
+
+                attempted:
+                    result.attempted,
+
+                successCount:
+                    result.successCount,
+
+                failureCount:
+                    result.failureCount,
+
+                deactivatedCount:
+                    result.deactivatedCount,
+            };
+        }
+
+        /*
+         * We attempted delivery but EVERY
+         * device failed.
+         *
+         * Save the counts but keep PENDING.
+         * Then throw so BullMQ retries.
+         */
+        await Notification.updateOne(
+            {
+                _id:
+                    notification._id,
+            },
+            {
+                $set: {
+                    "pushDelivery.status":
+                        "PENDING",
+
+                    "pushDelivery.attemptedCount":
+                        result.attempted,
+
+                    "pushDelivery.successCount":
+                        0,
+
+                    "pushDelivery.failureCount":
+                        result.failureCount,
+
+                    "pushDelivery.error":
+                        "Push delivery failed for all active devices",
+                },
+            },
+        );
+
+        throw new Error(
+            "Push delivery failed for all active devices",
+        );
+    }
+
+    static async markEmailDeliveryFailed(
+        notificationId: string,
+        error: unknown,
+    ) {
+        const errorMessage =
+            error instanceof Error
+                ? error.message
+                : "Failed to send email";
+
+        await Notification.updateOne(
+            {
+                _id:
+                    notificationId,
+            },
+            {
+                $set: {
+                    "emailDelivery.status":
+                        "FAILED",
+
+                    "emailDelivery.failedAt":
+                        new Date(),
+
+                    "emailDelivery.error":
+                        errorMessage,
+                },
+            },
+        );
+    }
+
+    static async markPushDeliveryFailed(
+        notificationId: string,
+        error: unknown,
+    ) {
+        const errorMessage =
+            error instanceof Error
+                ? error.message
+                : "Failed to send push notification";
+
+        await Notification.updateOne(
+            {
+                _id:
+                    notificationId,
+            },
+            {
+                $set: {
+                    "pushDelivery.status":
+                        "FAILED",
+
+                    "pushDelivery.failedAt":
+                        new Date(),
+
+                    "pushDelivery.error":
+                        errorMessage,
+                },
+            },
+        );
     }
 
     static async retryEmail(
@@ -1303,113 +1679,101 @@ export class NotificationService {
             );
         }
 
+        /*
+         * Atomic claim.
+         *
+         * Only ONE retry request can change
+         * FAILED -> RETRYING.
+         */
         const notification =
-            await Notification.findOne({
-                _id: notificationId,
-                isDeleted: false,
-            });
+            await Notification.findOneAndUpdate(
+                {
+                    _id:
+                        notificationId,
+
+                    isDeleted:
+                        false,
+
+                    "emailDelivery.status":
+                        "FAILED",
+                },
+                {
+                    $set: {
+                        "emailDelivery.status":
+                            "RETRYING",
+                    },
+
+                    $unset: {
+                        "emailDelivery.failedAt":
+                            "",
+
+                        "emailDelivery.error":
+                            "",
+                    },
+                },
+                {
+                    new:
+                        true,
+                },
+            );
 
         if (!notification) {
             throw new Error(
-                "Notification not found",
+                "Notification email is not available for retry",
             );
         }
 
         if (
-            notification.emailDelivery.status !==
-            "FAILED"
+            !notification.emailDelivery.subject ||
+            !notification.emailDelivery.body
         ) {
-            throw new Error(
-                "Only failed notification emails can be retried",
+            await Notification.updateOne(
+                {
+                    _id:
+                        notification._id,
+                },
+                {
+                    $set: {
+                        "emailDelivery.status":
+                            "FAILED",
+
+                        "emailDelivery.error":
+                            "Email content not found",
+                    },
+                },
             );
-        }
 
-        const {
-            subject,
-            body,
-        } =
-            notification.emailDelivery;
-
-        if (!subject || !body) {
             throw new Error(
                 "Email content not found for this notification",
             );
         }
 
-        const user =
-            await User.findById(
-                notification.recipientId,
-            ).select(
-                "email",
-            );
-
-        if (!user?.email) {
-            throw new Error(
-                "Recipient email not found",
-            );
-        }
-
-        await Notification.updateOne(
-            {
-                _id: notification._id,
-            },
-            {
-                $set: {
-                    "emailDelivery.status":
-                        "PENDING",
-                },
-
-                $unset: {
-                    "emailDelivery.failedAt": "",
-                    "emailDelivery.error": "",
-                },
-            },
-        );
-
         try {
-            const result =
-                await EmailService.sendEmail({
-                    to:
-                        user.email,
-
-                    subject,
-
-                    html:
-                        body,
-                });
-
-            await Notification.updateOne(
-                {
-                    _id: notification._id,
-                },
-                {
-                    $set: {
-                        "emailDelivery.status":
-                            "SENT",
-
-                        "emailDelivery.sentAt":
-                            new Date(),
-
-                        "emailDelivery.messageId":
-                            result.messageId,
-                    },
-                },
-            );
+            await NotificationQueueService
+                .enqueueEmailRetry(
+                    notification._id.toString(),
+                );
 
             return {
-                emailSent: true,
-                messageId:
-                    result.messageId,
+                queued:
+                    true,
+
+                notificationId:
+                    notification._id,
             };
         } catch (error) {
-            const errorMessage =
-                error instanceof Error
-                    ? error.message
-                    : "Failed to send email";
-
+            /*
+             * Redis failed.
+             *
+             * Restore the retryable state.
+             */
             await Notification.updateOne(
                 {
-                    _id: notification._id,
+                    _id:
+                        notification._id,
+
+                    "emailDelivery.status":
+                        "RETRYING",
                 },
                 {
                     $set: {
@@ -1420,7 +1784,9 @@ export class NotificationService {
                             new Date(),
 
                         "emailDelivery.error":
-                            errorMessage,
+                            error instanceof Error
+                                ? error.message
+                                : "Failed to queue email retry",
                     },
                 },
             );
@@ -1444,8 +1810,11 @@ export class NotificationService {
 
         const notification =
             await Notification.findOne({
-                _id: notificationId,
-                isDeleted: false,
+                _id:
+                    notificationId,
+
+                isDeleted:
+                    false,
             });
 
         if (!notification) {
@@ -1467,13 +1836,10 @@ export class NotificationService {
             );
         }
 
-        const {
-            title,
-            message,
-        } =
-            notification.pushDelivery;
-
-        if (!title || !message) {
+        if (
+            !notification.pushDelivery.title ||
+            !notification.pushDelivery.message
+        ) {
             throw new Error(
                 "Push notification content not found",
             );
@@ -1491,167 +1857,26 @@ export class NotificationService {
                 },
 
                 $unset: {
-                    "pushDelivery.failedAt": "",
-                    "pushDelivery.error": "",
+                    "pushDelivery.failedAt":
+                        "",
+
+                    "pushDelivery.error":
+                        "",
                 },
             },
         );
 
-        try {
-            const result =
-                await NotificationDeviceService
-                    .sendToUser({
-                        userId:
-                            notification.recipientId.toString(),
-
-                        title,
-
-                        message,
-
-                        data: {
-                            notificationId:
-                                notification._id.toString(),
-
-                            type:
-                                notification.type,
-
-                            ...(notification.referenceId && {
-                                referenceId:
-                                    notification.referenceId.toString(),
-                            }),
-                        },
-                    });
-
-            let status:
-                | "SENT"
-                | "PARTIAL"
-                | "FAILED";
-
-            let errorMessage:
-                | string
-                | undefined;
-
-            if (result.attempted === 0) {
-                status = "FAILED";
-
-                errorMessage =
-                    "No active notification devices found";
-            } else if (
-                result.successCount > 0 &&
-                result.failureCount === 0
-            ) {
-                status = "SENT";
-            } else if (
-                result.successCount > 0
-            ) {
-                status = "PARTIAL";
-            } else {
-                status = "FAILED";
-            }
-
-            const unsetData:
-                Record<string, ""> = {};
-
-            if (!errorMessage) {
-                unsetData[
-                    "pushDelivery.error"
-                ] = "";
-            }
-
-            if (status !== "FAILED") {
-                unsetData[
-                    "pushDelivery.failedAt"
-                ] = "";
-            }
-
-            const now =
-                new Date();
-
-            await Notification.updateOne(
-                {
-                    _id:
-                        notification._id,
-                },
-                {
-                    $set: {
-                        "pushDelivery.status":
-                            status,
-
-                        "pushDelivery.attemptedCount":
-                            result.attempted,
-
-                        "pushDelivery.successCount":
-                            result.successCount,
-
-                        "pushDelivery.failureCount":
-                            result.failureCount,
-
-                        ...(result.successCount > 0 && {
-                            "pushDelivery.sentAt":
-                                now,
-                        }),
-
-                        ...(status === "FAILED" && {
-                            "pushDelivery.failedAt":
-                                now,
-                        }),
-
-                        ...(errorMessage && {
-                            "pushDelivery.error":
-                                errorMessage,
-                        }),
-                    },
-
-                    ...(Object.keys(
-                        unsetData,
-                    ).length > 0 && {
-                        $unset:
-                            unsetData,
-                    }),
-                },
+        await NotificationQueueService
+            .enqueuePushRetry(
+                notification._id.toString(),
             );
 
-            return {
-                status,
+        return {
+            queued:
+                true,
 
-                attempted:
-                    result.attempted,
-
-                successCount:
-                    result.successCount,
-
-                failureCount:
-                    result.failureCount,
-
-                deactivatedCount:
-                    result.deactivatedCount,
-            };
-        } catch (error) {
-            const errorMessage =
-                error instanceof Error
-                    ? error.message
-                    : "Failed to send push notification";
-
-            await Notification.updateOne(
-                {
-                    _id:
-                        notification._id,
-                },
-                {
-                    $set: {
-                        "pushDelivery.status":
-                            "FAILED",
-
-                        "pushDelivery.failedAt":
-                            new Date(),
-
-                        "pushDelivery.error":
-                            errorMessage,
-                    },
-                },
-            );
-
-            throw error;
-        }
+            notificationId:
+                notification._id,
+        };
     }
 }

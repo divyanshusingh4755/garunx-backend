@@ -6,4 +6,5 @@ export declare const getLocationById: (req: Request, res: Response) => Promise<R
 export declare const deleteLocation: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
 export declare const getLocationIds: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
 export declare const getAllLocationsAdmin: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
+export declare const exportLocationsCsv: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
 //# sourceMappingURL=location.controllers.d.ts.map

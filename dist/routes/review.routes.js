@@ -1,6 +1,6 @@
 import { Router, } from "express";
 import { body, param, query, validationResult } from "express-validator";
-import { createReview, editReview, moderateReview, getAllReviews, getMyBookingReview, getMyReviews, getCoordinatorReviews, } from "../controllers/review.controllers.js";
+import { createReview, editReview, moderateReview, getAllReviews, getMyBookingReview, getMyReviews, getCoordinatorReviews, exportReviewsCsv, } from "../controllers/review.controllers.js";
 import { authenticate } from "../middleware/authenticate.js";
 import { authorizeRoles } from "../middleware/authorizeRoles.js";
 import { Role } from "../types/rbac.js";
@@ -82,12 +82,23 @@ export const createReviewValidation = [
 export const editReviewValidation = [
     param("reviewId").isMongoId().withMessage("Invalid review id"),
     body().custom((value) => {
-        if (!value || typeof value !== "object" || Array.isArray(value)) {
+        if (!value ||
+            typeof value !== "object" ||
+            Array.isArray(value)) {
             throw new Error("Request body must be an object");
         }
-        const hasEditableField = ["rating", "review", "imageUrl"].some((field) => Object.prototype.hasOwnProperty.call(value, field));
-        if (!hasEditableField) {
-            throw new Error("At least rating, review or imageUrl is required");
+        const allowedFields = [
+            "rating",
+            "review",
+            "imageUrl",
+        ];
+        const suppliedFields = Object.keys(value);
+        if (suppliedFields.length === 0) {
+            throw new Error("At least one field is required");
+        }
+        const invalidFields = suppliedFields.filter((field) => !allowedFields.includes(field));
+        if (invalidFields.length > 0) {
+            throw new Error(`Invalid update fields: ${invalidFields.join(", ")}`);
         }
         return true;
     }),
@@ -173,12 +184,58 @@ export const getAllReviewsValidation = [
     ...commonListValidation,
     validate,
 ];
+const exportReviewsValidation = [
+    body("reviewIds")
+        .isArray({
+        min: 1,
+        max: 1000,
+    })
+        .withMessage("reviewIds must contain between 1 and 1000 review IDs"),
+    body("reviewIds.*")
+        .isMongoId()
+        .withMessage("Each reviewId must be a valid MongoDB ID"),
+    body("reviewIds").custom((reviewIds) => {
+        if (!Array.isArray(reviewIds)) {
+            return true;
+        }
+        const uniqueIds = new Set(reviewIds);
+        if (uniqueIds.size !==
+            reviewIds.length) {
+            throw new Error("Duplicate review IDs are not allowed");
+        }
+        return true;
+    }),
+    validate,
+];
+// =========================================================
+// PUBLIC - COORDINATOR REVIEWS
+// =========================================================
 router.get("/coordinator/:coordinatorId", getCoordinatorReviewsValidation, getCoordinatorReviews);
+// =========================================================
+// AUTHENTICATED USER / COORDINATOR - BOOKING REVIEW LOOKUP
+// =========================================================
 router.get("/booking/:bookingId/my-review", authenticate, authorizeRoles(Role.USER, Role.COORDINATOR), getMyBookingReviewValidation, getMyBookingReview);
+// =========================================================
+// AUTHENTICATED USER / COORDINATOR - OWN REVIEWS
+// =========================================================
 router.get("/my-reviews", authenticate, authorizeRoles(Role.USER, Role.COORDINATOR), getMyReviewsValidation, getMyReviews);
+// =========================================================
+// ADMIN - REVIEW LIST / EXPORT
+// =========================================================
 router.get("/get-all-reviews", authenticate, authorizeRoles(Role.ADMIN), requirePermission("review.read_all"), getAllReviewsValidation, getAllReviews);
+router.post("/export", authenticate, authorizeRoles(Role.ADMIN), requirePermission("review.read_all"), exportReviewsValidation, exportReviewsCsv);
+// =========================================================
+// USER / COORDINATOR - CREATE REVIEW
+// =========================================================
 router.post("/booking/:bookingId", authenticate, authorizeRoles(Role.USER, Role.COORDINATOR), createReviewValidation, createReview);
+// =========================================================
+// ADMIN - SPECIFIC REVIEW ACTION
+// =========================================================
 router.patch("/:reviewId/moderation", authenticate, authorizeRoles(Role.ADMIN), requirePermission("review.moderate"), moderateReviewValidation, moderateReview);
+// =========================================================
+// USER / COORDINATOR - GENERIC REVIEW UPDATE
+// Keep this last among /:reviewId routes.
+// =========================================================
 router.patch("/:reviewId", authenticate, authorizeRoles(Role.USER, Role.COORDINATOR), editReviewValidation, editReview);
 export default router;
 //# sourceMappingURL=review.routes.js.map

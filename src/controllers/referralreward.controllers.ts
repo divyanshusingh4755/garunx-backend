@@ -161,3 +161,62 @@ export const getReferralRewards = async (
     });
   }
 };
+
+export const exportReferralRewardsCsv = async (
+  req: Request,
+  res: Response,
+) => {
+  try {
+    const {
+      rewardIds,
+    }: {
+      rewardIds: string[];
+    } = req.body;
+
+    const result =
+      await ReferralRewardService
+        .exportReferralRewardsToCsv(
+          rewardIds,
+        );
+
+    const timestamp =
+      new Date()
+        .toISOString()
+        .replace(/[:.]/g, "-");
+
+    res.setHeader(
+      "Content-Type",
+      "text/csv; charset=utf-8",
+    );
+
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="referral-rewards-${timestamp}.csv"`,
+    );
+
+    return res
+      .status(200)
+      .send(result.csv);
+  } catch (error: unknown) {
+    const message =
+      getErrorMessage(
+        error,
+        "Failed to export referral rewards",
+      );
+
+    if (
+      message ===
+      "No referral rewards found for export"
+    ) {
+      return res.status(404).json({
+        success: false,
+        message,
+      });
+    }
+
+    return res.status(400).json({
+      success: false,
+      message,
+    });
+  }
+};

@@ -22,6 +22,12 @@ import {
   MemberLifeStatus,
 } from "../types/enums.js";
 
+import { OutboxService } from "./outbox.service.js";
+import { DOMAIN_EVENTS } from "../events/domain-events.js";
+import { RedisCacheService } from "./redis-cache.service.js";
+import { CacheKeys } from "../cache/cache-keys.js";
+import { CACHE_TTL_SECONDS } from "../cache/constants.js";
+
 export interface GetFamilyTreeActivitiesQuery {
   action?: string;
   familyMemberId?: string;
@@ -146,6 +152,30 @@ const AUDITABLE_FIELDS: Array<keyof UpdateFamilyMemberPayload> = [
 ];
 
 class FamilyTreeService {
+  private static async invalidateFamilyTreeCache(
+    ownerId: string,
+  ): Promise<void> {
+    await Promise.all([
+      RedisCacheService.delete(
+        CacheKeys.familyTree(
+          ownerId,
+        ),
+      ),
+
+      RedisCacheService.deleteByPattern(
+        CacheKeys.familyMemberListPattern(
+          ownerId,
+        ),
+      ),
+
+      RedisCacheService.deleteByPattern(
+        CacheKeys.familyMemberDetailPattern(
+          ownerId,
+        ),
+      ),
+    ]);
+  }
+
   private static validateContext(context: FamilyTreeActorContext): void {
     if (!Types.ObjectId.isValid(context.ownerId)) {
       throw new Error("Invalid family tree owner ID");
@@ -158,6 +188,18 @@ class FamilyTreeService {
     if (context.bookingId && !Types.ObjectId.isValid(context.bookingId)) {
       throw new Error("Invalid booking ID");
     }
+  }
+
+  private static shouldNotifyOwner(
+    context: FamilyTreeActorContext,
+  ): boolean {
+    return (
+      context.actorId !== context.ownerId &&
+      (
+        context.source === "COORDINATOR_BOOKING" ||
+        context.source === "ADMIN_MANUAL"
+      )
+    );
   }
 
   private static getUniqueIds(
@@ -356,16 +398,41 @@ class FamilyTreeService {
     dateOfDeath?: Date | null,
     dob?: Date | null,
   ): void {
-    if (lifeStatus === MemberLifeStatus.ALIVE && dateOfDeath) {
-      throw new Error("Date of death cannot be provided for an alive member");
+    if (
+      lifeStatus === MemberLifeStatus.ALIVE &&
+      dateOfDeath
+    ) {
+      throw new Error(
+        "Date of death cannot be provided for an alive member",
+      );
     }
 
-    if (dob && dob.getTime() > Date.now()) {
-      throw new Error("DOB cannot be in the future");
+    if (
+      lifeStatus !== MemberLifeStatus.ALIVE &&
+      !dateOfDeath
+    ) {
+      throw new Error(
+        "Date of death is required for a deceased family member",
+      );
     }
 
-    if (dob && dateOfDeath && dateOfDeath < dob) {
-      throw new Error("Date of death cannot be before DOB");
+    if (
+      dob &&
+      dob.getTime() > Date.now()
+    ) {
+      throw new Error(
+        "DOB cannot be in the future",
+      );
+    }
+
+    if (
+      dob &&
+      dateOfDeath &&
+      dateOfDeath < dob
+    ) {
+      throw new Error(
+        "Date of death cannot be before DOB",
+      );
     }
   }
 
@@ -483,8 +550,8 @@ class FamilyTreeService {
 
         ...(lifeStatus === MemberLifeStatus.DECEASED &&
           dateOfDeath !== undefined && {
-            dateOfDeath,
-          }),
+          dateOfDeath,
+        }),
 
         ...(nativeVillage !== undefined && {
           nativeVillage,
@@ -575,7 +642,34 @@ class FamilyTreeService {
         session,
       );
 
+      if (FamilyTreeService.shouldNotifyOwner(context)) {
+        await OutboxService.createEvent({
+          eventType: DOMAIN_EVENTS.FAMILY_TREE_MEMBER_ADDED,
+          aggregateType: "FAMILY_MEMBER",
+          aggregateId: familyMember._id.toString(),
+          payload: {
+            ownerId: context.ownerId,
+            familyMemberId: familyMember._id.toString(),
+            fullName: familyMember.fullName,
+            relation: familyMember.relation,
+            performedByRole: context.actorRole,
+            source: context.source,
+            ...(context.bookingId && {
+              bookingId: context.bookingId,
+            }),
+            ...(context.bookingReference && {
+              bookingReference: context.bookingReference,
+            }),
+          },
+          session,
+        });
+      }
+
       await session.commitTransaction();
+
+      await this.invalidateFamilyTreeCache(
+        context.ownerId,
+      );
 
       return FamilyTreeService.populateMember(
         context.ownerId,
@@ -589,230 +683,453 @@ class FamilyTreeService {
     }
   }
 
-  static async getFamilyTree(ownerId: string) {
-    if (!Types.ObjectId.isValid(ownerId)) {
-      throw new Error("Invalid family tree owner ID");
-    }
-
-    const members = await FamilyMember.find({
-      ownerId: new Types.ObjectId(ownerId),
-
-      isDeleted: false,
-    })
-      .select(
-        [
-          "fullName",
-          "relation",
-          "gender",
-          "dob",
-          "lifeStatus",
-          "dateOfDeath",
-          "fatherId",
-          "motherId",
-          "spouseIds",
-          "nativeVillage",
-          "state",
-          "district",
-          "caste",
-          "gotra",
-          "designatedPandit",
-          "visitors",
-          "profileImage",
-          "notes",
-          "createdBy",
-          "updatedBy",
-          "source",
-          "sourceBookingId",
-          "sourceBookingReference",
-          "createdAt",
-          "updatedAt",
-        ].join(" "),
+  static async getFamilyTree(
+    ownerId: string,
+  ) {
+    if (
+      !Types.ObjectId.isValid(
+        ownerId,
       )
-      .populate("createdBy", "fullName role userReference")
-      .populate("updatedBy", "fullName role userReference")
-      .sort({
-        createdAt: 1,
-      })
-      .lean();
-
-    const memberIdSet = new Set(members.map((member) => member._id.toString()));
-
-    const memberMap = new Map(
-      members.map((member) => [member._id.toString(), member]),
-    );
-
-    const edges: FamilyTreeEdge[] = [];
-
-    const marriageEdgeSet = new Set<string>();
-
-    for (const member of members) {
-      const memberId = member._id.toString();
-
-      if (member.fatherId && memberIdSet.has(member.fatherId.toString())) {
-        const fatherId = member.fatherId.toString();
-
-        const fatherMember = memberMap.get(fatherId);
-
-        edges.push({
-          id: `father-${fatherId}-${memberId}`,
-          source: fatherId,
-          target: memberId,
-          relationType: FamilyEdgeType.PARENT,
-          parentType: "FATHER",
-
-          ...(fatherMember && {
-            sourceRelation: fatherMember.relation,
-          }),
-
-          targetRelation: member.relation,
-        });
-      }
-
-      if (member.motherId && memberIdSet.has(member.motherId.toString())) {
-        const motherId = member.motherId.toString();
-
-        const motherMember = memberMap.get(motherId);
-
-        edges.push({
-          id: `mother-${motherId}-${memberId}`,
-          source: motherId,
-          target: memberId,
-          relationType: FamilyEdgeType.PARENT,
-          parentType: "MOTHER",
-
-          ...(motherMember && {
-            sourceRelation: motherMember.relation,
-          }),
-
-          targetRelation: member.relation,
-        });
-      }
-
-      for (const spouseObjectId of member.spouseIds || []) {
-        const spouseId = spouseObjectId.toString();
-
-        if (!memberIdSet.has(spouseId)) {
-          continue;
-        }
-
-        const [source, target]: [string, string] =
-          memberId < spouseId ? [memberId, spouseId] : [spouseId, memberId];
-
-        const marriageKey = `${source}-${target}`;
-
-        if (marriageEdgeSet.has(marriageKey)) {
-          continue;
-        }
-
-        marriageEdgeSet.add(marriageKey);
-
-        const sourceMember = memberMap.get(source);
-
-        const targetMember = memberMap.get(target);
-
-        edges.push({
-          id: `marriage-${marriageKey}`,
-          source,
-          target,
-          relationType: FamilyEdgeType.MARRIAGE,
-
-          ...(sourceMember && {
-            sourceRelation: sourceMember.relation,
-          }),
-
-          ...(targetMember && {
-            targetRelation: targetMember.relation,
-          }),
-        });
-      }
+    ) {
+      throw new Error(
+        "Invalid family tree owner ID",
+      );
     }
 
-    const nodes = members.map((member) => ({
-      id: member._id.toString(),
-
-      data: {
-        fullName: member.fullName,
-
-        relation: member.relation,
-
-        gender: member.gender,
-
-        dob: member.dob,
-
-        lifeStatus: member.lifeStatus,
-
-        dateOfDeath: member.dateOfDeath,
-
-        fatherId: member.fatherId?.toString() ?? null,
-
-        motherId: member.motherId?.toString() ?? null,
-
-        spouseIds: (member.spouseIds || []).map((spouseId) =>
-          spouseId.toString(),
+    return RedisCacheService.getOrSet({
+      key:
+        CacheKeys.familyTree(
+          ownerId,
         ),
 
-        nativeVillage: member.nativeVillage,
+      ttlSeconds:
+        CACHE_TTL_SECONDS
+          .FAMILY_TREE,
 
-        state: member.state,
+      loader:
+        async () => {
+          const members =
+            await FamilyMember.find({
+              ownerId:
+                new Types.ObjectId(
+                  ownerId,
+                ),
 
-        district: member.district,
+              isDeleted:
+                false,
+            })
+              .select(
+                [
+                  "fullName",
+                  "relation",
+                  "gender",
+                  "dob",
+                  "lifeStatus",
+                  "dateOfDeath",
+                  "fatherId",
+                  "motherId",
+                  "spouseIds",
+                  "nativeVillage",
+                  "state",
+                  "district",
+                  "caste",
+                  "gotra",
+                  "designatedPandit",
+                  "visitors",
+                  "profileImage",
+                  "notes",
+                  "createdBy",
+                  "updatedBy",
+                  "source",
+                  "sourceBookingId",
+                  "sourceBookingReference",
+                  "createdAt",
+                  "updatedAt",
+                ].join(
+                  " ",
+                ),
+              )
+              .populate(
+                "createdBy",
+                "fullName role userReference",
+              )
+              .populate(
+                "updatedBy",
+                "fullName role userReference",
+              )
+              .sort({
+                createdAt: 1,
+              })
+              .lean();
 
-        caste: member.caste,
+          const memberIdSet =
+            new Set(
+              members.map(
+                (
+                  member,
+                ) =>
+                  member._id
+                    .toString(),
+              ),
+            );
 
-        gotra: member.gotra,
+          const memberMap =
+            new Map(
+              members.map(
+                (
+                  member,
+                ) => [
+                    member._id
+                      .toString(),
+                    member,
+                  ],
+              ),
+            );
 
-        designatedPandit: member.designatedPandit,
+          const edges:
+            FamilyTreeEdge[] =
+            [];
 
-        visitors: member.visitors,
+          const marriageEdgeSet =
+            new Set<string>();
 
-        profileImage: member.profileImage,
+          for (
+            const member
+            of members
+          ) {
+            const memberId =
+              member._id
+                .toString();
 
-        notes: member.notes,
+            if (
+              member.fatherId &&
+              memberIdSet.has(
+                member.fatherId
+                  .toString(),
+              )
+            ) {
+              const fatherId =
+                member.fatherId
+                  .toString();
 
-        audit: {
-          createdAt: member.createdAt,
+              const fatherMember =
+                memberMap.get(
+                  fatherId,
+                );
 
-          createdBy: member.createdBy,
+              edges.push({
+                id:
+                  `father-${fatherId}-${memberId}`,
 
-          updatedAt: member.updatedAt,
+                source:
+                  fatherId,
 
-          updatedBy: member.updatedBy,
+                target:
+                  memberId,
 
-          source: member.source,
+                relationType:
+                  FamilyEdgeType.PARENT,
 
-          bookingId: member.sourceBookingId,
+                parentType:
+                  "FATHER",
 
-          bookingReference: member.sourceBookingReference,
+                ...(fatherMember && {
+                  sourceRelation:
+                    fatherMember.relation,
+                }),
+
+                targetRelation:
+                  member.relation,
+              });
+            }
+
+            if (
+              member.motherId &&
+              memberIdSet.has(
+                member.motherId
+                  .toString(),
+              )
+            ) {
+              const motherId =
+                member.motherId
+                  .toString();
+
+              const motherMember =
+                memberMap.get(
+                  motherId,
+                );
+
+              edges.push({
+                id:
+                  `mother-${motherId}-${memberId}`,
+
+                source:
+                  motherId,
+
+                target:
+                  memberId,
+
+                relationType:
+                  FamilyEdgeType.PARENT,
+
+                parentType:
+                  "MOTHER",
+
+                ...(motherMember && {
+                  sourceRelation:
+                    motherMember.relation,
+                }),
+
+                targetRelation:
+                  member.relation,
+              });
+            }
+
+            for (
+              const spouseObjectId
+              of member.spouseIds ??
+              []
+            ) {
+              const spouseId =
+                spouseObjectId
+                  .toString();
+
+              if (
+                !memberIdSet.has(
+                  spouseId,
+                )
+              ) {
+                continue;
+              }
+
+              const [
+                source,
+                target,
+              ]:
+                [
+                  string,
+                  string,
+                ] =
+                memberId <
+                  spouseId
+                  ? [
+                    memberId,
+                    spouseId,
+                  ]
+                  : [
+                    spouseId,
+                    memberId,
+                  ];
+
+              const marriageKey =
+                `${source}-${target}`;
+
+              if (
+                marriageEdgeSet.has(
+                  marriageKey,
+                )
+              ) {
+                continue;
+              }
+
+              marriageEdgeSet.add(
+                marriageKey,
+              );
+
+              const sourceMember =
+                memberMap.get(
+                  source,
+                );
+
+              const targetMember =
+                memberMap.get(
+                  target,
+                );
+
+              edges.push({
+                id:
+                  `marriage-${marriageKey}`,
+
+                source,
+
+                target,
+
+                relationType:
+                  FamilyEdgeType.MARRIAGE,
+
+                ...(sourceMember && {
+                  sourceRelation:
+                    sourceMember.relation,
+                }),
+
+                ...(targetMember && {
+                  targetRelation:
+                    targetMember.relation,
+                }),
+              });
+            }
+          }
+
+          const nodes =
+            members.map(
+              (
+                member,
+              ) => ({
+                id:
+                  member._id
+                    .toString(),
+
+                data: {
+                  fullName:
+                    member.fullName,
+
+                  relation:
+                    member.relation,
+
+                  gender:
+                    member.gender,
+
+                  dob:
+                    member.dob,
+
+                  lifeStatus:
+                    member.lifeStatus,
+
+                  dateOfDeath:
+                    member.dateOfDeath,
+
+                  fatherId:
+                    member.fatherId
+                      ?.toString() ??
+                    null,
+
+                  motherId:
+                    member.motherId
+                      ?.toString() ??
+                    null,
+
+                  spouseIds:
+                    (
+                      member.spouseIds ??
+                      []
+                    ).map(
+                      (
+                        spouseId,
+                      ) =>
+                        spouseId
+                          .toString(),
+                    ),
+
+                  nativeVillage:
+                    member.nativeVillage,
+
+                  state:
+                    member.state,
+
+                  district:
+                    member.district,
+
+                  caste:
+                    member.caste,
+
+                  gotra:
+                    member.gotra,
+
+                  designatedPandit:
+                    member.designatedPandit,
+
+                  visitors:
+                    member.visitors,
+
+                  profileImage:
+                    member.profileImage,
+
+                  notes:
+                    member.notes,
+
+                  audit: {
+                    createdAt:
+                      member.createdAt,
+
+                    createdBy:
+                      member.createdBy,
+
+                    updatedAt:
+                      member.updatedAt,
+
+                    updatedBy:
+                      member.updatedBy,
+
+                    source:
+                      member.source,
+
+                    bookingId:
+                      member.sourceBookingId,
+
+                    bookingReference:
+                      member
+                        .sourceBookingReference,
+                  },
+                },
+              }),
+            );
+
+          const rootMembers =
+            members
+              .filter(
+                (
+                  member,
+                ) => {
+                  const hasValidFather =
+                    Boolean(
+                      member.fatherId &&
+                      memberIdSet.has(
+                        member.fatherId
+                          .toString(),
+                      ),
+                    );
+
+                  const hasValidMother =
+                    Boolean(
+                      member.motherId &&
+                      memberIdSet.has(
+                        member.motherId
+                          .toString(),
+                      ),
+                    );
+
+                  return (
+                    !hasValidFather &&
+                    !hasValidMother
+                  );
+                },
+              )
+              .map(
+                (
+                  member,
+                ) => ({
+                  id:
+                    member._id
+                      .toString(),
+
+                  fullName:
+                    member.fullName,
+
+                  relation:
+                    member.relation,
+                }),
+              );
+
+          return {
+            nodes,
+            edges,
+            rootMembers,
+
+            totalMembers:
+              nodes.length,
+          };
         },
-      },
-    }));
-
-    const rootMembers = members
-      .filter((member) => {
-        const hasValidFather = Boolean(
-          member.fatherId && memberIdSet.has(member.fatherId.toString()),
-        );
-
-        const hasValidMother = Boolean(
-          member.motherId && memberIdSet.has(member.motherId.toString()),
-        );
-
-        return !hasValidFather && !hasValidMother;
-      })
-      .map((member) => ({
-        id: member._id.toString(),
-
-        fullName: member.fullName,
-
-        relation: member.relation,
-      }));
-
-    return {
-      nodes,
-      edges,
-      rootMembers,
-      totalMembers: nodes.length,
-    };
+    });
   }
 
   static async getFamilyMembers(ownerId: string, query: GetFamilyMembersQuery) {
@@ -862,65 +1179,111 @@ class FamilyTreeService {
       filter.lifeStatus = lifeStatus;
     }
 
-    const [familyMembers, totalMembers] = await Promise.all([
-      FamilyMember.find(filter)
-        .select(
-          [
-            "fullName",
-            "relation",
-            "gender",
-            "dob",
-            "lifeStatus",
-            "dateOfDeath",
-            "fatherId",
-            "motherId",
-            "spouseIds",
-            "nativeVillage",
-            "state",
-            "district",
-            "profileImage",
-            "createdBy",
-            "updatedBy",
-            "source",
-            "sourceBookingId",
-            "sourceBookingReference",
-            "createdAt",
-            "updatedAt",
-          ].join(" "),
-        )
-        .populate("fatherId", "fullName relation gender lifeStatus")
-        .populate("motherId", "fullName relation gender lifeStatus")
-        .populate("spouseIds", "fullName relation gender lifeStatus")
-        .populate("createdBy", "fullName role userReference")
-        .populate("updatedBy", "fullName role userReference")
-        .sort({
-          createdAt: -1,
-        })
-        .skip(skip)
-        .limit(limitNumber)
-        .lean(),
+    const cacheKey =
+      CacheKeys.familyMemberList(
+        ownerId,
+        {
+          search,
+          relation,
+          gender,
+          lifeStatus,
 
-      FamilyMember.countDocuments(filter),
-    ]);
+          page:
+            pageNumber,
 
-    const totalPages = Math.ceil(totalMembers / limitNumber);
+          limit:
+            limitNumber,
+        },
+      );
 
-    return {
-      familyMembers,
-      pagination: {
-        currentPage: pageNumber,
+    return RedisCacheService.getOrSet({
+      key:
+        cacheKey,
 
-        totalPages,
+      ttlSeconds:
+        CACHE_TTL_SECONDS
+          .FAMILY_MEMBER_LIST,
 
-        totalMembers,
+      loader:
+        async () => {
 
-        limit: limitNumber,
+          const [familyMembers, totalMembers] = await Promise.all([
+            FamilyMember.find(filter)
+              .select(
+                [
+                  "fullName",
+                  "relation",
+                  "gender",
+                  "dob",
+                  "lifeStatus",
+                  "dateOfDeath",
+                  "fatherId",
+                  "motherId",
+                  "spouseIds",
+                  "nativeVillage",
+                  "state",
+                  "district",
+                  "profileImage",
+                  "createdBy",
+                  "updatedBy",
+                  "source",
+                  "sourceBookingId",
+                  "sourceBookingReference",
+                  "createdAt",
+                  "updatedAt",
+                ].join(" "),
+              )
+              .populate({
+                path: "fatherId",
+                select: FAMILY_MEMBER_POPULATE_SELECT,
+                match: {
+                  isDeleted: false,
+                },
+              })
+              .populate({
+                path: "motherId",
+                select: FAMILY_MEMBER_POPULATE_SELECT,
+                match: {
+                  isDeleted: false,
+                },
+              })
+              .populate({
+                path: "spouseIds",
+                select: FAMILY_MEMBER_POPULATE_SELECT,
+                match: {
+                  isDeleted: false,
+                },
+              })
+              .sort({
+                createdAt: -1,
+              })
+              .skip(skip)
+              .limit(limitNumber)
+              .lean(),
 
-        hasNextPage: pageNumber < totalPages,
+            FamilyMember.countDocuments(filter),
+          ]);
 
-        hasPreviousPage: pageNumber > 1,
-      },
-    };
+          const totalPages = Math.ceil(totalMembers / limitNumber);
+
+          return {
+            familyMembers,
+            pagination: {
+              currentPage: pageNumber,
+
+              totalPages,
+
+              totalMembers,
+
+              limit: limitNumber,
+
+              hasNextPage: pageNumber < totalPages,
+
+              hasPreviousPage: pageNumber > 1,
+            },
+          };
+        },
+    });
   }
 
   static async getFamilyMemberById(ownerId: string, familyMemberId: string) {
@@ -939,60 +1302,91 @@ class FamilyTreeService {
 
       isDeleted: false,
     })
-      .populate("fatherId", FAMILY_MEMBER_POPULATE_SELECT)
-      .populate("motherId", FAMILY_MEMBER_POPULATE_SELECT)
-      .populate("spouseIds", FAMILY_MEMBER_POPULATE_SELECT)
-      .populate("createdBy", "fullName role userReference")
-      .populate("updatedBy", "fullName role userReference")
+      .populate({
+        path: "fatherId",
+        select: FAMILY_MEMBER_POPULATE_SELECT,
+        match: {
+          isDeleted: false,
+        },
+      })
+      .populate({
+        path: "motherId",
+        select: FAMILY_MEMBER_POPULATE_SELECT,
+        match: {
+          isDeleted: false,
+        },
+      })
+      .populate({
+        path: "spouseIds",
+        select: FAMILY_MEMBER_POPULATE_SELECT,
+        match: {
+          isDeleted: false,
+        },
+      })
       .lean();
 
     if (!familyMember) {
       throw new Error("Family member not found");
     }
 
-    const children = await FamilyMember.find({
-      ownerId: new Types.ObjectId(ownerId),
+    return RedisCacheService.getOrSet({
+      key:
+        CacheKeys.familyMemberDetail(
+          ownerId,
+          familyMemberId,
+        ),
 
-      isDeleted: false,
+      ttlSeconds:
+        CACHE_TTL_SECONDS
+          .FAMILY_MEMBER_DETAIL,
 
-      $or: [
-        {
-          fatherId: familyMember._id,
+      loader:
+        async () => {
+          const children = await FamilyMember.find({
+            ownerId: new Types.ObjectId(ownerId),
+
+            isDeleted: false,
+
+            $or: [
+              {
+                fatherId: familyMember._id,
+              },
+              {
+                motherId: familyMember._id,
+              },
+            ],
+          })
+            .select(
+              "fullName relation gender dob lifeStatus dateOfDeath profileImage fatherId motherId",
+            )
+            .sort({
+              dob: 1,
+              createdAt: 1,
+            })
+            .lean();
+
+          return {
+            ...familyMember,
+            children,
+
+            audit: {
+              createdAt: familyMember.createdAt,
+
+              createdBy: familyMember.createdBy,
+
+              updatedAt: familyMember.updatedAt,
+
+              updatedBy: familyMember.updatedBy,
+
+              source: familyMember.source,
+
+              bookingId: familyMember.sourceBookingId,
+
+              bookingReference: familyMember.sourceBookingReference,
+            },
+          };
         },
-        {
-          motherId: familyMember._id,
-        },
-      ],
-    })
-      .select(
-        "fullName relation gender dob lifeStatus dateOfDeath profileImage fatherId motherId",
-      )
-      .sort({
-        dob: 1,
-        createdAt: 1,
-      })
-      .lean();
-
-    return {
-      ...familyMember,
-      children,
-
-      audit: {
-        createdAt: familyMember.createdAt,
-
-        createdBy: familyMember.createdBy,
-
-        updatedAt: familyMember.updatedAt,
-
-        updatedBy: familyMember.updatedBy,
-
-        source: familyMember.source,
-
-        bookingId: familyMember.sourceBookingId,
-
-        bookingReference: familyMember.sourceBookingReference,
-      },
-    };
+    });
   }
 
   static async updateFamilyMember(
@@ -1242,7 +1636,37 @@ class FamilyTreeService {
         session,
       );
 
+      if (FamilyTreeService.shouldNotifyOwner(context)) {
+        await OutboxService.createEvent({
+          eventType: DOMAIN_EVENTS.FAMILY_TREE_MEMBER_UPDATED,
+          aggregateType: "FAMILY_MEMBER",
+          aggregateId: existingMember._id.toString(),
+          payload: {
+            ownerId: context.ownerId,
+            familyMemberId: existingMember._id.toString(),
+            fullName:
+              typeof updateData.fullName === "string"
+                ? updateData.fullName
+                : existingMember.fullName,
+            changedFields: changes.map((change) => change.field),
+            performedByRole: context.actorRole,
+            source: context.source,
+            ...(context.bookingId && {
+              bookingId: context.bookingId,
+            }),
+            ...(context.bookingReference && {
+              bookingReference: context.bookingReference,
+            }),
+          },
+          session,
+        });
+      }
+
       await session.commitTransaction();
+
+      await this.invalidateFamilyTreeCache(
+        context.ownerId,
+      );
 
       return FamilyTreeService.populateMember(context.ownerId, familyMemberId);
     } catch (error) {
@@ -1328,7 +1752,35 @@ class FamilyTreeService {
         },
       );
 
+      if (FamilyTreeService.shouldNotifyOwner(context)) {
+        await OutboxService.createEvent({
+          eventType: DOMAIN_EVENTS.FAMILY_TREE_MEMBER_DELETED,
+          aggregateType: "FAMILY_MEMBER",
+          aggregateId: familyMember._id.toString(),
+          payload: {
+            ownerId: context.ownerId,
+            familyMemberId: familyMember._id.toString(),
+            fullName: familyMember.fullName,
+            relation: familyMember.relation,
+            reason: reason.trim(),
+            performedByRole: context.actorRole,
+            source: context.source,
+            ...(context.bookingId && {
+              bookingId: context.bookingId,
+            }),
+            ...(context.bookingReference && {
+              bookingReference: context.bookingReference,
+            }),
+          },
+          session,
+        });
+      }
+
       await session.commitTransaction();
+
+      await this.invalidateFamilyTreeCache(
+        context.ownerId,
+      );
 
       return {
         id: familyMember._id,
@@ -1631,6 +2083,32 @@ class FamilyTreeService {
           },
         );
 
+        if (FamilyTreeService.shouldNotifyOwner(context)) {
+          await OutboxService.createEvent({
+            eventType: DOMAIN_EVENTS.FAMILY_TREE_MEMBER_RESTORED,
+            aggregateType: "FAMILY_MEMBER",
+            aggregateId: member._id.toString(),
+            payload: {
+              ownerId: context.ownerId,
+              familyMemberId: member._id.toString(),
+              fullName: member.fullName,
+              relation: member.relation,
+              performedByRole: context.actorRole,
+              source: context.source,
+              ...(reason?.trim() && {
+                reason: reason.trim(),
+              }),
+              ...(context.bookingId && {
+                bookingId: context.bookingId,
+              }),
+              ...(context.bookingReference && {
+                bookingReference: context.bookingReference,
+              }),
+            },
+            session,
+          });
+        }
+
         restoredMember = await FamilyMember.findById(member._id)
           .populate("createdBy", "fullName role profileImage")
           .populate("updatedBy", "fullName role profileImage")
@@ -1662,10 +2140,530 @@ class FamilyTreeService {
         throw new Error("Failed to restore family member");
       }
 
+      await this.invalidateFamilyTreeCache(
+        ownerId,
+      );
+
       return restoredMember;
     } finally {
       await session.endSession();
     }
+  }
+
+  static async exportFamilyMembersToCsv(
+    ownerId: string,
+    memberIds: string[],
+  ) {
+    if (
+      !Types.ObjectId.isValid(
+        ownerId,
+      )
+    ) {
+      throw new Error(
+        "Invalid family tree owner ID",
+      );
+    }
+
+    if (
+      !Array.isArray(
+        memberIds,
+      ) ||
+      memberIds.length ===
+      0
+    ) {
+      throw new Error(
+        "At least one family member ID is required",
+      );
+    }
+
+    if (
+      memberIds.length >
+      1000
+    ) {
+      throw new Error(
+        "A maximum of 1000 family members can be exported at once",
+      );
+    }
+
+    const uniqueMemberIds = [
+      ...new Set(
+        memberIds,
+      ),
+    ];
+
+    for (
+      const memberId of
+      uniqueMemberIds
+    ) {
+      if (
+        !Types.ObjectId.isValid(
+          memberId,
+        )
+      ) {
+        throw new Error(
+          "Invalid family member ID",
+        );
+      }
+    }
+
+    const ownerObjectId =
+      new Types.ObjectId(
+        ownerId,
+      );
+
+    const memberObjectIds =
+      uniqueMemberIds.map(
+        (
+          memberId,
+        ) =>
+          new Types.ObjectId(
+            memberId,
+          ),
+      );
+
+    /*
+     * IMPORTANT:
+     *
+     * ownerId is included in the query.
+     *
+     * Therefore even if a caller somehow provides
+     * another user's valid family-member ObjectId,
+     * that member cannot be exported.
+     */
+    const members =
+      await FamilyMember.find({
+        _id: {
+          $in:
+            memberObjectIds,
+        },
+
+        ownerId:
+          ownerObjectId,
+
+        isDeleted:
+          false,
+      })
+        .select(
+          [
+            "fullName",
+            "relation",
+            "gender",
+            "dob",
+            "lifeStatus",
+            "dateOfDeath",
+            "fatherId",
+            "motherId",
+            "spouseIds",
+            "nativeVillage",
+            "state",
+            "district",
+            "caste",
+            "gotra",
+            "designatedPandit",
+            "visitors",
+            "profileImage",
+            "notes",
+            "source",
+            "sourceBookingId",
+            "sourceBookingReference",
+            "createdBy",
+            "updatedBy",
+            "createdAt",
+            "updatedAt",
+          ].join(
+            " ",
+          ),
+        )
+        .populate({
+          path:
+            "fatherId",
+
+          select:
+            "fullName relation",
+        })
+        .populate({
+          path:
+            "motherId",
+
+          select:
+            "fullName relation",
+        })
+        .populate({
+          path:
+            "spouseIds",
+
+          select:
+            "fullName relation",
+        })
+        .populate({
+          path:
+            "createdBy",
+
+          select:
+            "fullName role userReference",
+        })
+        .populate({
+          path:
+            "updatedBy",
+
+          select:
+            "fullName role userReference",
+        })
+        .lean();
+
+    if (
+      members.length ===
+      0
+    ) {
+      throw new Error(
+        "No family members found for export",
+      );
+    }
+
+    /*
+     * Keep CSV rows in the same order
+     * as IDs received from frontend.
+     */
+    const memberMap =
+      new Map(
+        members.map(
+          (
+            member,
+          ) => [
+              member._id
+                .toString(),
+
+              member,
+            ],
+        ),
+      );
+
+    const orderedMembers =
+      uniqueMemberIds
+        .map(
+          (
+            memberId,
+          ) =>
+            memberMap.get(
+              memberId,
+            ),
+        )
+        .filter(
+          (
+            member,
+          ): member is NonNullable<
+            typeof member
+          > =>
+            Boolean(
+              member,
+            ),
+        );
+
+    const escapeCsv = (
+      value: unknown,
+    ): string => {
+      if (
+        value ===
+        null ||
+        value ===
+        undefined
+      ) {
+        return "";
+      }
+
+      const stringValue =
+        String(
+          value,
+        );
+
+      /*
+       * Prevent CSV formula injection when the
+       * generated file is opened in Excel /
+       * Google Sheets.
+       */
+      const safeValue =
+        /^[=+\-@]/.test(
+          stringValue,
+        )
+          ? `'${stringValue}`
+          : stringValue;
+
+      if (
+        safeValue.includes(
+          ",",
+        ) ||
+        safeValue.includes(
+          '"',
+        ) ||
+        safeValue.includes(
+          "\n",
+        ) ||
+        safeValue.includes(
+          "\r",
+        )
+      ) {
+        return `"${safeValue.replace(
+          /"/g,
+          '""',
+        )}"`;
+      }
+
+      return safeValue;
+    };
+
+    const formatDate = (
+      value:
+        Date |
+        string |
+        null |
+        undefined,
+    ): string => {
+      if (!value) {
+        return "";
+      }
+
+      const date =
+        new Date(
+          value,
+        );
+
+      if (
+        Number.isNaN(
+          date.getTime(),
+        )
+      ) {
+        return "";
+      }
+
+      return date
+        .toISOString();
+    };
+
+    const getPopulatedName = (
+      value: unknown,
+    ): string => {
+      if (
+        !value ||
+        typeof value !==
+        "object"
+      ) {
+        return "";
+      }
+
+      if (
+        "fullName" in
+        value &&
+        typeof value.fullName ===
+        "string"
+      ) {
+        return value.fullName;
+      }
+
+      return "";
+    };
+
+    const getActorName = (
+      value: unknown,
+    ): string => {
+      if (
+        !value ||
+        typeof value !==
+        "object"
+      ) {
+        return "";
+      }
+
+      if (
+        "fullName" in
+        value &&
+        typeof value.fullName ===
+        "string"
+      ) {
+        return value.fullName;
+      }
+
+      return "";
+    };
+
+    const headers = [
+      "Member ID",
+      "Full Name",
+      "Relation",
+      "Gender",
+      "Date Of Birth",
+      "Life Status",
+      "Date Of Death",
+      "Father",
+      "Mother",
+      "Spouses",
+      "Native Village",
+      "State",
+      "District",
+      "Caste",
+      "Gotra",
+      "Designated Pandit",
+      "Visitors",
+      "Profile Image",
+      "Notes",
+      "Source",
+      "Booking Reference",
+      "Created By",
+      "Updated By",
+      "Created At",
+      "Updated At",
+    ];
+
+    const rows =
+      orderedMembers.map(
+        (
+          member,
+        ) => {
+          const spouseNames =
+            Array.isArray(
+              member.spouseIds,
+            )
+              ? member.spouseIds
+                .map(
+                  (
+                    spouse,
+                  ) =>
+                    getPopulatedName(
+                      spouse,
+                    ),
+                )
+                .filter(
+                  Boolean,
+                )
+                .join(
+                  " | ",
+                )
+              : "";
+
+          const visitors =
+            Array.isArray(
+              member.visitors,
+            )
+              ? member.visitors
+                .filter(
+                  Boolean,
+                )
+                .join(
+                  " | ",
+                )
+              : "";
+
+          return [
+            member._id
+              .toString(),
+
+            member.fullName,
+
+            member.relation,
+
+            member.gender ??
+            "",
+
+            formatDate(
+              member.dob,
+            ),
+
+            member.lifeStatus,
+
+            formatDate(
+              member.dateOfDeath,
+            ),
+
+            getPopulatedName(
+              member.fatherId,
+            ),
+
+            getPopulatedName(
+              member.motherId,
+            ),
+
+            spouseNames,
+
+            member.nativeVillage ??
+            "",
+
+            member.state ??
+            "",
+
+            member.district ??
+            "",
+
+            member.caste ??
+            "",
+
+            member.gotra ??
+            "",
+
+            member.designatedPandit ??
+            "",
+
+            visitors,
+
+            member.profileImage ??
+            "",
+
+            member.notes ??
+            "",
+
+            member.source,
+
+            member.sourceBookingReference ??
+            "",
+
+            getActorName(
+              member.createdBy,
+            ),
+
+            getActorName(
+              member.updatedBy,
+            ),
+
+            formatDate(
+              member.createdAt,
+            ),
+
+            formatDate(
+              member.updatedAt,
+            ),
+          ];
+        },
+      );
+
+    const csv = [
+      headers
+        .map(
+          escapeCsv,
+        )
+        .join(
+          ",",
+        ),
+
+      ...rows.map(
+        (
+          row,
+        ) =>
+          row
+            .map(
+              escapeCsv,
+            )
+            .join(
+              ",",
+            ),
+      ),
+    ].join(
+      "\n",
+    );
+
+    return {
+      csv,
+
+      total:
+        orderedMembers.length,
+    };
   }
 }
 

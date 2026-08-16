@@ -1,7 +1,7 @@
 import { Router, } from "express";
 import { body, param, query, validationResult } from "express-validator";
 import { authenticate } from "../middleware/authenticate.js";
-import { createCity, deleteCity, getAllCity, getCityById, updateCity, } from "../controllers/city.controllers.js";
+import { createCity, deleteCity, exportCitiesCsv, getAllCitiesAdmin, getAllCity, getCityById, updateCity, } from "../controllers/city.controllers.js";
 import { authorizeRoles } from "../middleware/authorizeRoles.js";
 import { requirePermission } from "../middleware/rbac.js";
 import { Role } from "../types/rbac.js";
@@ -142,10 +142,11 @@ const statusValidation = [
         .exists({ checkNull: true })
         .withMessage("status is required")
         .isBoolean()
-        .withMessage("status must be a boolean"),
+        .withMessage("status must be a boolean")
+        .toBoolean(),
     handleValidationErrors,
 ];
-const listValidation = [
+const publicCityListValidation = [
     query("limit")
         .optional()
         .isInt({ min: 1, max: 100 })
@@ -154,24 +155,96 @@ const listValidation = [
         .optional()
         .isInt({ min: 1 })
         .withMessage("page must be at least 1"),
-    query("isActive")
-        .optional()
-        .isBoolean()
-        .withMessage("isActive must be true or false"),
     query("sortOrder")
         .optional()
         .isIn(["asc", "desc"])
         .withMessage("sortOrder must be asc or desc"),
     query("sortBy")
         .optional()
-        .isIn(["name", "country", "createdAt", "updatedAt", "relevance"])
+        .isIn([
+        "name",
+        "country",
+        "createdAt",
+        "updatedAt",
+        "relevance",
+    ])
         .withMessage("Invalid sortBy value"),
+    query("searchTerm")
+        .optional()
+        .isString()
+        .trim()
+        .isLength({ max: 100 })
+        .withMessage("searchTerm cannot exceed 100 characters"),
+    query("cityFilter")
+        .optional()
+        .isString()
+        .trim()
+        .isLength({ max: 500 })
+        .withMessage("cityFilter cannot exceed 500 characters"),
+    query("countryFilter")
+        .optional()
+        .isString()
+        .trim()
+        .isLength({ max: 500 })
+        .withMessage("countryFilter cannot exceed 500 characters"),
+    query("stateIdFilter")
+        .optional()
+        .isString()
+        .custom((value) => {
+        const ids = value
+            .split(",")
+            .map((id) => id.trim())
+            .filter(Boolean);
+        if (ids.length === 0 ||
+            !ids.every((id) => /^[a-fA-F0-9]{24}$/.test(id))) {
+            throw new Error("stateIdFilter must contain valid state IDs");
+        }
+        return true;
+    }),
     handleValidationErrors,
 ];
-router.get("/get-all-city", listValidation, getAllCity);
+const adminCityListValidation = [
+    ...publicCityListValidation.slice(0, -1),
+    query("isActive")
+        .optional()
+        .isBoolean()
+        .withMessage("isActive must be true or false"),
+    handleValidationErrors,
+];
+const exportCitiesValidation = [
+    body("cityIds")
+        .optional()
+        .isArray({ min: 1, max: 1000 })
+        .withMessage("cityIds must contain between 1 and 1000 city IDs"),
+    body("cityIds.*")
+        .optional()
+        .isMongoId()
+        .withMessage("Each cityId must be a valid MongoDB ID"),
+    handleValidationErrors,
+];
+// =========================================================
+// PUBLIC
+// =========================================================
+router.get("/get-all-city", publicCityListValidation, getAllCity);
+// =========================================================
+// ADMIN - STATIC ROUTES
+// =========================================================
+router.get("/admin", authenticate, authorizeRoles(Role.ADMIN), requirePermission("city.read"), adminCityListValidation, getAllCitiesAdmin);
 router.post("/create-city", authenticate, authorizeRoles(Role.ADMIN), requirePermission("city.create"), createCityValidation, createCity);
+router.post("/export-cities", authenticate, authorizeRoles(Role.ADMIN), requirePermission("city.export"), exportCitiesValidation, exportCitiesCsv);
+// =========================================================
+// ADMIN - PREFIXED CITY ACTIONS
+// =========================================================
 router.patch("/update-city/:id", authenticate, authorizeRoles(Role.ADMIN), requirePermission("city.update"), updateCityValidation, updateCity);
-router.get("/:id", authenticate, authorizeRoles(Role.ADMIN), requirePermission("city.read"), cityIdValidation, getCityById);
+// =========================================================
+// ADMIN - SPECIFIC ID ACTIONS
+// =========================================================
 router.patch("/:id/status", authenticate, authorizeRoles(Role.ADMIN), requirePermission("city.status"), statusValidation, deleteCity);
+// =========================================================
+// ADMIN - GENERIC CITY DETAIL
+//
+// Keep this last among /:id routes.
+// =========================================================
+router.get("/:id", authenticate, authorizeRoles(Role.ADMIN), requirePermission("city.read"), cityIdValidation, getCityById);
 export default router;
 //# sourceMappingURL=city.routes.js.map

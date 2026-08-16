@@ -164,4 +164,26 @@ export const getPublicFaqs = async (req, res) => {
         });
     }
 };
+export const exportFaqsCsv = async (req, res) => {
+    try {
+        const { faqIds, } = req.body;
+        const result = await FAQService.exportFaqsToCsv(faqIds);
+        const timestamp = new Date()
+            .toISOString()
+            .replace(/[:.]/g, "-");
+        res.setHeader("Content-Type", "text/csv; charset=utf-8");
+        res.setHeader("Content-Disposition", `attachment; filename="faqs-${timestamp}.csv"`);
+        return res
+            .status(200)
+            .send(result.csv);
+    }
+    catch (error) {
+        return res
+            .status(getErrorStatus(error))
+            .json({
+            success: false,
+            message: getErrorMessage(error, "Failed to export FAQs"),
+        });
+    }
+};
 //# sourceMappingURL=faq.controllers.js.map

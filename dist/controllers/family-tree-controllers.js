@@ -335,4 +335,27 @@ export const restoreFamilyMember = async (req, res) => {
         });
     }
 };
+export const exportFamilyMembersCsv = async (req, res) => {
+    try {
+        const { access } = await resolveTreeAccess(req);
+        const { memberIds, } = req.body;
+        const result = await FamilyTreeService.exportFamilyMembersToCsv(access.ownerId, memberIds);
+        const timestamp = new Date()
+            .toISOString()
+            .replace(/[:.]/g, "-");
+        res.setHeader("Content-Type", "text/csv; charset=utf-8");
+        res.setHeader("Content-Disposition", `attachment; filename="family-members-${timestamp}.csv"`);
+        return res
+            .status(200)
+            .send(result.csv);
+    }
+    catch (error) {
+        return res
+            .status(getErrorStatusCode(error, 400))
+            .json({
+            success: false,
+            message: getErrorMessage(error, "Failed to export family members"),
+        });
+    }
+};
 //# sourceMappingURL=family-tree-controllers.js.map

@@ -237,3 +237,63 @@ export const getPublicFaqs = async (
     });
   }
 };
+
+export const exportFaqsCsv = async (
+  req: Request,
+  res: Response,
+) => {
+  try {
+    const {
+      faqIds,
+    }: {
+      faqIds: string[];
+    } = req.body;
+
+    const result =
+      await FAQService.exportFaqsToCsv(
+        faqIds,
+      );
+
+    const timestamp =
+      new Date()
+        .toISOString()
+        .replace(
+          /[:.]/g,
+          "-",
+        );
+
+    res.setHeader(
+      "Content-Type",
+      "text/csv; charset=utf-8",
+    );
+
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="faqs-${timestamp}.csv"`,
+    );
+
+    return res
+      .status(200)
+      .send(
+        result.csv,
+      );
+  } catch (
+  error: unknown
+  ) {
+    return res
+      .status(
+        getErrorStatus(
+          error,
+        ),
+      )
+      .json({
+        success: false,
+
+        message:
+          getErrorMessage(
+            error,
+            "Failed to export FAQs",
+          ),
+      });
+  }
+};

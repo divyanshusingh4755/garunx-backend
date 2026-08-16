@@ -6,4 +6,5 @@ export declare const deleteFaq: (req: Request, res: Response) => Promise<Respons
 export declare const toggleFaqStatus: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
 export declare const getAllFaqs: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
 export declare const getPublicFaqs: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
+export declare const exportFaqsCsv: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
 //# sourceMappingURL=faq.controllers.d.ts.map

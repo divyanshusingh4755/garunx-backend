@@ -1,4 +1,16 @@
 import { TaxProfileService, } from "../services/taxprofile.service.js";
+const getStatusCode = (error) => {
+    if (typeof error?.statusCode === "number") {
+        return error.statusCode;
+    }
+    if (error?.name === "ValidationError") {
+        return 400;
+    }
+    if (error?.code === 11000) {
+        return 409;
+    }
+    return 500;
+};
 function getAuthenticatedUserId(req) {
     const userId = req.user?.userId;
     return userId ? String(userId) : null;
@@ -31,7 +43,10 @@ export class TaxProfileController {
             });
         }
         catch (error) {
-            return next(error);
+            return res.status(getStatusCode(error)).json({
+                success: false,
+                message: error.message || "Failed to create tax profile",
+            });
         }
     }
     static async list(req, res, next) {
@@ -69,7 +84,10 @@ export class TaxProfileController {
             });
         }
         catch (error) {
-            return next(error);
+            return res.status(getStatusCode(error)).json({
+                success: false,
+                message: error.message || "Failed to list tax profile",
+            });
         }
     }
     static async listActive(_req, res, next) {
@@ -82,7 +100,10 @@ export class TaxProfileController {
             });
         }
         catch (error) {
-            return next(error);
+            return res.status(getStatusCode(error)).json({
+                success: false,
+                message: error.message || "Failed to list active tax profile",
+            });
         }
     }
     static async getById(req, res, next) {
@@ -94,7 +115,10 @@ export class TaxProfileController {
             });
         }
         catch (error) {
-            return next(error);
+            return res.status(getStatusCode(error)).json({
+                success: false,
+                message: error.message || "Failed to get tax profile",
+            });
         }
     }
     static async update(req, res, next) {
@@ -129,7 +153,10 @@ export class TaxProfileController {
             });
         }
         catch (error) {
-            return next(error);
+            return res.status(getStatusCode(error)).json({
+                success: false,
+                message: error.message || "Failed to update tax profile",
+            });
         }
     }
     static async updateStatus(req, res, next) {
@@ -149,6 +176,26 @@ export class TaxProfileController {
                     : "Tax profile deactivated successfully",
                 data: taxProfile,
             });
+        }
+        catch (error) {
+            return res.status(getStatusCode(error)).json({
+                success: false,
+                message: error.message || "Failed to update status tax profile",
+            });
+        }
+    }
+    static async exportCsv(req, res, next) {
+        try {
+            const { taxProfileIds, } = req.body;
+            const result = await TaxProfileService.exportTaxProfilesToCsv(taxProfileIds);
+            const timestamp = new Date()
+                .toISOString()
+                .replace(/[:.]/g, "-");
+            res.setHeader("Content-Type", "text/csv; charset=utf-8");
+            res.setHeader("Content-Disposition", `attachment; filename="tax-profiles-${timestamp}.csv"`);
+            return res
+                .status(200)
+                .send(result.csv);
         }
         catch (error) {
             return next(error);

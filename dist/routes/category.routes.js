@@ -1,7 +1,7 @@
 import { Router, } from "express";
 import { body, param, query, validationResult } from "express-validator";
 import { authenticate } from "../middleware/authenticate.js";
-import { getAllCategories, getCategoryById, createCategory, updateCategory, toggleCategoryStatus, deleteCategory, } from "../controllers/category.controllers.js";
+import { getAllCategories, getCategoryById, createCategory, updateCategory, toggleCategoryStatus, deleteCategory, getAllCategoriesAdmin, exportCategoriesCsv, } from "../controllers/category.controllers.js";
 import { authorizeRoles } from "../middleware/authorizeRoles.js";
 import { requirePermission } from "../middleware/rbac.js";
 import { Role } from "../types/rbac.js";
@@ -69,11 +69,17 @@ const categoryStatusValidation = [
         .toBoolean(),
     validate,
 ];
-const listCategoryValidation = [
+const publicCategoryListValidation = [
     query("type")
         .optional()
         .isIn(["service", "product"])
         .withMessage("Type must be either 'service' or 'product'"),
+    query("searchTerm")
+        .optional()
+        .isString()
+        .trim()
+        .isLength({ max: 100 })
+        .withMessage("searchTerm cannot exceed 100 characters"),
     query("limit")
         .optional()
         .isInt({ min: 1, max: 100 })
@@ -82,21 +88,67 @@ const listCategoryValidation = [
         .optional()
         .isInt({ min: 1 })
         .withMessage("page must be a positive integer"),
-    query("isActive")
+    query("sortBy")
         .optional()
-        .isIn(["true", "false"])
-        .withMessage("isActive must be true or false"),
+        .isIn([
+        "label",
+        "value",
+        "type",
+        "displayOrder",
+        "createdAt",
+        "updatedAt",
+        "relevance",
+    ])
+        .withMessage("Invalid sortBy value"),
     query("sortOrder")
         .optional()
         .isIn(["asc", "desc"])
         .withMessage("sortOrder must be asc or desc"),
     validate,
 ];
-router.get("/", listCategoryValidation, getAllCategories);
-router.get("/:id", authenticate, authorizeRoles(Role.ADMIN), requirePermission("category.read"), categoryIdValidation, getCategoryById);
+const adminCategoryListValidation = [
+    ...publicCategoryListValidation.slice(0, -1),
+    query("isActive")
+        .optional()
+        .isIn(["true", "false"])
+        .withMessage("isActive must be true or false"),
+    validate,
+];
+const exportCategoriesValidation = [
+    body("categoryIds")
+        .isArray({
+        min: 1,
+        max: 1000,
+    })
+        .withMessage("categoryIds must contain between 1 and 1000 category IDs"),
+    body("categoryIds.*")
+        .isMongoId()
+        .withMessage("Each categoryId must be a valid MongoDB ID"),
+    validate,
+];
+// =========================================================
+// PUBLIC
+// =========================================================
+// Active categories only
+router.get("/", publicCategoryListValidation, getAllCategories);
+// =========================================================
+// ADMIN - STATIC ROUTES
+// =========================================================
+// Active / inactive / all categories
+router.get("/admin", authenticate, authorizeRoles(Role.ADMIN), requirePermission("category.read"), adminCategoryListValidation, getAllCategoriesAdmin);
+// Export selected categories
+router.post("/export", authenticate, authorizeRoles(Role.ADMIN), requirePermission("category.export"), exportCategoriesValidation, exportCategoriesCsv);
+// Create category
 router.post("/", authenticate, authorizeRoles(Role.ADMIN), requirePermission("category.create"), categoryBodyValidation, createCategory);
-router.put("/:id", authenticate, authorizeRoles(Role.ADMIN), requirePermission("category.update"), categoryIdValidation.slice(0, -1), categoryBodyValidation, updateCategory);
+// =========================================================
+// ADMIN - SPECIFIC CATEGORY ACTIONS
+// =========================================================
 router.patch("/:id/status", authenticate, authorizeRoles(Role.ADMIN), requirePermission("category.status"), categoryStatusValidation, toggleCategoryStatus);
+// =========================================================
+// ADMIN - GENERIC CATEGORY ID ROUTES
+// =========================================================
+router.get("/:id", authenticate, authorizeRoles(Role.ADMIN), requirePermission("category.read"), categoryIdValidation, getCategoryById);
+router.put("/:id", authenticate, authorizeRoles(Role.ADMIN), requirePermission("category.update"), categoryIdValidation.slice(0, -1), categoryBodyValidation, updateCategory);
 router.delete("/:id", authenticate, authorizeRoles(Role.ADMIN), requirePermission("category.delete"), categoryIdValidation, deleteCategory);
 export default router;
 //# sourceMappingURL=category.routes.js.map

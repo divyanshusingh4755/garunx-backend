@@ -9,6 +9,48 @@ import type { NotificationType } from "../models/notification.model.js";
 
 import { Role } from "../types/rbac.js";
 
+const getStatusCode = (
+    error: unknown,
+): number => {
+    if (
+        typeof error === "object" &&
+        error !== null &&
+        "code" in error &&
+        (error as { code?: unknown }).code === 11000
+    ) {
+        return 409;
+    }
+
+    if (!(error instanceof Error)) {
+        return 500;
+    }
+
+    if (
+        error.message ===
+        "Notification template not found"
+    ) {
+        return 404;
+    }
+
+    if (
+        error.message.includes(
+            "already exists",
+        )
+    ) {
+        return 409;
+    }
+
+    if (
+        error.message.startsWith(
+            "Invalid preference mode",
+        )
+    ) {
+        return 400;
+    }
+
+    return 500;
+};
+
 export const getMyNotifications =
     async (
         req: Request,
@@ -88,19 +130,15 @@ export const getMyNotifications =
                 data: result,
             });
         } catch (error) {
-            console.error(
-                "Get notifications error:",
-                error,
-            );
-
-            return res.status(500).json({
-                success: false,
-
-                message:
-                    error instanceof Error
-                        ? error.message
-                        : "Failed to fetch notifications",
-            });
+            return res
+                .status(getStatusCode(error))
+                .json({
+                    success: false,
+                    message:
+                        error instanceof Error
+                            ? error.message
+                            : "Failed to fetch notifications",
+                });
         }
     };
 
@@ -134,19 +172,15 @@ export const getUnreadCount =
                 data: result,
             });
         } catch (error) {
-            console.error(
-                "Get unread count error:",
-                error,
-            );
-
-            return res.status(500).json({
-                success: false,
-
-                message:
-                    error instanceof Error
-                        ? error.message
-                        : "Failed to fetch unread count",
-            });
+            return res
+                .status(getStatusCode(error))
+                .json({
+                    success: false,
+                    message:
+                        error instanceof Error
+                            ? error.message
+                            : "Failed to fetch unread count",
+                });
         }
     };
 
@@ -193,19 +227,15 @@ export const markAsRead =
                 data: notification,
             });
         } catch (error) {
-            console.error(
-                "Mark notification as read error:",
-                error,
-            );
-
-            return res.status(500).json({
-                success: false,
-
-                message:
-                    error instanceof Error
-                        ? error.message
-                        : "Failed to mark notification as read",
-            });
+            return res
+                .status(getStatusCode(error))
+                .json({
+                    success: false,
+                    message:
+                        error instanceof Error
+                            ? error.message
+                            : "Failed to mark notification as read",
+                });
         }
     };
 
@@ -239,19 +269,15 @@ export const markAllAsRead =
                 data: result,
             });
         } catch (error) {
-            console.error(
-                "Mark all notifications as read error:",
-                error,
-            );
-
-            return res.status(500).json({
-                success: false,
-
-                message:
-                    error instanceof Error
-                        ? error.message
-                        : "Failed to mark all notifications as read",
-            });
+            return res
+                .status(getStatusCode(error))
+                .json({
+                    success: false,
+                    message:
+                        error instanceof Error
+                            ? error.message
+                            : "Failed to mark all notifications as read",
+                });
         }
     };
 
@@ -298,19 +324,15 @@ export const deleteNotification =
                 data: result,
             });
         } catch (error) {
-            console.error(
-                "Delete notification error:",
-                error,
-            );
-
-            return res.status(500).json({
-                success: false,
-
-                message:
-                    error instanceof Error
-                        ? error.message
-                        : "Failed to delete notification",
-            });
+            return res
+                .status(getStatusCode(error))
+                .json({
+                    success: false,
+                    message:
+                        error instanceof Error
+                            ? error.message
+                            : "Failed to delete notification",
+                });
         }
     };
 
@@ -358,19 +380,15 @@ export const sendAdminNotification =
                 data: result,
             });
         } catch (error) {
-            console.error(
-                "Send admin notification error:",
-                error,
-            );
-
-            return res.status(500).json({
-                success: false,
-
-                message:
-                    error instanceof Error
-                        ? error.message
-                        : "Failed to send notification",
-            });
+            return res
+                .status(getStatusCode(error))
+                .json({
+                    success: false,
+                    message:
+                        error instanceof Error
+                            ? error.message
+                            : "Failed to send notification",
+                });
         }
     };
 
@@ -405,17 +423,19 @@ export const retryNotificationEmail =
             return res.status(200).json({
                 success: true,
                 message:
-                    "Notification email retried successfully",
+                    "Notification email queued for retry",
                 data: result,
             });
         } catch (error) {
-            return res.status(500).json({
-                success: false,
-                message:
-                    error instanceof Error
-                        ? error.message
-                        : "Failed to retry notification email",
-            });
+            return res
+                .status(getStatusCode(error))
+                .json({
+                    success: false,
+                    message:
+                        error instanceof Error
+                            ? error.message
+                            : "Failed to retry notification email",
+                });
         }
     };
 
@@ -451,23 +471,19 @@ export const retryNotificationPush =
                 success: true,
 
                 message:
-                    "Push notification retried successfully",
+                    "Notification push queued for retry",
 
                 data: result,
             });
         } catch (error) {
-            console.error(
-                "Retry push notification error:",
-                error,
-            );
-
-            return res.status(500).json({
-                success: false,
-
-                message:
-                    error instanceof Error
-                        ? error.message
-                        : "Failed to retry push notification",
-            });
+            return res
+                .status(getStatusCode(error))
+                .json({
+                    success: false,
+                    message:
+                        error instanceof Error
+                            ? error.message
+                            : "Failed to retry push notification",
+                });
         }
     };

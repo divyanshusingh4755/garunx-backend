@@ -90,13 +90,24 @@ const createTaxProfileValidation = [
 ];
 const updateTaxProfileValidation = [
     body().custom((value) => {
-        if (!value || typeof value !== "object" || Array.isArray(value)) {
+        if (!value ||
+            typeof value !== "object" ||
+            Array.isArray(value)) {
             throw new Error("Request body must be an object");
         }
-        const allowedFields = ["name", "treatment", "totalRate", "description"];
-        const hasEditableField = allowedFields.some((field) => Object.prototype.hasOwnProperty.call(value, field));
-        if (!hasEditableField) {
+        const allowedFields = [
+            "name",
+            "treatment",
+            "totalRate",
+            "description",
+        ];
+        const suppliedFields = Object.keys(value);
+        if (suppliedFields.length === 0) {
             throw new Error("At least one editable field is required");
+        }
+        const invalidFields = suppliedFields.filter((field) => !allowedFields.includes(field));
+        if (invalidFields.length > 0) {
+            throw new Error(`Invalid update fields: ${invalidFields.join(", ")}`);
         }
         return true;
     }),
@@ -187,12 +198,31 @@ const listTaxProfilesValidation = [
         .toInt(),
     handleValidationErrors,
 ];
+const exportTaxProfilesValidation = [
+    body("taxProfileIds")
+        .isArray({ min: 1, max: 1000 })
+        .withMessage("taxProfileIds must contain between 1 and 1000 tax profile IDs"),
+    body("taxProfileIds.*")
+        .isMongoId()
+        .withMessage("Each taxProfileId must be a valid MongoDB ID"),
+    handleValidationErrors,
+];
 router.use(authenticate, authorizeRoles(Role.ADMIN));
+// =========================================================
+// STATIC ROUTES
+// =========================================================
 router.get("/active", requirePermission("tax_profile.read"), TaxProfileController.listActive);
+router.post("/export", requirePermission("tax_profile.export"), exportTaxProfilesValidation, TaxProfileController.exportCsv);
 router.post("/", requirePermission("tax_profile.create"), createTaxProfileValidation, TaxProfileController.create);
 router.get("/", requirePermission("tax_profile.read"), listTaxProfilesValidation, TaxProfileController.list);
-router.get("/:taxProfileId", requirePermission("tax_profile.read"), taxProfileIdValidation, TaxProfileController.getById);
+// =========================================================
+// SPECIFIC TAX PROFILE ACTIONS
+// =========================================================
 router.patch("/:taxProfileId/status", requirePermission("tax_profile.status"), taxProfileIdValidation, updateTaxProfileStatusValidation, TaxProfileController.updateStatus);
+// =========================================================
+// GENERIC TAX PROFILE ROUTES
+// =========================================================
+router.get("/:taxProfileId", requirePermission("tax_profile.read"), taxProfileIdValidation, TaxProfileController.getById);
 router.patch("/:taxProfileId", requirePermission("tax_profile.update"), taxProfileIdValidation, updateTaxProfileValidation, TaxProfileController.update);
 export default router;
 //# sourceMappingURL=taxprofile.routes.js.map

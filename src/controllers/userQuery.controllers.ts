@@ -65,11 +65,11 @@ export const createUserQuery = async (req: Request, res: Response) => {
     }
 
     const input: Parameters<typeof UserQueryService.createUserQueryService>[0] =
-      {
-        requesterId,
-        subject: req.body.subject,
-        category: req.body.category,
-      };
+    {
+      requesterId,
+      subject: req.body.subject,
+      category: req.body.category,
+    };
 
     if (Object.prototype.hasOwnProperty.call(req.body, "message")) {
       input.message = req.body.message;
@@ -377,11 +377,11 @@ export const updateUserQueryStatus = async (req: Request, res: Response) => {
     }
 
     const input: Parameters<typeof UserQueryService.updateUserQueryStatus>[0] =
-      {
-        queryId: req.params.queryId as string,
-        adminId,
-        status: req.body.status as UserQueryStatus,
-      };
+    {
+      queryId: req.params.queryId as string,
+      adminId,
+      status: req.body.status as UserQueryStatus,
+    };
 
     if (Object.prototype.hasOwnProperty.call(req.body, "reason")) {
       input.reason = req.body.reason;
@@ -535,5 +535,70 @@ export const deleteUserQuery = async (req: Request, res: Response) => {
       success: false,
       message: getErrorMessage(error, "Failed to delete query"),
     });
+  }
+};
+
+export const exportUserQueriesCsv = async (
+  req: Request,
+  res: Response,
+) => {
+  try {
+    const {
+      queryIds,
+    }: {
+      queryIds: string[];
+    } = req.body;
+
+    const result =
+      await UserQueryService.exportUserQueriesToCsv(
+        queryIds,
+      );
+
+    const timestamp =
+      new Date()
+        .toISOString()
+        .replace(
+          /[:.]/g,
+          "-",
+        );
+
+    res.setHeader(
+      "Content-Type",
+      "text/csv; charset=utf-8",
+    );
+
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="user-queries-${timestamp}.csv"`,
+    );
+
+    return res
+      .status(200)
+      .send(
+        result.csv,
+      );
+  } catch (
+  error: unknown
+  ) {
+    const message =
+      error instanceof Error
+        ? error.message
+        : "Failed to export user queries";
+
+    const status =
+      message.includes(
+        "not found",
+      )
+        ? 404
+        : 400;
+
+    return res
+      .status(
+        status,
+      )
+      .json({
+        success: false,
+        message,
+      });
   }
 };

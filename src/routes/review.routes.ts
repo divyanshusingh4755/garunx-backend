@@ -15,6 +15,7 @@ import {
   getMyBookingReview,
   getMyReviews,
   getCoordinatorReviews,
+  exportReviewsCsv,
 } from "../controllers/review.controllers.js";
 
 import { authenticate } from "../middleware/authenticate.js";
@@ -121,16 +122,43 @@ export const editReviewValidation = [
   param("reviewId").isMongoId().withMessage("Invalid review id"),
 
   body().custom((value) => {
-    if (!value || typeof value !== "object" || Array.isArray(value)) {
-      throw new Error("Request body must be an object");
+    if (
+      !value ||
+      typeof value !== "object" ||
+      Array.isArray(value)
+    ) {
+      throw new Error(
+        "Request body must be an object",
+      );
     }
 
-    const hasEditableField = ["rating", "review", "imageUrl"].some((field) =>
-      Object.prototype.hasOwnProperty.call(value, field),
-    );
+    const allowedFields = [
+      "rating",
+      "review",
+      "imageUrl",
+    ];
 
-    if (!hasEditableField) {
-      throw new Error("At least rating, review or imageUrl is required");
+    const suppliedFields =
+      Object.keys(value);
+
+    if (suppliedFields.length === 0) {
+      throw new Error(
+        "At least one field is required",
+      );
+    }
+
+    const invalidFields =
+      suppliedFields.filter(
+        (field) =>
+          !allowedFields.includes(
+            field,
+          ),
+      );
+
+    if (invalidFields.length > 0) {
+      throw new Error(
+        `Invalid update fields: ${invalidFields.join(", ")}`,
+      );
     }
 
     return true;
@@ -240,11 +268,59 @@ export const getAllReviewsValidation = [
   validate,
 ];
 
+const exportReviewsValidation = [
+  body("reviewIds")
+    .isArray({
+      min: 1,
+      max: 1000,
+    })
+    .withMessage(
+      "reviewIds must contain between 1 and 1000 review IDs",
+    ),
+
+  body("reviewIds.*")
+    .isMongoId()
+    .withMessage(
+      "Each reviewId must be a valid MongoDB ID",
+    ),
+
+  body("reviewIds").custom((reviewIds) => {
+    if (!Array.isArray(reviewIds)) {
+      return true;
+    }
+
+    const uniqueIds =
+      new Set(reviewIds);
+
+    if (
+      uniqueIds.size !==
+      reviewIds.length
+    ) {
+      throw new Error(
+        "Duplicate review IDs are not allowed",
+      );
+    }
+
+    return true;
+  }),
+
+  validate,
+];
+
+// =========================================================
+// PUBLIC - COORDINATOR REVIEWS
+// =========================================================
+
 router.get(
   "/coordinator/:coordinatorId",
   getCoordinatorReviewsValidation,
   getCoordinatorReviews,
 );
+
+
+// =========================================================
+// AUTHENTICATED USER / COORDINATOR - BOOKING REVIEW LOOKUP
+// =========================================================
 
 router.get(
   "/booking/:bookingId/my-review",
@@ -257,6 +333,11 @@ router.get(
   getMyBookingReview,
 );
 
+
+// =========================================================
+// AUTHENTICATED USER / COORDINATOR - OWN REVIEWS
+// =========================================================
+
 router.get(
   "/my-reviews",
   authenticate,
@@ -268,6 +349,11 @@ router.get(
   getMyReviews,
 );
 
+
+// =========================================================
+// ADMIN - REVIEW LIST / EXPORT
+// =========================================================
+
 router.get(
   "/get-all-reviews",
   authenticate,
@@ -276,6 +362,20 @@ router.get(
   getAllReviewsValidation,
   getAllReviews,
 );
+
+router.post(
+  "/export",
+  authenticate,
+  authorizeRoles(Role.ADMIN),
+  requirePermission("review.read_all"),
+  exportReviewsValidation,
+  exportReviewsCsv,
+);
+
+
+// =========================================================
+// USER / COORDINATOR - CREATE REVIEW
+// =========================================================
 
 router.post(
   "/booking/:bookingId",
@@ -288,6 +388,11 @@ router.post(
   createReview,
 );
 
+
+// =========================================================
+// ADMIN - SPECIFIC REVIEW ACTION
+// =========================================================
+
 router.patch(
   "/:reviewId/moderation",
   authenticate,
@@ -296,6 +401,12 @@ router.patch(
   moderateReviewValidation,
   moderateReview,
 );
+
+
+// =========================================================
+// USER / COORDINATOR - GENERIC REVIEW UPDATE
+// Keep this last among /:reviewId routes.
+// =========================================================
 
 router.patch(
   "/:reviewId",
@@ -307,5 +418,6 @@ router.patch(
   editReviewValidation,
   editReview,
 );
+
 
 export default router;

@@ -77,4 +77,7 @@ export declare const completeBookingExecution: (req: Request, res: Response) => 
 export declare const generateBookingOtp: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
 export declare const getBookingInvoice: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
 export declare const getBeneficiaryBooking: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
+export declare const exportBookingsCsv: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
+export declare const getCoordinatorSelectionConfig: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
+export declare const updateCoordinatorSelectionConfig: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
 //# sourceMappingURL=booking.controllers.d.ts.map

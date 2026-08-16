@@ -2,6 +2,7 @@ import { Router } from "express";
 import { body } from "express-validator";
 
 import {
+  exportBrandingCsv,
   getTheme,
   updateTheme,
 } from "../controllers/brand.controllers.js";
@@ -115,27 +116,97 @@ const updateThemeValidation = [
   validate,
 ];
 
+const exportBrandingValidation = [
+  body("brandingIds")
+    .isArray({
+      min: 1,
+      max: 1000,
+    })
+    .withMessage(
+      "brandingIds must contain between 1 and 1000 branding IDs",
+    ),
+
+  body("brandingIds.*")
+    .isMongoId()
+    .withMessage(
+      "Each brandingId must be a valid MongoDB ID",
+    ),
+
+  body("brandingIds").custom(
+    (brandingIds) => {
+      if (
+        !Array.isArray(
+          brandingIds,
+        )
+      ) {
+        return true;
+      }
+
+      const uniqueIds =
+        new Set(
+          brandingIds,
+        );
+
+      if (
+        uniqueIds.size !==
+        brandingIds.length
+      ) {
+        throw new Error(
+          "Duplicate branding IDs are not allowed",
+        );
+      }
+
+      return true;
+    },
+  ),
+
+  validate,
+];
+
+// =========================================================
+// PUBLIC
+// =========================================================
+
 router.get(
   "/get-theme",
   getTheme,
 );
 
-router.patch(
-  "/update-theme",
 
+// =========================================================
+// ADMIN - EXPORT
+// =========================================================
+
+router.post(
+  "/export",
   authenticate,
-
   authorizeRoles(
     Role.ADMIN,
   ),
+  requirePermission(
+    "branding.read",
+  ),
+  exportBrandingValidation,
+  exportBrandingCsv,
+);
 
+
+// =========================================================
+// ADMIN - UPDATE
+// =========================================================
+
+router.patch(
+  "/update-theme",
+  authenticate,
+  authorizeRoles(
+    Role.ADMIN,
+  ),
   requirePermission(
     "branding.update",
   ),
-
   updateThemeValidation,
-
   updateTheme,
 );
+
 
 export default router;

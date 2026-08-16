@@ -12,6 +12,7 @@ interface UpdatePolicyPayload {
     content?: string;
 }
 export declare class PolicyService {
+    private static invalidatePolicyCache;
     private static ensureValidId;
     static createPolicy(payload: CreatePolicyPayload): Promise<mongoose.Document<unknown, {}, import("../models/policy.model.js").IContent, {}, mongoose.DefaultSchemaOptions> & import("../models/policy.model.js").IContent & Required<{
         _id: Types.ObjectId;
@@ -38,11 +39,15 @@ export declare class PolicyService {
         limit: number;
         totalPages: number;
     }>;
-    static togglePolicyStatus(id: string, isActive: boolean): Promise<never>;
+    static togglePolicyStatus(id: string, isActive: boolean): Promise<any>;
     static getPolicyByType(type: PolicyType, userType: UserType): Promise<import("../models/policy.model.js").IContent & Required<{
         _id: Types.ObjectId;
     }> & {
         __v: number;
+    }>;
+    static exportPoliciesToCsv(policyIds: string[]): Promise<{
+        csv: string;
+        total: number;
     }>;
 }
 export {};

@@ -230,7 +230,7 @@ export const registerDeliveryHandlers = (io, socket) => {
                 conversationId: result.conversationId,
                 userId: result.userId,
                 messageId: result.messageId,
-                deliveredAt: result.deliveredAt?.toISOString()
+                deliveredAt: result.deliveredAt.toISOString()
             };
             callback({
                 success: true,

@@ -1,4 +1,4 @@
-import { Types } from "mongoose";
+import mongoose, { Types } from "mongoose";
 import { type ITaxProfile } from "../models/tax-profile.model.js";
 import type { TaxTreatment } from "../types/tax.types.js";
 export interface CreateTaxProfilePayload {
@@ -24,6 +24,8 @@ export interface TaxProfileFilters {
     limit?: number;
 }
 export declare class TaxProfileService {
+    private static invalidateTaxProfileCache;
+    private static invalidateDependentPricingCaches;
     private static getTaxProfileUsage;
     private static validateObjectId;
     private static toObjectId;
@@ -55,19 +57,17 @@ export declare class TaxProfileService {
     }> & {
         __v: number;
     }>;
-    static updateTaxProfile(taxProfileId: string, payload: UpdateTaxProfilePayload): Promise<import("mongoose").Document<unknown, {}, ITaxProfile, {}, import("mongoose").DefaultSchemaOptions> & ITaxProfile & Required<{
+    static updateTaxProfile(taxProfileId: string, payload: UpdateTaxProfilePayload): Promise<mongoose.Document<unknown, {}, ITaxProfile, {}, mongoose.DefaultSchemaOptions> & ITaxProfile & Required<{
         _id: Types.ObjectId;
     }> & {
         __v: number;
     } & {
         id: string;
     }>;
-    static updateTaxProfileStatus(taxProfileId: string, isActive: boolean, updatedBy?: string | Types.ObjectId): Promise<import("mongoose").Document<unknown, {}, ITaxProfile, {}, import("mongoose").DefaultSchemaOptions> & ITaxProfile & Required<{
-        _id: Types.ObjectId;
-    }> & {
-        __v: number;
-    } & {
-        id: string;
+    static updateTaxProfileStatus(taxProfileId: string, isActive: boolean, updatedBy?: string | Types.ObjectId): Promise<never>;
+    static exportTaxProfilesToCsv(taxProfileIds: string[]): Promise<{
+        csv: string;
+        total: number;
     }>;
 }
 //# sourceMappingURL=taxprofile.service.d.ts.map

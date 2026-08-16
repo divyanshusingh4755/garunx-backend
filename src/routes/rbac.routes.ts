@@ -1,8 +1,9 @@
 import { Router } from "express";
 import { body, param, query } from "express-validator";
 import { authenticate } from "../middleware/authenticate.js";
-import { addRolePermissions, assignUserRoles, createPermission, createRole, getPermissionById, getPermissions, getRoleById, getRoles, getUserAccess, removeAllUserRoles, removeRolePermission, removeUserRole, updatePermission, updatePermissionStatus, updateRole, updateRoleStatus } from "../controllers/rbac.controllers.js";
+import { addRolePermissions, assignUserRoles, createPermission, createRole, exportRolesCsv, getPermissionById, getPermissions, getRoleById, getRoles, getUserAccess, removeAllUserRoles, removeRolePermission, removeUserRole, updatePermission, updatePermissionStatus, updateRole, updateRoleStatus } from "../controllers/rbac.controllers.js";
 import { requirePermission } from "../middleware/rbac.js";
+import { validate } from "../utils/validate.js";
 
 const createPermissionValidator = [
     body("name")
@@ -35,6 +36,8 @@ const createPermissionValidator = [
         .trim()
         .isLength({ max: 500 })
         .withMessage("Description cannot exceed 500 characters"),
+
+    validate,
 ];
 
 const getPermissionByIdValidator = [
@@ -64,6 +67,8 @@ const getPermissionsValidator = [
         .optional()
         .isInt({ min: 1, max: 100 })
         .withMessage("limit must be between 1 and 100"),
+
+    validate,
 ];
 
 const updatePermissionValidator = [
@@ -104,6 +109,8 @@ const updatePermissionValidator = [
         .withMessage(
             "Description cannot exceed 500 characters",
         ),
+
+    validate,
 ];
 
 const updatePermissionStatusValidator = [
@@ -116,6 +123,8 @@ const updatePermissionStatusValidator = [
         .withMessage("isActive is required")
         .isBoolean()
         .withMessage("isActive must be true or false"),
+
+    validate,
 ];
 
 const createRoleValidator = [
@@ -150,6 +159,8 @@ const createRoleValidator = [
         .optional()
         .isMongoId()
         .withMessage("Each permission must be a valid permission ID"),
+
+    validate,
 ];
 
 const getRolesValidator = [
@@ -167,12 +178,16 @@ const getRolesValidator = [
         .optional()
         .isInt({ min: 1, max: 100 })
         .withMessage("limit must be between 1 and 100"),
+
+    validate,
 ];
 
 const getRoleByIdValidator = [
     param("id")
         .isMongoId()
         .withMessage("Invalid role ID"),
+
+    validate,
 ];
 
 const updateRoleValidator = [
@@ -205,6 +220,8 @@ const updateRoleValidator = [
         .withMessage(
             "Description cannot exceed 500 characters",
         ),
+
+    validate,
 ];
 
 const updateRoleStatusValidator = [
@@ -217,6 +234,8 @@ const updateRoleStatusValidator = [
         .withMessage("isActive is required")
         .isBoolean()
         .withMessage("isActive must be true or false"),
+
+    validate,
 ];
 
 const addRolePermissionsValidator = [
@@ -235,6 +254,8 @@ const addRolePermissionsValidator = [
         .withMessage(
             "Each permission must be a valid permission ID",
         ),
+
+    validate,
 ];
 
 const removeRolePermissionValidator = [
@@ -245,6 +266,8 @@ const removeRolePermissionValidator = [
     param("permissionId")
         .isMongoId()
         .withMessage("Invalid permission ID"),
+
+    validate,
 ];
 
 const assignUserRolesValidator = [
@@ -259,12 +282,16 @@ const assignUserRolesValidator = [
     body("roleIds.*")
         .isMongoId()
         .withMessage("Each roleId must be a valid role ID"),
+
+    validate,
 ];
 
 const removeAllUserRolesValidator = [
     param("userId")
         .isMongoId()
         .withMessage("Invalid user ID"),
+
+    validate,
 ];
 
 const removeUserRoleValidator = [
@@ -275,15 +302,39 @@ const removeUserRoleValidator = [
     param("roleId")
         .isMongoId()
         .withMessage("Invalid role ID"),
+
+    validate,
 ];
 
 const getUserAccessValidator = [
     param("userId")
         .isMongoId()
         .withMessage("Invalid user ID"),
+
+    validate,
+];
+
+const exportRolesValidator = [
+    body("roleIds")
+        .isArray({ min: 1, max: 100 })
+        .withMessage(
+            "roleIds must be a non-empty array with maximum 100 roles",
+        ),
+
+    body("roleIds.*")
+        .isMongoId()
+        .withMessage(
+            "Each roleId must be a valid role ID",
+        ),
+
+    validate
 ];
 
 const router = Router();
+
+// =========================================================
+// ROLES - COLLECTION / STATIC ROUTES
+// =========================================================
 
 router.post(
     "/roles",
@@ -294,34 +345,11 @@ router.post(
 );
 
 router.post(
-    "/permissions",
-    authenticate,
-    requirePermission("rbac.manage"),
-    createPermissionValidator,
-    createPermission,
-);
-
-router.post(
-    "/roles/:id/permissions",
-    authenticate,
-    addRolePermissionsValidator,
-    addRolePermissions,
-);
-
-
-router.get(
-    "/permissions",
+    "/roles/export",
     authenticate,
     requirePermission("rbac.read"),
-    getPermissionsValidator,
-    getPermissions,
-);
-
-router.get(
-    "/permissions/:id",
-    authenticate,
-    getPermissionByIdValidator,
-    getPermissionById,
+    exportRolesValidator,
+    exportRolesCsv,
 );
 
 router.get(
@@ -332,12 +360,31 @@ router.get(
     getRoles,
 );
 
-router.get(
-    "/roles/:id",
+
+// =========================================================
+// PERMISSIONS - COLLECTION / STATIC ROUTES
+// =========================================================
+
+router.post(
+    "/permissions",
     authenticate,
-    getRoleByIdValidator,
-    getRoleById,
+    requirePermission("rbac.manage"),
+    createPermissionValidator,
+    createPermission,
 );
+
+router.get(
+    "/permissions",
+    authenticate,
+    requirePermission("rbac.read"),
+    getPermissionsValidator,
+    getPermissions,
+);
+
+
+// =========================================================
+// USERS - RBAC ACCESS / ROLE MANAGEMENT
+// =========================================================
 
 router.get(
     "/users/:userId/access",
@@ -345,36 +392,6 @@ router.get(
     requirePermission("rbac.read"),
     getUserAccessValidator,
     getUserAccess,
-);
-
-
-router.patch(
-    "/permissions/:id",
-    authenticate,
-    updatePermissionValidator,
-    requirePermission("rbac.manage"),
-    updatePermission,
-);
-
-router.patch(
-    "/permissions/:id/status",
-    authenticate,
-    updatePermissionStatusValidator,
-    updatePermissionStatus,
-);
-
-router.patch(
-    "/roles/:id",
-    authenticate,
-    updateRoleValidator,
-    updateRole,
-);
-
-router.patch(
-    "/roles/:id/status",
-    authenticate,
-    updateRoleStatusValidator,
-    updateRoleStatus,
 );
 
 router.put(
@@ -386,24 +403,104 @@ router.put(
 );
 
 router.delete(
-    "/users/:userId/roles",
-    authenticate,
-    removeAllUserRolesValidator,
-    removeAllUserRoles,
-);
-
-router.delete(
     "/users/:userId/roles/:roleId",
     authenticate,
+    requirePermission("rbac.manage"),
     removeUserRoleValidator,
     removeUserRole,
 );
 
 router.delete(
+    "/users/:userId/roles",
+    authenticate,
+    requirePermission("rbac.manage"),
+    removeAllUserRolesValidator,
+    removeAllUserRoles,
+);
+
+
+// =========================================================
+// ROLES - SPECIFIC NESTED ACTIONS
+// =========================================================
+
+router.post(
+    "/roles/:id/permissions",
+    authenticate,
+    requirePermission("rbac.manage"),
+    addRolePermissionsValidator,
+    addRolePermissions,
+);
+
+router.delete(
     "/roles/:id/permissions/:permissionId",
     authenticate,
+    requirePermission("rbac.manage"),
     removeRolePermissionValidator,
     removeRolePermission,
 );
+
+router.patch(
+    "/roles/:id/status",
+    authenticate,
+    requirePermission("rbac.manage"),
+    updateRoleStatusValidator,
+    updateRoleStatus,
+);
+
+
+// =========================================================
+// PERMISSIONS - SPECIFIC ACTIONS
+// =========================================================
+
+router.patch(
+    "/permissions/:id/status",
+    authenticate,
+    requirePermission("rbac.manage"),
+    updatePermissionStatusValidator,
+    updatePermissionStatus,
+);
+
+
+// =========================================================
+// ROLES - GENERIC ID ROUTES
+// =========================================================
+
+router.get(
+    "/roles/:id",
+    authenticate,
+    requirePermission("rbac.read"),
+    getRoleByIdValidator,
+    getRoleById,
+);
+
+router.patch(
+    "/roles/:id",
+    authenticate,
+    requirePermission("rbac.manage"),
+    updateRoleValidator,
+    updateRole,
+);
+
+
+// =========================================================
+// PERMISSIONS - GENERIC ID ROUTES
+// =========================================================
+
+router.get(
+    "/permissions/:id",
+    authenticate,
+    requirePermission("rbac.read"),
+    getPermissionByIdValidator,
+    getPermissionById,
+);
+
+router.patch(
+    "/permissions/:id",
+    authenticate,
+    requirePermission("rbac.manage"),
+    updatePermissionValidator,
+    updatePermission,
+);
+
 
 export default router;

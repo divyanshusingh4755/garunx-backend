@@ -18,6 +18,9 @@ const validate = (req, res, next) => {
     }
     next();
 };
+// =========================================================
+// ADMIN - BULK PRICING UPDATE
+// =========================================================
 router.post("/bulk", authenticate, authorizeRoles(Role.ADMIN), requirePermission("package_tier_pricing.update"), body("packageId")
     .notEmpty()
     .withMessage("packageId is required")
@@ -52,7 +55,10 @@ router.post("/bulk", authenticate, authorizeRoles(Role.ADMIN), requirePermission
     .isMongoId()
     .withMessage("Invalid taxProfileId"), body("pricing.*.services.*.taxPriceMode")
     .optional()
-    .isIn(["EXCLUSIVE", "INCLUSIVE"])
+    .isIn([
+    "EXCLUSIVE",
+    "INCLUSIVE",
+])
     .withMessage("taxPriceMode must be EXCLUSIVE or INCLUSIVE"), body("pricing.*.services.*").custom((servicePricing) => {
     const hasFixedPrice = servicePricing.fixedPrice !== undefined &&
         servicePricing.fixedPrice !== null;
@@ -68,6 +74,9 @@ router.post("/bulk", authenticate, authorizeRoles(Role.ADMIN), requirePermission
     }
     return true;
 }), validate, bulkUpsertPackageTierPricing);
+// =========================================================
+// USER - RESOLVE PACKAGE PRICING
+// =========================================================
 router.get("/resolve", authenticate, authorizeRoles(Role.USER), query("packageId")
     .notEmpty()
     .withMessage("packageId is required")

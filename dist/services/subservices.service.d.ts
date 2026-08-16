@@ -11,6 +11,8 @@ type UpdateSubServiceComponentInput = Partial<Pick<ISubServiceComponent, "name" 
     serviceId?: string;
 };
 export declare class SubServiceComponentService {
+    private static invalidateSubServiceComponentCache;
+    private static invalidateParentServiceCache;
     private static applyServiceFilter;
     static createSubServiceComponent(payload: CreateSubServiceComponentInput): Promise<import("mongoose").Document<unknown, {}, ISubServiceComponent, {}, import("mongoose").DefaultSchemaOptions> & ISubServiceComponent & {
         _id: Types.ObjectId;

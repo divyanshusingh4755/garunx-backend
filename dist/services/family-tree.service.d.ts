@@ -81,7 +81,9 @@ interface FamilyTreeEdge {
     label?: string;
 }
 declare class FamilyTreeService {
+    private static invalidateFamilyTreeCache;
     private static validateContext;
+    private static shouldNotifyOwner;
     private static getUniqueIds;
     private static escapeRegex;
     private static normalizeAuditValue;
@@ -258,6 +260,10 @@ declare class FamilyTreeService {
         };
     }>;
     static restoreFamilyMember(context: FamilyTreeActorContext, familyMemberId: string, reason?: string): Promise<never>;
+    static exportFamilyMembersToCsv(ownerId: string, memberIds: string[]): Promise<{
+        csv: string;
+        total: number;
+    }>;
 }
 export default FamilyTreeService;
 //# sourceMappingURL=family-tree.service.d.ts.map

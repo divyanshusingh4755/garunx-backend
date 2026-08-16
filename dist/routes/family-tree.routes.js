@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { body, param, query } from "express-validator";
-import { addFamilyMember, deleteFamilyMember, getFamilyMemberActivities, getFamilyMemberById, getFamilyMembers, getFamilyTree, getFamilyTreeActivities, restoreFamilyMember, updateFamilyMember, } from "../controllers/family-tree-controllers.js";
+import { addFamilyMember, deleteFamilyMember, exportFamilyMembersCsv, getFamilyMemberActivities, getFamilyMemberById, getFamilyMembers, getFamilyTree, getFamilyTreeActivities, restoreFamilyMember, updateFamilyMember, } from "../controllers/family-tree-controllers.js";
 import { authenticate } from "../middleware/authenticate.js";
 import { authorizeRoles } from "../middleware/authorizeRoles.js";
 import { validate } from "../utils/validate.js";
@@ -192,9 +192,36 @@ const updateFamilyMemberValidation = [
     body().custom((value) => {
         if (!value ||
             typeof value !== "object" ||
-            Array.isArray(value) ||
-            Object.keys(value).length === 0) {
+            Array.isArray(value)) {
+            throw new Error("Request body must be an object");
+        }
+        const allowedFields = [
+            "fullName",
+            "relation",
+            "gender",
+            "dob",
+            "lifeStatus",
+            "dateOfDeath",
+            "fatherId",
+            "motherId",
+            "spouseIds",
+            "nativeVillage",
+            "state",
+            "district",
+            "caste",
+            "gotra",
+            "designatedPandit",
+            "visitors",
+            "profileImage",
+            "notes",
+        ];
+        const suppliedFields = Object.keys(value);
+        if (suppliedFields.length === 0) {
             throw new Error("At least one field is required for update");
+        }
+        const invalidFields = suppliedFields.filter((field) => !allowedFields.includes(field));
+        if (invalidFields.length > 0) {
+            throw new Error(`Invalid update fields: ${invalidFields.join(", ")}`);
         }
         return true;
     }),
@@ -509,31 +536,76 @@ const restoreFamilyMemberValidation = [
         .withMessage("Restore reason must be between 3 and 500 characters"),
     validate,
 ];
+const exportFamilyMembersValidation = [
+    body("memberIds")
+        .isArray({
+        min: 1,
+        max: 1000,
+    })
+        .withMessage("memberIds must contain between 1 and 1000 family member IDs"),
+    body("memberIds.*")
+        .isMongoId()
+        .withMessage("Each memberId must be a valid MongoDB ID"),
+    body("memberIds").custom((memberIds) => {
+        if (!Array.isArray(memberIds)) {
+            return true;
+        }
+        const uniqueIds = new Set(memberIds);
+        if (uniqueIds.size !==
+            memberIds.length) {
+            throw new Error("Duplicate family member IDs are not allowed");
+        }
+        return true;
+    }),
+    validate,
+];
 router.use(authenticate);
 /*
- * Authenticated user's own family tree.
+ * =========================================================
+ * AUTHENTICATED USER - OWN FAMILY TREE
+ * =========================================================
  */
 router.post("/add-member", authorizeRoles(Role.USER), addFamilyMemberValidation, addFamilyMember);
 router.get("/get-family-tree", authorizeRoles(Role.USER), getFamilyTree);
 router.get("/get-members", authorizeRoles(Role.USER), getFamilyMembersValidation, getFamilyMembers);
+router.get("/activities", authorizeRoles(Role.USER), getFamilyTreeActivitiesValidation, getFamilyTreeActivities);
+router.post("/export", authorizeRoles(Role.USER), exportFamilyMembersValidation, exportFamilyMembersCsv);
+/*
+ * =========================================================
+ * AUTHENTICATED USER - MEMBER-SPECIFIC ROUTES
+ * =========================================================
+ */
+/*
+ * More specific member activity route first.
+ */
+router.get("/get-member/:id/activities", authorizeRoles(Role.USER), getFamilyMemberActivitiesValidation, getFamilyMemberActivities);
 router.get("/get-member/:id", authorizeRoles(Role.USER), familyMemberIdValidation, getFamilyMemberById);
 router.patch("/update-member/:id", authorizeRoles(Role.USER), updateFamilyMemberValidation, updateFamilyMember);
 router.patch("/restore-member/:id", authorizeRoles(Role.USER), restoreFamilyMemberValidation, restoreFamilyMember);
 router.delete("/delete-member/:id", authorizeRoles(Role.USER), deleteFamilyMemberValidation, deleteFamilyMember);
-router.get("/activities", authorizeRoles(Role.USER), getFamilyTreeActivitiesValidation, getFamilyTreeActivities);
-router.get("/get-member/:id/activities", authorizeRoles(Role.USER), getFamilyMemberActivitiesValidation, getFamilyMemberActivities);
 /*
- * Admin or coordinator access to another
- * user's family tree.
+ * =========================================================
+ * ADMIN / COORDINATOR - USER FAMILY TREE
+ * =========================================================
  */
 router.post("/users/:ownerId/add-member", authorizeRoles(Role.ADMIN, Role.COORDINATOR), requireAdminPermission("family_tree.create_any"), familyTreeOwnerIdValidation, addFamilyMemberValidation, addFamilyMember);
+router.post("/users/:ownerId/export", authorizeRoles(Role.ADMIN, Role.COORDINATOR), requireAdminPermission("family_tree.read_any"), familyTreeOwnerIdValidation, exportFamilyMembersValidation, exportFamilyMembersCsv);
 router.get("/users/:ownerId/get-family-tree", authorizeRoles(Role.ADMIN, Role.COORDINATOR), requireAdminPermission("family_tree.read_any"), familyTreeOwnerIdValidation, getFamilyTree);
 router.get("/users/:ownerId/get-members", authorizeRoles(Role.ADMIN, Role.COORDINATOR), requireAdminPermission("family_tree.read_any"), familyTreeOwnerIdValidation, getFamilyMembersValidation, getFamilyMembers);
-router.get("/users/:ownerId/get-member/:id", authorizeRoles(Role.ADMIN, Role.COORDINATOR), requireAdminPermission("family_tree.read_any"), familyTreeOwnerIdValidation, familyMemberIdValidation, getFamilyMemberById);
 router.get("/users/:ownerId/activities", authorizeRoles(Role.ADMIN, Role.COORDINATOR), requireAdminPermission("family_tree.read_any"), familyTreeOwnerIdValidation, getFamilyTreeActivitiesValidation, getFamilyTreeActivities);
+/*
+ * =========================================================
+ * ADMIN / COORDINATOR - MEMBER-SPECIFIC ROUTES
+ * =========================================================
+ */
+/*
+ * Keep the more-specific activity route
+ * before the generic member detail route.
+ */
 router.get("/users/:ownerId/get-member/:id/activities", authorizeRoles(Role.ADMIN, Role.COORDINATOR), requireAdminPermission("family_tree.read_any"), familyTreeOwnerIdValidation, getFamilyMemberActivitiesValidation, getFamilyMemberActivities);
+router.get("/users/:ownerId/get-member/:id", authorizeRoles(Role.ADMIN, Role.COORDINATOR), requireAdminPermission("family_tree.read_any"), familyTreeOwnerIdValidation, familyMemberIdValidation, getFamilyMemberById);
 router.patch("/users/:ownerId/update-member/:id", authorizeRoles(Role.ADMIN, Role.COORDINATOR), requireAdminPermission("family_tree.update_any"), familyTreeOwnerIdValidation, updateFamilyMemberValidation, updateFamilyMember);
-router.delete("/users/:ownerId/delete-member/:id", authorizeRoles(Role.ADMIN, Role.COORDINATOR), requireAdminPermission("family_tree.delete_any"), familyTreeOwnerIdValidation, deleteFamilyMemberValidation, deleteFamilyMember);
 router.patch("/users/:ownerId/restore-member/:id", authorizeRoles(Role.ADMIN), requirePermission("family_tree.restore_any"), familyTreeOwnerIdValidation, restoreFamilyMemberValidation, restoreFamilyMember);
+router.delete("/users/:ownerId/delete-member/:id", authorizeRoles(Role.ADMIN, Role.COORDINATOR), requireAdminPermission("family_tree.delete_any"), familyTreeOwnerIdValidation, deleteFamilyMemberValidation, deleteFamilyMember);
 export default router;
 //# sourceMappingURL=family-tree.routes.js.map

@@ -228,3 +228,54 @@ export const deleteState = async (req: Request, res: Response) => {
     });
   }
 };
+
+export const exportStatesCsv = async (
+  req: Request,
+  res: Response,
+) => {
+  try {
+    const {
+      stateIds,
+      exportAll = false,
+    }: {
+      stateIds?: string[];
+      exportAll?: boolean;
+    } = req.body;
+
+    const result =
+      await StateService.exportStatesToCsv({
+        exportAll,
+        ...(stateIds !== undefined && {
+          stateIds,
+        }),
+      });
+
+    const timestamp =
+      new Date()
+        .toISOString()
+        .replace(/[:.]/g, "-");
+
+    res.setHeader(
+      "Content-Type",
+      "text/csv; charset=utf-8",
+    );
+
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="states-${timestamp}.csv"`,
+    );
+
+    return res
+      .status(200)
+      .send(result.csv);
+  } catch (error: any) {
+    return res
+      .status(getStatusCode(error))
+      .json({
+        success: false,
+        message:
+          error.message ||
+          "Failed to export states",
+      });
+  }
+};

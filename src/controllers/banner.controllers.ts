@@ -268,3 +268,63 @@ export const getPublicBanners = async (
     });
   }
 };
+
+export const exportBannersCsv = async (
+  req: Request,
+  res: Response,
+) => {
+  try {
+    const {
+      bannerIds,
+    }: {
+      bannerIds: string[];
+    } = req.body;
+
+    const result =
+      await BannerService.exportBannersToCsv(
+        bannerIds,
+      );
+
+    const timestamp =
+      new Date()
+        .toISOString()
+        .replace(
+          /[:.]/g,
+          "-",
+        );
+
+    res.setHeader(
+      "Content-Type",
+      "text/csv; charset=utf-8",
+    );
+
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="banners-${timestamp}.csv"`,
+    );
+
+    return res
+      .status(200)
+      .send(
+        result.csv,
+      );
+  } catch (
+  error: unknown
+  ) {
+    return res
+      .status(
+        getErrorStatus(
+          error,
+        ),
+      )
+      .json({
+        success: false,
+
+        message:
+          getErrorMessage(
+            error,
+            "Failed to export banners",
+          ),
+      });
+  }
+};

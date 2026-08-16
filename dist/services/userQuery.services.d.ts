@@ -52,6 +52,7 @@ interface DeleteQueryInput {
     reason: string;
 }
 export declare class UserQueryService {
+    private static invalidateUserQueryCache;
     private static validateObjectId;
     private static safePagination;
     private static getSortCriteria;
@@ -153,6 +154,10 @@ export declare class UserQueryService {
     private static updateSimpleField;
     static assignUserQuery(input: AssignQueryInput): Promise<never>;
     static deleteUserQuery(input: DeleteQueryInput): Promise<never>;
+    static exportUserQueriesToCsv(queryIds: string[]): Promise<{
+        csv: string;
+        total: number;
+    }>;
 }
 export {};
 //# sourceMappingURL=userQuery.services.d.ts.map

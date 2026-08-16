@@ -1,13 +1,16 @@
 import { Types } from "mongoose";
+import mongoose from "mongoose";
 export declare class PackageService {
-    static createPackage(payload: any): Promise<import("mongoose").Document<unknown, {}, import("../models/package.model.js").IPackage, {}, import("mongoose").DefaultSchemaOptions> & import("../models/package.model.js").IPackage & Required<{
+    private static invalidatePackageCache;
+    private static buildFullPackageData;
+    static createPackage(payload: any): Promise<mongoose.Document<unknown, {}, import("../models/package.model.js").IPackage, {}, mongoose.DefaultSchemaOptions> & import("../models/package.model.js").IPackage & Required<{
         _id: Types.ObjectId;
     }> & {
         __v: number;
     } & {
         id: string;
     }>;
-    static updatePackage(packageId: string, payload: any): Promise<(import("mongoose").Document<unknown, {}, import("../models/package.model.js").IPackage, {}, import("mongoose").DefaultSchemaOptions> & import("../models/package.model.js").IPackage & Required<{
+    static updatePackage(packageId: string, payload: any): Promise<(mongoose.Document<unknown, {}, import("../models/package.model.js").IPackage, {}, mongoose.DefaultSchemaOptions> & import("../models/package.model.js").IPackage & Required<{
         _id: Types.ObjectId;
     }> & {
         __v: number;
@@ -38,54 +41,76 @@ export declare class PackageService {
     }[]): Promise<{
         success: boolean;
         message: string;
-        locations: import("../models/package.model.js").IPackageLocation[];
+        locations: any[];
     }>;
     static removePackageLocation(packageId: string, locationId: string): Promise<{
         success: boolean;
         message: string;
-        locations: import("../models/package.model.js").IPackageLocation[];
+        locations: any[];
     }>;
     static updatePackageTiers(packageId: string, tiers: {
         tierId: string;
     }[]): Promise<{
         success: boolean;
         message: string;
-        tiers: import("../models/package.model.js").IPackageTier[];
+        tiers: any[];
     }>;
     static removePackageTier(packageId: string, tierId: string): Promise<{
         success: boolean;
         message: string;
-        tiers?: never;
-    } | {
-        success: boolean;
-        message: string;
-        tiers: import("../models/package.model.js").IPackageTier[];
+        tiers: any[];
     }>;
     static getFullPackage(packageId: string): Promise<{
         package: {
-            id: Types.ObjectId;
-            name: string;
-            shortDescription: string;
-            fullDescription: string;
-            thumbnailImage: string;
-            bannerImage: string | undefined;
+            id: any;
+            name: any;
+            shortDescription: any;
+            fullDescription: any;
+            thumbnailImage: any;
+            bannerImage: any;
             category: {
                 id: any;
                 label: any;
                 value: any;
                 image: any;
             } | null;
-            isActive: boolean;
-            isComplete: boolean;
-            packageReference: string;
-            startingPrice: number;
+            isActive: any;
+            isComplete: any;
+            packageReference: any;
+            startingPrice: any;
         };
-        locations: import("../models/package.model.js").IPackageLocation[];
-        tiers: {
-            tierId: any;
+        locations: any;
+        tiers: any;
+        services: Record<string, {
+            tierId: Types.ObjectId;
+            services: any[];
+        }>;
+    }>;
+    static getFullPackageAdmin(packageId: string): Promise<{
+        package: {
+            id: any;
             name: any;
-        }[];
-        services: Record<string, any>;
+            shortDescription: any;
+            fullDescription: any;
+            thumbnailImage: any;
+            bannerImage: any;
+            category: {
+                id: any;
+                label: any;
+                value: any;
+                image: any;
+            } | null;
+            isActive: any;
+            isComplete: any;
+            packageReference: any;
+            startingPrice: any;
+        };
+        locations: any;
+        tiers: any;
+        services: Record<string, {
+            tierId: Types.ObjectId;
+            services: any[];
+        }>;
     }>;
     static getRelatedPackageService(packageId: string, tierId: string, locationId: string): Promise<{
         package: {
@@ -101,16 +126,19 @@ export declare class PackageService {
                 value: any;
                 image: any;
             } | null;
-            isActive: boolean;
-            isComplete: boolean;
+            isActive: true;
+            isComplete: true;
             packageReference: string;
             startingPrice: number;
         };
-        locations: import("../models/package.model.js").IPackageLocation[];
-        tiers: {
-            tierId: any;
-            name: any;
-        }[];
+        location: {
+            locationId: Types.ObjectId;
+            name: string;
+        };
+        tier: {
+            tierId: Types.ObjectId;
+            name: string;
+        };
         relatedServices: {
             serviceId: Types.ObjectId;
             name: string;
@@ -144,8 +172,8 @@ export declare class PackageService {
             fullDescription: string;
             thumbnailImage: string;
             bannerImage: string | undefined;
-            isActive: boolean;
-            isComplete: boolean;
+            isActive: true;
+            isComplete: true;
             packageReference: string;
             startingPrice: number;
         };
@@ -165,6 +193,10 @@ export declare class PackageService {
         total: number;
         page: number;
         totalPages: number;
+    }>;
+    static exportPackagesToCsv(packageIds: string[]): Promise<{
+        csv: string;
+        total: number;
     }>;
 }
 //# sourceMappingURL=package.service.d.ts.map

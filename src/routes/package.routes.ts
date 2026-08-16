@@ -25,6 +25,8 @@ import {
   getFullPackageByCities,
   getRelatedPackageService,
   getAllPackagesAdmin,
+  exportPackagesToCsv,
+  getFullPackageAdmin,
 } from "../controllers/package.controllers.js";
 import { authorizeRoles } from "../middleware/authorizeRoles.js";
 import { Role } from "../types/rbac.js";
@@ -107,16 +109,47 @@ const packageValidation = [
 const updatePackageValidation = [
   param("packageId").isMongoId().withMessage("Invalid package ID"),
 
-  body("name").optional().isString().trim(),
+  body("name")
+    .optional()
+    .isString()
+    .withMessage(
+      "Name must be a string",
+    )
+    .trim()
+    .notEmpty()
+    .withMessage(
+      "Name cannot be empty",
+    ),
 
   body("shortDescription")
     .optional()
     .isString()
+    .withMessage(
+      "Short description must be a string",
+    )
     .trim()
-    .isLength({ max: 200 })
-    .withMessage("Short description max length is 200"),
+    .notEmpty()
+    .withMessage(
+      "Short description cannot be empty",
+    )
+    .isLength({
+      max: 200,
+    })
+    .withMessage(
+      "Short description max length is 200",
+    ),
 
-  body("fullDescription").optional().isString().trim(),
+  body("fullDescription")
+    .optional()
+    .isString()
+    .withMessage(
+      "Full description must be a string",
+    )
+    .trim()
+    .notEmpty()
+    .withMessage(
+      "Full description cannot be empty",
+    ),
 
   body("categoryId").optional().isMongoId().withMessage("Invalid category ID"),
 
@@ -137,10 +170,17 @@ const packageStatusValidation = [
   param("packageId").isMongoId().withMessage("Invalid package ID"),
 
   body("isActive")
-    .exists({ checkNull: true })
-    .withMessage("isActive is required")
+    .exists({
+      checkNull: true,
+    })
+    .withMessage(
+      "isActive is required",
+    )
     .isBoolean()
-    .withMessage("isActive must be boolean"),
+    .withMessage(
+      "isActive must be boolean",
+    )
+    .toBoolean(),
 
   validate,
 ];
@@ -187,10 +227,38 @@ const removeTierValidation = [
   validate,
 ];
 
+const exportPackagesValidation = [
+  body("packageIds")
+    .isArray({ min: 1 })
+    .withMessage("packageIds must be a non-empty array"),
+
+  body("packageIds.*")
+    .isMongoId()
+    .withMessage("Each package ID must be valid"),
+
+  validate,
+];
+
+// =========================================================
+// PUBLIC / GENERAL
+// =========================================================
+
 router.get(
   "/",
   getAllPackages,
 );
+
+router.get(
+  "/getPackagesByLocation",
+  authenticate,
+  authorizeRoles(Role.USER),
+  getPackagesByLocation,
+);
+
+
+// =========================================================
+// ADMIN - STATIC ROUTES
+// =========================================================
 
 router.get(
   "/admin",
@@ -200,42 +268,13 @@ router.get(
   getAllPackagesAdmin,
 );
 
-
-router.get(
-  "/getPackagesByLocation",
-  authenticate,
-  authorizeRoles(Role.USER),
-  getPackagesByLocation,
-);
-
-router.get(
-  "/:packageId/diagnostics",
-  authenticate,
-  authorizeRoles(Role.ADMIN),
-  requirePermission("package.diagnostics"),
-  packageIdValidation,
-  getPackageDiagnostics,
-);
-
-router.get(
-  "/:packageId",
+router.post(
+  "/export",
   authenticate,
   authorizeRoles(Role.ADMIN),
   requirePermission("package.read"),
-  packageIdValidation,
-  getPackageById,
-);
-
-router.get(
-  "/:packageId/full",
-  packageIdValidation,
-  getFullPackage,
-);
-
-router.get(
-  "/:packageId/:tierId/:locationId/relatedService",
-  relatedServiceValidation,
-  getRelatedPackageService,
+  exportPackagesValidation,
+  exportPackagesToCsv,
 );
 
 router.post(
@@ -247,30 +286,60 @@ router.post(
   createPackage,
 );
 
+
+// =========================================================
+// ADMIN - PREFIXED PACKAGE ROUTES
+// =========================================================
+
+router.get(
+  "/admin/:packageId/full",
+  authenticate,
+  authorizeRoles(
+    Role.ADMIN,
+  ),
+  requirePermission(
+    "package.read",
+  ),
+  packageIdValidation,
+  getFullPackageAdmin,
+);
+
+
+// =========================================================
+// PACKAGE - SPECIFIC READ ROUTES
+// =========================================================
+
+router.get(
+  "/:packageId/diagnostics",
+  authenticate,
+  authorizeRoles(Role.ADMIN),
+  requirePermission("package.diagnostics"),
+  packageIdValidation,
+  getPackageDiagnostics,
+);
+
+router.get(
+  "/:packageId/full",
+  packageIdValidation,
+  getFullPackage,
+);
+
 router.post(
   "/:packageId/getFullPackagesByCities",
   packageIdValidation,
   getFullPackageByCities,
 );
 
-
-router.patch(
-  "/:packageId",
-  authenticate,
-  authorizeRoles(Role.ADMIN),
-  requirePermission("package.update"),
-  updatePackageValidation,
-  updatePackage,
+router.get(
+  "/:packageId/:tierId/:locationId/relatedService",
+  relatedServiceValidation,
+  getRelatedPackageService,
 );
 
-router.patch(
-  "/:packageId/status",
-  authenticate,
-  authorizeRoles(Role.ADMIN),
-  requirePermission("package.status"),
-  packageStatusValidation,
-  togglePackageStatus,
-);
+
+// =========================================================
+// PACKAGE - LOCATION MANAGEMENT
+// =========================================================
 
 router.post(
   "/:id/locations",
@@ -290,6 +359,11 @@ router.delete(
   removePackageLocation,
 );
 
+
+// =========================================================
+// PACKAGE - TIER MANAGEMENT
+// =========================================================
+
 router.post(
   "/:id/tiers",
   authenticate,
@@ -307,5 +381,45 @@ router.delete(
   removeTierValidation,
   removePackageTier,
 );
+
+
+// =========================================================
+// PACKAGE - STATUS / UPDATE
+// =========================================================
+
+router.patch(
+  "/:packageId/status",
+  authenticate,
+  authorizeRoles(Role.ADMIN),
+  requirePermission("package.status"),
+  packageStatusValidation,
+  togglePackageStatus,
+);
+
+router.patch(
+  "/:packageId",
+  authenticate,
+  authorizeRoles(Role.ADMIN),
+  requirePermission("package.update"),
+  updatePackageValidation,
+  updatePackage,
+);
+
+
+// =========================================================
+// GENERIC PACKAGE DETAIL
+//
+// Keep this after all more-specific /:packageId/... routes.
+// =========================================================
+
+router.get(
+  "/:packageId",
+  authenticate,
+  authorizeRoles(Role.ADMIN),
+  requirePermission("package.read"),
+  packageIdValidation,
+  getPackageById,
+);
+
 
 export default router;

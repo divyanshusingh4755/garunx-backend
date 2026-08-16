@@ -24,7 +24,92 @@ type CashfreeErrorResponse = {
   type?: string;
 };
 
+interface CashfreePaymentAttempt {
+  cf_payment_id: string | number;
+  order_id: string;
+  payment_status: string;
+  payment_amount: number;
+  payment_group?: string;
+  payment_time?: string;
+  payment_completion_time?: string;
+  is_captured?: boolean;
+}
+
 export class CashfreeService {
+  static async getSuccessfulPaymentForOrder(
+    orderId: string,
+  ): Promise<CashfreePaymentAttempt | null> {
+    const normalizedOrderId =
+      this.validateOrderId(orderId);
+
+    try {
+      const response =
+        await axios.get<CashfreePaymentAttempt[]>(
+          `${this.baseUrl}/orders/${encodeURIComponent(
+            normalizedOrderId,
+          )}/payments`,
+          this.getRequestConfig(),
+        );
+
+      const payments =
+        Array.isArray(response.data)
+          ? response.data
+          : [];
+
+      const successfulPayments =
+        payments.filter(
+          (payment) =>
+            payment.payment_status ===
+            "SUCCESS",
+        );
+
+      if (
+        successfulPayments.length ===
+        0
+      ) {
+        return null;
+      }
+
+      /*
+       * Normally an order should have one
+       * successful payment.
+       *
+       * Selecting the latest makes the
+       * recovery flow deterministic if
+       * Cashfree returns multiple attempts.
+       */
+      successfulPayments.sort(
+        (a, b) => {
+          const aTime =
+            new Date(
+              a.payment_completion_time ??
+              a.payment_time ??
+              0,
+            ).getTime();
+
+          const bTime =
+            new Date(
+              b.payment_completion_time ??
+              b.payment_time ??
+              0,
+            ).getTime();
+
+          return bTime - aTime;
+        },
+      );
+
+      return (
+        successfulPayments[0] ??
+        null
+      );
+    } catch (error: unknown) {
+      throw this.getProviderError(
+        error,
+        "Failed to fetch Cashfree payment details",
+      );
+    }
+  }
+
   private static readonly baseUrl =
     process.env.CASHFREE_ENV === "PROD"
       ? "https://api.cashfree.com/pg"
@@ -69,8 +154,8 @@ export class CashfreeService {
       headers: {
         ...(includeContentType
           ? {
-              "Content-Type": "application/json",
-            }
+            "Content-Type": "application/json",
+          }
           : {}),
         "x-client-id": clientId,
         "x-client-secret": clientSecret,
@@ -245,8 +330,8 @@ export class CashfreeService {
 
         ...(customerEmail
           ? {
-              customer_email: customerEmail,
-            }
+            customer_email: customerEmail,
+          }
           : {}),
       },
 

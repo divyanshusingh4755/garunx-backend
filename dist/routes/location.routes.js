@@ -1,7 +1,7 @@
 import { Router, } from "express";
 import { body, param, query, validationResult } from "express-validator";
 import { authenticate } from "../middleware/authenticate.js";
-import { createLocation, deleteLocation, getAllLocation, getAllLocationsAdmin, getLocationById, getLocationIds, updateLocation, } from "../controllers/location.controllers.js";
+import { createLocation, deleteLocation, exportLocationsCsv, getAllLocation, getAllLocationsAdmin, getLocationById, getLocationIds, updateLocation, } from "../controllers/location.controllers.js";
 import { authorizeRoles } from "../middleware/authorizeRoles.js";
 import { requirePermission } from "../middleware/rbac.js";
 import { Role } from "../types/rbac.js";
@@ -177,11 +177,13 @@ const statusValidation = [
         .exists({ checkNull: true })
         .withMessage("status is required")
         .isBoolean()
-        .withMessage("status must be a boolean"),
+        .withMessage("status must be a boolean")
+        .toBoolean(),
     body("confirmed")
         .optional()
         .isBoolean()
-        .withMessage("confirmed must be a boolean"),
+        .withMessage("confirmed must be a boolean")
+        .toBoolean(),
     handleValidationErrors,
 ];
 const locationIdsValidation = [
@@ -227,12 +229,38 @@ const adminListValidation = [
         .withMessage("isActive must be true or false"),
     handleValidationErrors,
 ];
+const exportLocationsValidation = [
+    body("locationIds")
+        .isArray({ min: 1, max: 1000 })
+        .withMessage("locationIds must contain between 1 and 1000 location IDs"),
+    body("locationIds.*")
+        .isMongoId()
+        .withMessage("Each locationId must be a valid MongoDB ID"),
+    handleValidationErrors,
+];
+// =========================================================
+// PUBLIC
+// =========================================================
 router.get("/get-all-location", publicListValidation, getAllLocation);
-router.get("/admin", authenticate, authorizeRoles(Role.ADMIN), requirePermission("location.read"), adminListValidation, getAllLocationsAdmin);
 router.post("/get-location-by-ids", locationIdsValidation, getLocationIds);
+// =========================================================
+// ADMIN - STATIC ROUTES
+// =========================================================
+router.get("/admin", authenticate, authorizeRoles(Role.ADMIN), requirePermission("location.read"), adminListValidation, getAllLocationsAdmin);
+router.post("/export-locations", authenticate, authorizeRoles(Role.ADMIN), requirePermission("location.export"), exportLocationsValidation, exportLocationsCsv);
 router.post("/create-location", authenticate, authorizeRoles(Role.ADMIN), requirePermission("location.create"), createLocationValidation, createLocation);
+// =========================================================
+// ADMIN - PREFIXED LOCATION ACTIONS
+// =========================================================
 router.patch("/update-location/:id", authenticate, authorizeRoles(Role.ADMIN), requirePermission("location.update"), updateLocationValidation, updateLocation);
+// =========================================================
+// ADMIN - SPECIFIC ID ACTIONS
+// =========================================================
 router.patch("/:id/status", authenticate, authorizeRoles(Role.ADMIN), requirePermission("location.status"), statusValidation, deleteLocation);
+// =========================================================
+// ADMIN - GENERIC LOCATION DETAIL
+// Keep this last among dynamic GET routes.
+// =========================================================
 router.get("/:id", authenticate, authorizeRoles(Role.ADMIN), requirePermission("location.read"), locationIdValidation, getLocationById);
 export default router;
 //# sourceMappingURL=location.routes.js.map

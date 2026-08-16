@@ -4,7 +4,12 @@ import {
   type Response,
   type NextFunction,
 } from "express";
-import { param, body, validationResult } from "express-validator";
+
+import {
+  body,
+  param,
+  validationResult,
+} from "express-validator";
 
 import {
   bulkUpsertServiceComponents,
@@ -13,23 +18,49 @@ import {
   updateServiceComponent,
 } from "../controllers/servicecomponent.controllers.js";
 
-import { authenticate } from "../middleware/authenticate.js";
-import { authorizeRoles } from "../middleware/authorizeRoles.js";
-import { requirePermission } from "../middleware/rbac.js";
-import { Role } from "../types/rbac.js";
+import {
+  authenticate,
+} from "../middleware/authenticate.js";
 
-const router = Router();
+import {
+  authorizeRoles,
+} from "../middleware/authorizeRoles.js";
 
-const validate = (req: Request, res: Response, next: NextFunction) => {
-  const errors = validationResult(req);
+import {
+  requirePermission,
+} from "../middleware/rbac.js";
 
-  if (!errors.isEmpty()) {
-    const firstError = errors.array()[0];
+import {
+  Role,
+} from "../types/rbac.js";
+
+const router =
+  Router();
+
+const validate = (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  const errors =
+    validationResult(req);
+
+  if (
+    !errors.isEmpty()
+  ) {
+    const firstError =
+      errors.array()[0];
 
     return res.status(400).json({
-      success: false,
-      message: firstError?.msg ?? "Validation failed",
-      error: firstError,
+      success:
+        false,
+
+      message:
+        firstError?.msg ??
+        "Validation failed",
+
+      error:
+        firstError,
     });
   }
 
@@ -37,49 +68,98 @@ const validate = (req: Request, res: Response, next: NextFunction) => {
 };
 
 const componentEntryValidation = [
-  body("components").isArray().withMessage("components must be an array"),
+  body(
+    "components",
+  )
+    .isArray()
+    .withMessage(
+      "components must be an array",
+    ),
 
-  body("components.*.componentId")
+  body(
+    "components.*.componentId",
+  )
     .notEmpty()
-    .withMessage("componentId is required")
+    .withMessage(
+      "componentId is required",
+    )
     .isMongoId()
-    .withMessage("Invalid componentId"),
+    .withMessage(
+      "Invalid componentId",
+    ),
 
-  body("components.*.isRequired")
+  body(
+    "components.*.isRequired",
+  )
     .optional()
     .isBoolean()
-    .withMessage("isRequired must be boolean"),
+    .withMessage(
+      "isRequired must be boolean",
+    )
+    .toBoolean(),
 
-  body("components.*.items")
+  body(
+    "components.*.items",
+  )
     .optional()
     .isArray()
-    .withMessage("items must be an array"),
+    .withMessage(
+      "items must be an array",
+    ),
 
-  body("components.*.items.*")
+  body(
+    "components.*.items.*",
+  )
     .optional()
-    .custom((value) => {
-      const itemId = typeof value === "string" ? value : value?.itemId;
+    .custom(
+      (value) => {
+        const itemId =
+          typeof value ===
+            "string"
+            ? value
+            : value?.itemId;
 
-      if (typeof itemId !== "string" || !/^[a-f\d]{24}$/i.test(itemId)) {
-        throw new Error("Invalid itemId");
-      }
+        if (
+          typeof itemId !==
+          "string" ||
+          !/^[a-f\d]{24}$/i.test(
+            itemId,
+          )
+        ) {
+          throw new Error(
+            "Invalid itemId",
+          );
+        }
 
-      return true;
-    }),
+        return true;
+      },
+    ),
 ];
 
 const bulkValidation = [
-  body("serviceId")
+  body(
+    "serviceId",
+  )
     .notEmpty()
-    .withMessage("serviceId is required")
+    .withMessage(
+      "serviceId is required",
+    )
     .isMongoId()
-    .withMessage("Invalid serviceId"),
+    .withMessage(
+      "Invalid serviceId",
+    ),
 
-  body("tierId")
+  body(
+    "tierId",
+  )
     .notEmpty()
-    .withMessage("tierId is required")
+    .withMessage(
+      "tierId is required",
+    )
     .isMongoId()
-    .withMessage("Invalid tierId"),
+    .withMessage(
+      "Invalid tierId",
+    ),
 
   ...componentEntryValidation,
 
@@ -87,127 +167,240 @@ const bulkValidation = [
 ];
 
 const serviceTierValidation = [
-  param("serviceId").isMongoId().withMessage("Invalid serviceId"),
+  param(
+    "serviceId",
+  )
+    .isMongoId()
+    .withMessage(
+      "Invalid serviceId",
+    ),
 
-  param("tierId").isMongoId().withMessage("Invalid tierId"),
+  param(
+    "tierId",
+  )
+    .isMongoId()
+    .withMessage(
+      "Invalid tierId",
+    ),
 
   validate,
 ];
 
 const patchValidation = [
-  body("serviceId")
+  body(
+    "serviceId",
+  )
     .notEmpty()
-    .withMessage("serviceId is required")
+    .withMessage(
+      "serviceId is required",
+    )
     .isMongoId()
-    .withMessage("Invalid serviceId"),
+    .withMessage(
+      "Invalid serviceId",
+    ),
 
-  body("tierId")
+  body(
+    "tierId",
+  )
     .notEmpty()
-    .withMessage("tierId is required")
+    .withMessage(
+      "tierId is required",
+    )
     .isMongoId()
-    .withMessage("Invalid tierId"),
+    .withMessage(
+      "Invalid tierId",
+    ),
 
-  body("componentId")
+  body(
+    "componentId",
+  )
     .notEmpty()
-    .withMessage("componentId is required")
+    .withMessage(
+      "componentId is required",
+    )
     .isMongoId()
-    .withMessage("Invalid componentId"),
+    .withMessage(
+      "Invalid componentId",
+    ),
 
-  body().custom((value) => {
-    const allowedFields = [
-      "serviceId",
-      "tierId",
-      "componentId",
-      "isRequired",
-      "name",
-      "items",
-    ];
+  body().custom(
+    (value) => {
+      const allowedFields = [
+        "serviceId",
+        "tierId",
+        "componentId",
+        "isRequired",
+        "items",
+      ];
 
-    const suppliedFields = Object.keys(value ?? {});
+      const suppliedFields =
+        Object.keys(
+          value ?? {},
+        );
 
-    const invalidFields = suppliedFields.filter(
-      (field) => !allowedFields.includes(field),
-    );
+      const invalidFields =
+        suppliedFields.filter(
+          (field) =>
+            !allowedFields.includes(
+              field,
+            ),
+        );
 
-    if (invalidFields.length > 0) {
-      throw new Error(`Invalid update fields: ${invalidFields.join(", ")}`);
-    }
+      if (
+        invalidFields.length >
+        0
+      ) {
+        throw new Error(
+          `Invalid update fields: ${invalidFields.join(", ")}`,
+        );
+      }
 
-    const updateFields = suppliedFields.filter(
-      (field) => !["serviceId", "tierId", "componentId"].includes(field),
-    );
+      const updateFields =
+        suppliedFields.filter(
+          (field) =>
+            ![
+              "serviceId",
+              "tierId",
+              "componentId",
+            ].includes(
+              field,
+            ),
+        );
 
-    if (updateFields.length === 0) {
-      throw new Error("At least one update field is required");
-    }
-
-    return true;
-  }),
-
-  body("isRequired")
-    .optional()
-    .isBoolean()
-    .withMessage("isRequired must be boolean"),
-
-  body("name")
-    .optional()
-    .isString()
-    .withMessage("name must be a string")
-    .trim()
-    .notEmpty()
-    .withMessage("name cannot be empty"),
-
-  body("items").optional().isArray().withMessage("items must be an array"),
-
-  body("items.*")
-    .optional()
-    .custom((value) => {
-      const itemId = typeof value === "string" ? value : value?.itemId;
-
-      if (typeof itemId !== "string" || !/^[a-f\d]{24}$/i.test(itemId)) {
-        throw new Error("Invalid itemId");
+      if (
+        updateFields.length ===
+        0
+      ) {
+        throw new Error(
+          "At least one update field is required",
+        );
       }
 
       return true;
-    }),
+    },
+  ),
+
+  body(
+    "isRequired",
+  )
+    .optional()
+    .isBoolean()
+    .withMessage(
+      "isRequired must be boolean",
+    )
+    .toBoolean(),
+
+  body(
+    "items",
+  )
+    .optional()
+    .isArray()
+    .withMessage(
+      "items must be an array",
+    ),
+
+  body(
+    "items.*",
+  )
+    .optional()
+    .custom(
+      (value) => {
+        const itemId =
+          typeof value ===
+            "string"
+            ? value
+            : value?.itemId;
+
+        if (
+          typeof itemId !==
+          "string" ||
+          !/^[a-f\d]{24}$/i.test(
+            itemId,
+          )
+        ) {
+          throw new Error(
+            "Invalid itemId",
+          );
+        }
+
+        return true;
+      },
+    ),
 
   validate,
 ];
 
+// =========================================================
+// ADMIN - BULK UPSERT
+// =========================================================
+
 router.post(
   "/bulk",
   authenticate,
-  authorizeRoles(Role.ADMIN),
-  requirePermission("service_component.upsert"),
+  authorizeRoles(
+    Role.ADMIN,
+  ),
+  requirePermission(
+    "service_component.upsert",
+  ),
   bulkValidation,
   bulkUpsertServiceComponents,
 );
 
+
+// =========================================================
+// ADMIN - REPLACE
+// =========================================================
+
 router.put(
   "/replace",
   authenticate,
-  authorizeRoles(Role.ADMIN),
-  requirePermission("service_component.replace"),
+  authorizeRoles(
+    Role.ADMIN,
+  ),
+  requirePermission(
+    "service_component.replace",
+  ),
   bulkValidation,
   replaceServiceComponents,
 );
 
-router.get(
-  "/:serviceId/:tierId",
-  authenticate,
-  authorizeRoles(Role.ADMIN),
-  requirePermission("service_component.read"),
-  serviceTierValidation,
-  getComponentsByServiceAndTier,
-);
+
+// =========================================================
+// ADMIN - UPDATE SINGLE MAPPING
+// =========================================================
 
 router.patch(
   "/",
   authenticate,
-  authorizeRoles(Role.ADMIN),
-  requirePermission("service_component.update"),
+  authorizeRoles(
+    Role.ADMIN,
+  ),
+  requirePermission(
+    "service_component.update",
+  ),
   patchValidation,
   updateServiceComponent,
 );
+
+
+// =========================================================
+// ADMIN - DYNAMIC SERVICE / TIER LOOKUP
+// Keep dynamic route last.
+// =========================================================
+
+router.get(
+  "/:serviceId/:tierId",
+  authenticate,
+  authorizeRoles(
+    Role.ADMIN,
+  ),
+  requirePermission(
+    "service_component.read",
+  ),
+  serviceTierValidation,
+  getComponentsByServiceAndTier,
+);
+
 
 export default router;

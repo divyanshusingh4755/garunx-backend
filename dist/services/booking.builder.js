@@ -302,10 +302,14 @@ export class BookingBuilder {
             const bookingComponent = {
                 componentType: component.componentType,
                 componentId: component.componentId,
-                name: componentDocument?.name ?? component.name,
-                isRequired: serviceComponent?.isRequired ?? false,
-                isRemovable: componentDocument?.isRemovable ?? false,
-                isBundled: componentDocument?.isBundled ?? false,
+                name: componentDocument?.name ??
+                    component.name,
+                isRequired: serviceComponent?.isRequired ??
+                    false,
+                isRemovable: componentDocument?.isRemovable ??
+                    false,
+                isBundled: componentDocument?.isBundled ??
+                    false,
                 selected: true,
                 selectedItems: (component.items ?? []).map((item) => ({
                     itemId: item.itemId,
@@ -323,10 +327,16 @@ export class BookingBuilder {
                 },
             };
             if (serviceComponent?._id) {
-                bookingComponent.serviceComponentId = serviceComponent._id;
+                bookingComponent.serviceComponentId =
+                    serviceComponent._id;
             }
             if (componentDocument?.description) {
-                bookingComponent.description = componentDocument.description;
+                bookingComponent.description =
+                    componentDocument.description;
+            }
+            if (componentDocument?.imageUrl) {
+                bookingComponent.imageUrl =
+                    componentDocument.imageUrl;
             }
             return bookingComponent;
         });

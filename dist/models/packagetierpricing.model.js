@@ -60,6 +60,20 @@ const packageTierPricingSchema = new Schema({
 }, {
     timestamps: true,
 });
+packageTierPricingSchema.pre("validate", function () {
+    const hasFixedPrice = typeof this.fixedPrice ===
+        "number";
+    const hasDiscountPercent = typeof this.discountPercent ===
+        "number";
+    if (hasFixedPrice ===
+        hasDiscountPercent) {
+        throw new Error("Exactly one of fixedPrice or discountPercent is required");
+    }
+    if (!Number.isFinite(this.basePrice) ||
+        !Number.isFinite(this.finalPrice)) {
+        throw new Error("Package pricing values must be finite numbers");
+    }
+});
 packageTierPricingSchema.index({
     packageId: 1,
     tierId: 1,

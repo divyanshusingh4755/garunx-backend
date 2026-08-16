@@ -5,4 +5,5 @@ export declare const getTierById: (req: Request, res: Response) => Promise<Respo
 export declare const toggleTierStatus: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
 export declare const getAllTier: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
 export declare const getAllTierAdmin: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
+export declare const exportTiersCsv: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
 //# sourceMappingURL=tier.controllers.d.ts.map

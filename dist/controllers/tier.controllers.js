@@ -132,4 +132,30 @@ export const getAllTierAdmin = async (req, res) => {
         });
     }
 };
+export const exportTiersCsv = async (req, res) => {
+    try {
+        const { tierIds, } = req.body;
+        const result = await TierService.exportTiersToCsv(tierIds);
+        const timestamp = new Date()
+            .toISOString()
+            .replace(/[:.]/g, "-");
+        res.setHeader("Content-Type", "text/csv; charset=utf-8");
+        res.setHeader("Content-Disposition", `attachment; filename="tiers-${timestamp}.csv"`);
+        return res.status(200).send(result.csv);
+    }
+    catch (error) {
+        if (error.message ===
+            "No tiers found for export") {
+            return res.status(404).json({
+                success: false,
+                message: error.message,
+            });
+        }
+        return res.status(400).json({
+            success: false,
+            message: error.message ||
+                "Failed to export tiers",
+        });
+    }
+};
 //# sourceMappingURL=tier.controllers.js.map

@@ -1,6 +1,7 @@
 import { model, Schema, type Types } from "mongoose";
 
 export interface IComponent {
+  _id: Types.ObjectId
   name: string;
   isRemovable: boolean;
   isBundled: boolean;

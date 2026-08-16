@@ -1,4 +1,26 @@
 import { NotificationTemplateService, } from "../services/notification-template.service.js";
+const getStatusCode = (error) => {
+    if (typeof error === "object" &&
+        error !== null &&
+        "code" in error &&
+        error.code === 11000) {
+        return 409;
+    }
+    if (!(error instanceof Error)) {
+        return 500;
+    }
+    if (error.message ===
+        "Notification template not found") {
+        return 404;
+    }
+    if (error.message.includes("already exists")) {
+        return 409;
+    }
+    if (error.message.startsWith("Invalid preference mode")) {
+        return 400;
+    }
+    return 500;
+};
 export const createNotificationTemplate = async (req, res) => {
     try {
         const template = await NotificationTemplateService
@@ -18,7 +40,9 @@ export const createNotificationTemplate = async (req, res) => {
         });
     }
     catch (error) {
-        return res.status(500).json({
+        return res
+            .status(getStatusCode(error))
+            .json({
             success: false,
             message: error instanceof Error
                 ? error.message
@@ -59,7 +83,9 @@ export const getNotificationTemplates = async (req, res) => {
         });
     }
     catch (error) {
-        return res.status(500).json({
+        return res
+            .status(getStatusCode(error))
+            .json({
             success: false,
             message: error instanceof Error
                 ? error.message
@@ -85,7 +111,9 @@ export const getNotificationTemplateById = async (req, res) => {
         });
     }
     catch (error) {
-        return res.status(500).json({
+        return res
+            .status(getStatusCode(error))
+            .json({
             success: false,
             message: error instanceof Error
                 ? error.message
@@ -108,7 +136,9 @@ export const updateNotificationTemplate = async (req, res) => {
         });
     }
     catch (error) {
-        return res.status(500).json({
+        return res
+            .status(getStatusCode(error))
+            .json({
             success: false,
             message: error instanceof Error
                 ? error.message

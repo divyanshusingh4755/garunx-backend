@@ -12,6 +12,8 @@ import {
   getComponentById,
   updateComponent,
   toggleComponentStatus,
+  getAllComponentsAdmin,
+  exportComponentsCsv,
 } from "../controllers/component.controllers.js";
 
 import { authenticate } from "../middleware/authenticate.js";
@@ -66,17 +68,20 @@ const createComponentValidation = [
   body("isRemovable")
     .optional()
     .isBoolean()
-    .withMessage("isRemovable must be boolean"),
+    .withMessage("isRemovable must be boolean")
+    .toBoolean(),
 
   body("isBundled")
     .optional()
     .isBoolean()
-    .withMessage("isBundled must be boolean"),
+    .withMessage("isBundled must be boolean")
+    .toBoolean(),
 
   body("isActive")
     .optional()
     .isBoolean()
-    .withMessage("isActive must be boolean"),
+    .withMessage("isActive must be boolean")
+    .toBoolean(),
 
   validate,
 ];
@@ -137,12 +142,14 @@ const updateComponentValidation = [
   body("isRemovable")
     .optional()
     .isBoolean()
-    .withMessage("isRemovable must be boolean"),
+    .withMessage("isRemovable must be boolean")
+    .toBoolean(),
 
   body("isBundled")
     .optional()
     .isBoolean()
-    .withMessage("isBundled must be boolean"),
+    .withMessage("isBundled must be boolean")
+    .toBoolean(),
 
   validate,
 ];
@@ -160,18 +167,31 @@ const componentStatusValidation = [
     .exists({ checkNull: true })
     .withMessage("isActive is required")
     .isBoolean()
-    .withMessage("isActive must be boolean"),
+    .withMessage("isActive must be boolean")
+    .toBoolean(),
 
   body("confirmed")
     .optional()
     .isBoolean()
-    .withMessage("confirmed must be boolean"),
+    .withMessage("confirmed must be boolean")
+    .toBoolean(),
 
   validate,
 ];
 
-const listValidation = [
-  query("categoryId").optional().isMongoId().withMessage("Invalid category ID"),
+const publicListValidation = [
+  query("categoryId")
+    .optional()
+    .isMongoId()
+    .withMessage("Invalid category ID"),
+
+  query("searchTerm")
+    .optional()
+    .isString()
+    .withMessage("searchTerm must be a string")
+    .trim()
+    .isLength({ max: 100 })
+    .withMessage("searchTerm cannot exceed 100 characters"),
 
   query("limit")
     .optional()
@@ -187,11 +207,6 @@ const listValidation = [
     .optional()
     .isBoolean()
     .withMessage("isRemovable must be true or false"),
-
-  query("isActive")
-    .optional()
-    .isBoolean()
-    .withMessage("isActive must be true or false"),
 
   query("isBundled")
     .optional()
@@ -219,19 +234,67 @@ const listValidation = [
   validate,
 ];
 
+const adminListValidation = [
+  ...publicListValidation.slice(0, -1),
+
+  query("isActive")
+    .optional()
+    .isBoolean()
+    .withMessage("isActive must be true or false"),
+
+  validate,
+];
+
+const exportComponentsValidation = [
+  body("componentIds")
+    .isArray({
+      min: 1,
+      max: 1000,
+    })
+    .withMessage(
+      "componentIds must contain between 1 and 1000 component IDs",
+    ),
+
+  body("componentIds.*")
+    .isMongoId()
+    .withMessage(
+      "Each componentId must be a valid MongoDB ID",
+    ),
+
+  validate,
+];
+
+// =========================================================
+// PUBLIC
+// =========================================================
+
 router.get(
   "/",
-  listValidation,
+  publicListValidation,
   getAllComponents,
 );
 
+
+// =========================================================
+// ADMIN - STATIC ROUTES
+// =========================================================
+
 router.get(
-  "/:componentId",
+  "/admin",
   authenticate,
   authorizeRoles(Role.ADMIN),
   requirePermission("component.read"),
-  componentIdValidation,
-  getComponentById,
+  adminListValidation,
+  getAllComponentsAdmin,
+);
+
+router.post(
+  "/export",
+  authenticate,
+  authorizeRoles(Role.ADMIN),
+  requirePermission("component.export"),
+  exportComponentsValidation,
+  exportComponentsCsv,
 );
 
 router.post(
@@ -243,14 +306,10 @@ router.post(
   createComponent,
 );
 
-router.patch(
-  "/:componentId",
-  authenticate,
-  authorizeRoles(Role.ADMIN),
-  requirePermission("component.update"),
-  updateComponentValidation,
-  updateComponent,
-);
+
+// =========================================================
+// ADMIN - SPECIFIC COMPONENT ACTIONS
+// =========================================================
 
 router.patch(
   "/:componentId/status",
@@ -260,5 +319,30 @@ router.patch(
   componentStatusValidation,
   toggleComponentStatus,
 );
+
+
+// =========================================================
+// ADMIN - GENERIC COMPONENT ROUTES
+// Keep these after more-specific component routes.
+// =========================================================
+
+router.get(
+  "/:componentId",
+  authenticate,
+  authorizeRoles(Role.ADMIN),
+  requirePermission("component.read"),
+  componentIdValidation,
+  getComponentById,
+);
+
+router.patch(
+  "/:componentId",
+  authenticate,
+  authorizeRoles(Role.ADMIN),
+  requirePermission("component.update"),
+  updateComponentValidation,
+  updateComponent,
+);
+
 
 export default router;

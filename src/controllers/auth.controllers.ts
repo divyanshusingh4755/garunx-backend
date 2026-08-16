@@ -48,7 +48,7 @@ export const socialAuth = async (req: Request, res: Response) => {
     const { role, idToken, email } = req.body;
     const { userAgent, ip } = getClientIp(req);
 
-    const result = await AuthService.socialAuth(role, email, userAgent, ip);
+    const result = await AuthService.socialAuth(role, idToken, email, userAgent, ip);
 
     const nextStep = result.isNewUser ? "COMPLETE_PROFILE" : "DASHBOARD";
 

@@ -24,12 +24,19 @@ export class NotificationDeviceService {
             $set: {
                 userId,
                 platform,
-                ...(deviceId && {
-                    deviceId,
-                }),
                 isActive: true,
                 lastUsedAt: new Date(),
+                ...(deviceId !== undefined && {
+                    deviceId,
+                }),
             },
+            ...(deviceId === undefined
+                ? {
+                    $unset: {
+                        deviceId: "",
+                    },
+                }
+                : {}),
         }, {
             new: true,
             upsert: true,

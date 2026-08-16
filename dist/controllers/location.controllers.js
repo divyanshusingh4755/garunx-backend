@@ -204,4 +204,30 @@ export const getAllLocationsAdmin = async (req, res) => {
         });
     }
 };
+export const exportLocationsCsv = async (req, res) => {
+    try {
+        const { locationIds, } = req.body;
+        const result = await LocationService.exportLocationsToCsv(locationIds);
+        const timestamp = new Date()
+            .toISOString()
+            .replace(/[:.]/g, "-");
+        res.setHeader("Content-Type", "text/csv; charset=utf-8");
+        res.setHeader("Content-Disposition", `attachment; filename="locations-${timestamp}.csv"`);
+        return res.status(200).send(result.csv);
+    }
+    catch (error) {
+        if (error.message ===
+            "No locations found for export") {
+            return res.status(404).json({
+                success: false,
+                message: error.message,
+            });
+        }
+        return res.status(getStatusCode(error)).json({
+            success: false,
+            message: error.message ||
+                "Failed to export locations",
+        });
+    }
+};
 //# sourceMappingURL=location.controllers.js.map

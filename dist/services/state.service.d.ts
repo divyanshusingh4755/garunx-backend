@@ -1,6 +1,7 @@
 import { type IState, type IGeoPoint } from "../models/state.model.js";
 type StateUpdate = Partial<Pick<IState, "country" | "name" | "gstCode" | "image" | "description" | "location">>;
 export declare class StateService {
+    private static invalidateStateCache;
     private static applyFilter;
     static createState(params: {
         name: string;
@@ -49,6 +50,13 @@ export declare class StateService {
         _id: import("mongoose").Types.ObjectId;
     } & {
         __v: number;
+    }>;
+    static exportStatesToCsv(params: {
+        exportAll?: boolean;
+        stateIds?: string[];
+    }): Promise<{
+        csv: string;
+        total: number;
     }>;
 }
 export {};

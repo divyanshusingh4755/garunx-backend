@@ -439,4 +439,32 @@ export const deleteUserQuery = async (req, res) => {
         });
     }
 };
+export const exportUserQueriesCsv = async (req, res) => {
+    try {
+        const { queryIds, } = req.body;
+        const result = await UserQueryService.exportUserQueriesToCsv(queryIds);
+        const timestamp = new Date()
+            .toISOString()
+            .replace(/[:.]/g, "-");
+        res.setHeader("Content-Type", "text/csv; charset=utf-8");
+        res.setHeader("Content-Disposition", `attachment; filename="user-queries-${timestamp}.csv"`);
+        return res
+            .status(200)
+            .send(result.csv);
+    }
+    catch (error) {
+        const message = error instanceof Error
+            ? error.message
+            : "Failed to export user queries";
+        const status = message.includes("not found")
+            ? 404
+            : 400;
+        return res
+            .status(status)
+            .json({
+            success: false,
+            message,
+        });
+    }
+};
 //# sourceMappingURL=userQuery.controllers.js.map

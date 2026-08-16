@@ -12,6 +12,48 @@ import type {
 } from "../models/notification.model.js";
 import type { NotificationCategory, NotificationPreferenceMode } from "../models/notification-template.model.js";
 
+const getStatusCode = (
+    error: unknown,
+): number => {
+    if (
+        typeof error === "object" &&
+        error !== null &&
+        "code" in error &&
+        (error as { code?: unknown }).code === 11000
+    ) {
+        return 409;
+    }
+
+    if (!(error instanceof Error)) {
+        return 500;
+    }
+
+    if (
+        error.message ===
+        "Notification template not found"
+    ) {
+        return 404;
+    }
+
+    if (
+        error.message.includes(
+            "already exists",
+        )
+    ) {
+        return 409;
+    }
+
+    if (
+        error.message.startsWith(
+            "Invalid preference mode",
+        )
+    ) {
+        return 400;
+    }
+
+    return 500;
+};
+
 export const createNotificationTemplate =
     async (
         req: Request,
@@ -42,13 +84,15 @@ export const createNotificationTemplate =
                 data: template,
             });
         } catch (error) {
-            return res.status(500).json({
-                success: false,
-                message:
-                    error instanceof Error
-                        ? error.message
-                        : "Failed to create notification template",
-            });
+            return res
+                .status(getStatusCode(error))
+                .json({
+                    success: false,
+                    message:
+                        error instanceof Error
+                            ? error.message
+                            : "Failed to create notification template",
+                });
         }
     };
 
@@ -104,13 +148,15 @@ export const getNotificationTemplates =
                 data: result,
             });
         } catch (error) {
-            return res.status(500).json({
-                success: false,
-                message:
-                    error instanceof Error
-                        ? error.message
-                        : "Failed to fetch notification templates",
-            });
+            return res
+                .status(getStatusCode(error))
+                .json({
+                    success: false,
+                    message:
+                        error instanceof Error
+                            ? error.message
+                            : "Failed to fetch notification templates",
+                });
         }
     };
 
@@ -143,13 +189,15 @@ export const getNotificationTemplateById =
                 data: template,
             });
         } catch (error) {
-            return res.status(500).json({
-                success: false,
-                message:
-                    error instanceof Error
-                        ? error.message
-                        : "Failed to fetch notification template",
-            });
+            return res
+                .status(getStatusCode(error))
+                .json({
+                    success: false,
+                    message:
+                        error instanceof Error
+                            ? error.message
+                            : "Failed to fetch notification template",
+                });
         }
     };
 
@@ -176,12 +224,14 @@ export const updateNotificationTemplate =
                 data: template,
             });
         } catch (error) {
-            return res.status(500).json({
-                success: false,
-                message:
-                    error instanceof Error
-                        ? error.message
-                        : "Failed to update notification template",
-            });
+            return res
+                .status(getStatusCode(error))
+                .json({
+                    success: false,
+                    message:
+                        error instanceof Error
+                            ? error.message
+                            : "Failed to update notification template",
+                });
         }
     };

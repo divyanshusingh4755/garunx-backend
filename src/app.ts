@@ -39,9 +39,11 @@ import queriesRoutes from "./routes/userQuery.routes.js";
 import taxRoutes from "./routes/taxprofile.routes.js";
 import chatRoutes from "./routes/chat.routes.js";
 import rbacRoutes from "./routes/rbac.routes.js";
+import notificationRoutes from "./routes/notification.routes.js";
 
 import { paymentWebhooks } from "./controllers/booking.controllers.js";
 import { HttpError } from "./utils/httpError.js";
+import multer from "multer";
 
 const app: Application = express();
 
@@ -137,6 +139,8 @@ app.use("/api/chat", chatRoutes);
 
 app.use("/api/rbac", rbacRoutes);
 
+app.use("/api/notification", notificationRoutes);
+
 app.get("/health", (_req: Request, res: Response): void => {
   res.status(200).json({
     status: "ok",
@@ -152,20 +156,44 @@ app.use((_req: Request, res: Response): void => {
 });
 
 app.use(
-  (error: unknown, _req: Request, res: Response, _next: NextFunction): void => {
-    const status = error instanceof HttpError ? error.statusCode : 500;
+  (
+    error: unknown,
+    _req: Request,
+    res: Response,
+    _next: NextFunction,
+  ): void => {
+    let status = 500;
 
-    const errorMessage =
-      error instanceof Error ? error.message : "Unknown server error";
+    if (error instanceof HttpError) {
+      status = error.statusCode;
+    } else if (error instanceof multer.MulterError) {
+      status = 400;
+    }
+
+    let errorMessage =
+      error instanceof Error
+        ? error.message
+        : "Unknown server error";
+
+    if (
+      error instanceof multer.MulterError &&
+      error.code === "LIMIT_FILE_SIZE"
+    ) {
+      errorMessage =
+        "Uploaded file exceeds the maximum allowed size";
+    }
 
     if (error instanceof Error) {
-      console.error(error.stack ?? error.message);
+      console.error(
+        error.stack ?? error.message,
+      );
     } else {
       console.error(error);
     }
 
     const message =
-      process.env.NODE_ENV === "production" && status === 500
+      process.env.NODE_ENV === "production" &&
+        status === 500
         ? "Internal server error"
         : errorMessage;
 

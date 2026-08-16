@@ -1,4 +1,4 @@
-import { Types } from "mongoose";
+import mongoose, { Types } from "mongoose";
 
 import { TaxProfile, type ITaxProfile } from "../models/tax-profile.model.js";
 
@@ -8,6 +8,10 @@ import { PackageTierPricing } from "../models/packagetierpricing.model.js";
 
 import { escapeRegex } from "../utils/escapeRegex.js";
 import type { TaxTreatment } from "../types/tax.types.js";
+import { RedisCacheService } from "./redis-cache.service.js";
+import { CacheKeys } from "../cache/cache-keys.js";
+import { CACHE_TTL_SECONDS } from "../cache/constants.js";
+import { HttpError } from "../utils/httpError.js";
 
 export interface CreateTaxProfilePayload {
   name: string;
@@ -37,30 +41,126 @@ export interface TaxProfileFilters {
 type TaxProfileQuery = Record<string, unknown>;
 
 export class TaxProfileService {
-  private static async getTaxProfileUsage(taxProfileId: Types.ObjectId) {
-    const [servicePricing, packagePricing] = await Promise.all([
-      ServicePricing.find({
-        taxProfileId,
-        isActive: true,
-      })
-        .populate("serviceId", "name")
-        .populate("locationId", "name")
-        .populate("tierId", "name")
-        .populate("componentId", "name")
-        .select("serviceId locationId tierId componentId")
-        .lean(),
+  private static async invalidateTaxProfileCache(
+    taxProfileId?: string,
+  ): Promise<void> {
+    const operations: Promise<unknown>[] = [
+      RedisCacheService.deleteByPattern(
+        CacheKeys.taxProfileListPattern(),
+      ),
 
-      PackageTierPricing.find({
-        taxProfileId,
-        isActive: true,
-      })
-        .populate("packageId", "name")
-        .populate("locationId", "name")
-        .populate("tierId", "name")
-        .populate("serviceId", "name")
-        .select("packageId locationId tierId serviceId")
-        .lean(),
+      RedisCacheService.delete(
+        CacheKeys.activeTaxProfileList(),
+      ),
+    ];
+
+    if (taxProfileId) {
+      operations.push(
+        RedisCacheService.delete(
+          CacheKeys.taxProfileDetail(
+            taxProfileId,
+          ),
+        ),
+      );
+    }
+
+    await Promise.all(
+      operations,
+    );
+  }
+
+  private static async invalidateDependentPricingCaches():
+    Promise<void> {
+    await Promise.all([
+      /*
+       * ServicePricing.resolvePricing()
+       */
+      RedisCacheService.deleteByPattern(
+        CacheKeys.serviceResolvedPricingPattern(),
+      ),
+
+      /*
+       * Service aggregate responses can
+       * contain populated tax configuration.
+       */
+      RedisCacheService.deleteByPattern(
+        CacheKeys.serviceFullPattern(),
+      ),
+
+      /*
+       * PackageTierPricing.resolvePricing()
+       */
+      RedisCacheService.deleteByPattern(
+        CacheKeys.packageResolvedPricingPattern(),
+      ),
+
+      /*
+       * Package aggregate responses include
+       * PackageTierPricing / tax data.
+       */
+      RedisCacheService.deleteByPattern(
+        CacheKeys.packageFullPattern(),
+      ),
     ]);
+  }
+
+  private static async getTaxProfileUsage(taxProfileId: Types.ObjectId) {
+    const [
+      servicePricing,
+      packagePricing,
+    ] =
+      await Promise.all([
+        ServicePricing.find({
+          taxProfileId,
+
+          isActive:
+            true,
+        })
+          .populate(
+            "serviceId",
+            "name",
+          )
+          .populate(
+            "locationId",
+            "name",
+          )
+          .populate(
+            "tierId",
+            "name",
+          )
+          .populate(
+            "componentId",
+            "name",
+          )
+          .select(
+            "serviceId locationId tierId componentId",
+          )
+          .lean(),
+
+        PackageTierPricing.find({
+          taxProfileId,
+        })
+          .populate(
+            "packageId",
+            "name",
+          )
+          .populate(
+            "locationId",
+            "name",
+          )
+          .populate(
+            "tierId",
+            "name",
+          )
+          .populate(
+            "serviceId",
+            "name",
+          )
+          .select(
+            "packageId locationId tierId serviceId",
+          )
+          .lean(),
+      ]);
 
     const serviceMap = new Map<
       string,
@@ -240,156 +340,379 @@ export class TaxProfileService {
     }
 
     try {
-      return await TaxProfile.create(createPayload);
-    } catch (error: unknown) {
+      const taxProfile =
+        await TaxProfile.create(
+          createPayload,
+        );
+
+      await this.invalidateTaxProfileCache();
+
+      return taxProfile;
+    } catch (
+    error:
+      unknown
+    ) {
       if (
         error &&
-        typeof error === "object" &&
+        typeof error ===
+        "object" &&
         "code" in error &&
-        error.code === 11000
+        error.code ===
+        11000
       ) {
-        throw new Error(`Tax profile with code ${code} already exists`);
+        throw new Error(
+          `Tax profile with code ${code} already exists`,
+        );
       }
 
       throw error;
     }
   }
 
-  static async getTaxProfiles(filters: TaxProfileFilters = {}) {
+  static async getTaxProfiles(
+    filters: TaxProfileFilters = {},
+  ) {
     const page =
-      Number.isInteger(filters.page) && (filters.page ?? 0) > 0
+      Number.isInteger(
+        filters.page,
+      ) &&
+        (filters.page ?? 0) > 0
         ? filters.page!
         : 1;
 
     const limit =
-      Number.isInteger(filters.limit) && (filters.limit ?? 0) > 0
-        ? Math.min(filters.limit!, 100)
+      Number.isInteger(
+        filters.limit,
+      ) &&
+        (filters.limit ?? 0) > 0
+        ? Math.min(
+          filters.limit!,
+          100,
+        )
         : 20;
 
-    const skip = (page - 1) * limit;
+    const normalizedSearch =
+      filters.search?.trim();
 
-    const query: TaxProfileQuery = {};
+    const cacheKey =
+      CacheKeys.taxProfileList({
+        search:
+          normalizedSearch,
 
-    if (filters.treatment) {
-      query.treatment = filters.treatment;
-    }
+        treatment:
+          filters.treatment,
 
-    if (typeof filters.isActive === "boolean") {
-      query.isActive = filters.isActive;
-    }
+        isActive:
+          filters.isActive,
 
-    if (filters.search?.trim()) {
-      const regex = {
-        $regex: escapeRegex(filters.search.trim()),
-        $options: "i",
-      };
-
-      query.$or = [{ name: regex }, { code: regex }];
-    }
-
-    const [taxProfiles, total] = await Promise.all([
-      TaxProfile.find(query)
-        .populate("createdBy", "fullName email role")
-        .populate("updatedBy", "fullName email role")
-        .sort({
-          isActive: -1,
-          createdAt: -1,
-        })
-        .skip(skip)
-        .limit(limit)
-        .lean(),
-
-      TaxProfile.countDocuments(query),
-    ]);
-
-    const totalPages = Math.ceil(total / limit);
-
-    return {
-      data: taxProfiles,
-      pagination: {
-        total,
         page,
+
         limit,
-        totalPages,
-        hasNextPage: page < totalPages,
-        hasPreviousPage: page > 1,
-      },
-    };
+      });
+
+    return RedisCacheService.getOrSet({
+      key:
+        cacheKey,
+
+      ttlSeconds:
+        CACHE_TTL_SECONDS
+          .TAX_PROFILE_LIST,
+
+      loader:
+        async () => {
+          const skip =
+            (page - 1) *
+            limit;
+
+          const query:
+            TaxProfileQuery = {};
+
+          if (
+            filters.treatment
+          ) {
+            query.treatment =
+              filters.treatment;
+          }
+
+          if (
+            typeof filters.isActive ===
+            "boolean"
+          ) {
+            query.isActive =
+              filters.isActive;
+          }
+
+          if (
+            normalizedSearch
+          ) {
+            const regex = {
+              $regex:
+                escapeRegex(
+                  normalizedSearch,
+                ),
+
+              $options:
+                "i",
+            };
+
+            query.$or = [
+              {
+                name:
+                  regex,
+              },
+
+              {
+                code:
+                  regex,
+              },
+            ];
+          }
+
+          const [
+            taxProfiles,
+            total,
+          ] =
+            await Promise.all([
+              TaxProfile.find(
+                query,
+              )
+                .populate(
+                  "createdBy",
+                  "fullName email role",
+                )
+                .populate(
+                  "updatedBy",
+                  "fullName email role",
+                )
+                .sort({
+                  isActive:
+                    -1,
+
+                  createdAt:
+                    -1,
+                })
+                .skip(
+                  skip,
+                )
+                .limit(
+                  limit,
+                )
+                .lean(),
+
+              TaxProfile.countDocuments(
+                query,
+              ),
+            ]);
+
+          const totalPages =
+            Math.ceil(
+              total /
+              limit,
+            );
+
+          return {
+            data:
+              taxProfiles,
+
+            pagination: {
+              total,
+
+              page,
+
+              limit,
+
+              totalPages,
+
+              hasNextPage:
+                page <
+                totalPages,
+
+              hasPreviousPage:
+                page >
+                1,
+            },
+          };
+        },
+    });
   }
 
   static async getActiveTaxProfiles() {
-    return TaxProfile.find({
-      isActive: true,
-    })
-      .select("name code treatment totalRate")
-      .sort({
-        treatment: 1,
-        totalRate: 1,
-        name: 1,
-      })
-      .lean();
+    return RedisCacheService.getOrSet({
+      key:
+        CacheKeys.activeTaxProfileList(),
+
+      ttlSeconds:
+        CACHE_TTL_SECONDS
+          .ACTIVE_TAX_PROFILE_LIST,
+
+      loader:
+        async () => {
+          return TaxProfile.find({
+            isActive:
+              true,
+          })
+            .select(
+              "name code treatment totalRate",
+            )
+            .sort({
+              treatment:
+                1,
+
+              totalRate:
+                1,
+
+              name:
+                1,
+            })
+            .lean();
+        },
+    });
   }
 
-  static async getTaxProfileById(taxProfileId: string) {
-    this.validateObjectId(taxProfileId);
+  static async getTaxProfileById(
+    taxProfileId: string,
+  ) {
+    this.validateObjectId(
+      taxProfileId,
+    );
 
-    const taxProfile = await TaxProfile.findById(taxProfileId)
-      .populate("createdBy", "fullName email role")
-      .populate("updatedBy", "fullName email role")
-      .lean();
+    return RedisCacheService.getOrSet({
+      key:
+        CacheKeys.taxProfileDetail(
+          taxProfileId,
+        ),
 
-    if (!taxProfile) {
-      throw new Error("Tax profile not found");
-    }
+      ttlSeconds:
+        CACHE_TTL_SECONDS
+          .TAX_PROFILE_DETAIL,
 
-    return taxProfile;
+      loader:
+        async () => {
+          const taxProfile =
+            await TaxProfile.findById(
+              taxProfileId,
+            )
+              .populate(
+                "createdBy",
+                "fullName email role",
+              )
+              .populate(
+                "updatedBy",
+                "fullName email role",
+              )
+              .lean();
+
+          if (!taxProfile) {
+            throw new Error(
+              "Tax profile not found",
+            );
+          }
+
+          return taxProfile;
+        },
+    });
   }
 
   static async updateTaxProfile(
     taxProfileId: string,
     payload: UpdateTaxProfilePayload,
   ) {
-    this.validateObjectId(taxProfileId);
+    this.validateObjectId(
+      taxProfileId,
+    );
 
-    const taxProfile = await TaxProfile.findById(taxProfileId);
+    const taxProfile =
+      await TaxProfile.findById(
+        taxProfileId,
+      );
 
     if (!taxProfile) {
-      throw new Error("Tax profile not found");
+      throw new Error(
+        "Tax profile not found",
+      );
     }
 
-    const nextTreatment = payload.treatment ?? taxProfile.treatment;
+    const nextTreatment =
+      payload.treatment ??
+      taxProfile.treatment;
 
-    const nextTotalRate = payload.totalRate ?? taxProfile.totalRate;
+    const nextTotalRate =
+      payload.totalRate ??
+      taxProfile.totalRate;
 
-    this.validateTreatmentRate(nextTreatment, nextTotalRate);
+    this.validateTreatmentRate(
+      nextTreatment,
+      nextTotalRate,
+    );
 
-    if (payload.name !== undefined) {
-      taxProfile.name = payload.name.trim();
+    if (
+      payload.name !==
+      undefined
+    ) {
+      taxProfile.name =
+        payload.name.trim();
     }
 
-    if (payload.treatment !== undefined) {
-      taxProfile.treatment = payload.treatment;
+    if (
+      payload.treatment !==
+      undefined
+    ) {
+      taxProfile.treatment =
+        payload.treatment;
     }
 
-    if (payload.totalRate !== undefined) {
-      taxProfile.totalRate = payload.totalRate;
+    if (
+      payload.totalRate !==
+      undefined
+    ) {
+      taxProfile.totalRate =
+        payload.totalRate;
     }
 
-    if (Object.prototype.hasOwnProperty.call(payload, "description")) {
-      const description = this.normalizeOptionalString(payload.description);
+    if (
+      Object.prototype.hasOwnProperty.call(
+        payload,
+        "description",
+      )
+    ) {
+      const description =
+        this.normalizeOptionalString(
+          payload.description,
+        );
 
       if (description) {
-        taxProfile.description = description;
+        taxProfile.description =
+          description;
       } else {
-        taxProfile.set("description", undefined);
+        taxProfile.set(
+          "description",
+          undefined,
+        );
       }
     }
 
-    if (payload.updatedBy) {
-      taxProfile.updatedBy = this.toObjectId(payload.updatedBy, "updatedBy");
+    if (
+      payload.updatedBy
+    ) {
+      taxProfile.updatedBy =
+        this.toObjectId(
+          payload.updatedBy,
+          "updatedBy",
+        );
     }
 
-    return taxProfile.save();
+    const updatedTaxProfile =
+      await taxProfile.save();
+
+    await Promise.all([
+      this.invalidateTaxProfileCache(
+        taxProfileId,
+      ),
+
+      this.invalidateDependentPricingCaches(),
+    ]);
+
+    return updatedTaxProfile;
   }
 
   static async updateTaxProfileStatus(
@@ -397,46 +720,278 @@ export class TaxProfileService {
     isActive: boolean,
     updatedBy?: string | Types.ObjectId,
   ) {
-    this.validateObjectId(taxProfileId);
+    this.validateObjectId(
+      taxProfileId,
+    );
 
-    const taxProfile = await TaxProfile.findById(taxProfileId);
+    const objectId =
+      new Types.ObjectId(
+        taxProfileId,
+      );
 
-    if (!taxProfile) {
-      throw new Error("Tax profile not found");
+    const session =
+      await mongoose.startSession();
+
+    let updatedTaxProfile:
+      ITaxProfile | null =
+      null;
+
+    try {
+      await session.withTransaction(
+        async () => {
+          const taxProfile =
+            await TaxProfile.findById(
+              objectId,
+            ).session(
+              session,
+            );
+
+          if (!taxProfile) {
+            throw new Error(
+              "Tax profile not found",
+            );
+          }
+
+          if (
+            taxProfile.isActive ===
+            isActive
+          ) {
+            updatedTaxProfile =
+              taxProfile;
+
+            return;
+          }
+
+          /*
+           * Pricing writers also modify
+           * pricingRevision.
+           *
+           * Deactivation writes this same
+           * TaxProfile document, so concurrent
+           * pricing/deactivation cannot both
+           * commit with a stale view.
+           */
+          if (!isActive) {
+            const [
+              servicePricingCount,
+              packagePricingCount,
+            ] =
+              await Promise.all([
+                ServicePricing.countDocuments({
+                  taxProfileId:
+                    objectId,
+
+                  isActive:
+                    true,
+                }).session(
+                  session,
+                ),
+
+                PackageTierPricing
+                  .countDocuments({
+                    taxProfileId:
+                      objectId,
+                  })
+                  .session(
+                    session,
+                  ),
+              ]);
+
+            if (
+              servicePricingCount >
+              0 ||
+              packagePricingCount >
+              0
+            ) {
+              const error =
+                new Error(
+                  "Cannot deactivate this tax profile because it is used by active service or package pricing. Reassign those pricing records first.",
+                ) as Error & {
+                  statusCode?: number;
+                };
+
+              error.statusCode =
+                409;
+
+              throw error;
+            }
+          }
+
+          taxProfile.isActive =
+            isActive;
+
+          if (updatedBy) {
+            taxProfile.updatedBy =
+              this.toObjectId(
+                updatedBy,
+                "updatedBy",
+              );
+          }
+
+          updatedTaxProfile =
+            await taxProfile.save({
+              session,
+            });
+        },
+      );
+    } finally {
+      await session.endSession();
     }
 
-    if (taxProfile.isActive === isActive) {
-      return taxProfile;
+    if (!updatedTaxProfile) {
+      throw new Error(
+        "Unable to update tax profile status",
+      );
     }
 
-    if (!isActive) {
-      const usage = await this.getTaxProfileUsage(taxProfile._id);
+    await Promise.all([
+      this.invalidateTaxProfileCache(
+        taxProfileId,
+      ),
 
-      const isInUse =
-        usage.summary.servicePricingCount > 0 ||
-        usage.summary.packagePricingCount > 0;
+      this.invalidateDependentPricingCaches(),
+    ]);
 
-      if (isInUse) {
-        const error = new Error(
-          "Cannot deactivate this tax profile because it is used by active service or package pricing. Reassign those pricing records first.",
-        ) as Error & {
-          statusCode?: number;
-          details?: unknown;
-        };
+    return updatedTaxProfile;
+  }
 
-        error.statusCode = 409;
-        error.details = usage;
+  static async exportTaxProfilesToCsv(
+    taxProfileIds: string[],
+  ): Promise<{
+    csv: string;
+    total: number;
+  }> {
+    const uniqueTaxProfileIds = [
+      ...new Set(taxProfileIds),
+    ];
 
-        throw error;
+    const taxProfiles =
+      await TaxProfile.find({
+        _id: {
+          $in: uniqueTaxProfileIds,
+        },
+      })
+        .select(
+          [
+            "code",
+            "name",
+            "treatment",
+            "totalRate",
+            "description",
+            "isActive",
+            "createdAt",
+            "updatedAt",
+          ].join(" "),
+        )
+        .sort({
+          name: 1,
+          _id: 1,
+        })
+        .lean();
+
+    if (taxProfiles.length === 0) {
+      throw new HttpError(
+        404,
+        "No tax profiles found for export",
+      );
+    }
+
+    const escapeCsv = (
+      value: unknown,
+    ): string => {
+      if (
+        value === null ||
+        value === undefined
+      ) {
+        return "";
       }
-    }
 
-    taxProfile.isActive = isActive;
+      let stringValue =
+        String(value);
 
-    if (updatedBy) {
-      taxProfile.updatedBy = this.toObjectId(updatedBy, "updatedBy");
-    }
+      /*
+       * Protect CSV files opened in Excel /
+       * spreadsheet software from formula
+       * injection.
+       */
+      if (
+        /^[=+\-@]/.test(
+          stringValue.trimStart(),
+        )
+      ) {
+        stringValue =
+          `'${stringValue}`;
+      }
 
-    return taxProfile.save();
+      if (
+        stringValue.includes(",") ||
+        stringValue.includes('"') ||
+        stringValue.includes("\n") ||
+        stringValue.includes("\r")
+      ) {
+        return `"${stringValue.replace(
+          /"/g,
+          '""',
+        )}"`;
+      }
+
+      return stringValue;
+    };
+
+    const headers = [
+      "Code",
+      "Name",
+      "Treatment",
+      "Total Rate (%)",
+      "Description",
+      "Active",
+      "Created At",
+      "Updated At",
+    ];
+
+    const rows =
+      taxProfiles.map(
+        (taxProfile) => [
+          taxProfile.code,
+          taxProfile.name,
+          taxProfile.treatment,
+          taxProfile.totalRate,
+          taxProfile.description ?? "",
+          taxProfile.isActive
+            ? "Yes"
+            : "No",
+
+          taxProfile.createdAt
+            ? new Date(
+              taxProfile.createdAt,
+            ).toISOString()
+            : "",
+
+          taxProfile.updatedAt
+            ? new Date(
+              taxProfile.updatedAt,
+            ).toISOString()
+            : "",
+        ],
+      );
+
+    const csv = [
+      headers
+        .map(escapeCsv)
+        .join(","),
+
+      ...rows.map(
+        (row) =>
+          row
+            .map(escapeCsv)
+            .join(","),
+      ),
+    ].join("\n");
+
+    return {
+      csv,
+      total:
+        taxProfiles.length,
+    };
   }
 }

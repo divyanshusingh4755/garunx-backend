@@ -41,7 +41,7 @@ export class NotificationReminderService {
                     scheduledAt: booking.scheduledAt,
                 },
                 referenceId: booking._id,
-                dedupeKey: `BOOKING:${booking._id.toString()}:24_HOUR_REMINDER`,
+                dedupeKey: `BOOKING:${booking._id}:24_HOUR_REMINDER:${booking.scheduledAt.getTime()}`,
                 channels: {
                     email: true,
                     push: true,
@@ -90,7 +90,7 @@ export class NotificationReminderService {
                     paymentExpiresAt: booking.paymentExpiresAt,
                 },
                 referenceId: booking._id,
-                dedupeKey: `BOOKING:${booking._id.toString()}:PAYMENT_EXPIRY_30_MIN`,
+                dedupeKey: `BOOKING:${booking._id}:PAYMENT_EXPIRY_30_MIN:${booking.paymentExpiresAt.getTime()}`,
                 channels: {
                     email: true,
                     push: true,

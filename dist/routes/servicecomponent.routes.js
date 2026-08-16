@@ -1,10 +1,10 @@
 import { Router, } from "express";
-import { param, body, validationResult } from "express-validator";
+import { body, param, validationResult, } from "express-validator";
 import { bulkUpsertServiceComponents, replaceServiceComponents, getComponentsByServiceAndTier, updateServiceComponent, } from "../controllers/servicecomponent.controllers.js";
-import { authenticate } from "../middleware/authenticate.js";
-import { authorizeRoles } from "../middleware/authorizeRoles.js";
-import { requirePermission } from "../middleware/rbac.js";
-import { Role } from "../types/rbac.js";
+import { authenticate, } from "../middleware/authenticate.js";
+import { authorizeRoles, } from "../middleware/authorizeRoles.js";
+import { requirePermission, } from "../middleware/rbac.js";
+import { Role, } from "../types/rbac.js";
 const router = Router();
 const validate = (req, res, next) => {
     const errors = validationResult(req);
@@ -12,14 +12,17 @@ const validate = (req, res, next) => {
         const firstError = errors.array()[0];
         return res.status(400).json({
             success: false,
-            message: firstError?.msg ?? "Validation failed",
+            message: firstError?.msg ??
+                "Validation failed",
             error: firstError,
         });
     }
     next();
 };
 const componentEntryValidation = [
-    body("components").isArray().withMessage("components must be an array"),
+    body("components")
+        .isArray()
+        .withMessage("components must be an array"),
     body("components.*.componentId")
         .notEmpty()
         .withMessage("componentId is required")
@@ -28,7 +31,8 @@ const componentEntryValidation = [
     body("components.*.isRequired")
         .optional()
         .isBoolean()
-        .withMessage("isRequired must be boolean"),
+        .withMessage("isRequired must be boolean")
+        .toBoolean(),
     body("components.*.items")
         .optional()
         .isArray()
@@ -36,8 +40,13 @@ const componentEntryValidation = [
     body("components.*.items.*")
         .optional()
         .custom((value) => {
-        const itemId = typeof value === "string" ? value : value?.itemId;
-        if (typeof itemId !== "string" || !/^[a-f\d]{24}$/i.test(itemId)) {
+        const itemId = typeof value ===
+            "string"
+            ? value
+            : value?.itemId;
+        if (typeof itemId !==
+            "string" ||
+            !/^[a-f\d]{24}$/i.test(itemId)) {
             throw new Error("Invalid itemId");
         }
         return true;
@@ -58,8 +67,12 @@ const bulkValidation = [
     validate,
 ];
 const serviceTierValidation = [
-    param("serviceId").isMongoId().withMessage("Invalid serviceId"),
-    param("tierId").isMongoId().withMessage("Invalid tierId"),
+    param("serviceId")
+        .isMongoId()
+        .withMessage("Invalid serviceId"),
+    param("tierId")
+        .isMongoId()
+        .withMessage("Invalid tierId"),
     validate,
 ];
 const patchValidation = [
@@ -84,16 +97,21 @@ const patchValidation = [
             "tierId",
             "componentId",
             "isRequired",
-            "name",
             "items",
         ];
         const suppliedFields = Object.keys(value ?? {});
         const invalidFields = suppliedFields.filter((field) => !allowedFields.includes(field));
-        if (invalidFields.length > 0) {
+        if (invalidFields.length >
+            0) {
             throw new Error(`Invalid update fields: ${invalidFields.join(", ")}`);
         }
-        const updateFields = suppliedFields.filter((field) => !["serviceId", "tierId", "componentId"].includes(field));
-        if (updateFields.length === 0) {
+        const updateFields = suppliedFields.filter((field) => ![
+            "serviceId",
+            "tierId",
+            "componentId",
+        ].includes(field));
+        if (updateFields.length ===
+            0) {
             throw new Error("At least one update field is required");
         }
         return true;
@@ -101,29 +119,44 @@ const patchValidation = [
     body("isRequired")
         .optional()
         .isBoolean()
-        .withMessage("isRequired must be boolean"),
-    body("name")
+        .withMessage("isRequired must be boolean")
+        .toBoolean(),
+    body("items")
         .optional()
-        .isString()
-        .withMessage("name must be a string")
-        .trim()
-        .notEmpty()
-        .withMessage("name cannot be empty"),
-    body("items").optional().isArray().withMessage("items must be an array"),
+        .isArray()
+        .withMessage("items must be an array"),
     body("items.*")
         .optional()
         .custom((value) => {
-        const itemId = typeof value === "string" ? value : value?.itemId;
-        if (typeof itemId !== "string" || !/^[a-f\d]{24}$/i.test(itemId)) {
+        const itemId = typeof value ===
+            "string"
+            ? value
+            : value?.itemId;
+        if (typeof itemId !==
+            "string" ||
+            !/^[a-f\d]{24}$/i.test(itemId)) {
             throw new Error("Invalid itemId");
         }
         return true;
     }),
     validate,
 ];
+// =========================================================
+// ADMIN - BULK UPSERT
+// =========================================================
 router.post("/bulk", authenticate, authorizeRoles(Role.ADMIN), requirePermission("service_component.upsert"), bulkValidation, bulkUpsertServiceComponents);
+// =========================================================
+// ADMIN - REPLACE
+// =========================================================
 router.put("/replace", authenticate, authorizeRoles(Role.ADMIN), requirePermission("service_component.replace"), bulkValidation, replaceServiceComponents);
-router.get("/:serviceId/:tierId", authenticate, authorizeRoles(Role.ADMIN), requirePermission("service_component.read"), serviceTierValidation, getComponentsByServiceAndTier);
+// =========================================================
+// ADMIN - UPDATE SINGLE MAPPING
+// =========================================================
 router.patch("/", authenticate, authorizeRoles(Role.ADMIN), requirePermission("service_component.update"), patchValidation, updateServiceComponent);
+// =========================================================
+// ADMIN - DYNAMIC SERVICE / TIER LOOKUP
+// Keep dynamic route last.
+// =========================================================
+router.get("/:serviceId/:tierId", authenticate, authorizeRoles(Role.ADMIN), requirePermission("service_component.read"), serviceTierValidation, getComponentsByServiceAndTier);
 export default router;
 //# sourceMappingURL=servicecomponent.routes.js.map

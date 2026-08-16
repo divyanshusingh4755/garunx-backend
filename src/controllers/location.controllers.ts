@@ -295,3 +295,59 @@ export const getAllLocationsAdmin = async (
     });
   }
 };
+
+export const exportLocationsCsv = async (
+  req: Request,
+  res: Response,
+) => {
+  try {
+    const {
+      locationIds,
+    }: {
+      locationIds: string[];
+    } = req.body;
+
+    const result =
+      await LocationService.exportLocationsToCsv(
+        locationIds,
+      );
+
+    const timestamp =
+      new Date()
+        .toISOString()
+        .replace(/[:.]/g, "-");
+
+    res.setHeader(
+      "Content-Type",
+      "text/csv; charset=utf-8",
+    );
+
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="locations-${timestamp}.csv"`,
+    );
+
+    return res.status(200).send(
+      result.csv,
+    );
+  } catch (error: any) {
+    if (
+      error.message ===
+      "No locations found for export"
+    ) {
+      return res.status(404).json({
+        success: false,
+        message: error.message,
+      });
+    }
+
+    return res.status(
+      getStatusCode(error),
+    ).json({
+      success: false,
+      message:
+        error.message ||
+        "Failed to export locations",
+    });
+  }
+};

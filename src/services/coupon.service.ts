@@ -3,6 +3,14 @@ import { Types } from "mongoose";
 import { Coupon, type ICoupon } from "../models/coupon.model.js";
 
 import { escapeRegex } from "../utils/escapeRegex.js";
+import { NotificationService } from "./notification.service.js";
+import { User } from "../models/user.model.js";
+import { RedisCacheService } from "./redis-cache.service.js";
+import { CacheKeys } from "../cache/cache-keys.js";
+import { CACHE_TTL_SECONDS } from "../cache/constants.js";
+import { Service } from "../models/service.model.js";
+import { Package } from "../models/package.model.js";
+import { Booking } from "../models/booking.model.js";
 
 type ApplicableOn = "ALL" | "SERVICE" | "PACKAGE" | "REFERRAL";
 
@@ -31,7 +39,6 @@ interface GetAvailableCouponsInput {
   serviceId?: string;
   packageId?: string;
   orderAmount?: number;
-  isFirstOrder?: boolean;
 }
 
 interface ValidateCouponInput {
@@ -40,7 +47,6 @@ interface ValidateCouponInput {
   packageId?: string;
   orderAmount: number;
   userId?: string;
-  isFirstOrder?: boolean;
 }
 
 type SortSpecification = Record<string, 1 | -1 | { $meta: "textScore" }>;
@@ -48,6 +54,243 @@ type SortSpecification = Record<string, 1 | -1 | { $meta: "textScore" }>;
 type ProjectionSpecification = Record<string, 0 | 1 | { $meta: "textScore" }>;
 
 export class CouponService {
+  private static async validateCouponReferences(
+    coupon: {
+      applicableOn: ApplicableOn;
+
+      services?:
+      readonly Types.ObjectId[];
+
+      packages?:
+      readonly Types.ObjectId[];
+
+      assignedUserId?:
+      Types.ObjectId | null;
+    },
+  ): Promise<void> {
+    if (
+      coupon.applicableOn ===
+      "SERVICE"
+    ) {
+      const serviceIds = [
+        ...new Set(
+          (coupon.services ?? [])
+            .map(
+              (id) =>
+                id.toString(),
+            ),
+        ),
+      ];
+
+      if (serviceIds.length === 0) {
+        throw new Error(
+          "At least one service is required for SERVICE coupons",
+        );
+      }
+
+      const existingServiceCount =
+        await Service.countDocuments({
+          _id: {
+            $in:
+              serviceIds.map(
+                (id) =>
+                  new Types.ObjectId(id),
+              ),
+          },
+        });
+
+      if (
+        existingServiceCount !==
+        serviceIds.length
+      ) {
+        throw new Error(
+          "One or more selected services do not exist",
+        );
+      }
+    }
+
+    if (
+      coupon.applicableOn ===
+      "PACKAGE"
+    ) {
+      const packageIds = [
+        ...new Set(
+          (coupon.packages ?? [])
+            .map(
+              (id) =>
+                id.toString(),
+            ),
+        ),
+      ];
+
+      if (packageIds.length === 0) {
+        throw new Error(
+          "At least one package is required for PACKAGE coupons",
+        );
+      }
+
+      const existingPackageCount =
+        await Package.countDocuments({
+          _id: {
+            $in:
+              packageIds.map(
+                (id) =>
+                  new Types.ObjectId(id),
+              ),
+          },
+        });
+
+      if (
+        existingPackageCount !==
+        packageIds.length
+      ) {
+        throw new Error(
+          "One or more selected packages do not exist",
+        );
+      }
+    }
+
+    if (
+      coupon.applicableOn ===
+      "REFERRAL"
+    ) {
+      if (!coupon.assignedUserId) {
+        throw new Error(
+          "assignedUserId is required for REFERRAL coupons",
+        );
+      }
+
+      const assignedUser =
+        await User.exists({
+          _id:
+            coupon.assignedUserId,
+
+          role:
+            "USER",
+        });
+
+      if (!assignedUser) {
+        throw new Error(
+          "Assigned user not found",
+        );
+      }
+    }
+  }
+
+  private static async isUserFirstOrder(
+    userId: string,
+  ): Promise<boolean> {
+    if (!Types.ObjectId.isValid(userId)) {
+      throw new Error(
+        "Invalid user ID",
+      );
+    }
+
+    /*
+     * A user is considered a first-order user
+     * only when they have never successfully
+     * paid for a previous booking.
+     *
+     * Pending / failed / expired payment attempts
+     * do not disqualify the user.
+     */
+    const previousPaidBooking =
+      await Booking.exists({
+        userId:
+          new Types.ObjectId(userId),
+
+        isDeleted: {
+          $ne: true,
+        },
+
+        "payment.status":
+          "PAID",
+      });
+
+    return !previousPaidBooking;
+  }
+
+  private static async invalidateCouponCache(
+    couponId?: string,
+  ): Promise<void> {
+    const operations: Promise<unknown>[] = [
+      RedisCacheService.deleteByPattern(
+        CacheKeys.couponListPattern(),
+      ),
+    ];
+
+    if (couponId) {
+      operations.push(
+        RedisCacheService.delete(
+          CacheKeys.couponDetail(
+            couponId,
+          ),
+        ),
+      );
+    }
+
+    await Promise.all(
+      operations,
+    );
+  }
+
+  private static async notifyReferralCouponAssignment(params: {
+    couponId: string;
+    assignedUserId: string;
+    couponCode: string;
+    couponName: string;
+    discount: number;
+    discountType: "PERCENTAGE" | "FIXED";
+    validTill?: Date;
+    dedupeKey: string;
+  }): Promise<void> {
+    try {
+      const recipient = await User.findById(
+        params.assignedUserId,
+      ).select("_id role email");
+
+      if (!recipient) {
+        console.error(
+          `[COUPON NOTIFICATION] Assigned user ${params.assignedUserId} not found`,
+        );
+        return;
+      }
+
+      const discountText =
+        params.discountType === "PERCENTAGE"
+          ? `${params.discount}%`
+          : `₹${params.discount}`;
+
+      const validityText =
+        params.validTill
+          ? params.validTill.toISOString()
+          : "No expiry date";
+
+      await NotificationService.createFromTemplate({
+        recipientId: recipient._id,
+        recipientRole: recipient.role,
+        templateCode: "REFERRAL_COUPON_ASSIGNED",
+        variables: {
+          couponCode: params.couponCode,
+          couponName: params.couponName,
+          discountText,
+          validityText,
+        },
+        referenceId: params.couponId,
+        dedupeKey: params.dedupeKey,
+        channels: {
+          email: Boolean(recipient.email),
+          push: true,
+        },
+      });
+    } catch (error) {
+      console.error(
+        `[COUPON NOTIFICATION] Failed to send referral coupon notification for ${params.couponCode}:`,
+        error,
+      );
+    }
+  }
+
   private static ensureValidId(id: string): void {
     if (!Types.ObjectId.isValid(id)) {
       throw new Error("Invalid coupon ID");
@@ -71,10 +314,49 @@ export class CouponService {
 
     const coupon = new Coupon({
       ...couponData,
-      couponCode: normalizedCode,
+      couponCode:
+        normalizedCode,
     });
 
-    return coupon.save();
+    await this.validateCouponReferences({
+      applicableOn:
+        coupon.applicableOn,
+
+      services:
+        coupon.services,
+
+      packages:
+        coupon.packages,
+
+      assignedUserId:
+        coupon.assignedUserId ??
+        null,
+    });
+
+    await coupon.save();
+
+    if (
+      coupon.applicableOn === "REFERRAL" &&
+      coupon.assignedUserId
+    ) {
+      await this.notifyReferralCouponAssignment({
+        couponId: coupon._id.toString(),
+        assignedUserId: coupon.assignedUserId.toString(),
+        couponCode: coupon.couponCode,
+        couponName: coupon.name,
+        discount: coupon.discount,
+        discountType: coupon.discountType,
+        ...(coupon.validTill && {
+          validTill: coupon.validTill,
+        }),
+        dedupeKey:
+          `COUPON:REFERRAL_ASSIGNED:${coupon._id}:${coupon.assignedUserId}:${coupon.updatedAt.getTime()}`,
+      });
+    }
+
+    await this.invalidateCouponCache();
+
+    return coupon;
   }
 
   static async updateCoupon(id: string, updateData: CouponUpdateData) {
@@ -85,6 +367,12 @@ export class CouponService {
     if (!coupon) {
       throw new Error("Coupon not found");
     }
+
+    const previousApplicableOn =
+      coupon.applicableOn;
+
+    const previousAssignedUserId =
+      coupon.assignedUserId?.toString();
 
     if (updateData.couponCode !== undefined) {
       const normalizedCode = updateData.couponCode.trim().toUpperCase();
@@ -150,7 +438,56 @@ export class CouponService {
       throw new Error("assignedUserId is required for REFERRAL coupons");
     }
 
+    await this.validateCouponReferences({
+      applicableOn:
+        coupon.applicableOn,
+
+      services:
+        coupon.services,
+
+      packages:
+        coupon.packages,
+
+      assignedUserId:
+        coupon.assignedUserId ??
+        null,
+    });
+
     await coupon.save();
+
+    const currentAssignedUserId =
+      coupon.assignedUserId?.toString();
+
+    const becameReferralCoupon =
+      previousApplicableOn !== "REFERRAL" &&
+      coupon.applicableOn === "REFERRAL";
+
+    const assignedUserChanged =
+      currentAssignedUserId !== undefined &&
+      currentAssignedUserId !== previousAssignedUserId;
+
+    if (
+      coupon.applicableOn === "REFERRAL" &&
+      currentAssignedUserId &&
+      (
+        becameReferralCoupon ||
+        assignedUserChanged
+      )
+    ) {
+      await this.notifyReferralCouponAssignment({
+        couponId: coupon._id.toString(),
+        assignedUserId: currentAssignedUserId,
+        couponCode: coupon.couponCode,
+        couponName: coupon.name,
+        discount: coupon.discount,
+        discountType: coupon.discountType,
+        ...(coupon.validTill && {
+          validTill: coupon.validTill,
+        }),
+        dedupeKey:
+          `COUPON:REFERRAL_ASSIGNED:${coupon._id}:${currentAssignedUserId}:${coupon.updatedAt.getTime()}`,
+      });
+    }
 
     // Return the same populated structure as GET APIs.
     await coupon.populate([
@@ -164,53 +501,11 @@ export class CouponService {
       },
     ]);
 
-    return coupon;
-  }
-
-  static async getCouponById(id: string) {
-    this.ensureValidId(id);
-
-    const coupon = await Coupon.findById(id)
-      .populate({
-        path: "services",
-        select: "_id name",
-      })
-      .populate({
-        path: "packages",
-        select: "_id name",
-      });
-
-    if (!coupon) {
-      throw new Error("Coupon not found");
-    }
+    await this.invalidateCouponCache(
+      id,
+    );
 
     return coupon;
-  }
-
-  static async deleteCoupon(id: string) {
-    this.ensureValidId(id);
-
-    const coupon = await Coupon.findByIdAndDelete(id);
-
-    if (!coupon) {
-      throw new Error("Coupon not found");
-    }
-
-    return coupon;
-  }
-
-  static async toggleCouponStatus(id: string) {
-    this.ensureValidId(id);
-
-    const coupon = await Coupon.findById(id);
-
-    if (!coupon) {
-      throw new Error("Coupon not found");
-    }
-
-    coupon.isActive = !coupon.isActive;
-
-    return coupon.save();
   }
 
   static async findCoupons(
@@ -224,155 +519,439 @@ export class CouponService {
     sortOrder: "asc" | "desc" = "desc",
   ) {
     const safeLimit =
-      Number.isInteger(limit) && limit > 0 ? Math.min(limit, 100) : 20;
+      Number.isInteger(limit) &&
+        limit > 0
+        ? Math.min(
+          limit,
+          100,
+        )
+        : 20;
 
-    const safePage = Number.isInteger(page) && page > 0 ? page : 1;
+    const safePage =
+      Number.isInteger(page) &&
+        page > 0
+        ? page
+        : 1;
 
-    const skip = safeLimit * (safePage - 1);
-
-    const conditions: Record<string, unknown>[] = [];
-
-    if (typeof isActive === "boolean") {
-      conditions.push({ isActive });
-    }
-
-    if (applicableOn) {
-      const values = (
-        Array.isArray(applicableOn) ? applicableOn : applicableOn.split(",")
-      )
-        .map((item) => item.trim().toUpperCase())
-        .filter(Boolean) as ApplicableOn[];
-
-      if (assignedUserId) {
-        conditions.push({
-          $or: values.map((value) =>
-            value === "REFERRAL"
-              ? {
-                applicableOn: "REFERRAL",
-                assignedUserId,
-              }
-              : {
-                applicableOn: value,
-              },
-          ),
-        });
-      } else {
-        conditions.push({
-          applicableOn: {
-            $in: values,
-          },
-        });
-      }
-    } else if (assignedUserId) {
-      conditions.push({
+    if (
+      assignedUserId &&
+      !Types.ObjectId.isValid(
         assignedUserId,
-      });
+      )
+    ) {
+      throw new Error(
+        "Invalid assigned user ID",
+      );
     }
 
-    const normalizedSearch = searchTerm?.trim();
+    const normalizedSearch =
+      searchTerm?.trim();
 
-    const isTextSearch = Boolean(
-      normalizedSearch && normalizedSearch.length > 4,
-    );
+    const isTextSearch =
+      Boolean(
+        normalizedSearch &&
+        normalizedSearch.length > 4,
+      );
 
-    if (normalizedSearch) {
-      if (isTextSearch) {
-        conditions.push({
-          $text: {
-            $search: normalizedSearch,
-          },
-        });
-      } else {
-        conditions.push({
-          $or: [
-            {
-              name: {
-                $regex: `^${escapeRegex(normalizedSearch)}`,
-                $options: "i",
-              },
-            },
-            {
-              couponCode: {
-                $regex: `^${escapeRegex(normalizedSearch.toUpperCase())}`,
-              },
-            },
-          ],
-        });
-      }
-    }
-
-    const query = conditions.length > 0 ? { $and: conditions } : {};
-
-    const allowedSortFields = new Set([
-      "createdAt",
-      "updatedAt",
-      "name",
-      "couponCode",
-      "applicableOn",
-      "discount",
-      "usageLimit",
-      "usedCount",
-      "validFrom",
-      "validTill",
-      "isActive",
-      "relevance",
-    ]);
-
-    const safeSortBy = allowedSortFields.has(sortBy) ? sortBy : "createdAt";
-
-    let projection: ProjectionSpecification = {};
-    let sortCriteria: SortSpecification;
-
-    if (isTextSearch && safeSortBy === "relevance") {
-      projection = {
-        score: {
-          $meta: "textScore",
-        },
-      };
-
-      sortCriteria = {
-        score: {
-          $meta: "textScore",
-        },
-      };
-    } else {
-      const actualSortField =
-        safeSortBy === "relevance" ? "createdAt" : safeSortBy;
-
-      sortCriteria = {
-        [actualSortField]: sortOrder === "desc" ? -1 : 1,
-      };
-
-      if (actualSortField !== "createdAt") {
-        sortCriteria.createdAt = -1;
-      }
-    }
-
-    try {
-      const [data, total] = await Promise.all([
-        Coupon.find(query, projection)
-          .populate("services", "name")
-          .populate("packages", "name")
-          .sort(sortCriteria)
-          .skip(skip)
-          .limit(safeLimit)
-          .lean(),
-
-        Coupon.countDocuments(query),
+    const allowedSortFields =
+      new Set([
+        "createdAt",
+        "updatedAt",
+        "name",
+        "couponCode",
+        "applicableOn",
+        "discount",
+        "usageLimit",
+        "usedCount",
+        "validFrom",
+        "validTill",
+        "isActive",
+        "relevance",
       ]);
 
-      return {
-        data,
-        total,
-        page: safePage,
-        limit: safeLimit,
-        totalPages: Math.ceil(total / safeLimit),
-      };
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : "Unknown error";
+    const safeSortBy =
+      allowedSortFields.has(
+        sortBy,
+      )
+        ? sortBy
+        : "createdAt";
 
-      throw new Error(`Coupon fetch failed: ${message}`);
+    const effectiveSortBy =
+      safeSortBy ===
+        "relevance" &&
+        !isTextSearch
+        ? "createdAt"
+        : safeSortBy;
+
+    const cacheKey =
+      CacheKeys.couponList({
+        searchTerm:
+          normalizedSearch,
+
+        assignedUserId,
+
+        applicableOn,
+
+        limit:
+          safeLimit,
+
+        page:
+          safePage,
+
+        isActive,
+
+        sortBy:
+          effectiveSortBy,
+
+        sortOrder,
+      });
+
+    return RedisCacheService.getOrSet({
+      key:
+        cacheKey,
+
+      ttlSeconds:
+        CACHE_TTL_SECONDS
+          .COUPON_LIST,
+
+      loader:
+        async () => {
+          const skip =
+            safeLimit *
+            (safePage - 1);
+
+          const conditions:
+            Record<
+              string,
+              unknown
+            >[] = [];
+
+          if (
+            typeof isActive ===
+            "boolean"
+          ) {
+            conditions.push({
+              isActive,
+            });
+          }
+
+          if (
+            applicableOn
+          ) {
+            const values =
+              (
+                Array.isArray(
+                  applicableOn,
+                )
+                  ? applicableOn
+                  : applicableOn
+                    .split(",")
+              )
+                .map(
+                  (
+                    item,
+                  ) =>
+                    item
+                      .trim()
+                      .toUpperCase(),
+                )
+                .filter(
+                  Boolean,
+                ) as ApplicableOn[];
+
+            if (
+              assignedUserId
+            ) {
+              conditions.push({
+                $or:
+                  values.map(
+                    (
+                      value,
+                    ) =>
+                      value ===
+                        "REFERRAL"
+                        ? {
+                          applicableOn:
+                            "REFERRAL",
+
+                          assignedUserId:
+                            new Types.ObjectId(
+                              assignedUserId,
+                            ),
+                        }
+                        : {
+                          applicableOn:
+                            value,
+                        },
+                  ),
+              });
+            } else {
+              conditions.push({
+                applicableOn: {
+                  $in:
+                    values,
+                },
+              });
+            }
+          } else if (
+            assignedUserId
+          ) {
+            conditions.push({
+              assignedUserId:
+                new Types.ObjectId(
+                  assignedUserId,
+                ),
+            });
+          }
+
+          if (
+            normalizedSearch
+          ) {
+            if (
+              isTextSearch
+            ) {
+              conditions.push({
+                $text: {
+                  $search:
+                    normalizedSearch,
+                },
+              });
+            } else {
+              conditions.push({
+                $or: [
+                  {
+                    name: {
+                      $regex:
+                        `^${escapeRegex(
+                          normalizedSearch,
+                        )}`,
+
+                      $options:
+                        "i",
+                    },
+                  },
+
+                  {
+                    couponCode: {
+                      $regex:
+                        `^${escapeRegex(
+                          normalizedSearch
+                            .toUpperCase(),
+                        )}`,
+                    },
+                  },
+                ],
+              });
+            }
+          }
+
+          const query =
+            conditions.length >
+              0
+              ? {
+                $and:
+                  conditions,
+              }
+              : {};
+
+          let projection:
+            ProjectionSpecification =
+            {};
+
+          let sortCriteria:
+            SortSpecification;
+
+          if (
+            isTextSearch &&
+            effectiveSortBy ===
+            "relevance"
+          ) {
+            projection = {
+              score: {
+                $meta:
+                  "textScore",
+              },
+            };
+
+            sortCriteria = {
+              score: {
+                $meta:
+                  "textScore",
+              },
+            };
+          } else {
+            sortCriteria = {
+              [effectiveSortBy]:
+                sortOrder ===
+                  "desc"
+                  ? -1
+                  : 1,
+            };
+
+            if (
+              effectiveSortBy !==
+              "createdAt"
+            ) {
+              sortCriteria.createdAt =
+                -1;
+            }
+          }
+
+          try {
+            const [
+              data,
+              total,
+            ] =
+              await Promise.all([
+                Coupon.find(
+                  query,
+                  projection,
+                )
+                  .populate(
+                    "services",
+                    "name",
+                  )
+                  .populate(
+                    "packages",
+                    "name",
+                  )
+                  .sort(
+                    sortCriteria,
+                  )
+                  .skip(
+                    skip,
+                  )
+                  .limit(
+                    safeLimit,
+                  )
+                  .lean(),
+
+                Coupon.countDocuments(
+                  query,
+                ),
+              ]);
+
+            return {
+              data,
+
+              total,
+
+              page:
+                safePage,
+
+              limit:
+                safeLimit,
+
+              totalPages:
+                Math.ceil(
+                  total /
+                  safeLimit,
+                ),
+            };
+          } catch (
+          error:
+            unknown
+          ) {
+            const message =
+              error instanceof
+                Error
+                ? error.message
+                : "Unknown error";
+
+            throw new Error(
+              `Coupon fetch failed: ${message}`,
+            );
+          }
+        },
+    });
+  }
+
+  static async deleteCoupon(id: string) {
+    this.ensureValidId(id);
+
+    const coupon = await Coupon.findByIdAndDelete(id);
+
+    if (!coupon) {
+      throw new Error("Coupon not found");
     }
+
+    await this.invalidateCouponCache(
+      id,
+    );
+
+    return coupon;
+  }
+
+  static async toggleCouponStatus(id: string) {
+    this.ensureValidId(id);
+
+    const coupon = await Coupon.findById(id);
+
+    if (!coupon) {
+      throw new Error("Coupon not found");
+    }
+
+    coupon.isActive =
+      !coupon.isActive;
+
+    const updatedCoupon =
+      await coupon.save();
+
+    await this.invalidateCouponCache(
+      id,
+    );
+
+    return updatedCoupon;
+  }
+
+  static async getCouponById(
+    id: string,
+  ) {
+    this.ensureValidId(
+      id,
+    );
+
+    return RedisCacheService.getOrSet({
+      key:
+        CacheKeys.couponDetail(
+          id,
+        ),
+
+      ttlSeconds:
+        CACHE_TTL_SECONDS
+          .COUPON_DETAIL,
+
+      loader:
+        async () => {
+          const coupon =
+            await Coupon.findById(
+              id,
+            )
+              .populate({
+                path:
+                  "services",
+
+                select:
+                  "_id name",
+              })
+              .populate({
+                path:
+                  "packages",
+
+                select:
+                  "_id name",
+              })
+              .lean();
+
+          if (!coupon) {
+            throw new Error(
+              "Coupon not found",
+            );
+          }
+
+          return coupon;
+        },
+    });
   }
 
   static async validateCoupon({
@@ -381,7 +960,6 @@ export class CouponService {
     packageId,
     orderAmount,
     userId,
-    isFirstOrder = false,
   }: ValidateCouponInput) {
     if (!Number.isFinite(orderAmount) || orderAmount < 0) {
       throw new Error("Order amount must be a non-negative number");
@@ -464,8 +1042,23 @@ export class CouponService {
       throw new Error(`Minimum order amount is ₹${coupon.minOrderAmount}`);
     }
 
-    if (coupon.isFirstOrderOnly && !isFirstOrder) {
-      throw new Error("Coupon is valid only for first order");
+    if (coupon.isFirstOrderOnly) {
+      if (!userId) {
+        throw new Error(
+          "User authentication is required for first-order coupon",
+        );
+      }
+
+      const isFirstOrder =
+        await this.isUserFirstOrder(
+          userId,
+        );
+
+      if (!isFirstOrder) {
+        throw new Error(
+          "Coupon is valid only for first order",
+        );
+      }
     }
 
     let discountAmount: number;
@@ -498,11 +1091,15 @@ export class CouponService {
     serviceId,
     packageId,
     orderAmount,
-    isFirstOrder = false,
   }: GetAvailableCouponsInput) {
     if (!Types.ObjectId.isValid(userId)) {
       throw new Error("Invalid user ID");
     }
+
+    const isFirstOrder =
+      await this.isUserFirstOrder(
+        userId,
+      );
 
     const now = new Date();
 
@@ -701,5 +1298,283 @@ export class CouponService {
       .lean();
 
     return coupons;
+  }
+
+  static async exportCouponsToCsv(
+    couponIds: string[],
+  ) {
+    const uniqueCouponIds = [
+      ...new Set(
+        couponIds.map((id) =>
+          id.toString(),
+        ),
+      ),
+    ];
+
+    const coupons =
+      await Coupon.find({
+        _id: {
+          $in: uniqueCouponIds,
+        },
+      })
+        .select(
+          [
+            "name",
+            "couponCode",
+            "applicableOn",
+            "services",
+            "packages",
+            "assignedUserId",
+            "discount",
+            "discountType",
+            "usageLimit",
+            "usedCount",
+            "validFrom",
+            "validTill",
+            "minOrderAmount",
+            "maxDiscountAmount",
+            "isFirstOrderOnly",
+            "isActive",
+            "createdAt",
+            "updatedAt",
+          ].join(" "),
+        )
+        .populate(
+          "services",
+          "name",
+        )
+        .populate(
+          "packages",
+          "name",
+        )
+        .populate(
+          "assignedUserId",
+          "userReference fullName email phoneNumber",
+        )
+        .lean();
+
+    if (coupons.length === 0) {
+      throw new Error(
+        "No coupons found for export",
+      );
+    }
+
+    const escapeCsv = (
+      value: unknown,
+    ): string => {
+      if (
+        value === null ||
+        value === undefined
+      ) {
+        return "";
+      }
+
+      /*
+       * Prevent spreadsheet formula injection.
+       *
+       * CSV files are commonly opened in Excel /
+       * Google Sheets. Values beginning with these
+       * characters can otherwise be interpreted as
+       * formulas.
+       */
+      let stringValue =
+        String(value);
+
+      if (
+        /^[=+\-@]/.test(
+          stringValue,
+        )
+      ) {
+        stringValue =
+          `'${stringValue}`;
+      }
+
+      if (
+        stringValue.includes(",") ||
+        stringValue.includes('"') ||
+        stringValue.includes("\n") ||
+        stringValue.includes("\r")
+      ) {
+        return `"${stringValue.replace(
+          /"/g,
+          '""',
+        )}"`;
+      }
+
+      return stringValue;
+    };
+
+    const headers = [
+      "Coupon Name",
+      "Coupon Code",
+      "Applicable On",
+      "Services",
+      "Packages",
+      "Assigned User Reference",
+      "Assigned User Name",
+      "Assigned User Email",
+      "Assigned User Phone",
+      "Discount",
+      "Discount Type",
+      "Usage Limit",
+      "Used Count",
+      "Remaining Uses",
+      "Valid From",
+      "Valid Till",
+      "Minimum Order Amount",
+      "Maximum Discount Amount",
+      "First Order Only",
+      "Active",
+      "Created At",
+      "Updated At",
+    ];
+
+    const rows =
+      coupons.map((coupon) => {
+        const services =
+          Array.isArray(
+            coupon.services,
+          )
+            ? coupon.services
+              .map((service) => {
+                const populatedService =
+                  service as unknown as {
+                    name?: string;
+                  };
+
+                return (
+                  populatedService.name ??
+                  ""
+                );
+              })
+              .filter(Boolean)
+              .join(" | ")
+            : "";
+
+        const packages =
+          Array.isArray(
+            coupon.packages,
+          )
+            ? coupon.packages
+              .map((pkg) => {
+                const populatedPackage =
+                  pkg as unknown as {
+                    name?: string;
+                  };
+
+                return (
+                  populatedPackage.name ??
+                  ""
+                );
+              })
+              .filter(Boolean)
+              .join(" | ")
+            : "";
+
+        const assignedUser =
+          coupon.assignedUserId as unknown as
+          | {
+            userReference?: string;
+            fullName?: string;
+            email?: string;
+            phoneNumber?: string;
+          }
+          | null
+          | undefined;
+
+        const remainingUses =
+          coupon.usageLimit === 0
+            ? "Unlimited"
+            : Math.max(
+              coupon.usageLimit -
+              coupon.usedCount,
+              0,
+            );
+
+        return [
+          coupon.name,
+          coupon.couponCode,
+          coupon.applicableOn,
+
+          services,
+          packages,
+
+          assignedUser?.userReference,
+          assignedUser?.fullName,
+          assignedUser?.email,
+          assignedUser?.phoneNumber,
+
+          coupon.discount,
+          coupon.discountType,
+
+          coupon.usageLimit === 0
+            ? "Unlimited"
+            : coupon.usageLimit,
+
+          coupon.usedCount,
+
+          remainingUses,
+
+          coupon.validFrom
+            ? new Date(
+              coupon.validFrom,
+            ).toISOString()
+            : "",
+
+          coupon.validTill
+            ? new Date(
+              coupon.validTill,
+            ).toISOString()
+            : "",
+
+          coupon.minOrderAmount,
+
+          coupon.maxDiscountAmount ??
+          "",
+
+          coupon.isFirstOrderOnly
+            ? "Yes"
+            : "No",
+
+          coupon.isActive
+            ? "Yes"
+            : "No",
+
+          coupon.createdAt
+            ? new Date(
+              coupon.createdAt,
+            ).toISOString()
+            : "",
+
+          coupon.updatedAt
+            ? new Date(
+              coupon.updatedAt,
+            ).toISOString()
+            : "",
+        ];
+      });
+
+    const csv = [
+      headers
+        .map(escapeCsv)
+        .join(","),
+
+      ...rows.map((row) =>
+        row
+          .map(escapeCsv)
+          .join(","),
+      ),
+    ].join("\n");
+
+    /*
+     * UTF-8 BOM helps Excel correctly detect
+     * UTF-8 values such as ₹ and non-English
+     * names.
+     */
+    return {
+      csv: `\uFEFF${csv}`,
+      total:
+        coupons.length,
+    };
   }
 }

@@ -2,6 +2,7 @@ import { Types } from "mongoose";
 import { type IFAQ } from "../models/faq.model.js";
 type FaqUpdateData = Partial<Pick<IFAQ, "name" | "question" | "answer" | "faqType" | "displayOrder">>;
 export declare class FAQService {
+    private static invalidateFaqCache;
     private static ensureValidId;
     static createFaq(faqData: Partial<IFAQ>): Promise<import("mongoose").Document<unknown, {}, IFAQ, {}, import("mongoose").DefaultSchemaOptions> & IFAQ & Required<{
         _id: Types.ObjectId;
@@ -46,6 +47,10 @@ export declare class FAQService {
         page: number;
         limit: number;
         totalPages: number;
+    }>;
+    static exportFaqsToCsv(faqIds: string[]): Promise<{
+        csv: string;
+        total: number;
     }>;
 }
 export {};

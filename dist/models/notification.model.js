@@ -3,6 +3,7 @@ import { Role } from "../types/rbac.js";
 export const PUSH_DELIVERY_STATUSES = [
     "NOT_REQUESTED",
     "PENDING",
+    "RETRYING",
     "SENT",
     "PARTIAL",
     "FAILED",
@@ -10,6 +11,7 @@ export const PUSH_DELIVERY_STATUSES = [
 export const EMAIL_DELIVERY_STATUSES = [
     "NOT_REQUESTED",
     "PENDING",
+    "RETRYING",
     "SENT",
     "FAILED",
 ];

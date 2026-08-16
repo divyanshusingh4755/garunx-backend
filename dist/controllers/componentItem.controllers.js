@@ -53,6 +53,12 @@ export const updateComponentItem = async (req, res) => {
 export const getComponentItemById = async (req, res) => {
     try {
         const componentItem = await ComponentItemService.getComponentItemById(req.params.componentItemId);
+        if (!componentItem.isActive) {
+            return res.status(404).json({
+                success: false,
+                message: "Component item not found",
+            });
+        }
         return res.status(200).json({
             success: true,
             data: componentItem,
@@ -61,23 +67,83 @@ export const getComponentItemById = async (req, res) => {
     catch (error) {
         return res.status(getStatusCode(error)).json({
             success: false,
-            message: error.message || "Failed to get component item by id",
+            message: error.message ||
+                "Failed to get component item",
+        });
+    }
+};
+export const getComponentItemByIdAdmin = async (req, res) => {
+    try {
+        const componentItem = await ComponentItemService.getComponentItemById(req.params.componentItemId);
+        return res.status(200).json({
+            success: true,
+            data: componentItem,
+        });
+    }
+    catch (error) {
+        return res.status(getStatusCode(error)).json({
+            success: false,
+            message: error.message ||
+                "Failed to get component item",
         });
     }
 };
 export const getAllComponentItems = async (req, res) => {
     try {
-        const { searchTerm, limit, page, isActive, sortBy, sortOrder } = req.query;
-        const activeStatus = isActive === "true" ? true : isActive === "false" ? false : undefined;
+        const { searchTerm, limit, page, sortBy, sortOrder, } = req.query;
         const result = await ComponentItemService.getAllComponentItems({
             limit: limit ? Number(limit) : 20,
             page: page ? Number(page) : 1,
-            sortBy: typeof sortBy === "string" ? sortBy : "name",
-            sortOrder: sortOrder === "asc" || sortOrder === "desc" ? sortOrder : "asc",
+            isActive: true,
+            sortBy: typeof sortBy === "string"
+                ? sortBy
+                : "name",
+            sortOrder: sortOrder === "asc" ||
+                sortOrder === "desc"
+                ? sortOrder
+                : "asc",
             ...(typeof searchTerm === "string" && {
                 searchTerm,
             }),
-            ...(activeStatus !== undefined && {
+        });
+        return res.status(200).json({
+            success: true,
+            data: result.data,
+            total: result.total,
+            currentPage: result.page,
+            totalPages: result.totalPages,
+        });
+    }
+    catch (error) {
+        return res.status(getStatusCode(error)).json({
+            success: false,
+            message: error.message ||
+                "Failed to get all component items",
+        });
+    }
+};
+export const getAllComponentItemsAdmin = async (req, res) => {
+    try {
+        const { searchTerm, limit, page, isActive, sortBy, sortOrder, } = req.query;
+        const activeStatus = isActive === "true"
+            ? true
+            : isActive === "false"
+                ? false
+                : undefined;
+        const result = await ComponentItemService.getAllComponentItems({
+            limit: limit ? Number(limit) : 20,
+            page: page ? Number(page) : 1,
+            sortBy: typeof sortBy === "string"
+                ? sortBy
+                : "name",
+            sortOrder: sortOrder === "asc" ||
+                sortOrder === "desc"
+                ? sortOrder
+                : "asc",
+            ...(typeof searchTerm === "string" && {
+                searchTerm,
+            }),
+            ...(typeof activeStatus === "boolean" && {
                 isActive: activeStatus,
             }),
         });
@@ -92,7 +158,8 @@ export const getAllComponentItems = async (req, res) => {
     catch (error) {
         return res.status(getStatusCode(error)).json({
             success: false,
-            message: error.message || "Failed to get all component items",
+            message: error.message ||
+                "Failed to get component items",
         });
     }
 };
@@ -118,6 +185,30 @@ export const updateComponentItemStatus = async (req, res) => {
         return res.status(getStatusCode(error)).json({
             success: false,
             message: error.message || "Failed to update status of component item",
+        });
+    }
+};
+export const exportComponentItemsCsv = async (req, res) => {
+    try {
+        const { componentItemIds, } = req.body;
+        const result = await ComponentItemService
+            .exportComponentItemsToCsv(componentItemIds);
+        const timestamp = new Date()
+            .toISOString()
+            .replace(/[:.]/g, "-");
+        res.setHeader("Content-Type", "text/csv; charset=utf-8");
+        res.setHeader("Content-Disposition", `attachment; filename="component-items-${timestamp}.csv"`);
+        return res
+            .status(200)
+            .send(result.csv);
+    }
+    catch (error) {
+        return res
+            .status(getStatusCode(error))
+            .json({
+            success: false,
+            message: error.message ||
+                "Failed to export component items",
         });
     }
 };

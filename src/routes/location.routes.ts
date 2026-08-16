@@ -9,6 +9,7 @@ import { authenticate } from "../middleware/authenticate.js";
 import {
   createLocation,
   deleteLocation,
+  exportLocationsCsv,
   getAllLocation,
   getAllLocationsAdmin,
   getLocationById,
@@ -245,12 +246,14 @@ const statusValidation = [
     .exists({ checkNull: true })
     .withMessage("status is required")
     .isBoolean()
-    .withMessage("status must be a boolean"),
+    .withMessage("status must be a boolean")
+    .toBoolean(),
 
   body("confirmed")
     .optional()
     .isBoolean()
-    .withMessage("confirmed must be a boolean"),
+    .withMessage("confirmed must be a boolean")
+    .toBoolean(),
 
   handleValidationErrors,
 ];
@@ -309,11 +312,42 @@ const adminListValidation = [
   handleValidationErrors,
 ];
 
+const exportLocationsValidation = [
+  body("locationIds")
+    .isArray({ min: 1, max: 1000 })
+    .withMessage(
+      "locationIds must contain between 1 and 1000 location IDs",
+    ),
+
+  body("locationIds.*")
+    .isMongoId()
+    .withMessage(
+      "Each locationId must be a valid MongoDB ID",
+    ),
+
+  handleValidationErrors,
+];
+
+// =========================================================
+// PUBLIC
+// =========================================================
+
 router.get(
   "/get-all-location",
   publicListValidation,
   getAllLocation,
 );
+
+router.post(
+  "/get-location-by-ids",
+  locationIdsValidation,
+  getLocationIds,
+);
+
+
+// =========================================================
+// ADMIN - STATIC ROUTES
+// =========================================================
 
 router.get(
   "/admin",
@@ -325,9 +359,12 @@ router.get(
 );
 
 router.post(
-  "/get-location-by-ids",
-  locationIdsValidation,
-  getLocationIds,
+  "/export-locations",
+  authenticate,
+  authorizeRoles(Role.ADMIN),
+  requirePermission("location.export"),
+  exportLocationsValidation,
+  exportLocationsCsv,
 );
 
 router.post(
@@ -339,6 +376,11 @@ router.post(
   createLocation,
 );
 
+
+// =========================================================
+// ADMIN - PREFIXED LOCATION ACTIONS
+// =========================================================
+
 router.patch(
   "/update-location/:id",
   authenticate,
@@ -347,6 +389,11 @@ router.patch(
   updateLocationValidation,
   updateLocation,
 );
+
+
+// =========================================================
+// ADMIN - SPECIFIC ID ACTIONS
+// =========================================================
 
 router.patch(
   "/:id/status",
@@ -357,6 +404,12 @@ router.patch(
   deleteLocation,
 );
 
+
+// =========================================================
+// ADMIN - GENERIC LOCATION DETAIL
+// Keep this last among dynamic GET routes.
+// =========================================================
+
 router.get(
   "/:id",
   authenticate,
@@ -365,5 +418,6 @@ router.get(
   locationIdValidation,
   getLocationById,
 );
+
 
 export default router;

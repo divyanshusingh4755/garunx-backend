@@ -13,16 +13,18 @@ type ComponentUpdate = Partial<Pick<IComponent, "name" | "description" | "imageU
     categoryId?: string;
 }>;
 export declare class ComponentService {
-    static createComponent(payload: CreateComponentInput): Promise<mongoose.Document<unknown, {}, IComponent, {}, mongoose.DefaultSchemaOptions> & IComponent & {
+    private static invalidateComponentCache;
+    private static invalidateAffectedServiceCaches;
+    static createComponent(payload: CreateComponentInput): Promise<mongoose.Document<unknown, {}, IComponent, {}, mongoose.DefaultSchemaOptions> & IComponent & Required<{
         _id: Types.ObjectId;
-    } & {
+    }> & {
         __v: number;
     } & {
         id: string;
     }>;
-    static updateComponent(componentId: string, updateData: ComponentUpdate): Promise<IComponent & {
+    static updateComponent(componentId: string, updateData: ComponentUpdate): Promise<IComponent & Required<{
         _id: Types.ObjectId;
-    } & {
+    }> & {
         __v: number;
     }>;
     static getDeactivationImpact(componentId: string): Promise<{
@@ -37,9 +39,9 @@ export declare class ComponentService {
     static toggleComponentStatus(componentId: string, isActive: boolean, confirmed?: boolean): Promise<{
         success: boolean;
         unchanged: boolean;
-        component: IComponent & {
+        component: IComponent & Required<{
             _id: Types.ObjectId;
-        } & {
+        }> & {
             __v: number;
         };
         requiresConfirmation?: never;
@@ -60,18 +62,18 @@ export declare class ComponentService {
         component?: never;
     } | {
         success: boolean;
-        component: IComponent & {
+        component: IComponent & Required<{
             _id: Types.ObjectId;
-        } & {
+        }> & {
             __v: number;
         };
         unchanged?: never;
         requiresConfirmation?: never;
         impact?: never;
     }>;
-    static getComponentById(componentId: string): Promise<IComponent & {
+    static getComponentById(componentId: string): Promise<IComponent & Required<{
         _id: Types.ObjectId;
-    } & {
+    }> & {
         __v: number;
     }>;
     static findComponents(params: {
@@ -85,14 +87,18 @@ export declare class ComponentService {
         sortBy?: string;
         sortOrder?: "asc" | "desc";
     }): Promise<{
-        data: (IComponent & {
+        data: (IComponent & Required<{
             _id: Types.ObjectId;
-        } & {
+        }> & {
             __v: number;
         })[];
         total: number;
         page: number;
         totalPages: number;
+    }>;
+    static exportComponentsToCsv(componentIds: string[]): Promise<{
+        csv: string;
+        total: number;
     }>;
 }
 export {};

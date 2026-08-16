@@ -1,10 +1,14 @@
 import { PolicyService } from "../services/policy.service.js";
 const getErrorMessage = (error, fallback) => error instanceof Error ? error.message : fallback;
 const getErrorStatus = (error) => {
-    if (error instanceof Error && error.message === "Policy not found") {
-        return 404;
+    if (!(error instanceof Error)) {
+        return 400;
     }
-    if (error instanceof Error && error.message.includes("policy not found")) {
+    if (error.message ===
+        "Policy not found" ||
+        error.message.includes("policy not found") ||
+        error.message ===
+            "No policies found for export") {
         return 404;
     }
     return 400;
@@ -24,6 +28,15 @@ export const createPolicy = async (req, res) => {
         });
     }
     catch (error) {
+        if (typeof error === "object" &&
+            error !== null &&
+            "code" in error &&
+            error.code === 11000) {
+            return res.status(409).json({
+                success: false,
+                message: "A policy version was created concurrently. Please retry.",
+            });
+        }
         return res.status(400).json({
             success: false,
             message: getErrorMessage(error, "Failed to create policy"),
@@ -99,6 +112,28 @@ export const getPolicyByType = async (req, res) => {
         return res.status(getErrorStatus(error)).json({
             success: false,
             message: getErrorMessage(error, "Failed to fetch policy"),
+        });
+    }
+};
+export const exportPoliciesCsv = async (req, res) => {
+    try {
+        const { policyIds, } = req.body;
+        const result = await PolicyService.exportPoliciesToCsv(policyIds);
+        const timestamp = new Date()
+            .toISOString()
+            .replace(/[:.]/g, "-");
+        res.setHeader("Content-Type", "text/csv; charset=utf-8");
+        res.setHeader("Content-Disposition", `attachment; filename="policies-${timestamp}.csv"`);
+        return res
+            .status(200)
+            .send(result.csv);
+    }
+    catch (error) {
+        return res
+            .status(getErrorStatus(error))
+            .json({
+            success: false,
+            message: getErrorMessage(error, "Failed to export policies"),
         });
     }
 };

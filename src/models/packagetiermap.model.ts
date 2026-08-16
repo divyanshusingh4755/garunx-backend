@@ -66,10 +66,17 @@ const packageTierMapSchema = new Schema<IPackageTierMap>(
   },
 );
 
-packageTierMapSchema.index({
-  packageId: 1,
-  tierId: 1,
-});
+packageTierMapSchema.index(
+  {
+    packageId: 1,
+    tierId: 1,
+  },
+  {
+    unique: true,
+    name:
+      "UniquePackageTierMapping",
+  },
+);
 
 packageTierServiceSchema.pre("validate", function () {
   if (this.isRequired && this.isRelated) {

@@ -8,8 +8,11 @@ import { body, param, query, validationResult } from "express-validator";
 import { authenticate } from "../middleware/authenticate.js";
 import {
   createComponentItem,
+  exportComponentItemsCsv,
   getAllComponentItems,
+  getAllComponentItemsAdmin,
   getComponentItemById,
+  getComponentItemByIdAdmin,
   updateComponentItem,
   updateComponentItemStatus,
 } from "../controllers/componentItem.controllers.js";
@@ -46,12 +49,14 @@ export const componentItemValidation = [
   body("price")
     .optional()
     .isFloat({ min: 0 })
-    .withMessage("price must be a non-negative number"),
+    .withMessage("price must be a non-negative number")
+    .toFloat(),
 
   body("isActive")
     .optional()
     .isBoolean()
-    .withMessage("isActive must be boolean"),
+    .withMessage("isActive must be boolean")
+    .toBoolean(),
 
   validate,
 ];
@@ -90,7 +95,8 @@ export const updateComponentItemValidation = [
   body("price")
     .optional()
     .isFloat({ min: 0 })
-    .withMessage("price must be a non-negative number"),
+    .withMessage("price must be a non-negative number")
+    .toFloat(),
 
   validate,
 ];
@@ -102,23 +108,35 @@ const componentItemIdValidation = [
 ];
 
 const componentItemStatusValidation = [
-  param("componentItemId").isMongoId().withMessage("Invalid component item ID"),
+  param("componentItemId")
+    .isMongoId()
+    .withMessage("Invalid component item ID"),
 
   body("isActive")
     .exists({ checkNull: true })
     .withMessage("isActive is required")
     .isBoolean()
-    .withMessage("isActive must be boolean"),
+    .withMessage("isActive must be boolean")
+    .toBoolean(),
 
   body("confirmed")
     .optional()
     .isBoolean()
-    .withMessage("confirmed must be boolean"),
+    .withMessage("confirmed must be boolean")
+    .toBoolean(),
 
   validate,
 ];
 
-const listValidation = [
+const publicListValidation = [
+  query("searchTerm")
+    .optional()
+    .isString()
+    .withMessage("searchTerm must be a string")
+    .trim()
+    .isLength({ max: 100 })
+    .withMessage("searchTerm cannot exceed 100 characters"),
+
   query("limit")
     .optional()
     .isInt({ min: 1, max: 100 })
@@ -129,14 +147,15 @@ const listValidation = [
     .isInt({ min: 1 })
     .withMessage("page must be at least 1"),
 
-  query("isActive")
-    .optional()
-    .isBoolean()
-    .withMessage("isActive must be true or false"),
-
   query("sortBy")
     .optional()
-    .isIn(["name", "price", "isActive", "createdAt", "updatedAt", "relevance"])
+    .isIn([
+      "name",
+      "price",
+      "createdAt",
+      "updatedAt",
+      "relevance",
+    ])
     .withMessage("Invalid sortBy value"),
 
   query("sortOrder")
@@ -147,10 +166,64 @@ const listValidation = [
   validate,
 ];
 
+const adminListValidation = [
+  ...publicListValidation.slice(0, -1),
+
+  query("isActive")
+    .optional()
+    .isIn(["true", "false"])
+    .withMessage("isActive must be true or false"),
+
+  validate,
+];
+
+const exportComponentItemsValidation = [
+  body("componentItemIds")
+    .isArray({ min: 1, max: 1000 })
+    .withMessage(
+      "componentItemIds must contain between 1 and 1000 component item IDs",
+    ),
+
+  body("componentItemIds.*")
+    .isMongoId()
+    .withMessage(
+      "Each componentItemId must be a valid MongoDB ID",
+    ),
+
+  validate,
+];
+
+// =========================================================
+// PUBLIC
+// =========================================================
+
 router.get(
   "/",
-  listValidation,
+  publicListValidation,
   getAllComponentItems,
+);
+
+
+// =========================================================
+// ADMIN - STATIC ROUTES
+// =========================================================
+
+router.get(
+  "/admin",
+  authenticate,
+  authorizeRoles(Role.ADMIN),
+  requirePermission("component_item.read"),
+  adminListValidation,
+  getAllComponentItemsAdmin,
+);
+
+router.post(
+  "/export",
+  authenticate,
+  authorizeRoles(Role.ADMIN),
+  requirePermission("component_item.export"),
+  exportComponentItemsValidation,
+  exportComponentItemsCsv,
 );
 
 router.post(
@@ -162,20 +235,25 @@ router.post(
   createComponentItem,
 );
 
-router.put(
-  "/:componentItemId",
-  authenticate,
-  authorizeRoles(Role.ADMIN),
-  requirePermission("component_item.update"),
-  updateComponentItemValidation,
-  updateComponentItem,
-);
+
+// =========================================================
+// ADMIN - PREFIXED DETAIL ROUTE
+// Keep this before public /:componentItemId
+// =========================================================
 
 router.get(
-  "/:componentItemId",
+  "/admin/:componentItemId",
+  authenticate,
+  authorizeRoles(Role.ADMIN),
+  requirePermission("component_item.read"),
   componentItemIdValidation,
-  getComponentItemById,
+  getComponentItemByIdAdmin,
 );
+
+
+// =========================================================
+// ADMIN - SPECIFIC COMPONENT ITEM ACTIONS
+// =========================================================
 
 router.patch(
   "/:componentItemId/status",
@@ -185,5 +263,32 @@ router.patch(
   componentItemStatusValidation,
   updateComponentItemStatus,
 );
+
+
+// =========================================================
+// ADMIN - GENERIC UPDATE ROUTE
+// =========================================================
+
+router.put(
+  "/:componentItemId",
+  authenticate,
+  authorizeRoles(Role.ADMIN),
+  requirePermission("component_item.update"),
+  updateComponentItemValidation,
+  updateComponentItem,
+);
+
+
+// =========================================================
+// PUBLIC - GENERIC COMPONENT ITEM DETAIL
+// Keep this last among dynamic GET routes.
+// =========================================================
+
+router.get(
+  "/:componentItemId",
+  componentItemIdValidation,
+  getComponentItemById,
+);
+
 
 export default router;

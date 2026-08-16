@@ -4,4 +4,6 @@ export declare const updateComponent: (req: Request, res: Response) => Promise<R
 export declare const toggleComponentStatus: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
 export declare const getComponentById: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
 export declare const getAllComponents: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
+export declare const getAllComponentsAdmin: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
+export declare const exportComponentsCsv: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
 //# sourceMappingURL=component.controllers.d.ts.map

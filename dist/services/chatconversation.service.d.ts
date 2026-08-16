@@ -1,11 +1,11 @@
-import { Types } from "mongoose";
+import mongoose, { Types } from "mongoose";
 export declare class ChatConversationService {
     private static isMessageAtOrBefore;
     static createForBooking(params: {
         bookingId: string;
         userId: string;
         coordinatorId: string;
-    }): Promise<import("mongoose").Document<unknown, {}, import("../models/chatconversation.model.js").IChatConversation, {}, import("mongoose").DefaultSchemaOptions> & import("../models/chatconversation.model.js").IChatConversation & Required<{
+    }): Promise<mongoose.Document<unknown, {}, import("../models/chatconversation.model.js").IChatConversation, {}, mongoose.DefaultSchemaOptions> & import("../models/chatconversation.model.js").IChatConversation & Required<{
         _id: Types.ObjectId;
     }> & {
         __v: number;
@@ -15,7 +15,7 @@ export declare class ChatConversationService {
     static getByBookingId(params: {
         bookingId: string;
         requestedBy: string;
-    }): Promise<import("mongoose").Document<unknown, {}, import("../models/chatconversation.model.js").IChatConversation, {}, import("mongoose").DefaultSchemaOptions> & import("../models/chatconversation.model.js").IChatConversation & Required<{
+    }): Promise<mongoose.Document<unknown, {}, import("../models/chatconversation.model.js").IChatConversation, {}, mongoose.DefaultSchemaOptions> & import("../models/chatconversation.model.js").IChatConversation & Required<{
         _id: Types.ObjectId;
     }> & {
         __v: number;
@@ -25,7 +25,7 @@ export declare class ChatConversationService {
     static getById(params: {
         conversationId: string;
         requestedBy: string;
-    }): Promise<import("mongoose").Document<unknown, {}, import("../models/chatconversation.model.js").IChatConversation, {}, import("mongoose").DefaultSchemaOptions> & import("../models/chatconversation.model.js").IChatConversation & Required<{
+    }): Promise<mongoose.Document<unknown, {}, import("../models/chatconversation.model.js").IChatConversation, {}, mongoose.DefaultSchemaOptions> & import("../models/chatconversation.model.js").IChatConversation & Required<{
         _id: Types.ObjectId;
     }> & {
         __v: number;
@@ -36,7 +36,7 @@ export declare class ChatConversationService {
         conversationId: string;
         userId: string;
         requireActive?: boolean;
-    }): Promise<import("mongoose").Document<unknown, {}, import("../models/chatconversation.model.js").IChatConversation, {}, import("mongoose").DefaultSchemaOptions> & import("../models/chatconversation.model.js").IChatConversation & Required<{
+    }): Promise<mongoose.Document<unknown, {}, import("../models/chatconversation.model.js").IChatConversation, {}, mongoose.DefaultSchemaOptions> & import("../models/chatconversation.model.js").IChatConversation & Required<{
         _id: Types.ObjectId;
     }> & {
         __v: number;
@@ -55,7 +55,7 @@ export declare class ChatConversationService {
     }>;
     static closeConversation(params: {
         conversationId: string;
-    }): Promise<import("mongoose").Document<unknown, {}, import("../models/chatconversation.model.js").IChatConversation, {}, import("mongoose").DefaultSchemaOptions> & import("../models/chatconversation.model.js").IChatConversation & Required<{
+    }): Promise<mongoose.Document<unknown, {}, import("../models/chatconversation.model.js").IChatConversation, {}, mongoose.DefaultSchemaOptions> & import("../models/chatconversation.model.js").IChatConversation & Required<{
         _id: Types.ObjectId;
     }> & {
         __v: number;
@@ -64,7 +64,7 @@ export declare class ChatConversationService {
     }>;
     static closeForBooking(params: {
         bookingId: string;
-    }): Promise<(import("mongoose").Document<unknown, {}, import("../models/chatconversation.model.js").IChatConversation, {}, import("mongoose").DefaultSchemaOptions> & import("../models/chatconversation.model.js").IChatConversation & Required<{
+    }): Promise<(mongoose.Document<unknown, {}, import("../models/chatconversation.model.js").IChatConversation, {}, mongoose.DefaultSchemaOptions> & import("../models/chatconversation.model.js").IChatConversation & Required<{
         _id: Types.ObjectId;
     }> & {
         __v: number;

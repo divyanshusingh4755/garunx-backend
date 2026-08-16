@@ -5,6 +5,9 @@ import {
 } from "../models/subservices.model.js";
 import { Service } from "../models/service.model.js";
 import { escapeRegex } from "../utils/escapeRegex.js";
+import { RedisCacheService } from "./redis-cache.service.js";
+import { CacheKeys } from "../cache/cache-keys.js";
+import { CACHE_TTL_SECONDS } from "../cache/constants.js";
 
 type CreateSubServiceComponentInput = {
   name: string;
@@ -33,22 +36,104 @@ const createHttpError = (message: string, statusCode: number) => {
 };
 
 export class SubServiceComponentService {
+  private static async invalidateSubServiceComponentCache(
+    subServiceComponentId?: string,
+  ): Promise<void> {
+    const operations: Promise<unknown>[] = [
+      RedisCacheService.deleteByPattern(
+        CacheKeys.subServiceComponentListPattern(),
+      ),
+    ];
+
+    if (subServiceComponentId) {
+      operations.push(
+        RedisCacheService.delete(
+          CacheKeys.subServiceComponentDetail(
+            subServiceComponentId,
+          ),
+        ),
+      );
+    }
+
+    await Promise.all(
+      operations,
+    );
+  }
+
+  private static async invalidateParentServiceCache(
+    serviceIds: string[],
+  ): Promise<void> {
+    const uniqueServiceIds = [
+      ...new Set(
+        serviceIds.filter(Boolean),
+      ),
+    ];
+
+    const operations: Promise<unknown>[] = [
+      RedisCacheService.deleteByPattern(
+        CacheKeys.serviceListPattern(),
+      ),
+
+      RedisCacheService.deleteByPattern(
+        CacheKeys.serviceByLocationListPattern(),
+      ),
+    ];
+
+    for (const serviceId of uniqueServiceIds) {
+      operations.push(
+        RedisCacheService.delete(
+          CacheKeys.serviceFull(
+            serviceId,
+          ),
+        ),
+
+        RedisCacheService.deleteByPattern(
+          CacheKeys.serviceFullByCitiesPattern(
+            serviceId,
+          ),
+        ),
+      );
+    }
+
+    await Promise.all(
+      operations,
+    );
+  }
+
   private static applyServiceFilter(
     filterValue?: string,
-  ): { $in: Types.ObjectId[] } | undefined {
+  ): {
+    $in: Types.ObjectId[];
+  } | undefined {
     if (!filterValue?.trim()) {
       return undefined;
     }
 
-    const values = filterValue
-      .split(",")
-      .map((value) => value.trim())
-      .filter(Boolean)
-      .map((value) => new Types.ObjectId(value));
+    const values =
+      filterValue
+        .split(",")
+        .map(
+          (value) =>
+            value.trim(),
+        )
+        .filter(Boolean)
+        .filter(
+          (value) =>
+            Types.ObjectId.isValid(
+              value,
+            ),
+        )
+        .map(
+          (value) =>
+            new Types.ObjectId(
+              value,
+            ),
+        );
 
     return values.length > 0
       ? {
-        $in: values,
+        $in:
+          values,
       }
       : undefined;
   }
@@ -56,27 +141,60 @@ export class SubServiceComponentService {
   static async createSubServiceComponent(
     payload: CreateSubServiceComponentInput,
   ) {
-    const serviceExists = await Service.exists({
-      _id: payload.serviceId,
-    });
-
-    if (!serviceExists) {
-      throw createHttpError("Service not found", 404);
+    if (
+      !Types.ObjectId.isValid(
+        payload.serviceId,
+      )
+    ) {
+      throw createHttpError(
+        "Invalid service ID",
+        400,
+      );
     }
 
-    return SubServiceComponent.create({
-      name: payload.name.trim(),
-      description: payload.description.trim(),
-      serviceId: payload.serviceId,
+    const serviceExists =
+      await Service.exists({
+        _id: payload.serviceId,
+      });
 
-      ...(payload.image !== undefined && {
-        image: payload.image,
-      }),
+    if (!serviceExists) {
+      throw createHttpError(
+        "Service not found",
+        404,
+      );
+    }
 
-      ...(payload.isActive !== undefined && {
-        isActive: payload.isActive,
-      }),
-    });
+    const subServiceComponent =
+      await SubServiceComponent.create({
+        name:
+          payload.name.trim(),
+
+        description:
+          payload.description.trim(),
+
+        serviceId:
+          payload.serviceId,
+
+        ...(payload.image !== undefined && {
+          image:
+            payload.image,
+        }),
+
+        ...(payload.isActive !== undefined && {
+          isActive:
+            payload.isActive,
+        }),
+      });
+
+    await Promise.all([
+      this.invalidateSubServiceComponentCache(),
+
+      this.invalidateParentServiceCache([
+        payload.serviceId,
+      ]),
+    ]);
+
+    return subServiceComponent;
   }
 
   static async findSubServiceComponents(params: {
@@ -98,92 +216,251 @@ export class SubServiceComponentService {
       sortOrder = "desc",
     } = params;
 
-    const safeLimit = Math.min(Math.max(limit, 1), 100);
+    const safeLimit =
+      Math.min(
+        Math.max(
+          limit,
+          1,
+        ),
+        100,
+      );
 
-    const safePage = Math.max(page, 1);
-    const skip = safeLimit * (safePage - 1);
+    const safePage =
+      Math.max(
+        page,
+        1,
+      );
 
-    const query: QueryFilter<ISubServiceComponent> = {};
+    /*
+     * Validate every supplied service ID
+     * before generating a cache key.
+     */
+    if (
+      serviceId?.trim()
+    ) {
+      const serviceIds =
+        serviceId
+          .split(",")
+          .map(
+            (value) =>
+              value.trim(),
+          )
+          .filter(Boolean);
 
-    if (typeof isActive === "boolean") {
-      query.isActive = isActive;
-    }
+      const hasInvalidId =
+        serviceIds.some(
+          (id) =>
+            !Types.ObjectId.isValid(
+              id,
+            ),
+        );
 
-    const serviceFilter = this.applyServiceFilter(serviceId);
-
-    if (serviceFilter) {
-      query.serviceId = serviceFilter;
-    }
-
-    const term = searchTerm?.trim();
-
-    const isTextSearch = Boolean(term && term.length > 4);
-
-    if (term) {
-      if (isTextSearch) {
-        query.$text = {
-          $search: term,
-        };
-      } else {
-        query.name = {
-          $regex: `^${escapeRegex(term)}`,
-          $options: "i",
-        };
+      if (hasInvalidId) {
+        throw createHttpError(
+          "Invalid service ID",
+          400,
+        );
       }
     }
 
-    let projection: Record<string, unknown> | undefined;
+    const term =
+      searchTerm?.trim();
 
-    let sortCriteria: Record<string, SortOrder | { $meta: "textScore" }>;
+    const isTextSearch =
+      Boolean(
+        term &&
+        term.length > 4,
+      );
 
-    if (isTextSearch && sortBy === "relevance") {
-      projection = {
-        score: {
-          $meta: "textScore",
-        },
-      };
-
-      sortCriteria = {
-        score: {
-          $meta: "textScore",
-        },
-      };
-    } else {
-      const allowedSortFields = new Set([
+    const allowedSortFields =
+      new Set([
         "name",
         "createdAt",
         "updatedAt",
         "isActive",
       ]);
 
-      const safeSortBy = allowedSortFields.has(sortBy) ? sortBy : "createdAt";
+    const safeSortBy =
+      isTextSearch &&
+        sortBy === "relevance"
+        ? "relevance"
+        : allowedSortFields.has(
+          sortBy,
+        )
+          ? sortBy
+          : "createdAt";
 
-      sortCriteria = {
-        [safeSortBy]: sortOrder === "asc" ? 1 : -1,
-      };
+    const cacheKey =
+      CacheKeys.subServiceComponentList({
+        searchTerm:
+          term,
 
-      if (safeSortBy !== "createdAt") {
-        sortCriteria.createdAt = -1;
-      }
-    }
+        serviceId,
 
-    const [data, total] = await Promise.all([
-      SubServiceComponent.find(query, projection)
-        .populate("serviceId", "name serviceReference isActive")
-        .sort(sortCriteria)
-        .skip(skip)
-        .limit(safeLimit)
-        .lean(),
+        limit:
+          safeLimit,
 
-      SubServiceComponent.countDocuments(query),
-    ]);
+        page:
+          safePage,
 
-    return {
-      data,
-      total,
-      page: safePage,
-      totalPages: Math.ceil(total / safeLimit),
-    };
+        isActive,
+
+        sortBy:
+          safeSortBy,
+
+        sortOrder,
+      });
+
+    return RedisCacheService.getOrSet({
+      key:
+        cacheKey,
+
+      ttlSeconds:
+        CACHE_TTL_SECONDS
+          .SUB_SERVICE_COMPONENT_LIST,
+
+      loader:
+        async () => {
+          const skip =
+            safeLimit *
+            (safePage - 1);
+
+          const query:
+            QueryFilter<ISubServiceComponent> =
+            {};
+
+          if (
+            typeof isActive ===
+            "boolean"
+          ) {
+            query.isActive =
+              isActive;
+          }
+
+          const serviceFilter =
+            this.applyServiceFilter(
+              serviceId,
+            );
+
+          if (serviceFilter) {
+            query.serviceId =
+              serviceFilter;
+          }
+
+          if (term) {
+            if (isTextSearch) {
+              query.$text = {
+                $search:
+                  term,
+              };
+            } else {
+              query.name = {
+                $regex:
+                  `^${escapeRegex(term)}`,
+
+                $options:
+                  "i",
+              };
+            }
+          }
+
+          let projection:
+            Record<
+              string,
+              unknown
+            > |
+            undefined;
+
+          let sortCriteria:
+            Record<
+              string,
+              SortOrder | {
+                $meta:
+                "textScore";
+              }
+            >;
+
+          if (
+            isTextSearch &&
+            safeSortBy ===
+            "relevance"
+          ) {
+            projection = {
+              score: {
+                $meta:
+                  "textScore",
+              },
+            };
+
+            sortCriteria = {
+              score: {
+                $meta:
+                  "textScore",
+              },
+            };
+          } else {
+            sortCriteria = {
+              [safeSortBy]:
+                sortOrder ===
+                  "asc"
+                  ? 1
+                  : -1,
+            };
+
+            if (
+              safeSortBy !==
+              "createdAt"
+            ) {
+              sortCriteria.createdAt =
+                -1;
+            }
+          }
+
+          const [
+            data,
+            total,
+          ] =
+            await Promise.all([
+              SubServiceComponent.find(
+                query,
+                projection,
+              )
+                .populate(
+                  "serviceId",
+                  "name serviceReference isActive",
+                )
+                .sort(
+                  sortCriteria,
+                )
+                .skip(
+                  skip,
+                )
+                .limit(
+                  safeLimit,
+                )
+                .lean(),
+
+              SubServiceComponent
+                .countDocuments(
+                  query,
+                ),
+            ]);
+
+          return {
+            data,
+            total,
+
+            page:
+              safePage,
+
+            totalPages:
+              Math.ceil(
+                total /
+                safeLimit,
+              ),
+          };
+        },
+    });
   }
 
   static async updateSubServiceComponent(
@@ -212,6 +489,22 @@ export class SubServiceComponentService {
       normalizedUpdate.description = updateData.description.trim();
     }
 
+    const existing =
+      await SubServiceComponent.findById(
+        subServiceComponentId,
+      )
+        .select(
+          "serviceId",
+        )
+        .lean();
+
+    if (!existing) {
+      throw createHttpError(
+        "Sub Service Component not found",
+        404,
+      );
+    }
+
     const updatedSubServiceComponent =
       await SubServiceComponent.findByIdAndUpdate(
         subServiceComponentId,
@@ -230,6 +523,31 @@ export class SubServiceComponentService {
       throw createHttpError("Sub Service Component not found", 404);
     }
 
+    const affectedServiceIds = [
+      existing.serviceId.toString(),
+
+      ...(updatedSubServiceComponent.serviceId
+        ? [
+          typeof updatedSubServiceComponent.serviceId ===
+            "object" &&
+            "_id" in updatedSubServiceComponent.serviceId
+            ? (
+              updatedSubServiceComponent.serviceId as any
+            )._id.toString()
+            : updatedSubServiceComponent.serviceId,
+        ]
+        : []),
+    ];
+
+    await Promise.all([
+      this.invalidateSubServiceComponentCache(
+        subServiceComponentId,
+      ),
+
+      this.invalidateParentServiceCache(
+        affectedServiceIds,
+      ),
+    ]);
     return updatedSubServiceComponent;
   }
 
@@ -237,9 +555,14 @@ export class SubServiceComponentService {
     subServiceComponentId: string,
     status: boolean,
   ) {
-    const existing = await SubServiceComponent.findById(subServiceComponentId)
-      .select("_id isActive")
-      .lean();
+    const existing =
+      await SubServiceComponent.findById(
+        subServiceComponentId,
+      )
+        .select(
+          "_id isActive serviceId",
+        )
+        .lean();
 
     if (!existing) {
       throw createHttpError("Sub Service Component not found", 404);
@@ -253,40 +576,91 @@ export class SubServiceComponentService {
     }
 
     const updatedSubServiceComponent =
-      await SubServiceComponent.findByIdAndUpdate(
-        subServiceComponentId,
-        {
-          $set: {
-            isActive: status,
+      await SubServiceComponent
+        .findByIdAndUpdate(
+          subServiceComponentId,
+          {
+            $set: {
+              isActive: status,
+            },
           },
-        },
-        {
-          new: true,
-          runValidators: true,
-        },
-      )
-        .populate("serviceId", "name serviceReference isActive")
+          {
+            new: true,
+            runValidators: true,
+          },
+        )
+        .populate(
+          "serviceId",
+          "name serviceReference isActive",
+        )
         .lean();
 
     if (!updatedSubServiceComponent) {
-      throw createHttpError("Sub Service Component not found", 404);
+      throw createHttpError(
+        "Sub Service Component not found",
+        404,
+      );
     }
+
+    await Promise.all([
+      this.invalidateSubServiceComponentCache(
+        subServiceComponentId,
+      ),
+
+      this.invalidateParentServiceCache([
+        existing.serviceId.toString(),
+      ]),
+    ]);
 
     return updatedSubServiceComponent;
   }
 
-  static async getSubServiceComponentById(subServiceComponentId: string) {
-    const subServiceComponent = await SubServiceComponent.findById(
-      subServiceComponentId,
-    )
-      .populate("serviceId", "name serviceReference isActive")
-      .lean()
-      .exec();
-
-    if (!subServiceComponent) {
-      throw createHttpError("Sub Service Component not found", 404);
+  static async getSubServiceComponentById(
+    subServiceComponentId: string,
+  ) {
+    if (
+      !Types.ObjectId.isValid(
+        subServiceComponentId,
+      )
+    ) {
+      throw createHttpError(
+        "Invalid Sub Service Component ID",
+        400,
+      );
     }
 
-    return subServiceComponent;
+    return RedisCacheService.getOrSet({
+      key:
+        CacheKeys.subServiceComponentDetail(
+          subServiceComponentId,
+        ),
+
+      ttlSeconds:
+        CACHE_TTL_SECONDS
+          .SUB_SERVICE_COMPONENT_DETAIL,
+
+      loader:
+        async () => {
+          const subServiceComponent =
+            await SubServiceComponent.findById(
+              subServiceComponentId,
+            )
+              .populate(
+                "serviceId",
+                "name serviceReference isActive",
+              )
+              .lean()
+              .exec();
+
+          if (!subServiceComponent) {
+            throw createHttpError(
+              "Sub Service Component not found",
+              404,
+            );
+          }
+
+          return subServiceComponent;
+        },
+    });
   }
 }

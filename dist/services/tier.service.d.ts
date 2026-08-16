@@ -1,7 +1,12 @@
 import mongoose, { Types } from "mongoose";
 import { type ITier } from "../models/tier.model.js";
-type TierUpdate = Partial<Pick<ITier, "name" | "tierReference">>;
+type TierUpdate = {
+    name?: string;
+    tierReference?: string | null;
+};
 export declare class TierService {
+    private static invalidateTierCache;
+    private static invalidateTierDependents;
     static createTier(tierData: ITier): Promise<mongoose.Document<unknown, {}, ITier, {}, mongoose.DefaultSchemaOptions> & ITier & {
         _id: Types.ObjectId;
     } & {
@@ -94,6 +99,10 @@ export declare class TierService {
         total: number;
         page: number;
         totalPages: number;
+    }>;
+    static exportTiersToCsv(tierIds: string[]): Promise<{
+        csv: string;
+        total: number;
     }>;
 }
 export {};

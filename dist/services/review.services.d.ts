@@ -22,6 +22,7 @@ interface ModerateReviewInput {
     reason?: string | null;
 }
 export declare class ReviewService {
+    private static invalidateReviewCache;
     private static safePagination;
     private static getSortCriteria;
     private static adjustRatingAggregate;
@@ -117,6 +118,10 @@ export declare class ReviewService {
         page: number;
         limit: number;
         totalPages: number;
+    }>;
+    static exportReviewsToCsv(reviewIds: string[]): Promise<{
+        csv: string;
+        total: number;
     }>;
 }
 export {};

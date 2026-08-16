@@ -5,4 +5,6 @@ export declare const getCategoryById: (req: Request, res: Response) => Promise<R
 export declare const deleteCategory: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
 export declare const toggleCategoryStatus: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
 export declare const getAllCategories: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
+export declare const getAllCategoriesAdmin: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
+export declare const exportCategoriesCsv: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
 //# sourceMappingURL=category.controllers.d.ts.map

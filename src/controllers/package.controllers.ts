@@ -358,6 +358,49 @@ export const getFullPackage = async (req: Request, res: Response) => {
   }
 };
 
+export const getFullPackageAdmin =
+  async (
+    req: Request,
+    res: Response,
+  ) => {
+    try {
+      const data =
+        await PackageService
+          .getFullPackageAdmin(
+            req.params
+              .packageId as string,
+          );
+
+      return res
+        .status(200)
+        .json({
+          success:
+            true,
+
+          data,
+        });
+    } catch (
+    error: any
+    ) {
+      return res
+        .status(
+          typeof error
+            ?.statusCode ===
+            "number"
+            ? error.statusCode
+            : 500,
+        )
+        .json({
+          success:
+            false,
+
+          message:
+            error.message ||
+            "Failed to fetch package",
+        });
+    }
+  };
+
 export const getRelatedPackageService = async (req: Request, res: Response) => {
   try {
     const { packageId, tierId, locationId } = req.params;
@@ -427,58 +470,175 @@ export const getFullPackageByCities = async (req: Request, res: Response) => {
   }
 };
 
-export const getPackagesByLocation = async (req: Request, res: Response) => {
+export const getPackagesByLocation =
+  async (
+    req: Request,
+    res: Response,
+  ) => {
+    try {
+      const {
+        cityIds,
+        categoryIds,
+        limit,
+        page,
+        sortBy,
+        sortOrder,
+      } =
+        req.query;
+
+      const cityIdArray =
+        parseIdList(
+          cityIds,
+        );
+
+      const categoryIdArray =
+        parseIdList(
+          categoryIds,
+        );
+
+      const parsedLimit =
+        parsePositiveInteger(
+          limit,
+          20,
+          100,
+        );
+
+      const parsedPage =
+        parsePositiveInteger(
+          page,
+          1,
+        );
+
+      const {
+        data,
+        total,
+        page:
+        currentPage,
+        totalPages,
+      } =
+        await PackageService
+          .getPackagesByLocation(
+            cityIdArray,
+            categoryIdArray,
+            parsedLimit,
+            parsedPage,
+
+            /*
+             * USER endpoint:
+             * never allow caller to request
+             * hidden packages.
+             */
+            true,
+            true,
+
+            (
+              sortBy as string
+            ) ||
+            "name",
+
+            (
+              sortOrder as
+              | "asc"
+              | "desc"
+            ) ||
+            "asc",
+          );
+
+      return res
+        .status(200)
+        .json({
+          success:
+            true,
+
+          data,
+
+          total,
+
+          page:
+            currentPage,
+
+          totalPages,
+        });
+    } catch (
+    error: any
+    ) {
+      return res
+        .status(
+          typeof error
+            ?.statusCode ===
+            "number"
+            ? error.statusCode
+            : 400,
+        )
+        .json({
+          success:
+            false,
+
+          message:
+            error.message,
+        });
+    }
+  };
+
+export const exportPackagesToCsv = async (
+  req: Request,
+  res: Response,
+) => {
   try {
-    const {
-      cityIds,
-      categoryIds,
-      limit,
-      page,
-      isActive,
-      isComplete,
-      sortBy,
-      sortOrder,
-    } = req.query;
-
-    const cityIdArray = parseIdList(cityIds);
-    const categoryIdArray = parseIdList(categoryIds);
-
-    const activeBool =
-      isActive === "true" ? true : isActive === "false" ? false : undefined;
-
-    const completeBool =
-      isComplete === "true" ? true : isComplete === "false" ? false : undefined;
-
-    const parsedLimit = parsePositiveInteger(limit, 20, 100);
-    const parsedPage = parsePositiveInteger(page, 1);
+    const { packageIds } = req.body as {
+      packageIds: string[];
+    };
 
     const {
-      data,
+      csv,
       total,
-      page: currentPage,
-      totalPages,
-    } = await PackageService.getPackagesByLocation(
-      cityIdArray,
-      categoryIdArray,
-      parsedLimit,
-      parsedPage,
-      activeBool,
-      completeBool,
-      (sortBy as string) || "name",
-      (sortOrder as "asc" | "desc") || "asc",
+    } =
+      await PackageService
+        .exportPackagesToCsv(
+          packageIds,
+        );
+
+    const fileName =
+      `packages-${new Date()
+        .toISOString()
+        .slice(0, 10)}.csv`;
+
+    res.setHeader(
+      "Content-Type",
+      "text/csv; charset=utf-8",
     );
 
-    return res.status(200).json({
-      success: true,
-      data,
-      total,
-      page: currentPage,
-      totalPages,
-    });
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="${fileName}"`,
+    );
+
+    res.setHeader(
+      "X-Export-Count",
+      String(total),
+    );
+
+    return res
+      .status(200)
+      .send(
+        `\uFEFF${csv}`,
+      );
   } catch (error: any) {
-    return res.status(400).json({
-      success: false,
-      message: error.message,
-    });
+    const status =
+      typeof error?.statusCode === "number"
+        ? error.statusCode
+        : error?.message ===
+          "No packages found for export"
+          ? 404
+          : 500;
+
+    return res
+      .status(status)
+      .json({
+        success: false,
+        message:
+          error.message ||
+          "Failed to export packages",
+      });
   }
 };

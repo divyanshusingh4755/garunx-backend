@@ -1,8 +1,26 @@
-import { Types } from "mongoose";
-import { ChatMessage, ChatMessageType, type IChatMessage } from "../models/chatmessage.model.js";
-import { ChatConversationService } from "./chatconversation.service.js";
-import { ChatConversation } from "../models/chatconversation.model.js";
-import { toChatMessageSocketDto } from "../socket/socket.dto.js";
+import mongoose, {
+  Types,
+} from "mongoose";
+
+import {
+  ChatMessage,
+  ChatMessageType,
+  type IChatMessage,
+} from "../models/chatmessage.model.js";
+
+import {
+  ChatConversationService,
+} from "./chatconversation.service.js";
+
+import {
+  ChatConversation,
+  ChatConversationStatus,
+} from "../models/chatconversation.model.js";
+
+import {
+  toChatMessageSocketDto,
+} from "../socket/socket.dto.js";
+import { ChatPushQueueService } from "./chat-push-queue.service.js";
 
 export interface SendMessageResult {
   message: IChatMessage;
@@ -10,6 +28,95 @@ export interface SendMessageResult {
 }
 
 export class ChatMessageService {
+  private static buildPushPreview(params: {
+    type: ChatMessageType;
+    text?: string;
+    imageCount: number;
+  }): string {
+    const {
+      type,
+      text,
+      imageCount,
+    } = params;
+
+    if (
+      type ===
+      ChatMessageType.TEXT &&
+      text
+    ) {
+      const preview =
+        text.trim();
+
+      return preview.length > 140
+        ? `${preview.slice(0, 137)}...`
+        : preview;
+    }
+
+    if (
+      type ===
+      ChatMessageType.IMAGE
+    ) {
+      return imageCount > 1
+        ? `Sent you ${imageCount} images`
+        : "Sent you an image";
+    }
+
+    return "You received a new message";
+  }
+
+  private static async enqueuePushSafely(params: {
+    recipientId: string;
+    conversationId: string;
+    messageId: string;
+    senderId: string;
+    type: ChatMessageType;
+    text?: string;
+    imageCount: number;
+  }): Promise<void> {
+    try {
+      await ChatPushQueueService.enqueue({
+        recipientId:
+          params.recipientId,
+
+        conversationId:
+          params.conversationId,
+
+        messageId:
+          params.messageId,
+
+        senderId:
+          params.senderId,
+
+        title:
+          "New message",
+
+        message:
+          this.buildPushPreview({
+            type:
+              params.type,
+
+            ...(params.text && {
+              text:
+                params.text,
+            }),
+
+            imageCount:
+              params.imageCount,
+          }),
+      });
+    } catch (error) {
+      /*
+       * A chat message has already been persisted.
+       * Redis / push failure must not make the sender
+       * think the message itself failed.
+       */
+      console.error(
+        `[CHAT PUSH] Failed to enqueue message ${params.messageId}:`,
+        error,
+      );
+    }
+  }
+
   static async sendMessage(params: {
     conversationId: string;
     senderId: string;
@@ -26,144 +133,504 @@ export class ChatMessageService {
       type,
       text,
       images = [],
-      replyToMessageId
+      replyToMessageId,
     } = params;
 
-    const normalizedText = text?.trim();
-    const normalizedClientMessageId = clientMessageId?.trim();
+    const normalizedText =
+      text?.trim();
 
-    if (!Types.ObjectId.isValid(conversationId)) {
-      throw new Error("Invalid conversation ID");
+    const normalizedClientMessageId =
+      clientMessageId?.trim();
+
+    const normalizedImages =
+      Array.isArray(images)
+        ? images.map((image) =>
+          typeof image === "string"
+            ? image.trim()
+            : image,
+        )
+        : images;
+
+    if (
+      !Types.ObjectId.isValid(
+        conversationId,
+      )
+    ) {
+      throw new Error(
+        "Invalid conversation ID",
+      );
     }
 
-    if (!Types.ObjectId.isValid(senderId)) {
-      throw new Error("Invalid sender ID");
+    if (
+      !Types.ObjectId.isValid(
+        senderId,
+      )
+    ) {
+      throw new Error(
+        "Invalid sender ID",
+      );
     }
 
-    if (replyToMessageId && !Types.ObjectId.isValid(replyToMessageId)) {
-      throw new Error("Invalid reply message ID");
+    if (
+      replyToMessageId &&
+      !Types.ObjectId.isValid(
+        replyToMessageId,
+      )
+    ) {
+      throw new Error(
+        "Invalid reply message ID",
+      );
     }
 
-    if (!normalizedClientMessageId) {
-      throw new Error("Client message ID is required");
+    if (
+      !normalizedClientMessageId
+    ) {
+      throw new Error(
+        "Client message ID is required",
+      );
     }
 
-    if (![ChatMessageType.TEXT, ChatMessageType.IMAGE].includes(type)) {
-      throw new Error("Message type must be TEXT or IMAGE")
+    if (
+      normalizedClientMessageId.length >
+      128
+    ) {
+      throw new Error(
+        "Client message ID cannot exceed 128 characters",
+      );
     }
 
-    if (normalizedText && normalizedText.length > 5000) {
-      throw new Error("Message text cannot exceed 5000 characters")
+    if (
+      ![
+        ChatMessageType.TEXT,
+        ChatMessageType.IMAGE,
+      ].includes(
+        type,
+      )
+    ) {
+      throw new Error(
+        "Message type must be TEXT or IMAGE",
+      );
     }
 
-    if (!Array.isArray(images)) {
-      throw new Error("Images must be an array")
+    if (
+      normalizedText &&
+      normalizedText.length >
+      5000
+    ) {
+      throw new Error(
+        "Message text cannot exceed 5000 characters",
+      );
     }
 
-    if (images.length > 5) {
-      throw new Error("Maximum 5 images are allowed per message")
+    if (
+      !Array.isArray(
+        normalizedImages,
+      )
+    ) {
+      throw new Error(
+        "Images must be an array",
+      );
+    }
+
+    if (
+      normalizedImages.length >
+      5
+    ) {
+      throw new Error(
+        "Maximum 5 images are allowed per message",
+      );
+    }
+
+    for (
+      const image of
+      normalizedImages
+    ) {
+      if (
+        typeof image !== "string" ||
+        !image
+      ) {
+        throw new Error(
+          "Each image must be a non-empty URL",
+        );
+      }
+
+      if (
+        image.length >
+        2000
+      ) {
+        throw new Error(
+          "Image URL cannot exceed 2000 characters",
+        );
+      }
+
+      let parsedUrl: URL;
+
+      try {
+        parsedUrl =
+          new URL(image);
+      } catch {
+        throw new Error(
+          "Each image must be a valid HTTP or HTTPS URL",
+        );
+      }
+
+      if (
+        parsedUrl.protocol !== "http:" &&
+        parsedUrl.protocol !== "https:"
+      ) {
+        throw new Error(
+          "Each image must be a valid HTTP or HTTPS URL",
+        );
+      }
     }
 
     switch (type) {
       case ChatMessageType.TEXT:
-        if (!normalizedText) {
-          throw new Error("Text message cannot be empty");
+        if (
+          !normalizedText
+        ) {
+          throw new Error(
+            "Text message cannot be empty",
+          );
         }
 
-        if (images.length > 0) {
-          throw new Error("Text message cannot contain images");
+        if (
+          normalizedImages.length >
+          0
+        ) {
+          throw new Error(
+            "Text message cannot contain images",
+          );
         }
+
         break;
 
       case ChatMessageType.IMAGE:
-        if (images.length === 0) {
-          throw new Error("Image message must contain at least one image");
+        if (
+          normalizedImages.length ===
+          0
+        ) {
+          throw new Error(
+            "Image message must contain at least one image",
+          );
         }
+
         break;
     }
 
-    const conversation = await ChatConversationService.assertParticipant({
-      conversationId,
-      userId: senderId,
-      requireActive: true,
-    });
+    const conversation =
+      await ChatConversationService
+        .assertParticipant({
+          conversationId,
+          userId:
+            senderId,
+          requireActive:
+            true,
+        });
 
-    const existingMessage = await ChatMessage.findOne({
-      senderId: new Types.ObjectId(senderId),
-      clientMessageId: normalizedClientMessageId,
-    });
+    /*
+     * Idempotency check.
+     *
+     * If the client retries the same message,
+     * return the existing message and DO NOT
+     * enqueue another push.
+     */
+    const existingMessage =
+      await ChatMessage.findOne({
+        conversationId:
+          conversation._id,
 
-    if (existingMessage) {
-      return {
-        message: existingMessage,
-        created: false,
-      }
-    }
+        senderId:
+          new Types.ObjectId(
+            senderId,
+          ),
 
-    let replyMessage = null;
-
-    if (replyToMessageId) {
-      replyMessage = await ChatMessage.findOne({
-        _id: new Types.ObjectId(replyToMessageId),
-        conversationId: conversation._id,
+        clientMessageId:
+          normalizedClientMessageId,
       });
 
-      if (!replyMessage) {
+    if (
+      existingMessage
+    ) {
+      await ChatConversation.updateOne(
+        {
+          _id:
+            conversation._id,
+        },
+        {
+          $max: {
+            lastMessageAt:
+              existingMessage.createdAt,
+          },
+        },
+      );
+
+      return {
+        message:
+          existingMessage,
+
+        created:
+          false,
+      };
+    }
+
+    let replyMessage =
+      null;
+
+    if (
+      replyToMessageId
+    ) {
+      replyMessage =
+        await ChatMessage.findOne({
+          _id:
+            new Types.ObjectId(
+              replyToMessageId,
+            ),
+
+          conversationId:
+            conversation._id,
+        });
+
+      if (
+        !replyMessage
+      ) {
         throw new Error(
           "Reply message not found in this conversation",
         );
       }
     }
 
-    const messageData: Record<string, any> = {
-      conversationId: conversation._id,
-      senderId: new Types.ObjectId(senderId),
+    const messageData:
+      Record<string, any> = {
+      conversationId:
+        conversation._id,
+
+      senderId:
+        new Types.ObjectId(
+          senderId,
+        ),
+
       type,
-      clientMessageId: normalizedClientMessageId,
+
+      clientMessageId:
+        normalizedClientMessageId,
     };
 
-    if (normalizedText) {
-      messageData.text = normalizedText;
+    if (
+      normalizedText
+    ) {
+      messageData.text =
+        normalizedText;
     }
 
-    if (images.length > 0) {
-      messageData.images = images;
+    if (
+      normalizedImages.length >
+      0
+    ) {
+      messageData.images =
+        normalizedImages;
     }
 
-    if (replyToMessageId) {
-      messageData.replyToMessageId = new Types.ObjectId(replyToMessageId);
+    if (
+      replyToMessageId
+    ) {
+      messageData.replyToMessageId =
+        new Types.ObjectId(
+          replyToMessageId,
+        );
     }
+
+    let createdMessage:
+      IChatMessage | null = null;
+
+    const session =
+      await mongoose.startSession();
 
     try {
-      const message = await ChatMessage.create(messageData);
+      try {
+        await session.withTransaction(
+          async () => {
+            const createdMessages =
+              await ChatMessage.create(
+                [
+                  messageData,
+                ],
+                {
+                  session,
+                },
+              );
 
-      await ChatConversation.findByIdAndUpdate(conversation._id, {
-        $set: {
-          lastMessageAt: message.createdAt,
-        },
-      });
+            const message =
+              createdMessages[0];
 
-      return {
-        message,
-        created: true,
-      }
-    } catch (error: any) {
-      if (error?.code === 11000) {
-        const existingMessage = await ChatMessage.findOne({
-          senderId: new Types.ObjectId(senderId),
-          clientMessageId: normalizedClientMessageId
-        });
+            if (!message) {
+              throw new Error(
+                "Message creation failed",
+              );
+            }
 
-        if (existingMessage) {
-          return {
-            message: existingMessage,
-            created: false,
+            /*
+             * Message creation + conversation timestamp update are atomic.
+             *
+             * $max also prevents lastMessageAt from moving backwards if two
+             * messages are created concurrently.
+             */
+            const conversationUpdate =
+              await ChatConversation.updateOne(
+                {
+                  _id:
+                    conversation._id,
+
+                  status:
+                    ChatConversationStatus.ACTIVE,
+
+                  "participants.userId":
+                    new Types.ObjectId(
+                      senderId,
+                    ),
+                },
+                {
+                  $max: {
+                    lastMessageAt:
+                      message.createdAt,
+                  },
+                },
+                {
+                  session,
+                },
+              );
+
+            if (
+              conversationUpdate.matchedCount ===
+              0
+            ) {
+              throw new Error(
+                "Active chat conversation not found or access denied",
+              );
+            }
+
+            createdMessage =
+              message;
+          },
+        );
+      } catch (
+      error: any
+      ) {
+        if (
+          error?.code ===
+          11000
+        ) {
+          const existingMessage =
+            await ChatMessage.findOne({
+              conversationId:
+                conversation._id,
+
+              senderId:
+                new Types.ObjectId(
+                  senderId,
+                ),
+
+              clientMessageId:
+                normalizedClientMessageId,
+            });
+
+          if (
+            existingMessage
+          ) {
+            /*
+             * Repair lastMessageAt as well. This covers a retry of a message
+             * created by another concurrent request.
+             */
+            await ChatConversation.updateOne(
+              {
+                _id:
+                  conversation._id,
+              },
+              {
+                $max: {
+                  lastMessageAt:
+                    existingMessage.createdAt,
+                },
+              },
+            );
+
+            return {
+              message:
+                existingMessage,
+
+              created:
+                false,
+            };
           }
         }
-      }
 
-      throw error;
+        throw error;
+      }
+    } finally {
+      await session.endSession();
     }
+
+    if (!createdMessage) {
+      throw new Error(
+        "Message creation failed",
+      );
+    }
+
+    const message =
+      createdMessage as IChatMessage;
+
+    const recipient =
+      conversation.participants
+        .find(
+          (
+            participant,
+          ) =>
+            participant.userId
+              .toString() !==
+            senderId,
+        );
+
+    if (
+      recipient
+    ) {
+      await this
+        .enqueuePushSafely({
+          recipientId:
+            recipient.userId
+              .toString(),
+
+          conversationId:
+            conversation._id
+              .toString(),
+
+          messageId:
+            message._id
+              .toString(),
+
+          senderId,
+
+          type,
+
+          ...(normalizedText && {
+            text:
+              normalizedText,
+          }),
+
+          imageCount:
+            normalizedImages.length,
+        });
+    } else {
+      console.error(
+        `[CHAT PUSH] Recipient not found for conversation ${conversation._id.toString()}`,
+      );
+    }
+
+    return {
+      message,
+
+      created:
+        true,
+    };
   }
 
   static async getMessages(params: {
@@ -172,186 +639,425 @@ export class ChatMessageService {
     cursor?: string;
     limit?: number;
   }) {
-    const { conversationId, requestedBy, cursor, limit = 30 } = params;
-
-    if (!Types.ObjectId.isValid(conversationId)) {
-      throw new Error("Invalid conversation ID");
-    }
-
-    if (!Types.ObjectId.isValid(requestedBy)) {
-      throw new Error("Invalid user ID");
-    }
-
-    const conversation = await ChatConversationService.assertParticipant({
+    const {
       conversationId,
-      userId: requestedBy,
-    });
+      requestedBy,
+      cursor,
+      limit = 30,
+    } = params;
 
-    const otherParticipant = conversation.participants.find((participant) => participant.userId.toString() !== requestedBy);
-
-    let lastDeliveredMessage: IChatMessage | null = null;
-    let lastReadMessage: IChatMessage | null = null;
-
-    if (otherParticipant?.lastDeliveredMessageId) {
-      lastDeliveredMessage = await ChatMessage.findOne({
-        _id: otherParticipant.lastDeliveredMessageId,
-        conversationId: new Types.ObjectId(conversationId)
-      })
+    if (
+      !Types.ObjectId.isValid(
+        conversationId,
+      )
+    ) {
+      throw new Error(
+        "Invalid conversation ID",
+      );
     }
 
-    if (otherParticipant?.lastReadMessageId) {
-      lastReadMessage = await ChatMessage.findOne({
-        _id: otherParticipant.lastReadMessageId,
-        conversationId: new Types.ObjectId(conversationId)
-      })
+    if (
+      !Types.ObjectId.isValid(
+        requestedBy,
+      )
+    ) {
+      throw new Error(
+        "Invalid user ID",
+      );
+    }
+
+    const conversation =
+      await ChatConversationService
+        .assertParticipant({
+          conversationId,
+          userId:
+            requestedBy,
+        });
+
+    const otherParticipant =
+      conversation.participants
+        .find(
+          (
+            participant,
+          ) =>
+            participant.userId
+              .toString() !==
+            requestedBy,
+        );
+
+    let lastDeliveredMessage:
+      IChatMessage | null = null;
+
+    let lastReadMessage:
+      IChatMessage | null = null;
+
+    if (
+      otherParticipant
+        ?.lastDeliveredMessageId
+    ) {
+      lastDeliveredMessage =
+        await ChatMessage.findOne({
+          _id:
+            otherParticipant
+              .lastDeliveredMessageId,
+
+          conversationId:
+            new Types.ObjectId(
+              conversationId,
+            ),
+        });
+    }
+
+    if (
+      otherParticipant
+        ?.lastReadMessageId
+    ) {
+      lastReadMessage =
+        await ChatMessage.findOne({
+          _id:
+            otherParticipant
+              .lastReadMessageId,
+
+          conversationId:
+            new Types.ObjectId(
+              conversationId,
+            ),
+        });
     }
 
     const safeLimit =
-      Number.isInteger(limit) && limit > 0 ? Math.min(limit, 100) : 30;
+      Number.isInteger(
+        limit,
+      ) &&
+        limit > 0
+        ? Math.min(
+          limit,
+          100,
+        )
+        : 30;
 
-    const query: Record<string, any> = {
-      conversationId: new Types.ObjectId(conversationId),
+    const query:
+      Record<string, any> = {
+      conversationId:
+        new Types.ObjectId(
+          conversationId,
+        ),
     };
 
-    if (cursor) {
-      if (!Types.ObjectId.isValid(cursor)) {
-        throw new Error("Invalid message cursor");
+    if (
+      cursor
+    ) {
+      if (
+        !Types.ObjectId.isValid(
+          cursor,
+        )
+      ) {
+        throw new Error(
+          "Invalid message cursor",
+        );
       }
 
-      const cursorMessage = await ChatMessage.findOne({
-        _id: new Types.ObjectId(cursor),
-        conversationId: new Types.ObjectId(conversationId),
-      }).select({ _id: 1, createdAt: 1 });
+      const cursorMessage =
+        await ChatMessage.findOne({
+          _id:
+            new Types.ObjectId(
+              cursor,
+            ),
 
-      if (!cursorMessage) {
-        throw new Error("Message cursor not found")
+          conversationId:
+            new Types.ObjectId(
+              conversationId,
+            ),
+        }).select({
+          _id: 1,
+          createdAt: 1,
+        });
+
+      if (
+        !cursorMessage
+      ) {
+        throw new Error(
+          "Message cursor not found",
+        );
       }
 
       query.$or = [
         {
           createdAt: {
-            $lt: cursorMessage.createdAt,
+            $lt:
+              cursorMessage.createdAt,
           },
         },
         {
-          createdAt: cursorMessage.createdAt,
+          createdAt:
+            cursorMessage.createdAt,
+
           _id: {
-            $lt: cursorMessage._id,
+            $lt:
+              cursorMessage._id,
           },
         },
       ];
     }
 
-    const messages = await ChatMessage.find(query).sort({ createdAt: -1, _id: -1 }).limit(safeLimit + 1);
-    const hasMore = messages.length > safeLimit;
-    const result = hasMore ? messages.slice(0, safeLimit) : messages;
+    const messages =
+      await ChatMessage
+        .find(
+          query,
+        )
+        .sort({
+          createdAt:
+            -1,
 
-    const nextCursor = hasMore && result && result.length > 0 ? result[result.length - 1]?._id.toString() ?? null : null;
-    const replyMessageIds = result.map((message) => message.replyToMessageId).filter((messageId): messageId is Types.ObjectId => Boolean(messageId));
+          _id:
+            -1,
+        })
+        .limit(
+          safeLimit +
+          1,
+        );
 
-    const replyMessages = replyMessageIds.length > 0 ? await ChatMessage.find({
-      _id: {
-        $in: replyMessageIds
-      },
-      conversationId: new Types.ObjectId(conversationId)
-    }) : [];
+    const hasMore =
+      messages.length >
+      safeLimit;
 
-    const replyMessageMap = new Map<string, IChatMessage>(replyMessages.map((message) => [
-      message._id.toString(),
-      message
-    ]))
+    const result =
+      hasMore
+        ? messages.slice(
+          0,
+          safeLimit,
+        )
+        : messages;
 
-    const formattedMessages = result.map((message) => {
-      const replyMessage = message.replyToMessageId
-        ?
-        replyMessageMap.get(message.replyToMessageId.toString()) ?? null
+    const nextCursor =
+      hasMore &&
+        result.length > 0
+        ? result[
+          result.length - 1
+        ]?._id.toString() ??
+        null
         : null;
 
-      if (message.senderId.toString() === requestedBy) {
-        return toChatMessageSocketDto(
-          message,
-          {
-            lastDeliveredMessage,
-            lastReadMessage,
-            replyMessage,
-            includeDeliveryStatus: true,
-          }
+    const replyMessageIds =
+      result
+        .map(
+          (
+            message,
+          ) =>
+            message
+              .replyToMessageId,
         )
-      }
+        .filter(
+          (
+            messageId,
+          ): messageId is Types.ObjectId =>
+            Boolean(
+              messageId,
+            ),
+        );
 
-      return toChatMessageSocketDto(message, { replyMessage })
-    })
+    const replyMessages =
+      replyMessageIds.length >
+        0
+        ? await ChatMessage
+          .find({
+            _id: {
+              $in:
+                replyMessageIds,
+            },
+
+            conversationId:
+              new Types.ObjectId(
+                conversationId,
+              ),
+          })
+        : [];
+
+    const replyMessageMap =
+      new Map<
+        string,
+        IChatMessage
+      >(
+        replyMessages.map(
+          (
+            message,
+          ) => [
+              message._id
+                .toString(),
+              message,
+            ],
+        ),
+      );
+
+    const formattedMessages =
+      result.map(
+        (
+          message,
+        ) => {
+          const replyMessage =
+            message.replyToMessageId
+              ? replyMessageMap.get(
+                message
+                  .replyToMessageId
+                  .toString(),
+              ) ??
+              null
+              : null;
+
+          if (
+            message.senderId
+              .toString() ===
+            requestedBy
+          ) {
+            return toChatMessageSocketDto(
+              message,
+              {
+                lastDeliveredMessage,
+                lastReadMessage,
+                replyMessage,
+                includeDeliveryStatus:
+                  true,
+              },
+            );
+          }
+
+          return toChatMessageSocketDto(
+            message,
+            {
+              replyMessage,
+            },
+          );
+        },
+      );
 
     return {
-      messages: formattedMessages,
+      messages:
+        formattedMessages,
+
       nextCursor,
-      hasMore
-    }
+
+      hasMore,
+    };
   }
 
   static async getUnreadCount(params: {
     conversationId: string;
     userId: string;
   }) {
-    const { conversationId, userId } = params;
-
-    if (!Types.ObjectId.isValid(conversationId)) {
-      throw new Error("Invalid conversation ID")
-    }
-
-    if (!Types.ObjectId.isValid(userId)) {
-      throw new Error("Invalid user ID")
-    }
-
-    const conversation = await ChatConversationService.assertParticipant({
+    const {
       conversationId,
-      userId
-    });
+      userId,
+    } = params;
 
-    const participant = conversation.participants.find((participant) => participant.userId.toString() === userId);
-    if (!participant) {
-      throw new Error("Chat participant not found")
+    if (
+      !Types.ObjectId.isValid(
+        conversationId,
+      )
+    ) {
+      throw new Error(
+        "Invalid conversation ID",
+      );
     }
 
-    const query: Record<string, any> = {
-      conversationId: new Types.ObjectId(conversationId),
+    if (
+      !Types.ObjectId.isValid(
+        userId,
+      )
+    ) {
+      throw new Error(
+        "Invalid user ID",
+      );
+    }
+
+    const conversation =
+      await ChatConversationService
+        .assertParticipant({
+          conversationId,
+          userId,
+        });
+
+    const participant =
+      conversation.participants
+        .find(
+          (
+            participant,
+          ) =>
+            participant.userId
+              .toString() ===
+            userId,
+        );
+
+    if (
+      !participant
+    ) {
+      throw new Error(
+        "Chat participant not found",
+      );
+    }
+
+    const query:
+      Record<string, any> = {
+      conversationId:
+        new Types.ObjectId(
+          conversationId,
+        ),
+
       senderId: {
-        $ne: new Types.ObjectId(userId)
-      }
-    }
+        $ne:
+          new Types.ObjectId(
+            userId,
+          ),
+      },
+    };
 
-    if (participant.lastReadMessageId) {
+    if (
+      participant
+        .lastReadMessageId
+    ) {
       const lastReadMessage =
         await ChatMessage.findOne({
-          _id: participant.lastReadMessageId,
+          _id:
+            participant
+              .lastReadMessageId,
+
           conversationId:
-            new Types.ObjectId(conversationId),
+            new Types.ObjectId(
+              conversationId,
+            ),
         }).select({
           _id: 1,
           createdAt: 1,
         });
 
-      if (lastReadMessage) {
+      if (
+        lastReadMessage
+      ) {
         query.$or = [
           {
             createdAt: {
-              $gt: lastReadMessage.createdAt,
+              $gt:
+                lastReadMessage
+                  .createdAt,
             },
           },
           {
             createdAt:
-              lastReadMessage.createdAt,
+              lastReadMessage
+                .createdAt,
 
             _id: {
-              $gt: lastReadMessage._id,
+              $gt:
+                lastReadMessage
+                  ._id,
             },
           },
         ];
       }
     }
 
-    const unreadCount = await ChatMessage.countDocuments(query);
-
-    return unreadCount
+    return ChatMessage
+      .countDocuments(
+        query,
+      );
   }
 }

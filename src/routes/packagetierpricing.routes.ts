@@ -32,6 +32,10 @@ const validate = (req: Request, res: Response, next: NextFunction) => {
   next();
 };
 
+// =========================================================
+// ADMIN - BULK PRICING UPDATE
+// =========================================================
+
 router.post(
   "/bulk",
   authenticate,
@@ -52,7 +56,9 @@ router.post(
 
   body("pricing")
     .isArray({ min: 1 })
-    .withMessage("pricing must contain at least one location"),
+    .withMessage(
+      "pricing must contain at least one location",
+    ),
 
   body("pricing.*.locationId")
     .notEmpty()
@@ -90,13 +96,20 @@ router.post(
 
   body("pricing.*.services.*.taxProfileId")
     .notEmpty()
-    .withMessage("taxProfileId is required")
+    .withMessage(
+      "taxProfileId is required",
+    )
     .isMongoId()
-    .withMessage("Invalid taxProfileId"),
+    .withMessage(
+      "Invalid taxProfileId",
+    ),
 
   body("pricing.*.services.*.taxPriceMode")
     .optional()
-    .isIn(["EXCLUSIVE", "INCLUSIVE"])
+    .isIn([
+      "EXCLUSIVE",
+      "INCLUSIVE",
+    ])
     .withMessage(
       "taxPriceMode must be EXCLUSIVE or INCLUSIVE",
     ),
@@ -137,6 +150,11 @@ router.post(
   bulkUpsertPackageTierPricing,
 );
 
+
+// =========================================================
+// USER - RESOLVE PACKAGE PRICING
+// =========================================================
+
 router.get(
   "/resolve",
   authenticate,
@@ -163,5 +181,6 @@ router.get(
   validate,
   resolvePackagePricing,
 );
+
 
 export default router;

@@ -4,6 +4,8 @@ export interface SendMessageResult {
     created: boolean;
 }
 export declare class ChatMessageService {
+    private static buildPushPreview;
+    private static enqueuePushSafely;
     static sendMessage(params: {
         conversationId: string;
         senderId: string;

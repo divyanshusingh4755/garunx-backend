@@ -451,3 +451,69 @@ export const reopenCart = async (req: Request, res: Response) => {
     });
   }
 };
+
+export const exportCartsCsv = async (
+  req: Request,
+  res: Response,
+) => {
+  try {
+    const {
+      cartIds,
+    } = req.body as {
+      cartIds: string[];
+    };
+
+    const result =
+      await CartService.exportCartsToCsv(
+        cartIds,
+      );
+
+    const timestamp =
+      new Date()
+        .toISOString()
+        .replace(/[:.]/g, "-");
+
+    res.setHeader(
+      "Content-Type",
+      "text/csv; charset=utf-8",
+    );
+
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="carts-${timestamp}.csv"`,
+    );
+
+    res.setHeader(
+      "X-Export-Count",
+      String(result.total),
+    );
+
+    /*
+     * BOM helps Excel correctly
+     * recognize UTF-8 content.
+     */
+    return res
+      .status(200)
+      .send(
+        `\uFEFF${result.csv}`,
+      );
+  } catch (error: any) {
+    if (
+      error.message ===
+      "No carts found for export"
+    ) {
+      return res.status(404).json({
+        success: false,
+        message: error.message,
+      });
+    }
+
+    return res.status(400).json({
+      success: false,
+
+      message:
+        error.message ||
+        "Failed to export carts",
+    });
+  }
+};

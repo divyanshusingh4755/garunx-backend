@@ -1,7 +1,9 @@
 import { Types } from "mongoose";
 type RewardStatus = "PENDING" | "AWARDED" | "FAILED";
 export declare class ReferralRewardService {
+    private static invalidateReferralCache;
     private static ensureValidObjectId;
+    private static sendReferralCouponNotification;
     static processReferralReward(userId: string, bookingId: string): Promise<void>;
     static getReferralInfo(userId: string): Promise<{
         referralCode: string | undefined;
@@ -44,6 +46,10 @@ export declare class ReferralRewardService {
         page: number;
         limit: number;
         totalPages: number;
+    }>;
+    static exportReferralRewardsToCsv(rewardIds: string[]): Promise<{
+        csv: string;
+        total: number;
     }>;
 }
 export {};

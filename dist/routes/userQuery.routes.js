@@ -3,7 +3,8 @@ import { body, param, query, validationResult } from "express-validator";
 import { authenticate } from "../middleware/authenticate.js";
 import { authorizeRoles } from "../middleware/authorizeRoles.js";
 import { Role } from "../types/rbac.js";
-import { createUserQuery, getMyQueries, getUserQueryById, sendUserQueryMessage, markUserQueryAsRead, getAllUserQueries, getAdminUserQueryById, sendAdminQueryReply, updateUserQueryStatus, updateUserQueryPriority, updateUserQueryCategory, assignUserQuery, deleteUserQuery, } from "../controllers/userQuery.controllers.js";
+import { createUserQuery, getMyQueries, getUserQueryById, sendUserQueryMessage, markUserQueryAsRead, getAllUserQueries, getAdminUserQueryById, sendAdminQueryReply, updateUserQueryStatus, updateUserQueryPriority, updateUserQueryCategory, assignUserQuery, deleteUserQuery, exportUserQueriesCsv, } from "../controllers/userQuery.controllers.js";
+import { requirePermission } from "../middleware/rbac.js";
 const router = Router();
 const QUERY_STATUSES = ["PENDING", "ONGOING", "RESOLVED", "REJECTED"];
 const QUERY_CATEGORIES = [
@@ -242,18 +243,65 @@ export const deleteUserQueryValidation = [
         .withMessage("Deletion reason must be between 3 and 1000 characters"),
     validate,
 ];
+const exportUserQueriesValidation = [
+    body("queryIds")
+        .isArray({
+        min: 1,
+        max: 1000,
+    })
+        .withMessage("queryIds must contain between 1 and 1000 query IDs"),
+    body("queryIds.*")
+        .isMongoId()
+        .withMessage("Each queryId must be a valid MongoDB ID"),
+    body("queryIds").custom((queryIds) => {
+        if (!Array.isArray(queryIds)) {
+            return true;
+        }
+        const uniqueIds = new Set(queryIds);
+        if (uniqueIds.size !==
+            queryIds.length) {
+            throw new Error("Duplicate query IDs are not allowed");
+        }
+        return true;
+    }),
+    validate,
+];
+// =========================================================
+// USER - CREATE / OWN QUERIES
+// =========================================================
 router.post("/", authenticate, createUserQueryValidation, createUserQuery);
 router.get("/my-queries", authenticate, getMyQueriesValidation, getMyQueries);
-router.get("/admin", authenticate, authorizeRoles(Role.ADMIN), getAllUserQueriesValidation, getAllUserQueries);
-router.get("/admin/:queryId", authenticate, authorizeRoles(Role.ADMIN), getUserQueryByIdValidation, getAdminUserQueryById);
+// =========================================================
+// ADMIN - STATIC ROUTES
+// =========================================================
+router.get("/admin", authenticate, authorizeRoles(Role.ADMIN), requirePermission("user_query.read"), getAllUserQueriesValidation, getAllUserQueries);
+router.post("/export", authenticate, authorizeRoles(Role.ADMIN), requirePermission("user_query.read"), exportUserQueriesValidation, exportUserQueriesCsv);
+// =========================================================
+// ADMIN - PREFIXED DETAIL ROUTE
+// Keep before generic /:queryId
+// =========================================================
+router.get("/admin/:queryId", authenticate, authorizeRoles(Role.ADMIN), requirePermission("user_query.read"), getUserQueryByIdValidation, getAdminUserQueryById);
+// =========================================================
+// QUERY - MESSAGE / READ ACTIONS
+// =========================================================
 router.post("/:queryId/messages", authenticate, sendUserQueryMessageValidation, sendUserQueryMessage);
 router.patch("/:queryId/read", authenticate, markUserQueryAsReadValidation, markUserQueryAsRead);
-router.post("/:queryId/admin-reply", authenticate, authorizeRoles(Role.ADMIN), sendAdminQueryReplyValidation, sendAdminQueryReply);
-router.patch("/:queryId/status", authenticate, authorizeRoles(Role.ADMIN), updateUserQueryStatusValidation, updateUserQueryStatus);
-router.patch("/:queryId/priority", authenticate, authorizeRoles(Role.ADMIN), updateUserQueryPriorityValidation, updateUserQueryPriority);
-router.patch("/:queryId/category", authenticate, authorizeRoles(Role.ADMIN), updateUserQueryCategoryValidation, updateUserQueryCategory);
-router.patch("/:queryId/assign", authenticate, authorizeRoles(Role.ADMIN), assignUserQueryValidation, assignUserQuery);
-router.delete("/:queryId", authenticate, authorizeRoles(Role.ADMIN), deleteUserQueryValidation, deleteUserQuery);
+// =========================================================
+// ADMIN - QUERY-SPECIFIC ACTIONS
+// =========================================================
+router.post("/:queryId/admin-reply", authenticate, authorizeRoles(Role.ADMIN), requirePermission("user_query.reply"), sendAdminQueryReplyValidation, sendAdminQueryReply);
+router.patch("/:queryId/status", authenticate, authorizeRoles(Role.ADMIN), requirePermission("user_query.status"), updateUserQueryStatusValidation, updateUserQueryStatus);
+router.patch("/:queryId/priority", authenticate, authorizeRoles(Role.ADMIN), requirePermission("user_query.priority"), updateUserQueryPriorityValidation, updateUserQueryPriority);
+router.patch("/:queryId/category", authenticate, authorizeRoles(Role.ADMIN), requirePermission("user_query.category"), updateUserQueryCategoryValidation, updateUserQueryCategory);
+router.patch("/:queryId/assign", authenticate, authorizeRoles(Role.ADMIN), requirePermission("user_query.assign"), assignUserQueryValidation, assignUserQuery);
+// =========================================================
+// ADMIN - DELETE
+// =========================================================
+router.delete("/:queryId", authenticate, authorizeRoles(Role.ADMIN), requirePermission("user_query.delete"), deleteUserQueryValidation, deleteUserQuery);
+// =========================================================
+// GENERIC QUERY DETAIL
+// Keep this LAST among GET /:queryId routes.
+// =========================================================
 router.get("/:queryId", authenticate, getUserQueryByIdValidation, getUserQueryById);
 export default router;
 //# sourceMappingURL=userQuery.routes.js.map

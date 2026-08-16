@@ -1,4 +1,4 @@
-import mongoose, { Types } from "mongoose";
+import { Types } from "mongoose";
 import { type IPackageTierService } from "../models/packagetiermap.model.js";
 type MappingPayload = {
     packageId: string;
@@ -10,29 +10,26 @@ type MappingPayload = {
     }>;
 };
 export declare class PackageTierMapService {
+    private static invalidatePackageTierMapCache;
     private static validateAndFormatServices;
     private static validatePackageTier;
     static bulkUpsertMappings(payload: MappingPayload): Promise<{
         success: boolean;
         message: string;
-        data: mongoose.Document<unknown, {}, import("../models/packagetiermap.model.js").IPackageTierMap, {}, mongoose.DefaultSchemaOptions> & import("../models/packagetiermap.model.js").IPackageTierMap & Required<{
-            _id: Types.ObjectId;
-        }> & {
-            __v: number;
-        } & {
-            id: string;
-        };
+        data: {
+            packageId: Types.ObjectId;
+            tierId: Types.ObjectId;
+            services: IPackageTierService[];
+        } | undefined;
     }>;
     static replaceMappings(payload: MappingPayload): Promise<{
         success: boolean;
         message: string;
-        data: mongoose.Document<unknown, {}, import("../models/packagetiermap.model.js").IPackageTierMap, {}, mongoose.DefaultSchemaOptions> & import("../models/packagetiermap.model.js").IPackageTierMap & Required<{
-            _id: Types.ObjectId;
-        }> & {
-            __v: number;
-        } & {
-            id: string;
-        };
+        data: {
+            packageId: Types.ObjectId;
+            tierId: Types.ObjectId;
+            services: IPackageTierService[];
+        } | undefined;
     }>;
     static getServicesByPackageAndTier(packageId: string, tierId: string): Promise<{
         serviceId: Types.ObjectId;
@@ -49,7 +46,7 @@ export declare class PackageTierMapService {
     }): Promise<{
         success: boolean;
         message: string;
-        data: IPackageTierService;
+        data: IPackageTierService | undefined;
     }>;
 }
 export {};

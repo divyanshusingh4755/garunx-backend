@@ -43,7 +43,8 @@ const createSubServiceComponentValidation = [
     body("isActive")
         .optional()
         .isBoolean()
-        .withMessage("isActive must be boolean"),
+        .withMessage("isActive must be boolean")
+        .toBoolean(),
     validate,
 ];
 const updateSubServiceComponentValidation = [
@@ -96,7 +97,8 @@ const statusValidation = [
         .exists({ checkNull: true })
         .withMessage("status is required")
         .isBoolean()
-        .withMessage("status must be boolean"),
+        .withMessage("status must be boolean")
+        .toBoolean(),
     validate,
 ];
 const publicListValidation = [
@@ -143,11 +145,24 @@ const adminListValidation = [
         .withMessage("isActive must be true or false"),
     validate,
 ];
+// =========================================================
+// PUBLIC
+// =========================================================
 router.get("/", publicListValidation, getAllSubServiceComponents);
+// =========================================================
+// ADMIN - STATIC ROUTES
+// =========================================================
 router.get("/admin", authenticate, authorizeRoles(Role.ADMIN), requirePermission("sub_service_component.read"), adminListValidation, getAllSubServiceComponentsAdmin);
 router.post("/", authenticate, authorizeRoles(Role.ADMIN), requirePermission("sub_service_component.create"), createSubServiceComponentValidation, createSubServiceComponent);
-router.patch("/:id", authenticate, authorizeRoles(Role.ADMIN), requirePermission("sub_service_component.update"), updateSubServiceComponentValidation, updateSubServiceComponent);
-router.get("/:id", authenticate, authorizeRoles(Role.ADMIN), requirePermission("sub_service_component.read"), idValidation, getSubServiceComponentById);
+// =========================================================
+// ADMIN - SPECIFIC ID ACTIONS
+// =========================================================
 router.patch("/:id/status", authenticate, authorizeRoles(Role.ADMIN), requirePermission("sub_service_component.status"), statusValidation, toggleSubServiceComponent);
+// =========================================================
+// ADMIN - GENERIC ID ROUTES
+// Keep these after more-specific /:id/... routes.
+// =========================================================
+router.get("/:id", authenticate, authorizeRoles(Role.ADMIN), requirePermission("sub_service_component.read"), idValidation, getSubServiceComponentById);
+router.patch("/:id", authenticate, authorizeRoles(Role.ADMIN), requirePermission("sub_service_component.update"), updateSubServiceComponentValidation, updateSubServiceComponent);
 export default router;
 //# sourceMappingURL=subservices.routes.js.map

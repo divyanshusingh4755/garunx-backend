@@ -1,4 +1,5 @@
 import type { CorsOptions } from "cors";
+import { HttpError } from "../utils/httpError.js";
 
 export const allowedOrigins = new Set([
   "https://heartfelt-gelato-d455e0.netlify.app",
@@ -12,7 +13,12 @@ export const corsOptions: CorsOptions = {
       return;
     }
 
-    callback(new Error("Not allowed by CORS"))
+    callback(
+      new HttpError(
+        403,
+        "Origin is not allowed",
+      ),
+    );
   },
 
   credentials: true,

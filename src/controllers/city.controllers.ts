@@ -62,7 +62,78 @@ export const updateCity = async (req: Request, res: Response) => {
   }
 };
 
-export const getAllCity = async (req: Request, res: Response) => {
+export const getAllCity = async (
+  req: Request,
+  res: Response,
+) => {
+  try {
+    const {
+      searchTerm,
+      cityFilter,
+      stateIdFilter,
+      countryFilter,
+      limit,
+      page,
+      sortBy,
+      sortOrder,
+    } = req.query;
+
+    const result = await CityService.findCity({
+      limit: limit ? Number(limit) : 40,
+      page: page ? Number(page) : 1,
+
+      // Public API must only expose active cities.
+      isActive: true,
+
+      sortBy:
+        typeof sortBy === "string"
+          ? sortBy
+          : "createdAt",
+
+      sortOrder:
+        sortOrder === "asc" ||
+          sortOrder === "desc"
+          ? sortOrder
+          : "desc",
+
+      ...(typeof searchTerm === "string" && {
+        searchTerm,
+      }),
+
+      ...(typeof cityFilter === "string" && {
+        cityFilter,
+      }),
+
+      ...(typeof stateIdFilter === "string" && {
+        stateIdFilter,
+      }),
+
+      ...(typeof countryFilter === "string" && {
+        countryFilter,
+      }),
+    });
+
+    return res.status(200).json({
+      success: true,
+      data: result.data,
+      total: result.total,
+      currentPage: result.page,
+      totalPages: result.totalPages,
+    });
+  } catch (error: any) {
+    return res.status(getStatusCode(error)).json({
+      success: false,
+      message:
+        error.message ||
+        "Failed to fetch cities",
+    });
+  }
+};
+
+export const getAllCitiesAdmin = async (
+  req: Request,
+  res: Response,
+) => {
   try {
     const {
       searchTerm,
@@ -77,16 +148,26 @@ export const getAllCity = async (req: Request, res: Response) => {
     } = req.query;
 
     const activeStatus =
-      isActive === "true" ? true : isActive === "false" ? false : undefined;
+      isActive === "true"
+        ? true
+        : isActive === "false"
+          ? false
+          : undefined;
 
     const result = await CityService.findCity({
       limit: limit ? Number(limit) : 40,
       page: page ? Number(page) : 1,
 
-      sortBy: typeof sortBy === "string" ? sortBy : "createdAt",
+      sortBy:
+        typeof sortBy === "string"
+          ? sortBy
+          : "createdAt",
 
       sortOrder:
-        sortOrder === "asc" || sortOrder === "desc" ? sortOrder : "desc",
+        sortOrder === "asc" ||
+          sortOrder === "desc"
+          ? sortOrder
+          : "desc",
 
       ...(typeof searchTerm === "string" && {
         searchTerm,
@@ -119,7 +200,9 @@ export const getAllCity = async (req: Request, res: Response) => {
   } catch (error: any) {
     return res.status(getStatusCode(error)).json({
       success: false,
-      message: error.message || "Failed to fetch cities",
+      message:
+        error.message ||
+        "Failed to fetch cities",
     });
   }
 };
@@ -159,5 +242,48 @@ export const deleteCity = async (req: Request, res: Response) => {
       success: false,
       message: error.message || "Failed to change city status",
     });
+  }
+};
+
+export const exportCitiesCsv = async (
+  req: Request,
+  res: Response,
+) => {
+  try {
+    const cityIds: string[] | undefined =
+      req.body.cityIds;
+
+    const result =
+      await CityService.exportCitiesToCsv(
+        cityIds,
+      );
+
+    const timestamp =
+      new Date()
+        .toISOString()
+        .replace(/[:.]/g, "-");
+
+    res.setHeader(
+      "Content-Type",
+      "text/csv; charset=utf-8",
+    );
+
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="cities-${timestamp}.csv"`,
+    );
+
+    return res.status(200).send(
+      result.csv,
+    );
+  } catch (error: any) {
+    return res
+      .status(getStatusCode(error))
+      .json({
+        success: false,
+        message:
+          error.message ||
+          "Failed to export cities",
+      });
   }
 };

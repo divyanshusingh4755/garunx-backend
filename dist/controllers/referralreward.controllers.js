@@ -113,4 +113,33 @@ export const getReferralRewards = async (req, res) => {
         });
     }
 };
+export const exportReferralRewardsCsv = async (req, res) => {
+    try {
+        const { rewardIds, } = req.body;
+        const result = await ReferralRewardService
+            .exportReferralRewardsToCsv(rewardIds);
+        const timestamp = new Date()
+            .toISOString()
+            .replace(/[:.]/g, "-");
+        res.setHeader("Content-Type", "text/csv; charset=utf-8");
+        res.setHeader("Content-Disposition", `attachment; filename="referral-rewards-${timestamp}.csv"`);
+        return res
+            .status(200)
+            .send(result.csv);
+    }
+    catch (error) {
+        const message = getErrorMessage(error, "Failed to export referral rewards");
+        if (message ===
+            "No referral rewards found for export") {
+            return res.status(404).json({
+                success: false,
+                message,
+            });
+        }
+        return res.status(400).json({
+            success: false,
+            message,
+        });
+    }
+};
 //# sourceMappingURL=referralreward.controllers.js.map

@@ -1,6 +1,8 @@
 import mongoose, { Types } from "mongoose";
 import { type ICategory } from "../models/category.model.js";
 export declare class CategoryService {
+    private static invalidateCategoryCache;
+    private static invalidateCategoryDependents;
     static createCategory(categoryData: Partial<ICategory>): Promise<mongoose.Document<unknown, {}, ICategory, {}, mongoose.DefaultSchemaOptions> & ICategory & Required<{
         _id: Types.ObjectId;
     }> & {
@@ -25,9 +27,9 @@ export declare class CategoryService {
         componentsCount: number;
         servicesCount: number;
         packagesCount: number;
-        components: (import("../models/component.model.js").IComponent & {
+        components: (import("../models/component.model.js").IComponent & Required<{
             _id: Types.ObjectId;
-        } & {
+        }> & {
             __v: number;
         })[];
         services: (import("../models/service.model.js").IService & {
@@ -47,9 +49,9 @@ export declare class CategoryService {
             componentsCount: number;
             servicesCount: number;
             packagesCount: number;
-            components: (import("../models/component.model.js").IComponent & {
+            components: (import("../models/component.model.js").IComponent & Required<{
                 _id: Types.ObjectId;
-            } & {
+            }> & {
                 __v: number;
             })[];
             services: (import("../models/service.model.js").IService & {
@@ -94,6 +96,10 @@ export declare class CategoryService {
         total: number;
         page: number;
         totalPages: number;
+    }>;
+    static exportCategoriesToCsv(categoryIds: string[]): Promise<{
+        csv: string;
+        total: number;
     }>;
 }
 //# sourceMappingURL=category.service.d.ts.map

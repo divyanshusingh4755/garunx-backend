@@ -279,7 +279,7 @@ export const registerDeliveryHandlers = (io: ChatSocketServer, socket: ChatSocke
         conversationId: result.conversationId,
         userId: result.userId,
         messageId: result.messageId,
-        deliveredAt: result.deliveredAt?.toISOString()
+        deliveredAt: result.deliveredAt.toISOString()
       };
 
       callback({

@@ -17,10 +17,16 @@ interface BulkUpsertPackagePricingPayload {
     pricing: PackageLocationPricingPayload[];
 }
 export declare class PackageTierPricingService {
+    private static invalidatePackagePricingCache;
     private static roundMoney;
+    private static prepareRequest;
+    private static validateConfiguration;
+    private static lockTaxProfiles;
+    private static buildBulkOperations;
     static bulkUpsertTierPricing(payload: BulkUpsertPackagePricingPayload): Promise<{
         success: boolean;
         message: string;
+        updatedCount: number;
     }>;
     static resolvePricing(packageId: string, tierId: string, locationId: string): Promise<{
         package: {
@@ -59,6 +65,7 @@ export declare class PackageTierPricingService {
             totalServices: number;
             requiredServiceCount: number;
             optionalServiceCount: number;
+            relatedServiceCount: number;
             startingPrice: number;
             isAvailable: boolean;
         };

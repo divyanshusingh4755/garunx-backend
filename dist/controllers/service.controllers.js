@@ -94,7 +94,7 @@ export const getServiceById = async (req, res) => {
 };
 export const getServicesByLocation = async (req, res) => {
     try {
-        const { cityIds, categoryIds, limit, page, isActive, isComplete, sortBy, sortOrder, } = req.query;
+        const { cityIds, categoryIds, limit, page, sortBy, sortOrder, } = req.query;
         const cityIdArray = typeof cityIds === "string"
             ? cityIds
                 .split(",")
@@ -107,24 +107,32 @@ export const getServicesByLocation = async (req, res) => {
                 .map((id) => id.trim())
                 .filter(Boolean)
             : undefined;
-        const activeStatus = isActive === "true" ? true : isActive === "false" ? false : undefined;
-        const completeStatus = isComplete === "true" ? true : isComplete === "false" ? false : undefined;
         const result = await ServiceService.getServicesByLocation({
-            limit: limit ? Number(limit) : 20,
-            page: page ? Number(page) : 1,
-            sortBy: typeof sortBy === "string" ? sortBy : "name",
-            sortOrder: sortOrder === "asc" || sortOrder === "desc" ? sortOrder : "asc",
+            limit: limit
+                ? Number(limit)
+                : 20,
+            page: page
+                ? Number(page)
+                : 1,
+            /*
+             * This is a USER-facing endpoint.
+             * Never allow the client to request
+             * inactive/incomplete services.
+             */
+            isActive: true,
+            isComplete: true,
+            sortBy: typeof sortBy === "string"
+                ? sortBy
+                : "name",
+            sortOrder: sortOrder === "asc" ||
+                sortOrder === "desc"
+                ? sortOrder
+                : "asc",
             ...(cityIdArray !== undefined && {
                 cityIds: cityIdArray,
             }),
             ...(categoryIdArray !== undefined && {
                 categoryIds: categoryIdArray,
-            }),
-            ...(activeStatus !== undefined && {
-                isActive: activeStatus,
-            }),
-            ...(completeStatus !== undefined && {
-                isComplete: completeStatus,
             }),
         });
         return res.status(200).json({
@@ -136,9 +144,12 @@ export const getServicesByLocation = async (req, res) => {
         });
     }
     catch (error) {
-        return res.status(getStatusCode(error)).json({
+        return res
+            .status(getStatusCode(error))
+            .json({
             success: false,
-            message: error.message || "Failed to fetch services by location",
+            message: error.message ||
+                "Failed to fetch services by location",
         });
     }
 };
@@ -285,6 +296,32 @@ export const removeServiceTier = async (req, res) => {
         });
     }
 };
+export const getFullServiceAdmin = async (req, res) => {
+    try {
+        const data = await ServiceService
+            .getFullServiceAdmin(req.params
+            .serviceId);
+        return res
+            .status(200)
+            .json({
+            success: true,
+            data,
+        });
+    }
+    catch (error) {
+        return res
+            .status(typeof error
+            ?.statusCode ===
+            "number"
+            ? error.statusCode
+            : 500)
+            .json({
+            success: false,
+            message: error.message ||
+                "Failed to fetch service",
+        });
+    }
+};
 export const getFullService = async (req, res) => {
     try {
         const data = await ServiceService.getFullService(req.params.serviceId);
@@ -327,6 +364,36 @@ export const getServiceDiagnostics = async (req, res) => {
         return res.status(getStatusCode(error)).json({
             success: false,
             message: error.message || "Failed to get service diagnostics",
+        });
+    }
+};
+export const exportServicesCsv = async (req, res) => {
+    try {
+        const { serviceIds, } = req.body;
+        const result = await ServiceService
+            .exportServicesToCsv(serviceIds);
+        const timestamp = new Date()
+            .toISOString()
+            .replace(/[:.]/g, "-");
+        res.setHeader("Content-Type", "text/csv; charset=utf-8");
+        res.setHeader("Content-Disposition", `attachment; filename="services-${timestamp}.csv"`);
+        res.setHeader("Cache-Control", "no-store");
+        return res
+            .status(200)
+            .send(`\uFEFF${result.csv}`);
+    }
+    catch (error) {
+        if (error.message ===
+            "No services found for export") {
+            return res.status(404).json({
+                success: false,
+                message: error.message,
+            });
+        }
+        return res.status(getStatusCode(error)).json({
+            success: false,
+            message: error.message ||
+                "Failed to export services",
         });
     }
 };

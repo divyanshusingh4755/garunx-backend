@@ -1,5 +1,27 @@
 import { NotificationService } from "../services/notification.service.js";
 import { Role } from "../types/rbac.js";
+const getStatusCode = (error) => {
+    if (typeof error === "object" &&
+        error !== null &&
+        "code" in error &&
+        error.code === 11000) {
+        return 409;
+    }
+    if (!(error instanceof Error)) {
+        return 500;
+    }
+    if (error.message ===
+        "Notification template not found") {
+        return 404;
+    }
+    if (error.message.includes("already exists")) {
+        return 409;
+    }
+    if (error.message.startsWith("Invalid preference mode")) {
+        return 400;
+    }
+    return 500;
+};
 export const getMyNotifications = async (req, res) => {
     try {
         const userId = req.user?.userId;
@@ -50,8 +72,9 @@ export const getMyNotifications = async (req, res) => {
         });
     }
     catch (error) {
-        console.error("Get notifications error:", error);
-        return res.status(500).json({
+        return res
+            .status(getStatusCode(error))
+            .json({
             success: false,
             message: error instanceof Error
                 ? error.message
@@ -76,8 +99,9 @@ export const getUnreadCount = async (req, res) => {
         });
     }
     catch (error) {
-        console.error("Get unread count error:", error);
-        return res.status(500).json({
+        return res
+            .status(getStatusCode(error))
+            .json({
             success: false,
             message: error instanceof Error
                 ? error.message
@@ -112,8 +136,9 @@ export const markAsRead = async (req, res) => {
         });
     }
     catch (error) {
-        console.error("Mark notification as read error:", error);
-        return res.status(500).json({
+        return res
+            .status(getStatusCode(error))
+            .json({
             success: false,
             message: error instanceof Error
                 ? error.message
@@ -138,8 +163,9 @@ export const markAllAsRead = async (req, res) => {
         });
     }
     catch (error) {
-        console.error("Mark all notifications as read error:", error);
-        return res.status(500).json({
+        return res
+            .status(getStatusCode(error))
+            .json({
             success: false,
             message: error instanceof Error
                 ? error.message
@@ -174,8 +200,9 @@ export const deleteNotification = async (req, res) => {
         });
     }
     catch (error) {
-        console.error("Delete notification error:", error);
-        return res.status(500).json({
+        return res
+            .status(getStatusCode(error))
+            .json({
             success: false,
             message: error instanceof Error
                 ? error.message
@@ -202,8 +229,9 @@ export const sendAdminNotification = async (req, res) => {
         });
     }
     catch (error) {
-        console.error("Send admin notification error:", error);
-        return res.status(500).json({
+        return res
+            .status(getStatusCode(error))
+            .json({
             success: false,
             message: error instanceof Error
                 ? error.message
@@ -225,12 +253,14 @@ export const retryNotificationEmail = async (req, res) => {
             .retryEmail(notificationId);
         return res.status(200).json({
             success: true,
-            message: "Notification email retried successfully",
+            message: "Notification email queued for retry",
             data: result,
         });
     }
     catch (error) {
-        return res.status(500).json({
+        return res
+            .status(getStatusCode(error))
+            .json({
             success: false,
             message: error instanceof Error
                 ? error.message
@@ -252,13 +282,14 @@ export const retryNotificationPush = async (req, res) => {
             .retryPush(notificationId);
         return res.status(200).json({
             success: true,
-            message: "Push notification retried successfully",
+            message: "Notification push queued for retry",
             data: result,
         });
     }
     catch (error) {
-        console.error("Retry push notification error:", error);
-        return res.status(500).json({
+        return res
+            .status(getStatusCode(error))
+            .json({
             success: false,
             message: error instanceof Error
                 ? error.message

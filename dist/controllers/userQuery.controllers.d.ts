@@ -12,4 +12,5 @@ export declare const updateUserQueryPriority: (req: Request, res: Response) => P
 export declare const updateUserQueryCategory: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
 export declare const assignUserQuery: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
 export declare const deleteUserQuery: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
+export declare const exportUserQueriesCsv: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
 //# sourceMappingURL=userQuery.controllers.d.ts.map

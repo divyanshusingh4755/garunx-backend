@@ -92,17 +92,26 @@ const bulkPricingValidation: ValidationChain[] = [
     .withMessage("taxPriceMode must be EXCLUSIVE or INCLUSIVE"),
 ];
 
+// =========================================================
+// ADMIN - BULK SERVICE PRICING UPDATE
+// =========================================================
+
 router.post(
   "/bulk",
   authenticate,
   authorizeRoles(Role.ADMIN),
-  requirePermission("service_pricing.update"),
-
+  requirePermission(
+    "service_pricing.update",
+  ),
   ...bulkPricingValidation,
   validate,
-
   bulkUpsertTierPricing,
 );
+
+
+// =========================================================
+// USER - RESOLVE SERVICE PRICING
+// =========================================================
 
 router.get(
   "/resolve",
@@ -111,24 +120,37 @@ router.get(
 
   query("serviceId")
     .notEmpty()
-    .withMessage("serviceId is required")
+    .withMessage(
+      "serviceId is required",
+    )
     .isMongoId()
-    .withMessage("Invalid serviceId"),
+    .withMessage(
+      "Invalid serviceId",
+    ),
 
   query("tierId")
     .notEmpty()
-    .withMessage("tierId is required")
+    .withMessage(
+      "tierId is required",
+    )
     .isMongoId()
-    .withMessage("Invalid tierId"),
+    .withMessage(
+      "Invalid tierId",
+    ),
 
   query("locationId")
     .notEmpty()
-    .withMessage("locationId is required")
+    .withMessage(
+      "locationId is required",
+    )
     .isMongoId()
-    .withMessage("Invalid locationId"),
+    .withMessage(
+      "Invalid locationId",
+    ),
 
   validate,
   resolvePricing,
 );
+
 
 export default router;

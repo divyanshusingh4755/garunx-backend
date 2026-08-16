@@ -2,9 +2,9 @@ import type { Request, Response } from "express";
 import {
   BookingService,
   type CoordinatorBookingView,
-  type CoordinatorFilters,
 } from "../services/booking.service.js";
 import { mapRoleToReassignmentRole } from "../utils/mapRole.js";
+import { CoordinatorSelectionConfigService } from "../services/coordinator-selection-config.service.js";
 
 export const paymentWebhooks = async (req: Request, res: Response) => {
   try {
@@ -424,33 +424,63 @@ export const getMyBookings = async (req: Request, res: Response) => {
   }
 };
 
-export const getMyBookingById = async (req: Request, res: Response) => {
+export const getMyBookingById = async (
+  req: Request,
+  res: Response,
+) => {
   try {
-    const { bookingId } = req.params;
+    const { bookingId } =
+      req.params;
 
-    const userId = req.user?.userId;
+    const userId =
+      req.user?.userId;
 
-    if (!userId) {
-      return res.status(401).json({
-        success: false,
-        message: "Unauthorized",
-      });
+    const role =
+      req.user?.role;
+
+    if (
+      !userId ||
+      !role
+    ) {
+      return res
+        .status(401)
+        .json({
+          success: false,
+          message: "Unauthorized",
+        });
     }
 
-    const result = await BookingService.getMyBookingById(
-      bookingId as string,
-      userId,
-    );
+    const result =
+      await BookingService
+        .getMyBookingById(
+          bookingId as string,
+          userId,
+          role,
+        );
 
-    return res.status(200).json({
-      success: true,
-      data: result,
-    });
+    return res
+      .status(200)
+      .json({
+        success: true,
+        data: result,
+      });
   } catch (error: any) {
-    return res.status(400).json({
-      success: false,
-      message: error.message,
-    });
+    const status =
+      error.message ===
+        "Booking not found"
+        ? 404
+        : error.message ===
+          "You are not authorized to view this booking"
+          ? 403
+          : 400;
+
+    return res
+      .status(status)
+      .json({
+        success: false,
+        message:
+          error.message,
+      });
   }
 };
 
@@ -491,106 +521,76 @@ export const cancelBooking = async (req: Request, res: Response) => {
 /**
  * Get coordinators eligible for a specific booking.
  */
-export const getAvailableCoordinators = async (req: Request, res: Response) => {
-  try {
-    const { bookingId } = req.params;
-    const userId = req.user?.userId;
+export const getAvailableCoordinators =
+  async (
+    req: Request,
+    res: Response,
+  ) => {
+    try {
+      const {
+        bookingId,
+      } = req.params;
 
-    if (!userId) {
-      return res.status(401).json({
-        success: false,
-        message: "Unauthorized",
+      const userId =
+        req.user?.userId;
+
+      if (!userId) {
+        return res.status(401).json({
+          success: false,
+          message: "Unauthorized",
+        });
+      }
+
+      if (
+        !bookingId ||
+        Array.isArray(bookingId)
+      ) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Valid booking ID is required",
+        });
+      }
+
+      const {
+        scheduledAt,
+      } = req.query;
+
+      const result =
+        await BookingService
+          .getAvailableCoordinators(
+            bookingId,
+
+            userId,
+
+            {
+              ...(typeof scheduledAt ===
+                "string"
+                ? {
+                  scheduledAt,
+                }
+                : {}),
+            },
+          );
+
+      return res.status(200).json({
+        success: true,
+
+        data: result,
       });
-    }
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Failed to fetch available coordinators";
 
-    if (!bookingId) {
       return res.status(400).json({
         success: false,
-        message: "Booking ID is required",
+
+        message,
       });
     }
-
-    if (!bookingId || Array.isArray(bookingId)) {
-      return res.status(400).json({
-        success: false,
-        message: "Valid booking ID is required",
-      });
-    }
-
-    const {
-      matchCaste,
-      matchGotra,
-      minRating,
-      minCompletedBookings,
-      autoAssignmentEnabled,
-      sortBy,
-      sortOrder,
-      scheduledAt,
-    } = req.query;
-
-    const filters: CoordinatorFilters = {};
-
-    if (matchCaste === "true" || matchCaste === "false") {
-      filters.matchCaste = matchCaste === "true";
-    }
-
-    if (matchGotra === "true" || matchGotra === "false") {
-      filters.matchGotra = matchGotra === "true";
-    }
-
-    if (typeof minRating === "string") {
-      const value = Number(minRating);
-
-      if (!Number.isNaN(value)) {
-        filters.minRating = value;
-      }
-    }
-
-    if (typeof minCompletedBookings === "string") {
-      const value = Number(minCompletedBookings);
-
-      if (!Number.isNaN(value)) {
-        filters.minCompletedBookings = value;
-      }
-    }
-
-    if (autoAssignmentEnabled === "true" || autoAssignmentEnabled === "false") {
-      filters.autoAssignmentEnabled = autoAssignmentEnabled === "true";
-    }
-
-    if (
-      sortBy === "rating" ||
-      sortBy === "completedBookings" ||
-      sortBy === "acceptanceRate"
-    ) {
-      filters.sortBy = sortBy;
-    }
-
-    if (sortOrder === "asc" || sortOrder === "desc") {
-      filters.sortOrder = sortOrder;
-    }
-
-    if (typeof scheduledAt === "string") {
-      filters.scheduledAt = scheduledAt;
-    }
-
-    const result = await BookingService.getAvailableCoordinators(
-      bookingId,
-      userId,
-      filters,
-    );
-
-    return res.status(200).json({
-      success: true,
-      data: result,
-    });
-  } catch (error: any) {
-    return res.status(400).json({
-      success: false,
-      message: error.message || "Failed to fetch available coordinators",
-    });
-  }
-};
+  };
 
 /**
  * Customer selects a coordinator for the booking.
@@ -1444,3 +1444,171 @@ export const getBeneficiaryBooking = async (
     });
   }
 };
+
+export const exportBookingsCsv = async (
+  req: Request,
+  res: Response,
+) => {
+  try {
+    const {
+      bookingIds,
+    }: {
+      bookingIds: string[];
+    } = req.body;
+
+    const result =
+      await BookingService.exportBookingsToCsv(
+        bookingIds,
+      );
+
+    const timestamp =
+      new Date()
+        .toISOString()
+        .replace(/[:.]/g, "-");
+
+    res.setHeader(
+      "Content-Type",
+      "text/csv; charset=utf-8",
+    );
+
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="bookings-${timestamp}.csv"`,
+    );
+
+    res.setHeader(
+      "X-Export-Count",
+      String(result.total),
+    );
+
+    /*
+     * UTF-8 BOM helps Excel display
+     * Unicode/Indian customer names correctly.
+     */
+    return res
+      .status(200)
+      .send(
+        `\uFEFF${result.csv}`,
+      );
+  } catch (error: any) {
+    const status =
+      typeof error?.statusCode ===
+        "number"
+        ? error.statusCode
+        : error?.message ===
+          "No bookings found for export"
+          ? 404
+          : 400;
+
+    return res
+      .status(status)
+      .json({
+        success: false,
+
+        message:
+          error.message ||
+          "Failed to export bookings",
+      });
+  }
+};
+
+export const getCoordinatorSelectionConfig =
+  async (
+    req: Request,
+    res: Response,
+  ) => {
+    try {
+      const result =
+        await CoordinatorSelectionConfigService
+          .getAdminConfig();
+
+      return res.status(200).json({
+        success: true,
+
+        data: result,
+      });
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Failed to fetch coordinator selection configuration";
+
+      return res.status(500).json({
+        success: false,
+
+        message,
+      });
+    }
+  };
+
+export const updateCoordinatorSelectionConfig =
+  async (
+    req: Request,
+    res: Response,
+  ) => {
+    try {
+      const adminId =
+        req.user?.userId;
+
+      if (!adminId) {
+        return res.status(401).json({
+          success: false,
+          message: "Unauthorized",
+        });
+      }
+
+      const {
+        matchCaste,
+        matchGotra,
+        minRating,
+        minCompletedBookings,
+        autoAssignmentEnabled,
+        sortBy,
+        sortOrder,
+        isActive,
+      } = req.body;
+
+      const result =
+        await CoordinatorSelectionConfigService
+          .updateConfig({
+            matchCaste,
+
+            matchGotra,
+
+            minRating,
+
+            minCompletedBookings,
+
+            autoAssignmentEnabled,
+
+            sortBy,
+
+            sortOrder,
+
+            isActive,
+
+            updatedBy:
+              adminId,
+          });
+
+      return res.status(200).json({
+        success: true,
+
+        message:
+          "Coordinator selection configuration updated successfully",
+
+        data: result,
+      });
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Failed to update coordinator selection configuration";
+
+      return res.status(400).json({
+        success: false,
+
+        message,
+      });
+    }
+  };

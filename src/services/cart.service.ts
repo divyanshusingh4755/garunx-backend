@@ -383,30 +383,66 @@ class CartService {
       throw new Error("Invalid serviceId, tierId, or locationId");
     }
 
-    const service = await Service.findById(serviceId);
-    if (!service || !service.isActive) {
-      throw new Error("Service not found or inactive");
+    const service = await Service.findById(
+      serviceId,
+    );
+
+    if (
+      !service ||
+      !service.isActive ||
+      !service.isComplete
+    ) {
+      throw new Error(
+        "Service is not available",
+      );
     }
 
-    const isValidTier = service.tiers.some(
-      (t) => t.tierId.toString() === tierId,
-    );
-    const isValidLocation = service.locations.some(
-      (l) => l.locationId.toString() === locationId,
+    const tier = service.tiers.find(
+      (item) =>
+        item.tierId.toString() === tierId,
     );
 
-    if (!isValidTier) throw new Error("Invalid tier");
-    if (!isValidLocation) throw new Error("Invalid location");
+    if (!tier) {
+      throw new Error(
+        "Invalid tier",
+      );
+    }
+
+    const location =
+      service.locations.find(
+        (item) =>
+          item.locationId.toString() ===
+          locationId,
+      );
+
+    if (!location) {
+      throw new Error(
+        "Invalid location",
+      );
+    }
+
+    if (!location.isActive) {
+      throw new Error(
+        "Location is inactive for this service",
+      );
+    }
 
     const ownerQuery = buildCartOwnerQuery(owner);
 
-    const existingCart = await Cart.findOne({
-      ...ownerQuery,
-      serviceId,
-      tierId,
-      locationId,
-      status: "ACTIVE",
-    });
+    const existingCart =
+      await Cart.findOne({
+        ...ownerQuery,
+        serviceId,
+        tierId,
+        locationId,
+
+        status: {
+          $in: [
+            "ACTIVE",
+            "SCHEDULED",
+          ],
+        },
+      });
 
     if (existingCart) {
       throw new Error("Same service already exists in cart");
@@ -462,8 +498,14 @@ class CartService {
 
     const pkg = await Package.findById(packageId);
 
-    if (!pkg?.isActive) {
-      throw new Error("Package not found or inactive");
+    if (
+      !pkg ||
+      !pkg.isActive ||
+      !pkg.isComplete
+    ) {
+      throw new Error(
+        "Package is not available",
+      );
     }
 
     const tier = pkg.tiers.find((item) => item.tierId.toString() === tierId);
@@ -551,13 +593,20 @@ class CartService {
 
     const ownerQuery = buildCartOwnerQuery(owner);
 
-    const existingCart = await Cart.findOne({
-      ...ownerQuery,
-      packageId,
-      tierId,
-      locationId,
-      status: "ACTIVE",
-    });
+    const existingCart =
+      await Cart.findOne({
+        ...ownerQuery,
+        packageId,
+        tierId,
+        locationId,
+
+        status: {
+          $in: [
+            "ACTIVE",
+            "SCHEDULED",
+          ],
+        },
+      });
 
     if (existingCart) {
       throw new Error("Same package already exists in cart");
@@ -956,12 +1005,14 @@ class CartService {
         throw new Error(`Invalid component`);
       }
 
-      const pricing = await ServicePricing.findOne({
-        serviceId: cart.serviceId,
-        componentId: sc.componentId,
-        tierId: cart.tierId,
-        locationId: cart.locationId,
-      }).lean();
+      const pricing =
+        await ServicePricing.findOne({
+          serviceId: cart.serviceId,
+          componentId: sc.componentId,
+          tierId: cart.tierId,
+          locationId: cart.locationId,
+          isActive: true,
+        }).lean();
 
       if (!pricing) {
         throw new Error(`Pricing not found for ${componentConfig.name}`);
@@ -1075,12 +1126,14 @@ class CartService {
         throw new Error("Invalid addon component for this service");
       }
 
-      const pricing = await ServicePricing.findOne({
-        serviceId: cart.serviceId,
-        componentId: ac.componentId,
-        tierId: cart.tierId,
-        locationId: cart.locationId,
-      }).lean();
+      const pricing =
+        await ServicePricing.findOne({
+          serviceId: cart.serviceId,
+          componentId: ac.componentId,
+          tierId: cart.tierId,
+          locationId: cart.locationId,
+          isActive: true,
+        }).lean();
 
       if (!pricing) {
         throw new Error(`Pricing not found for ${component.name}`);
@@ -1566,51 +1619,44 @@ class CartService {
 
     let couponDiscountAmount = 0;
 
-    if (cart.couponId) {
-      const couponQuery = Coupon.findById(cart.couponId);
+    if (
+      cart.couponId &&
+      cart.couponCode
+    ) {
+      try {
+        const validation =
+          await CouponService.validateCoupon({
+            couponCode:
+              cart.couponCode,
 
-      if (session) {
-        couponQuery.session(session);
-      }
+            ...(cart.serviceId && {
+              serviceId:
+                cart.serviceId.toString(),
+            }),
 
-      const coupon = await couponQuery.lean();
+            ...(cart.packageId && {
+              packageId:
+                cart.packageId.toString(),
+            }),
 
-      if (!coupon) {
-        changes.push("Applied coupon was removed because it no longer exists");
+            orderAmount:
+              grossTotals.subtotal,
+
+            ...(cart.userId && {
+              userId:
+                cart.userId.toString(),
+            }),
+          });
+
+        couponDiscountAmount =
+          validation.discountAmount;
+      } catch {
+        changes.push(
+          `Coupon ${cart.couponCode} was removed because it is no longer valid`,
+        );
 
         delete cart.couponId;
         delete cart.couponCode;
-      } else {
-        const now = new Date();
-
-        const expired =
-          (coupon.validFrom && coupon.validFrom > now) ||
-          (coupon.validTill && coupon.validTill < now);
-
-        if (grossTotals.subtotal < coupon.minOrderAmount) {
-          changes.push(
-            `Coupon ${coupon.couponCode} was removed because minimum order amount of ₹${coupon.minOrderAmount} is not met`,
-          );
-
-          delete cart.couponId;
-          delete cart.couponCode;
-        } else if (
-          !coupon.isActive ||
-          expired ||
-          (coupon.usageLimit > 0 && coupon.usedCount >= coupon.usageLimit)
-        ) {
-          changes.push(
-            `Coupon ${coupon.couponCode} was removed because it is no longer valid`,
-          );
-
-          delete cart.couponId;
-          delete cart.couponCode;
-        } else {
-          couponDiscountAmount = this.calculateCouponDiscount(
-            grossTotals.subtotal,
-            coupon,
-          );
-        }
       }
     }
 
@@ -1704,17 +1750,29 @@ class CartService {
 
       if (!service) {
         errors.push("Service no longer exists");
-      } else if (!service.isActive) {
-        errors.push("Service is no longer active");
+      } else if (
+        !service.isActive ||
+        !service.isComplete
+      ) {
+        errors.push(
+          "Service is no longer available",
+        );
       } else {
         const tierExists = service.tiers.some(
           (tier) => tier.tierId.toString() === cart.tierId.toString(),
         );
 
-        const locationExists = service.locations.some(
-          (location) =>
-            location.locationId.toString() === cart.locationId.toString(),
-        );
+        const selectedLocation =
+          service.locations.find(
+            (location) =>
+              location.locationId.toString() ===
+              cart.locationId.toString(),
+          );
+
+        const locationExists =
+          Boolean(
+            selectedLocation?.isActive,
+          );
 
         if (!tierExists) {
           errors.push("Selected service tier is no longer available");
@@ -1865,7 +1923,12 @@ class CartService {
           /**
            * Reuse checkout booking.
            */
-          if (cart.activeBookingId) {
+          if (
+            cart.status === "CHECKOUT_PENDING" &&
+            cart.activeBookingId &&
+            cart.checkoutExpiresAt &&
+            cart.checkoutExpiresAt > new Date()
+          ) {
             const existingBooking = await Booking.findOne({
               _id: cart.activeBookingId,
               userId,
@@ -1873,9 +1936,31 @@ class CartService {
               isDeleted: false,
             }).session(session);
 
-            if (existingBooking && existingBooking.payment.status !== "PAID") {
+            if (
+              existingBooking &&
+              existingBooking.payment.status !== "PAID"
+            ) {
               return existingBooking;
             }
+          }
+
+          if (
+            cart.status === "CHECKOUT_PENDING" &&
+            (
+              !cart.checkoutExpiresAt ||
+              cart.checkoutExpiresAt <= new Date()
+            )
+          ) {
+            cart.status = "ACTIVE";
+
+            cart.set({
+              checkoutExpiresAt: undefined,
+              activeBookingId: undefined,
+              checkedOutAt: undefined,
+              convertedToBookingAt: undefined,
+            });
+
+            await cart.save({ session });
           }
 
           if (!cart.scheduledAt) {
@@ -1933,6 +2018,22 @@ class CartService {
             bookingFor: lockedCart.bookingFor,
 
             bookedBy: "USER",
+
+            /*
+             * Booking-level snapshots.
+             *
+             * Frontend can access these directly
+             * without searching inside entries.
+             */
+            tierSnapshot: {
+              tierId: lockedCart.tierId,
+              name: lockedCart.tierName,
+            },
+
+            locationSnapshot: {
+              locationId: lockedCart.locationId,
+              name: lockedCart.locationName,
+            },
 
             entries: bookingData.entries,
 
@@ -2133,12 +2234,19 @@ class CartService {
 
     try {
       await session.withTransaction(async () => {
-        const guestCarts = await Cart.find({
-          guestId,
-          status: "ACTIVE",
-        })
-          .select("_id serviceId packageId tierId locationId")
-          .session(session);
+        const guestCarts =
+          await Cart.find({
+            guestId,
+
+            status: {
+              $in: [
+                "ACTIVE",
+                "SCHEDULED",
+              ],
+            },
+          })
+            .select("_id serviceId packageId tierId locationId")
+            .session(session);
 
         const duplicateGuestCartIds: Types.ObjectId[] = [];
 
@@ -2147,7 +2255,12 @@ class CartService {
             userId,
             tierId: cart.tierId,
             locationId: cart.locationId,
-            status: "ACTIVE",
+            status: {
+              $in: [
+                "ACTIVE",
+                "SCHEDULED",
+              ],
+            },
           };
 
           if (cart.serviceId) {
@@ -2173,7 +2286,12 @@ class CartService {
         await Cart.updateMany(
           {
             guestId,
-            status: "ACTIVE",
+            status: {
+              $in: [
+                "ACTIVE",
+                "SCHEDULED",
+              ],
+            },
             _id: { $nin: duplicateGuestCartIds },
           },
           {
@@ -2239,8 +2357,6 @@ class CartService {
       ...(owner.userId && {
         userId: owner.userId.toString(),
       }),
-
-      isFirstOrder: bookingCount === 0,
     });
 
     cart.couponId = validation.couponId as Types.ObjectId;
@@ -2322,26 +2438,457 @@ class CartService {
   static async expirePendingCheckouts() {
     const now = new Date();
 
-    const result = await Cart.updateMany(
-      {
-        status: "CHECKOUT_PENDING",
-        checkoutExpiresAt: {
-          $lte: now,
+    const result =
+      await Cart.updateMany(
+        {
+          status: "CHECKOUT_PENDING",
+
+          checkoutExpiresAt: {
+            $lte: now,
+          },
         },
-      },
-      {
-        $set: {
-          status: "ACTIVE",
+        {
+          $set: {
+            status: "ACTIVE",
+          },
+
+          $unset: {
+            checkoutExpiresAt: 1,
+            activeBookingId: 1,
+            checkedOutAt: 1,
+            convertedToBookingAt: 1,
+          },
         },
-        $unset: {
-          checkoutExpiresAt: 1,
-        },
-      },
-    );
+      );
 
     return {
       matched: result.matchedCount,
       modified: result.modifiedCount,
+    };
+  }
+
+  static async exportCartsToCsv(
+    cartIds: string[],
+  ) {
+    if (
+      !Array.isArray(cartIds) ||
+      cartIds.length === 0
+    ) {
+      throw new Error(
+        "At least one cart ID is required",
+      );
+    }
+
+    /*
+     * Protect the service even if it is
+     * called somewhere other than the route.
+     */
+    const uniqueCartIds = [
+      ...new Set(
+        cartIds.map(
+          (id) => id.toString(),
+        ),
+      ),
+    ];
+
+    const invalidId =
+      uniqueCartIds.some(
+        (id) =>
+          !mongoose.Types.ObjectId.isValid(
+            id,
+          ),
+      );
+
+    if (invalidId) {
+      throw new Error(
+        "One or more cart IDs are invalid",
+      );
+    }
+
+    const carts =
+      await Cart.find({
+        _id: {
+          $in: uniqueCartIds,
+        },
+      })
+        .sort({
+          createdAt: -1,
+        })
+        .lean();
+
+    if (carts.length === 0) {
+      throw new Error(
+        "No carts found for export",
+      );
+    }
+
+    const escapeCsv = (
+      value: unknown,
+    ): string => {
+      if (
+        value === null ||
+        value === undefined
+      ) {
+        return "";
+      }
+
+      const stringValue =
+        String(value);
+
+      if (
+        stringValue.includes(",") ||
+        stringValue.includes('"') ||
+        stringValue.includes("\n") ||
+        stringValue.includes("\r")
+      ) {
+        return `"${stringValue.replace(
+          /"/g,
+          '""',
+        )}"`;
+      }
+
+      return stringValue;
+    };
+
+
+    const formatDate = (
+      value: Date | string | undefined,
+    ): string => {
+      if (!value) {
+        return "";
+      }
+
+      const date =
+        new Date(value);
+
+      if (
+        Number.isNaN(
+          date.getTime(),
+        )
+      ) {
+        return "";
+      }
+
+      return date.toISOString();
+    };
+
+
+    const formatComponents = (
+      components:
+        | Array<{
+          componentId?: unknown;
+          name?: string;
+          items?: Array<{
+            itemId?: unknown;
+            name?: string;
+          }>;
+          priceBeforeDiscount?: number;
+          discountAmount?: number;
+          totalPrice?: number;
+        }>
+        | undefined,
+    ): string => {
+      if (
+        !Array.isArray(components) ||
+        components.length === 0
+      ) {
+        return "";
+      }
+
+      return components
+        .map((component) => {
+          const items =
+            component.items
+              ?.map(
+                (item) =>
+                  item.name ||
+                  item.itemId?.toString() ||
+                  "",
+              )
+              .filter(Boolean)
+              .join(" | ") ??
+            "";
+
+          const componentName =
+            component.name ||
+            component.componentId?.toString() ||
+            "";
+
+          const itemText =
+            items
+              ? ` [${items}]`
+              : "";
+
+          return (
+            `${componentName}${itemText}` +
+            ` (₹${component.totalPrice ?? 0})`
+          );
+        })
+        .join("; ");
+    };
+
+
+    const formatServices = (
+      services:
+        | Array<{
+          serviceId?: unknown;
+          name?: string;
+          priceBeforeDiscount?: number;
+          discountAmount?: number;
+          price?: number;
+        }>
+        | undefined,
+    ): string => {
+      if (
+        !Array.isArray(services) ||
+        services.length === 0
+      ) {
+        return "";
+      }
+
+      return services
+        .map((service) => {
+          const name =
+            service.name ||
+            service.serviceId?.toString() ||
+            "";
+
+          return (
+            `${name}` +
+            ` (₹${service.price ?? 0})`
+          );
+        })
+        .join("; ");
+    };
+
+
+    const headers = [
+      "Cart ID",
+      "Cart Type",
+
+      "User ID",
+      "Guest ID",
+
+      "Service ID",
+      "Package ID",
+
+      "Name",
+
+      "Category ID",
+
+      "Tier ID",
+      "Tier Name",
+
+      "Location ID",
+      "Location Name",
+
+      "Booking For",
+
+      "Customer Name",
+      "Customer Email",
+      "Customer Phone",
+      "Customer Address",
+
+      "Selected Components",
+      "Addon Components",
+
+      "Selected Services",
+      "Addon Services",
+
+      "Coupon ID",
+      "Coupon Code",
+
+      "Base Price",
+      "Addon Price",
+      "Subtotal",
+      "Discount Amount",
+
+      "Taxable Amount",
+      "CGST",
+      "SGST",
+      "IGST",
+      "Total Tax",
+
+      "Total Amount",
+
+      "Scheduled At",
+      "Scheduling Timezone",
+
+      "Status",
+
+      "Active Booking ID",
+
+      "Notes",
+
+      "Created At",
+      "Updated At",
+
+      "Checked Out At",
+      "Checkout Expires At",
+      "Converted To Booking At",
+    ];
+
+
+    const rows =
+      carts.map(
+        (cart) => [
+          cart._id?.toString() ?? "",
+
+          cart.serviceId
+            ? "SERVICE"
+            : cart.packageId
+              ? "PACKAGE"
+              : "",
+
+          cart.userId?.toString() ??
+          "",
+
+          cart.guestId ??
+          "",
+
+          cart.serviceId?.toString() ??
+          "",
+
+          cart.packageId?.toString() ??
+          "",
+
+          cart.name,
+
+          cart.categoryId?.toString() ??
+          "",
+
+          cart.tierId?.toString() ??
+          "",
+
+          cart.tierName,
+
+          cart.locationId?.toString() ??
+          "",
+
+          cart.locationName,
+
+          cart.bookingFor,
+
+          cart.customerDetails?.name ??
+          "",
+
+          cart.customerDetails?.email ??
+          "",
+
+          cart.customerDetails?.phone ??
+          "",
+
+          cart.customerDetails?.address ??
+          "",
+
+          formatComponents(
+            cart.selectedComponents,
+          ),
+
+          formatComponents(
+            cart.addonComponents,
+          ),
+
+          formatServices(
+            cart.selectedServices,
+          ),
+
+          formatServices(
+            cart.addonServices,
+          ),
+
+          cart.couponId?.toString() ??
+          "",
+
+          cart.couponCode ??
+          "",
+
+          cart.basePrice,
+
+          cart.addonPrice,
+
+          cart.subtotal,
+
+          cart.discountAmount,
+
+          cart.taxSummary
+            ?.taxableAmount ??
+          0,
+
+          cart.taxSummary
+            ?.cgstAmount ??
+          0,
+
+          cart.taxSummary
+            ?.sgstAmount ??
+          0,
+
+          cart.taxSummary
+            ?.igstAmount ??
+          0,
+
+          cart.taxSummary
+            ?.totalTax ??
+          0,
+
+          cart.totalAmount,
+
+          formatDate(
+            cart.scheduledAt,
+          ),
+
+          cart.schedulingTimezone ??
+          "",
+
+          cart.status,
+
+          cart.activeBookingId
+            ?.toString() ??
+          "",
+
+          cart.notes ??
+          "",
+
+          formatDate(
+            cart.createdAt,
+          ),
+
+          formatDate(
+            cart.updatedAt,
+          ),
+
+          formatDate(
+            cart.checkedOutAt,
+          ),
+
+          formatDate(
+            cart.checkoutExpiresAt,
+          ),
+
+          formatDate(
+            cart.convertedToBookingAt,
+          ),
+        ],
+      );
+
+
+    const csv = [
+      headers
+        .map(escapeCsv)
+        .join(","),
+
+      ...rows.map(
+        (row) =>
+          row
+            .map(escapeCsv)
+            .join(","),
+      ),
+    ].join("\n");
+
+
+    return {
+      csv,
+      total: carts.length,
     };
   }
 }

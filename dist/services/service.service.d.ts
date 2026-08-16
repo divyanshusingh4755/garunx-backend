@@ -12,6 +12,9 @@ type UpdateServiceInput = Partial<Pick<IService, "name" | "shortDescription" | "
     categoryId?: string;
 };
 export declare class ServiceService {
+    private static invalidateServiceCache;
+    private static invalidatePackageCaches;
+    private static buildFullServiceData;
     static createService(payload: CreateServiceInput): Promise<mongoose.Document<unknown, {}, IService, {}, mongoose.DefaultSchemaOptions> & IService & {
         _id: Types.ObjectId;
     } & {
@@ -182,30 +185,57 @@ export declare class ServiceService {
     }>;
     static getFullService(serviceId: string): Promise<{
         service: {
-            id: Types.ObjectId;
-            name: string;
-            shortDescription: string;
-            fullDescription: string;
-            thumbnailImage: string;
-            bannerImage: string | undefined;
-            startingPrice: number;
+            id: any;
+            name: any;
+            shortDescription: any;
+            fullDescription: any;
+            thumbnailImage: any;
+            bannerImage: any;
+            startingPrice: any;
             category: {
                 id: Types.ObjectId;
                 label: string;
                 value: string;
                 image: string | undefined;
             } | null;
-            isActive: true;
-            isComplete: true;
-            serviceReference: string;
+            isActive: any;
+            isComplete: any;
+            serviceReference: any;
         };
-        subServiceComponents: unknown[];
-        locations: import("../models/service.model.js").ILocationService[];
-        tiers: {
+        subServiceComponents: any;
+        locations: any;
+        tiers: any;
+        components: Record<string, {
             tierId: Types.ObjectId;
-            name: string;
-        }[];
-        components: Record<string, any>;
+            components: any[];
+        }>;
+    }>;
+    static getFullServiceAdmin(serviceId: string): Promise<{
+        service: {
+            id: any;
+            name: any;
+            shortDescription: any;
+            fullDescription: any;
+            thumbnailImage: any;
+            bannerImage: any;
+            startingPrice: any;
+            category: {
+                id: Types.ObjectId;
+                label: string;
+                value: string;
+                image: string | undefined;
+            } | null;
+            isActive: any;
+            isComplete: any;
+            serviceReference: any;
+        };
+        subServiceComponents: any;
+        locations: any;
+        tiers: any;
+        components: Record<string, {
+            tierId: Types.ObjectId;
+            components: any[];
+        }>;
     }>;
     static getFullServiceByCities(serviceId: string, cityIds: string[]): Promise<{
         service: {
@@ -241,6 +271,10 @@ export declare class ServiceService {
     static validateServiceConfiguration(serviceId: string): Promise<{
         isComplete: boolean;
         issues: string[];
+    }>;
+    static exportServicesToCsv(serviceIds: string[]): Promise<{
+        csv: string;
+        total: number;
     }>;
 }
 export {};

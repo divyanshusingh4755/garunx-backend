@@ -16,6 +16,7 @@ import {
   toggleBannerStatus,
   deleteBanner,
   getPublicBanners,
+  exportBannersCsv,
 } from "../controllers/banner.controllers.js";
 import { authorizeRoles } from "../middleware/authorizeRoles.js";
 import { Role } from "../types/rbac.js";
@@ -189,10 +190,44 @@ const updateBannerValidation = [
     if (
       !value ||
       typeof value !== "object" ||
-      Array.isArray(value) ||
-      Object.keys(value).length === 0
+      Array.isArray(value)
     ) {
-      throw new Error("At least one field is required for update");
+      throw new Error(
+        "Request body must be an object",
+      );
+    }
+
+    const allowedFields = [
+      "name",
+      "placement",
+      "format",
+      "image",
+      "description",
+      "buttonText",
+      "isActive",
+      "displayOrder",
+      "redirect",
+    ];
+
+    const suppliedFields =
+      Object.keys(value);
+
+    if (suppliedFields.length === 0) {
+      throw new Error(
+        "At least one field is required for update",
+      );
+    }
+
+    const invalidFields =
+      suppliedFields.filter(
+        (field) =>
+          !allowedFields.includes(field),
+      );
+
+    if (invalidFields.length > 0) {
+      throw new Error(
+        `Invalid update fields: ${invalidFields.join(", ")}`,
+      );
     }
 
     return true;
@@ -337,7 +372,61 @@ const listPublicBannerValidation = [
   validateRequest,
 ];
 
+const exportBannersValidation = [
+  body("bannerIds")
+    .isArray({
+      min: 1,
+      max: 1000,
+    })
+    .withMessage(
+      "bannerIds must contain between 1 and 1000 banner IDs",
+    ),
+
+  body("bannerIds.*")
+    .isMongoId()
+    .withMessage(
+      "Each bannerId must be a valid MongoDB ID",
+    ),
+
+  body("bannerIds").custom((bannerIds) => {
+    if (!Array.isArray(bannerIds)) {
+      return true;
+    }
+
+    const uniqueIds =
+      new Set(bannerIds);
+
+    if (
+      uniqueIds.size !==
+      bannerIds.length
+    ) {
+      throw new Error(
+        "Duplicate banner IDs are not allowed",
+      );
+    }
+
+    return true;
+  }),
+
+  validateRequest,
+];
+
 const router = Router();
+
+// =========================================================
+// PUBLIC
+// =========================================================
+
+router.get(
+  "/",
+  listPublicBannerValidation,
+  getPublicBanners,
+);
+
+
+// =========================================================
+// ADMIN - STATIC ROUTES
+// =========================================================
 
 router.get(
   "/admin",
@@ -348,15 +437,13 @@ router.get(
   getAllBanners,
 );
 
-router.get("/", listPublicBannerValidation, getPublicBanners);
-
-router.get(
-  "/:id",
+router.post(
+  "/export",
   authenticate,
   authorizeRoles(Role.ADMIN),
   requirePermission("banner.read"),
-  bannerIdValidation,
-  getBannerById,
+  exportBannersValidation,
+  exportBannersCsv,
 );
 
 router.post(
@@ -368,14 +455,10 @@ router.post(
   createBanner,
 );
 
-router.put(
-  "/:id",
-  authenticate,
-  authorizeRoles(Role.ADMIN),
-  requirePermission("banner.update"),
-  updateBannerValidation,
-  updateBanner,
-);
+
+// =========================================================
+// ADMIN - SPECIFIC ID ACTIONS
+// =========================================================
 
 router.patch(
   "/:id/status",
@@ -386,6 +469,29 @@ router.patch(
   toggleBannerStatus,
 );
 
+
+// =========================================================
+// ADMIN - GENERIC ID ROUTES
+// =========================================================
+
+router.get(
+  "/:id",
+  authenticate,
+  authorizeRoles(Role.ADMIN),
+  requirePermission("banner.read"),
+  bannerIdValidation,
+  getBannerById,
+);
+
+router.put(
+  "/:id",
+  authenticate,
+  authorizeRoles(Role.ADMIN),
+  requirePermission("banner.update"),
+  updateBannerValidation,
+  updateBanner,
+);
+
 router.delete(
   "/:id",
   authenticate,
@@ -394,5 +500,6 @@ router.delete(
   bannerIdValidation,
   deleteBanner,
 );
+
 
 export default router;
