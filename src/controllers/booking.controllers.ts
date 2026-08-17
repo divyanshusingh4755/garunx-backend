@@ -740,7 +740,7 @@ export const respondToAssignment = async (req: Request, res: Response) => {
 export const requestReassignment = async (req: Request, res: Response) => {
   try {
     const bookingId = req.params.bookingId;
-    const { reason } = req.body;
+    const { reason, replacementCoordinatorId } = req.body;
 
     const requestedBy = req.user?.userId;
     const authenticatedRole = req.user?.role;
@@ -749,13 +749,6 @@ export const requestReassignment = async (req: Request, res: Response) => {
       return res.status(401).json({
         success: false,
         message: "Unauthorized",
-      });
-    }
-
-    if (!bookingId) {
-      return res.status(400).json({
-        success: false,
-        message: "Booking ID is required",
       });
     }
 
@@ -773,13 +766,15 @@ export const requestReassignment = async (req: Request, res: Response) => {
       });
     }
 
-    const requestedByRole = mapRoleToReassignmentRole(authenticatedRole);
+    const requestedByRole =
+      mapRoleToReassignmentRole(authenticatedRole);
 
     const result = await BookingService.requestReassignment({
       bookingId,
       requestedBy,
       requestedByRole,
       reason: reason.trim(),
+      replacementCoordinatorId,
     });
 
     return res.status(200).json({

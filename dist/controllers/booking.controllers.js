@@ -573,19 +573,13 @@ export const respondToAssignment = async (req, res) => {
 export const requestReassignment = async (req, res) => {
     try {
         const bookingId = req.params.bookingId;
-        const { reason } = req.body;
+        const { reason, replacementCoordinatorId } = req.body;
         const requestedBy = req.user?.userId;
         const authenticatedRole = req.user?.role;
         if (!requestedBy || !authenticatedRole) {
             return res.status(401).json({
                 success: false,
                 message: "Unauthorized",
-            });
-        }
-        if (!bookingId) {
-            return res.status(400).json({
-                success: false,
-                message: "Booking ID is required",
             });
         }
         if (!bookingId || Array.isArray(bookingId)) {
@@ -606,6 +600,7 @@ export const requestReassignment = async (req, res) => {
             requestedBy,
             requestedByRole,
             reason: reason.trim(),
+            replacementCoordinatorId,
         });
         return res.status(200).json({
             success: true,
