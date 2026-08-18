@@ -456,7 +456,7 @@ router.patch(
 router.get(
   "/:bookingId/available-coordinators",
   authenticate,
-  authorizeRoles(Role.USER),
+  authorizeRoles(Role.USER, Role.COORDINATOR),
   bookingIdValidation,
   getAvailableCoordinators,
 );

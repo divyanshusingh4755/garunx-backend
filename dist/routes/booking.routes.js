@@ -186,7 +186,7 @@ router.patch("/:bookingId/notes", authenticate, authorizeRoles(Role.USER), param
 // =========================================================
 // COORDINATOR AVAILABILITY / SELECTION
 // =========================================================
-router.get("/:bookingId/available-coordinators", authenticate, authorizeRoles(Role.USER), bookingIdValidation, getAvailableCoordinators);
+router.get("/:bookingId/available-coordinators", authenticate, authorizeRoles(Role.USER, Role.COORDINATOR), bookingIdValidation, getAvailableCoordinators);
 // =========================================================
 // ASSIGNMENT
 // =========================================================
