@@ -250,8 +250,6 @@ router.get(
 
 router.get(
   "/getPackagesByLocation",
-  authenticate,
-  authorizeRoles(Role.USER),
   getPackagesByLocation,
 );
 

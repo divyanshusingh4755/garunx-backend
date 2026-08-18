@@ -377,7 +377,7 @@ const exportServicesValidation = [
 // PUBLIC / USER - STATIC ROUTES
 // =========================================================
 router.get("/", publicServiceListValidation, getAllServices);
-router.get("/getServicesByLocation", authenticate, authorizeRoles(Role.USER), servicesByLocationValidation, getServicesByLocation);
+router.get("/getServicesByLocation", servicesByLocationValidation, getServicesByLocation);
 // =========================================================
 // ADMIN - STATIC ROUTES
 // =========================================================

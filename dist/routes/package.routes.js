@@ -160,7 +160,7 @@ const exportPackagesValidation = [
 // PUBLIC / GENERAL
 // =========================================================
 router.get("/", getAllPackages);
-router.get("/getPackagesByLocation", authenticate, authorizeRoles(Role.USER), getPackagesByLocation);
+router.get("/getPackagesByLocation", getPackagesByLocation);
 // =========================================================
 // ADMIN - STATIC ROUTES
 // =========================================================

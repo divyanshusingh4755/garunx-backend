@@ -554,20 +554,26 @@ export const getAvailableCoordinators =
 
       const {
         scheduledAt,
+        searchTerm,
       } = req.query;
 
       const result =
         await BookingService
           .getAvailableCoordinators(
             bookingId,
-
             userId,
-
             {
-              ...(typeof scheduledAt ===
-                "string"
+              ...(typeof scheduledAt === "string" &&
+                scheduledAt.trim()
                 ? {
-                  scheduledAt,
+                  scheduledAt: scheduledAt.trim(),
+                }
+                : {}),
+
+              ...(typeof searchTerm === "string" &&
+                searchTerm.trim()
+                ? {
+                  searchTerm: searchTerm.trim(),
                 }
                 : {}),
             },
@@ -740,7 +746,7 @@ export const respondToAssignment = async (req: Request, res: Response) => {
 export const requestReassignment = async (req: Request, res: Response) => {
   try {
     const bookingId = req.params.bookingId;
-    const { reason, replacementCoordinatorId } = req.body;
+    const { reason } = req.body;
 
     const requestedBy = req.user?.userId;
     const authenticatedRole = req.user?.role;
@@ -773,8 +779,7 @@ export const requestReassignment = async (req: Request, res: Response) => {
       bookingId,
       requestedBy,
       requestedByRole,
-      reason: reason.trim(),
-      replacementCoordinatorId,
+      reason: reason.trim()
     });
 
     return res.status(200).json({

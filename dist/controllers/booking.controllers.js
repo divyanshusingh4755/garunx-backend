@@ -420,13 +420,19 @@ export const getAvailableCoordinators = async (req, res) => {
                 message: "Valid booking ID is required",
             });
         }
-        const { scheduledAt, } = req.query;
+        const { scheduledAt, searchTerm, } = req.query;
         const result = await BookingService
             .getAvailableCoordinators(bookingId, userId, {
-            ...(typeof scheduledAt ===
-                "string"
+            ...(typeof scheduledAt === "string" &&
+                scheduledAt.trim()
                 ? {
-                    scheduledAt,
+                    scheduledAt: scheduledAt.trim(),
+                }
+                : {}),
+            ...(typeof searchTerm === "string" &&
+                searchTerm.trim()
+                ? {
+                    searchTerm: searchTerm.trim(),
                 }
                 : {}),
         });
@@ -573,7 +579,7 @@ export const respondToAssignment = async (req, res) => {
 export const requestReassignment = async (req, res) => {
     try {
         const bookingId = req.params.bookingId;
-        const { reason, replacementCoordinatorId } = req.body;
+        const { reason } = req.body;
         const requestedBy = req.user?.userId;
         const authenticatedRole = req.user?.role;
         if (!requestedBy || !authenticatedRole) {
@@ -599,8 +605,7 @@ export const requestReassignment = async (req, res) => {
             bookingId,
             requestedBy,
             requestedByRole,
-            reason: reason.trim(),
-            replacementCoordinatorId,
+            reason: reason.trim()
         });
         return res.status(200).json({
             success: true,

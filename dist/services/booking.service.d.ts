@@ -16,8 +16,10 @@ export interface CoordinatorFilters {
 }
 export interface CoordinatorAvailabilityOptions {
     scheduledAt?: string;
+    searchTerm?: string;
 }
 export declare class BookingService {
+    private static getReassignmentManualRequestLimit;
     private static invalidateBookingCache;
     private static assignReplacementCoordinatorRequest;
     private static handleFailedReassignmentAttempt;
@@ -286,6 +288,7 @@ export declare class BookingService {
         executionStage: import("../models/booking.model.js").BookingExecutionStage | undefined;
     }>;
     static getMyBookingById(bookingId: string, userId: string, role: Role): Promise<{
+        notes: string | null;
         assignment: {
             assignedCoordinatorId: any;
             requests: {
@@ -432,7 +435,6 @@ export declare class BookingService {
         scheduledAt?: Date;
         rescheduleHistory?: IBookingReschedule[];
         completedAt?: Date;
-        notes?: string;
         cartSnapshot?: Partial<import("../models/cart.model.js").ICart>;
         isDeleted?: boolean;
         createdAt: Date;
@@ -484,7 +486,8 @@ export declare class BookingService {
         };
         requestContext: {
             scheduledAt: string | null;
-            isUserReassignmentSelection: boolean;
+            isReassignmentSelection: boolean;
+            reassignmentRequestedByRole: ReassignmentRequestedByRole | null;
             maxCoordinatorRequests: number | null;
             sentCoordinatorRequests: number | null;
             remainingCoordinatorRequests: number | null;
@@ -526,6 +529,7 @@ export declare class BookingService {
         coordinatorId: string;
         assignmentRound: any;
         isReassignmentSelection: boolean;
+        requestedByRole: ReassignmentRequestedByRole;
         sentCoordinatorRequests: any;
         maxCoordinatorRequests: number;
         remainingCoordinatorRequests: number;
@@ -546,6 +550,7 @@ export declare class BookingService {
         responseDeadlineAt: any;
         assignmentExpiresAt: any;
         isReassignmentSelection?: never;
+        requestedByRole?: never;
         remainingCoordinatorRequests?: never;
     }>;
     static respondToAssignment(params: {
@@ -559,7 +564,6 @@ export declare class BookingService {
         requestedBy: string;
         requestedByRole: ReassignmentRequestedByRole;
         reason: string;
-        replacementCoordinatorId?: string;
     }): Promise<Record<string, any>>;
     static getCoordinatorBookingList(params: {
         coordinatorId: string;

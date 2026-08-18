@@ -548,8 +548,6 @@ router.get(
 
 router.get(
   "/getServicesByLocation",
-  authenticate,
-  authorizeRoles(Role.USER),
   servicesByLocationValidation,
   getServicesByLocation,
 );

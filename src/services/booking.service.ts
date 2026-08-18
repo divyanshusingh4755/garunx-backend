@@ -37,6 +37,7 @@ const USER_REASSIGNMENT_CUTOFF_MS = 2 * 60 * 60 * 1000; // 2 hours
  */
 const MAX_REASSIGNMENT_USER_REQUESTS = 3;
 const MAX_RESCHEDULE_USER_REQUESTS = 3;
+const MAX_REASSIGNMENT_COORDINATOR_REQUESTS = 3;
 
 /*
  * After USER reassignment manual requests are exhausted (or the
@@ -77,9 +78,18 @@ export interface CoordinatorFilters {
 
 export interface CoordinatorAvailabilityOptions {
   scheduledAt?: string;
+  searchTerm?: string;
 }
 
 export class BookingService {
+  private static getReassignmentManualRequestLimit(
+    requestedByRole: ReassignmentRequestedByRole,
+  ): number {
+    return requestedByRole === "COORDINATOR"
+      ? MAX_REASSIGNMENT_COORDINATOR_REQUESTS
+      : MAX_REASSIGNMENT_USER_REQUESTS;
+  }
+
   private static async invalidateBookingCache(
     bookingId?: string,
   ): Promise<void> {
@@ -193,12 +203,17 @@ export class BookingService {
             request.assignmentType === "MANUAL",
         ).length;
 
+      const manualRequestLimit =
+        this.getReassignmentManualRequestLimit(
+          reassignment.requestedByRole,
+        );
+
       if (
         manualRequestCount >=
-        MAX_REASSIGNMENT_USER_REQUESTS
+        manualRequestLimit
       ) {
         throw new Error(
-          `You can send reassignment requests to a maximum of ${MAX_REASSIGNMENT_USER_REQUESTS} coordinators`,
+          `You can send reassignment requests to a maximum of ${manualRequestLimit} coordinators`,
         );
       }
 
@@ -5114,6 +5129,10 @@ export class BookingService {
     return {
       ...bookingData,
 
+      notes:
+        booking.notes ??
+        null,
+
       assignment:
         assignment
           ? {
@@ -5242,31 +5261,37 @@ export class BookingService {
     const isOwner =
       booking.userId?.toString() === userId;
 
-    if (!isOwner) {
-      throw new Error(
-        "You are not authorized to select a coordinator for this booking",
-      );
-    }
-
     const activeReassignment =
       booking.assignment
         ?.reassignment;
 
-    const isActiveUserReassignment =
+    const isActiveReassignment =
       booking.status ===
       "ASSIGNED" &&
       activeReassignment?.mode ===
       "AUTO" &&
-      activeReassignment
-        .requestedByRole ===
-      "USER" &&
+      ["USER", "COORDINATOR"].includes(
+        activeReassignment.requestedByRole,
+      ) &&
       [
         "PENDING_REPLACEMENT",
         "REPLACEMENT_REQUESTED",
       ].includes(
-        activeReassignment
-          .status,
+        activeReassignment.status,
       );
+
+    const isRequestingCoordinator =
+      isActiveReassignment &&
+      activeReassignment?.requestedByRole ===
+      "COORDINATOR" &&
+      activeReassignment.requestedBy?.toString() ===
+      userId;
+
+    if (!isOwner && !isRequestingCoordinator) {
+      throw new Error(
+        "You are not authorized to select a coordinator for this booking",
+      );
+    }
 
     /*
      * Do not mix reschedule and reassignment.
@@ -5295,7 +5320,7 @@ export class BookingService {
       booking.status ===
       "ASSIGNED" &&
       !options.scheduledAt &&
-      !isActiveUserReassignment
+      !isActiveReassignment
     ) {
       throw new Error(
         "Coordinator cannot be changed directly for an assigned booking",
@@ -5426,8 +5451,10 @@ export class BookingService {
       );
 
     const maxManualRequests =
-      isActiveUserReassignment
-        ? MAX_REASSIGNMENT_USER_REQUESTS
+      isActiveReassignment
+        ? this.getReassignmentManualRequestLimit(
+          activeReassignment!.requestedByRole,
+        )
         : options.scheduledAt
           ? MAX_RESCHEDULE_USER_REQUESTS
           : null;
@@ -5458,7 +5485,7 @@ export class BookingService {
      * is the fallback owner and must not be offered as replacement.
      */
     if (
-      isActiveUserReassignment &&
+      isActiveReassignment &&
       booking.assignment
         ?.assignedCoordinatorId
     ) {
@@ -5494,6 +5521,30 @@ export class BookingService {
       "coordinatorProfile.availabilityStatus":
         "AVAILABLE",
     };
+
+    const normalizedSearchTerm =
+      options.searchTerm?.trim();
+
+    if (normalizedSearchTerm) {
+      const escapedSearchTerm =
+        normalizedSearchTerm.replace(
+          /[.*+?^${}()|[\]\\]/g,
+          "\\$&",
+        );
+
+      const searchRegex =
+        new RegExp(
+          escapedSearchTerm,
+          "i",
+        );
+
+      query.$or = [
+        {
+          fullName:
+            searchRegex,
+        }
+      ];
+    }
 
     /*
      * =========================================================
@@ -5571,7 +5622,7 @@ export class BookingService {
     if (
       manualLimitReached ||
       (
-        isActiveUserReassignment &&
+        isActiveReassignment &&
         automaticFallbackStarted
       )
     ) {
@@ -6046,8 +6097,13 @@ export class BookingService {
           options.scheduledAt ??
           null,
 
-        isUserReassignmentSelection:
-          isActiveUserReassignment,
+        isReassignmentSelection:
+          isActiveReassignment,
+
+        reassignmentRequestedByRole:
+          isActiveReassignment
+            ? activeReassignment?.requestedByRole
+            : null,
 
         maxCoordinatorRequests:
           maxManualRequests,
@@ -6167,34 +6223,37 @@ export class BookingService {
       );
     }
 
-    if (
-      booking.userId?.toString() !==
-      selectedBy
-    ) {
-      throw new Error(
-        "Only the booking owner can select a coordinator",
-      );
-    }
-
     const activeReassignment =
       booking.assignment
         ?.reassignment;
 
-    const isActiveUserReassignment =
-      booking.status ===
-      "ASSIGNED" &&
-      activeReassignment?.mode ===
-      "AUTO" &&
-      activeReassignment
-        .requestedByRole ===
-      "USER" &&
+    const isActiveReassignment =
+      booking.status === "ASSIGNED" &&
+      activeReassignment?.mode === "AUTO" &&
+      ["USER", "COORDINATOR"].includes(
+        activeReassignment.requestedByRole,
+      ) &&
       [
         "PENDING_REPLACEMENT",
         "REPLACEMENT_REQUESTED",
-      ].includes(
-        activeReassignment
-          .status,
+      ].includes(activeReassignment.status);
+
+    const isOwner =
+      booking.userId?.toString() ===
+      selectedBy;
+
+    const isRequestingCoordinator =
+      isActiveReassignment &&
+      activeReassignment?.requestedByRole ===
+      "COORDINATOR" &&
+      activeReassignment.requestedBy?.toString() ===
+      selectedBy;
+
+    if (!isOwner && !isRequestingCoordinator) {
+      throw new Error(
+        "Only the booking owner or the coordinator who requested reassignment can select a coordinator",
       );
+    }
 
     if (
       activeReassignment &&
@@ -6211,11 +6270,16 @@ export class BookingService {
       );
     }
 
+    const reassignmentRequestLimit =
+      activeReassignment?.requestedByRole === "COORDINATOR"
+        ? MAX_REASSIGNMENT_COORDINATOR_REQUESTS
+        : MAX_REASSIGNMENT_USER_REQUESTS;
+
     if (
       booking.status ===
       "ASSIGNED" &&
       !scheduledAt &&
-      !isActiveUserReassignment
+      !isActiveReassignment
     ) {
       throw new Error(
         "Coordinator cannot be changed directly for an assigned booking",
@@ -6223,12 +6287,12 @@ export class BookingService {
     }
 
     if (
-      isActiveUserReassignment &&
+      isActiveReassignment &&
       assignmentType !==
       "MANUAL"
     ) {
       throw new Error(
-        "User reassignment coordinator selection must be manual",
+        "Reassignment coordinator selection must be manual",
       );
     }
 
@@ -6318,35 +6382,29 @@ export class BookingService {
           currentRound,
       );
 
-    if (
-      isActiveUserReassignment
-    ) {
+    if (isActiveReassignment) {
       const manualRequestCount =
         currentRoundRequests.filter(
           (request: any) =>
-            request.assignmentType ===
-            "MANUAL",
+            request.assignmentType === "MANUAL",
         ).length;
 
       if (
         manualRequestCount >=
-        MAX_REASSIGNMENT_USER_REQUESTS
+        reassignmentRequestLimit
       ) {
         throw new Error(
-          `You can send reassignment requests to a maximum of ${MAX_REASSIGNMENT_USER_REQUESTS} coordinators`,
+          `You can send reassignment requests to a maximum of ${reassignmentRequestLimit} coordinators`,
         );
       }
 
       const automaticFallbackStarted =
         currentRoundRequests.some(
           (request: any) =>
-            request.assignmentType ===
-            "AUTO",
+            request.assignmentType === "AUTO",
         );
 
-      if (
-        automaticFallbackStarted
-      ) {
+      if (automaticFallbackStarted) {
         throw new Error(
           "Automatic replacement assignment has already started",
         );
@@ -6579,7 +6637,7 @@ export class BookingService {
      * First acceptance wins.
      */
     if (
-      isActiveUserReassignment
+      isActiveReassignment
     ) {
       const updatedBooking =
         await this
@@ -6624,33 +6682,32 @@ export class BookingService {
           updatedBooking._id,
 
         bookingReference:
-          updatedBooking
-            .bookingReference,
+          updatedBooking.bookingReference,
 
         bookingStatus:
           updatedBooking.status,
 
         assignmentStatus:
-          updatedBooking.assignment
-            ?.status,
+          updatedBooking.assignment?.status,
 
         coordinatorId,
 
         assignmentRound:
-          updatedBooking.assignment
-            ?.currentRound,
+          updatedBooking.assignment?.currentRound,
 
-        isReassignmentSelection:
-          true,
+        isReassignmentSelection: true,
+
+        requestedByRole:
+          activeReassignment?.requestedByRole,
 
         sentCoordinatorRequests,
 
         maxCoordinatorRequests:
-          MAX_REASSIGNMENT_USER_REQUESTS,
+          reassignmentRequestLimit,
 
         remainingCoordinatorRequests:
           Math.max(
-            MAX_REASSIGNMENT_USER_REQUESTS -
+            reassignmentRequestLimit -
             sentCoordinatorRequests,
             0,
           ),
@@ -8035,7 +8092,6 @@ export class BookingService {
       requestedBy: string;
       requestedByRole: ReassignmentRequestedByRole;
       reason: string;
-      replacementCoordinatorId?: string;
     },
   ) {
     const {
@@ -8043,7 +8099,6 @@ export class BookingService {
       requestedBy,
       requestedByRole,
       reason,
-      replacementCoordinatorId,
     } = params;
 
     if (!Types.ObjectId.isValid(bookingId)) {
@@ -8056,13 +8111,6 @@ export class BookingService {
 
     if (!reason?.trim()) {
       throw new Error("Reassignment reason is required");
-    }
-
-    if (
-      replacementCoordinatorId &&
-      !Types.ObjectId.isValid(replacementCoordinatorId)
-    ) {
-      throw new Error("Invalid replacement coordinator ID");
     }
 
     const session = await mongoose.startSession();
@@ -8145,33 +8193,6 @@ export class BookingService {
           );
         }
 
-        if (
-          requestedByRole === "USER" &&
-          replacementCoordinatorId
-        ) {
-          throw new Error(
-            "User reassignment is system managed and cannot nominate a replacement coordinator",
-          );
-        }
-
-        if (
-          requestedByRole === "COORDINATOR" &&
-          !replacementCoordinatorId
-        ) {
-          throw new Error(
-            "Replacement coordinator is required for coordinator-initiated reassignment",
-          );
-        }
-
-        if (
-          replacementCoordinatorId &&
-          replacementCoordinatorId === currentCoordinatorId.toString()
-        ) {
-          throw new Error(
-            "Replacement coordinator must be different from the current coordinator",
-          );
-        }
-
         const now = new Date();
 
         if (requestedByRole === "USER" && booking.scheduledAt) {
@@ -8211,11 +8232,7 @@ export class BookingService {
         const newRound = previousRound + 1;
         booking.assignment.currentRound = newRound;
 
-        const mode: "AUTO" | "NOMINATED" =
-          requestedByRole === "COORDINATOR" ||
-            (requestedByRole === "ADMIN" && Boolean(replacementCoordinatorId))
-            ? "NOMINATED"
-            : "AUTO";
+        const mode: "AUTO" = "AUTO";
 
         booking.assignment.reassignment = {
           requestedBy: new Types.ObjectId(requestedBy),
@@ -8239,27 +8256,7 @@ export class BookingService {
          */
         booking.status = "ASSIGNED";
         booking.assignment.status = "ACCEPTED";
-
-        if (mode === "NOMINATED") {
-          if (!replacementCoordinatorId) {
-            throw new Error("Replacement coordinator is required");
-          }
-
-          /*
-           * This helper validates B and writes the pending request using the
-           * SAME transaction. If validation fails, every reassignment change
-           * above is rolled back automatically.
-           */
-          await this.assignReplacementCoordinatorRequest({
-            booking,
-            coordinatorId: replacementCoordinatorId,
-            requestedBy,
-            assignmentType: "MANUAL",
-            session,
-          });
-        } else {
-          await booking.save({ session });
-        }
+        await booking.save({ session });
 
         result = {
           bookingId: booking._id,
@@ -8269,10 +8266,14 @@ export class BookingService {
           currentCoordinatorId,
           assignmentRound: booking.assignment.currentRound,
           reassignment: booking.assignment.reassignment,
+          maxCoordinatorRequests:
+            this.getReassignmentManualRequestLimit(
+              requestedByRole,
+            ),
           message:
-            mode === "NOMINATED"
-              ? "Reassignment request sent to the nominated coordinator. Current coordinator remains assigned until the replacement accepts."
-              : "Reassignment requested successfully. You may send requests to up to 3 replacement coordinators. The current coordinator remains assigned until a replacement accepts; automatic fallback starts if the manual phase is exhausted.",
+            `Reassignment requested successfully. You may send requests to up to ${this.getReassignmentManualRequestLimit(
+              requestedByRole,
+            )} replacement coordinators. The current coordinator remains assigned until a replacement accepts; automatic fallback starts if the manual phase is exhausted.`,
         };
       });
     } finally {
@@ -8370,6 +8371,7 @@ export class BookingService {
         scheduledAt: 1,
         assignment: 1,
         pricing: 1,
+        notes: 1,
         createdAt: 1,
       };
 
@@ -8406,6 +8408,7 @@ export class BookingService {
         execution: 1,
         pricing: 1,
         completedAt: 1,
+        notes: 1,
         createdAt: 1,
       };
 
@@ -10560,9 +10563,14 @@ export class BookingService {
               ASSIGNMENT_WINDOW_MS,
             );
 
-          const userSelectionExpired =
+          const selectionExpired =
             selectionExpiresAt <=
             now;
+
+          const manualRequestLimit =
+            this.getReassignmentManualRequestLimit(
+              reassignment.requestedByRole,
+            );
 
           /*
            * USER should still be allowed to send more manual requests.
@@ -10571,12 +10579,12 @@ export class BookingService {
            * have already been used.
            */
           if (
-            reassignment
-              .requestedByRole ===
-            "USER" &&
+            ["USER", "COORDINATOR"].includes(
+              reassignment.requestedByRole,
+            ) &&
             manualRequests.length <
-            MAX_REASSIGNMENT_USER_REQUESTS &&
-            !userSelectionExpired
+            manualRequestLimit &&
+            !selectionExpired
           ) {
             result
               .waitingForUserSelection +=

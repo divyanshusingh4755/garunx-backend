@@ -1082,6 +1082,12 @@ class AuthService {
         coordinator.coordinatorProfile.approvalRejectionReason =
             status === ApprovalStatus.REJECTED ? rejectionReason.trim() : null;
         /*
+    * Only approved coordinators are eligible
+    * for automatic assignment.
+    */
+        coordinator.coordinatorProfile.autoAssignmentEnabled =
+            status === ApprovalStatus.APPROVED;
+        /*
          * Pending or rejected coordinators cannot receive automatic
          * assignments.
          */
@@ -1149,14 +1155,17 @@ class AuthService {
             coordinator.coordinatorProfile.maxDailyBookings =
                 settings.maxDailyBookings;
         }
-        if (settings.autoAssignmentEnabled !== undefined) {
-            if (settings.autoAssignmentEnabled &&
-                coordinator.coordinatorProfile.approvalStatus !==
-                    ApprovalStatus.APPROVED) {
+        if (settings.autoAssignmentEnabled) {
+            if (coordinator.coordinatorProfile.approvalStatus !==
+                ApprovalStatus.APPROVED) {
                 throw new Error("Auto-assignment cannot be enabled until the coordinator is approved");
             }
-            coordinator.coordinatorProfile.autoAssignmentEnabled =
-                settings.autoAssignmentEnabled;
+            if (!coordinator.isDocumentVerified) {
+                throw new Error("Auto-assignment cannot be enabled until identity documents are verified");
+            }
+            if (!coordinator.isActive) {
+                throw new Error("Auto-assignment cannot be enabled for an inactive coordinator");
+            }
         }
         await coordinator.save();
         await this.invalidateUserCache(coordinatorId);
