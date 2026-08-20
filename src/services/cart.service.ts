@@ -3,6 +3,7 @@ import {
   Cart,
   type IAddonService,
   type ICart,
+  type ICartSubService,
   type ISelectedComponent,
   type ISelectedComponentItem,
   type ISelectedService,
@@ -24,6 +25,7 @@ import { buildCartOwnerQuery, type CartOwner } from "../utils/getCartOwner.js";
 import { CouponService } from "./coupon.service.js";
 import { Coupon } from "../models/coupon.model.js";
 import type { ILineTax } from "../types/tax.types.js";
+import { SubServiceComponent } from "../models/subservices.model.js";
 
 interface CartValidationResult {
   isValid: boolean;
@@ -42,6 +44,100 @@ class CartService {
     } else {
       delete target.tax;
     }
+  }
+
+  private static async getSubServiceSnapshotsByServiceIds(
+    serviceIds: Types.ObjectId[],
+  ): Promise<Map<string, ICartSubService[]>> {
+    if (serviceIds.length === 0) {
+      return new Map();
+    }
+
+    /**
+     * Remove duplicate service IDs before querying.
+     */
+    const uniqueServiceIds = [
+      ...new Map(
+        serviceIds.map((serviceId) => [
+          serviceId.toString(),
+          serviceId,
+        ]),
+      ).values(),
+    ];
+
+    /**
+     * One query for ALL services.
+     *
+     * Avoids N+1 queries when a package
+     * contains many services.
+     */
+    const subServices =
+      await SubServiceComponent.find({
+        serviceId: {
+          $in: uniqueServiceIds,
+        },
+
+        isActive: true,
+      })
+        .sort({
+          createdAt: 1,
+        })
+        .lean();
+
+    const subServiceMap =
+      new Map<
+        string,
+        ICartSubService[]
+      >();
+
+    /**
+     * Always initialize every requested service
+     * with an empty array.
+     *
+     * This guarantees:
+     *
+     * subServices: []
+     *
+     * instead of undefined.
+     */
+    for (const serviceId of uniqueServiceIds) {
+      subServiceMap.set(
+        serviceId.toString(),
+        [],
+      );
+    }
+
+    for (const subService of subServices) {
+      const key =
+        subService.serviceId.toString();
+
+      const list =
+        subServiceMap.get(key) ?? [];
+
+      const snapshot: ICartSubService = {
+        subServiceId: subService._id,
+
+        name: subService.name,
+
+        description:
+          subService.description,
+
+        ...(subService.image
+          ? {
+            image: subService.image,
+          }
+          : {}),
+      };
+
+      list.push(snapshot);
+
+      subServiceMap.set(
+        key,
+        list,
+      );
+    }
+
+    return subServiceMap;
   }
 
   private static round(value: number): number {
@@ -311,81 +407,141 @@ class CartService {
     }
   }
 
-  private static formatCartResponse(cart: any, totals: CartTotals) {
-    const cartType = cart.packageId ? "PACKAGE" : "SERVICE";
+  private static formatCartResponse(
+    cart: any,
+    totals: CartTotals,
+  ) {
+    const cartType =
+      cart.packageId
+        ? "PACKAGE"
+        : "SERVICE";
 
     return {
-      _id: cart._id,
+      _id:
+        cart._id,
 
       cartType,
 
-      serviceId: cart.serviceId ?? null,
+      serviceId:
+        cart.serviceId ?? null,
 
-      packageId: cart.packageId ?? null,
+      packageId:
+        cart.packageId ?? null,
 
-      name: cart.name,
+      name:
+        cart.name,
 
-      thumbnailImage: cart.thumbnailImage,
+      thumbnailImage:
+        cart.thumbnailImage,
 
-      categoryId: cart.categoryId,
+      categoryId:
+        cart.categoryId,
 
-      tierId: cart.tierId,
+      tierId:
+        cart.tierId,
 
-      tierName: cart.tierName,
+      tierName:
+        cart.tierName,
 
-      locationId: cart.locationId,
+      locationId:
+        cart.locationId,
 
-      locationName: cart.locationName,
+      locationName:
+        cart.locationName,
 
-      /*
-       * Common field for frontend.
-       *
-       * SERVICE → selectedComponents
-       * PACKAGE → selectedServices
+      /**
+       * Keep your existing common pricing items.
        */
       items:
-        cartType === "SERVICE" ? totals.componentItems : totals.serviceItems,
+        cartType === "SERVICE"
+          ? totals.componentItems
+          : totals.serviceItems,
 
-      addonComponents: cart.addonComponents ?? [],
+      /**
+       * Now always return service structure too.
+       *
+       * SERVICE:
+       * [
+       *   {
+       *     serviceId,
+       *     name,
+       *     subServices: [...]
+       *   }
+       * ]
+       *
+       * PACKAGE:
+       * [
+       *   service1,
+       *   service2,
+       *   ...
+       * ]
+       */
+      selectedServices:
+        cart.selectedServices ?? [],
 
-      addonServices: cart.addonServices ?? [],
+      selectedComponents:
+        cart.selectedComponents ?? [],
 
-      basePrice: cart.basePrice,
+      addonComponents:
+        cart.addonComponents ?? [],
 
-      addonPrice: cart.addonPrice,
+      addonServices:
+        cart.addonServices ?? [],
 
-      subtotal: cart.subtotal,
+      basePrice:
+        cart.basePrice,
 
-      discountAmount: cart.discountAmount,
+      addonPrice:
+        cart.addonPrice,
 
-      totalAmount: cart.totalAmount,
+      subtotal:
+        cart.subtotal,
 
-      taxSummary: cart.taxSummary,
+      discountAmount:
+        cart.discountAmount,
 
-      coupon: cart.coupon ?? null,
+      totalAmount:
+        cart.totalAmount,
 
-      status: cart.status,
+      taxSummary:
+        cart.taxSummary,
 
-      createdAt: cart.createdAt,
+      coupon:
+        cart.coupon ?? null,
 
-      updatedAt: cart.updatedAt,
+      status:
+        cart.status,
+
+      createdAt:
+        cart.createdAt,
+
+      updatedAt:
+        cart.updatedAt,
     };
   }
 
-  static async createServiceCart(owner: CartOwner, payload: any) {
-    const { serviceId, tierId, locationId } = payload;
+  static async createServiceCart(
+    owner: CartOwner,
+    payload: any,
+  ) {
+    const {
+      serviceId,
+      tierId,
+      locationId,
+    } = payload;
 
     if (
       !Types.ObjectId.isValid(serviceId) ||
       !Types.ObjectId.isValid(tierId) ||
       !Types.ObjectId.isValid(locationId)
     ) {
-      throw new Error("Invalid serviceId, tierId, or locationId");
+      throw new Error(
+        "Invalid serviceId, tierId, or locationId",
+      );
     }
 
-    const service = await Service.findById(
-      serviceId,
-    );
+    const service =
+      await Service.findById(serviceId);
 
     if (
       !service ||
@@ -397,10 +553,12 @@ class CartService {
       );
     }
 
-    const tier = service.tiers.find(
-      (item) =>
-        item.tierId.toString() === tierId,
-    );
+    const tier =
+      service.tiers.find(
+        (item) =>
+          item.tierId.toString() ===
+          tierId,
+      );
 
     if (!tier) {
       throw new Error(
@@ -427,11 +585,13 @@ class CartService {
       );
     }
 
-    const ownerQuery = buildCartOwnerQuery(owner);
+    const ownerQuery =
+      buildCartOwnerQuery(owner);
 
     const existingCart =
       await Cart.findOne({
         ...ownerQuery,
+
         serviceId,
         tierId,
         locationId,
@@ -445,58 +605,164 @@ class CartService {
       });
 
     if (existingCart) {
-      throw new Error("Same service already exists in cart");
+      throw new Error(
+        "Same service already exists in cart",
+      );
     }
 
-    const cart = await Cart.create({
-      ...ownerQuery,
-      serviceId: service._id,
-      name: service.name,
-      thumbnailImage: service.thumbnailImage ?? "",
-      categoryId: service.categoryId,
-      tierId,
-      tierName:
-        service.tiers.find((t) => t.tierId.toString() === tierId)?.name || "",
-      locationId,
-      locationName:
-        service.locations.find((l) => l.locationId.toString() === locationId)
-          ?.name || "",
-      selectedComponents: [],
-      addonComponents: [],
-      addonServices: [],
-      basePrice: 0,
-      addonPrice: 0,
-      subtotal: 0,
-      discountAmount: 0,
-      totalAmount: 0,
-      taxSummary: {
-        taxableAmount: 0,
-        cgstAmount: 0,
-        sgstAmount: 0,
-        igstAmount: 0,
-        totalTax: 0,
-      },
-      status: "ACTIVE",
-    });
+    /**
+     * Fetch all active sub-service steps
+     * for the main service.
+     */
+    const subServiceMap =
+      await this.getSubServiceSnapshotsByServiceIds([
+        service._id,
+      ]);
 
-    const totals = await CartPricingEngine.calculateCartTotals(cart);
-    this.applyPricingResults(cart, totals);
+    const serviceSubServices =
+      subServiceMap.get(
+        service._id.toString(),
+      ) ?? [];
+
+    /**
+     * Main service is also represented
+     * inside selectedServices for consistent
+     * frontend response structure.
+     *
+     * IMPORTANT:
+     * These prices are initially 0 because
+     * SERVICE cart pricing comes from
+     * selectedComponents, not selectedServices.
+     */
+    const selectedServices:
+      ISelectedService[] = [
+        {
+          serviceId:
+            service._id,
+
+          name:
+            service.name,
+
+          subServices:
+            serviceSubServices,
+
+          priceBeforeDiscount: 0,
+
+          discountAmount: 0,
+
+          price: 0,
+        },
+      ];
+
+    const cart =
+      await Cart.create({
+        ...ownerQuery,
+
+        /**
+         * Root serviceId remains the source
+         * of truth for SERVICE cart type.
+         */
+        serviceId:
+          service._id,
+
+        name:
+          service.name,
+
+        thumbnailImage:
+          service.thumbnailImage ?? "",
+
+        categoryId:
+          service.categoryId,
+
+        tierId,
+
+        tierName:
+          tier.name,
+
+        locationId,
+
+        locationName:
+          location.name,
+
+        /**
+         * Main service + all its sub-service steps.
+         */
+        selectedServices,
+
+        /**
+         * Actual selectable/priceable service
+         * components remain here.
+         */
+        selectedComponents: [],
+
+        addonComponents: [],
+
+        /**
+         * Package/service addons remain separate.
+         */
+        addonServices: [],
+
+        basePrice: 0,
+
+        addonPrice: 0,
+
+        subtotal: 0,
+
+        discountAmount: 0,
+
+        totalAmount: 0,
+
+        taxSummary: {
+          taxableAmount: 0,
+          cgstAmount: 0,
+          sgstAmount: 0,
+          igstAmount: 0,
+          totalTax: 0,
+        },
+
+        status:
+          "ACTIVE",
+      });
+
+    const totals =
+      await CartPricingEngine
+        .calculateCartTotals(cart);
+
+    this.applyPricingResults(
+      cart,
+      totals,
+    );
+
     await cart.save();
-    return this.formatCartResponse(cart, totals);
+
+    return this.formatCartResponse(
+      cart,
+      totals,
+    );
   }
 
-  static async createPackageCart(owner: CartOwner, payload: any) {
-    const { packageId, tierId, locationId } = payload;
+  static async createPackageCart(
+    owner: CartOwner,
+    payload: any,
+  ) {
+    const {
+      packageId,
+      tierId,
+      locationId,
+    } = payload;
 
     if (
       !Types.ObjectId.isValid(packageId) ||
       !Types.ObjectId.isValid(tierId) ||
       !Types.ObjectId.isValid(locationId)
     ) {
-      throw new Error("Invalid packageId, tierId, or locationId");
+      throw new Error(
+        "Invalid packageId, tierId, or locationId",
+      );
     }
 
-    const pkg = await Package.findById(packageId);
+    const pkg =
+      await Package.findById(packageId);
 
     if (
       !pkg ||
@@ -508,94 +774,180 @@ class CartService {
       );
     }
 
-    const tier = pkg.tiers.find((item) => item.tierId.toString() === tierId);
+    const tier =
+      pkg.tiers.find(
+        (item) =>
+          item.tierId.toString() ===
+          tierId,
+      );
 
-    const location = pkg.locations.find(
-      (item) => item.locationId.toString() === locationId,
-    );
+    const location =
+      pkg.locations.find(
+        (item) =>
+          item.locationId.toString() ===
+          locationId,
+      );
 
     if (!tier) {
-      throw new Error("Invalid tier");
+      throw new Error(
+        "Invalid tier",
+      );
     }
 
     if (!location) {
-      throw new Error("Invalid location");
+      throw new Error(
+        "Invalid location",
+      );
     }
 
     if (!location.isActive) {
-      throw new Error("Location is inactive for this package");
+      throw new Error(
+        "Location is inactive for this package",
+      );
     }
 
-    const packageTierMap = await PackageTierMap.findOne({
-      packageId,
-      tierId,
-    }).lean();
+    const packageTierMap =
+      await PackageTierMap.findOne({
+        packageId,
+        tierId,
+      }).lean();
 
     if (!packageTierMap) {
-      throw new Error("Package tier mapping not found");
+      throw new Error(
+        "Package tier mapping not found",
+      );
     }
 
-    /*
-     * Include required services automatically.
+    /**
+     * Required services are automatically
+     * part of the package.
+     *
      * Related services remain addons.
      */
-    const requiredServices = (packageTierMap.services ?? []).filter(
-      (service) => service.isRequired && !service.isRelated,
-    );
+    const requiredServices =
+      (
+        packageTierMap.services ?? []
+      ).filter(
+        (service) =>
+          service.isRequired &&
+          !service.isRelated,
+      );
 
-    if (requiredServices.length === 0) {
-      throw new Error("Package has no required services configured");
+    if (
+      requiredServices.length === 0
+    ) {
+      throw new Error(
+        "Package has no required services configured",
+      );
     }
 
-    const requiredServiceIds = requiredServices.map(
-      (service) => service.serviceId,
-    );
+    const requiredServiceIds =
+      requiredServices.map(
+        (service) =>
+          service.serviceId,
+      );
 
-    const pricingRows = await PackageTierPricing.find({
-      packageId,
-      tierId,
-      locationId,
-      serviceId: {
-        $in: requiredServiceIds,
-      },
-    }).lean();
-
-    const pricingMap = new Map(
-      pricingRows.map((pricing) => [pricing.serviceId.toString(), pricing]),
-    );
-
-    /*
-     * Every required service must have pricing.
+    /**
+     * Fetch pricing.
      */
-    for (const service of requiredServices) {
-      const serviceId = service.serviceId.toString();
+    const pricingRows =
+      await PackageTierPricing.find({
+        packageId,
+        tierId,
+        locationId,
 
-      if (!pricingMap.has(serviceId)) {
+        serviceId: {
+          $in: requiredServiceIds,
+        },
+      }).lean();
+
+    const pricingMap =
+      new Map(
+        pricingRows.map(
+          (pricing) => [
+            pricing.serviceId.toString(),
+            pricing,
+          ],
+        ),
+      );
+
+    /**
+     * Validate pricing for every required service.
+     */
+    for (
+      const service
+      of requiredServices
+    ) {
+      const serviceId =
+        service.serviceId.toString();
+
+      if (
+        !pricingMap.has(serviceId)
+      ) {
         throw new Error(
           `Pricing not found for required service: ${service.name}`,
         );
       }
     }
 
-    const selectedServices: ISelectedService[] = requiredServices.map(
-      (service) => {
-        const pricing = pricingMap.get(service.serviceId.toString())!;
+    /**
+     * Fetch ALL active sub-service steps
+     * for ALL required package services.
+     *
+     * Only one MongoDB query is performed.
+     */
+    const subServiceMap =
+      await this.getSubServiceSnapshotsByServiceIds(
+        requiredServiceIds,
+      );
 
-        return {
-          serviceId: service.serviceId,
-          name: service.name,
-          priceBeforeDiscount: pricing.finalPrice,
-          discountAmount: 0,
-          price: pricing.finalPrice,
-        };
-      },
-    );
+    /**
+     * Build package service snapshots.
+     *
+     * Each service now contains:
+     *
+     * subServices: [...]
+     */
+    const selectedServices:
+      ISelectedService[] =
+      requiredServices.map(
+        (service) => {
+          const serviceId =
+            service.serviceId.toString();
 
-    const ownerQuery = buildCartOwnerQuery(owner);
+          const pricing =
+            pricingMap.get(serviceId)!;
+
+          return {
+            serviceId:
+              service.serviceId,
+
+            name:
+              service.name,
+
+            subServices:
+              subServiceMap.get(
+                serviceId,
+              ) ?? [],
+
+            priceBeforeDiscount:
+              pricing.finalPrice,
+
+            discountAmount: 0,
+
+            price:
+              pricing.finalPrice,
+          };
+        },
+      );
+
+    const ownerQuery =
+      buildCartOwnerQuery(owner);
 
     const existingCart =
       await Cart.findOne({
         ...ownerQuery,
+
         packageId,
         tierId,
         locationId,
@@ -609,60 +961,84 @@ class CartService {
       });
 
     if (existingCart) {
-      throw new Error("Same package already exists in cart");
+      throw new Error(
+        "Same package already exists in cart",
+      );
     }
 
-    const cart = await Cart.create({
-      ...ownerQuery,
+    const cart =
+      await Cart.create({
+        ...ownerQuery,
 
-      packageId: pkg._id,
+        packageId:
+          pkg._id,
 
-      name: pkg.name,
+        name:
+          pkg.name,
 
-      thumbnailImage: pkg.thumbnailImage ?? "",
+        thumbnailImage:
+          pkg.thumbnailImage ?? "",
 
-      categoryId: pkg.categoryId,
+        categoryId:
+          pkg.categoryId,
 
-      tierId: tier.tierId,
+        tierId:
+          tier.tierId,
 
-      tierName: tier.name,
+        tierName:
+          tier.name,
 
-      locationId: location.locationId,
+        locationId:
+          location.locationId,
 
-      locationName: location.name,
+        locationName:
+          location.name,
 
-      /*
-       * Required package services must be present
-       * before calculating package-cart totals.
-       */
-      selectedServices,
+        /**
+         * Each selected service already has
+         * all SubServiceComponent snapshots.
+         */
+        selectedServices,
 
-      addonServices: [],
+        addonServices: [],
 
-      basePrice: 0,
-      addonPrice: 0,
-      subtotal: 0,
-      discountAmount: 0,
-      totalAmount: 0,
+        basePrice: 0,
 
-      taxSummary: {
-        taxableAmount: 0,
-        cgstAmount: 0,
-        sgstAmount: 0,
-        igstAmount: 0,
-        totalTax: 0,
-      },
+        addonPrice: 0,
 
-      status: "ACTIVE",
-    });
+        subtotal: 0,
 
-    const totals = await CartPricingEngine.calculateCartTotals(cart);
+        discountAmount: 0,
 
-    this.applyPricingResults(cart, totals);
+        totalAmount: 0,
+
+        taxSummary: {
+          taxableAmount: 0,
+          cgstAmount: 0,
+          sgstAmount: 0,
+          igstAmount: 0,
+          totalTax: 0,
+        },
+
+        status:
+          "ACTIVE",
+      });
+
+    const totals =
+      await CartPricingEngine
+        .calculateCartTotals(cart);
+
+    this.applyPricingResults(
+      cart,
+      totals,
+    );
 
     await cart.save();
 
-    return this.formatCartResponse(cart, totals);
+    return this.formatCartResponse(
+      cart,
+      totals,
+    );
   }
 
   static async getUserCarts(owner: CartOwner, filters: any = {}) {
@@ -1203,108 +1579,260 @@ class CartService {
     cartId: string,
     payload: any,
   ) {
-    const { serviceIds } = payload;
+    const {
+      serviceIds,
+    } = payload;
 
-    if (!mongoose.Types.ObjectId.isValid(cartId)) {
-      throw new Error("Invalid cartId");
+    if (
+      !mongoose.Types.ObjectId.isValid(
+        cartId,
+      )
+    ) {
+      throw new Error(
+        "Invalid cartId",
+      );
     }
 
-    const cart = await Cart.findOne({
-      _id: cartId,
-      ...buildCartOwnerQuery(owner),
-    });
+    const cart =
+      await Cart.findOne({
+        _id: cartId,
+
+        ...buildCartOwnerQuery(
+          owner,
+        ),
+      });
 
     if (!cart) {
-      throw new Error("Cart not found");
+      throw new Error(
+        "Cart not found",
+      );
     }
 
-    this.ensureCartEditable(cart);
+    this.ensureCartEditable(
+      cart,
+    );
 
     if (!cart.packageId) {
-      throw new Error("This operation is only allowed for package carts");
+      throw new Error(
+        "This operation is only allowed for package carts",
+      );
     }
 
-    if (!Array.isArray(serviceIds)) {
-      throw new Error("serviceIds must be an array");
+    if (
+      !Array.isArray(serviceIds)
+    ) {
+      throw new Error(
+        "serviceIds must be an array",
+      );
     }
 
-    this.ensureUniqueIds(serviceIds, "serviceIds");
+    this.ensureUniqueIds(
+      serviceIds,
+      "serviceIds",
+    );
 
-    const packageTierMap = await PackageTierMap.findOne({
-      packageId: cart.packageId,
-      tierId: cart.tierId,
-    }).lean();
+    /**
+     * Validate every supplied ID first.
+     */
+    for (
+      const serviceId
+      of serviceIds
+    ) {
+      if (
+        !Types.ObjectId.isValid(
+          serviceId,
+        )
+      ) {
+        throw new Error(
+          `Invalid serviceId: ${serviceId}`,
+        );
+      }
+    }
+
+    const packageTierMap =
+      await PackageTierMap.findOne({
+        packageId:
+          cart.packageId,
+
+        tierId:
+          cart.tierId,
+      }).lean();
 
     if (!packageTierMap) {
-      throw new Error("Package tier mapping not found");
+      throw new Error(
+        "Package tier mapping not found",
+      );
     }
 
-    const allowedServices = packageTierMap.services || [];
+    const allowedServices =
+      packageTierMap.services ?? [];
 
-    const requiredServiceIds = allowedServices
-      .filter((service) => service.isRequired && !service.isRelated)
-      .map((service) => service.serviceId.toString());
+    /**
+     * Required non-related package services
+     * cannot be removed.
+     */
+    const requiredServiceIds =
+      allowedServices
+        .filter(
+          (service) =>
+            service.isRequired &&
+            !service.isRelated,
+        )
+        .map(
+          (service) =>
+            service.serviceId.toString(),
+        );
 
-    const selectedServiceIdSet = new Set(
-      serviceIds.map((serviceId: any) => serviceId.toString()),
-    );
-
-    const missingRequiredServices = requiredServiceIds.filter(
-      (serviceId) => !selectedServiceIdSet.has(serviceId),
-    );
-
-    if (missingRequiredServices.length > 0) {
-      throw new Error("All required package services must be selected");
-    }
-
-    const selectedServices: ISelectedService[] = [];
-
-    const pricingList = await PackageTierPricing.find({
-      packageId: cart.packageId,
-      tierId: cart.tierId,
-      locationId: cart.locationId,
-      serviceId: { $in: serviceIds },
-    }).lean();
-
-    const pricingMap = new Map(
-      pricingList.map((p) => [p.serviceId.toString(), p.finalPrice]),
-    );
-
-    for (const serviceId of serviceIds) {
-      const matchedService = allowedServices.find(
-        (s) => s.serviceId.toString() === serviceId.toString(),
+    const selectedServiceIdSet =
+      new Set(
+        serviceIds.map(
+          (serviceId: any) =>
+            serviceId.toString(),
+        ),
       );
 
+    const missingRequiredServices =
+      requiredServiceIds.filter(
+        (serviceId) =>
+          !selectedServiceIdSet.has(
+            serviceId,
+          ),
+      );
+
+    if (
+      missingRequiredServices.length >
+      0
+    ) {
+      throw new Error(
+        "All required package services must be selected",
+      );
+    }
+
+    /**
+     * Pricing for selected services.
+     */
+    const pricingList =
+      await PackageTierPricing.find({
+        packageId:
+          cart.packageId,
+
+        tierId:
+          cart.tierId,
+
+        locationId:
+          cart.locationId,
+
+        serviceId: {
+          $in: serviceIds,
+        },
+      }).lean();
+
+    const pricingMap =
+      new Map(
+        pricingList.map(
+          (pricing) => [
+            pricing.serviceId.toString(),
+            pricing.finalPrice,
+          ],
+        ),
+      );
+
+    /**
+     * Convert IDs to ObjectIds so the
+     * helper gets strongly typed IDs.
+     */
+    const requestedServiceObjectIds =
+      serviceIds.map(
+        (serviceId: any) =>
+          new Types.ObjectId(
+            serviceId.toString(),
+          ),
+      );
+
+    /**
+     * Fetch all service steps in ONE query.
+     */
+    const subServiceMap =
+      await this.getSubServiceSnapshotsByServiceIds(
+        requestedServiceObjectIds,
+      );
+
+    const selectedServices:
+      ISelectedService[] = [];
+
+    for (
+      const serviceId
+      of serviceIds
+    ) {
+      const serviceIdString =
+        serviceId.toString();
+
+      const matchedService =
+        allowedServices.find(
+          (service) =>
+            service.serviceId.toString() ===
+            serviceIdString,
+        );
+
       if (!matchedService) {
-        throw new Error(`Invalid addon service selected`);
+        throw new Error(
+          "Invalid service selected",
+        );
       }
 
-      if (matchedService.isRelated) {
+      if (
+        matchedService.isRelated
+      ) {
         throw new Error(
           `${matchedService.name} is an addon service. Use updateAddonServices instead.`,
         );
       }
 
-      const price = pricingMap.get(serviceId.toString());
+      const price =
+        pricingMap.get(
+          serviceIdString,
+        );
 
-      if (price === undefined) {
-        throw new Error(`Pricing not found for service ${matchedService.name}`);
+      if (
+        price === undefined
+      ) {
+        throw new Error(
+          `Pricing not found for service ${matchedService.name}`,
+        );
       }
 
       selectedServices.push({
-        serviceId: matchedService.serviceId,
-        name: matchedService.name,
+        serviceId:
+          matchedService.serviceId,
 
-        priceBeforeDiscount: price,
+        name:
+          matchedService.name,
+
+        /**
+         * Backend automatically inserts
+         * every active service step.
+         */
+        subServices:
+          subServiceMap.get(
+            serviceIdString,
+          ) ?? [],
+
+        priceBeforeDiscount:
+          price,
+
         discountAmount: 0,
+
         price,
       });
     }
 
-    cart.selectedServices = selectedServices;
+    cart.selectedServices =
+      selectedServices;
 
     await Cart.updateOne(
-      { _id: cart._id },
+      {
+        _id: cart._id,
+      },
       {
         $set: {
           selectedServices,
@@ -1312,9 +1840,14 @@ class CartService {
       },
     );
 
-    const result = await this.recalculateCart(owner, cart._id.toString(), {
-      persist: true,
-    });
+    const result =
+      await this.recalculateCart(
+        owner,
+        cart._id.toString(),
+        {
+          persist: true,
+        },
+      );
 
     return result.cart;
   }
@@ -1324,90 +1857,220 @@ class CartService {
     cartId: string,
     payload: any,
   ) {
-    const { serviceIds } = payload;
+    const {
+      serviceIds,
+    } = payload;
 
-    if (!mongoose.Types.ObjectId.isValid(cartId)) {
-      throw new Error("Invalid cartId");
+    if (
+      !mongoose.Types.ObjectId.isValid(
+        cartId,
+      )
+    ) {
+      throw new Error(
+        "Invalid cartId",
+      );
     }
 
-    const cart = await Cart.findOne({
-      _id: cartId,
-      ...buildCartOwnerQuery(owner),
-    });
+    const cart =
+      await Cart.findOne({
+        _id: cartId,
+
+        ...buildCartOwnerQuery(
+          owner,
+        ),
+      });
 
     if (!cart) {
-      throw new Error("Cart not found");
+      throw new Error(
+        "Cart not found",
+      );
     }
 
-    this.ensureCartEditable(cart);
-
-    if (!cart.packageId) {
-      throw new Error("This operation is only allowed for package carts");
-    }
-
-    if (!Array.isArray(serviceIds)) {
-      throw new Error("serviceIds must be an array");
-    }
-
-    this.ensureUniqueIds(serviceIds, "serviceIds");
-
-    const packageTierMap = await PackageTierMap.findOne({
-      packageId: cart.packageId,
-      tierId: cart.tierId,
-    }).lean();
-
-    if (!packageTierMap) {
-      throw new Error("Package tier mapping not found");
-    }
-
-    const allowedServices = packageTierMap.services || [];
-
-    const addonServices: IAddonService[] = [];
-
-    const pricingList = await PackageTierPricing.find({
-      packageId: cart.packageId,
-      tierId: cart.tierId,
-      locationId: cart.locationId,
-      serviceId: { $in: serviceIds },
-    }).lean();
-
-    const pricingMap = new Map(
-      pricingList.map((p) => [p.serviceId.toString(), p.finalPrice]),
+    this.ensureCartEditable(
+      cart,
     );
 
-    for (const serviceId of serviceIds) {
-      const matchedService = allowedServices.find(
-        (s) => s.serviceId.toString() === serviceId.toString(),
+    if (!cart.packageId) {
+      throw new Error(
+        "This operation is only allowed for package carts",
+      );
+    }
+
+    if (
+      !Array.isArray(serviceIds)
+    ) {
+      throw new Error(
+        "serviceIds must be an array",
+      );
+    }
+
+    this.ensureUniqueIds(
+      serviceIds,
+      "serviceIds",
+    );
+
+    /**
+     * Validate IDs before querying.
+     */
+    for (
+      const serviceId
+      of serviceIds
+    ) {
+      if (
+        !Types.ObjectId.isValid(
+          serviceId,
+        )
+      ) {
+        throw new Error(
+          `Invalid serviceId: ${serviceId}`,
+        );
+      }
+    }
+
+    const packageTierMap =
+      await PackageTierMap.findOne({
+        packageId:
+          cart.packageId,
+
+        tierId:
+          cart.tierId,
+      }).lean();
+
+    if (!packageTierMap) {
+      throw new Error(
+        "Package tier mapping not found",
+      );
+    }
+
+    const allowedServices =
+      packageTierMap.services ?? [];
+
+    /**
+     * Get pricing for requested addons.
+     */
+    const pricingList =
+      await PackageTierPricing.find({
+        packageId:
+          cart.packageId,
+
+        tierId:
+          cart.tierId,
+
+        locationId:
+          cart.locationId,
+
+        serviceId: {
+          $in: serviceIds,
+        },
+      }).lean();
+
+    const pricingMap =
+      new Map(
+        pricingList.map(
+          (pricing) => [
+            pricing.serviceId.toString(),
+            pricing.finalPrice,
+          ],
+        ),
       );
 
+    const requestedServiceObjectIds =
+      serviceIds.map(
+        (serviceId: any) =>
+          new Types.ObjectId(
+            serviceId.toString(),
+          ),
+      );
+
+    /**
+     * Fetch ALL active SubServiceComponents
+     * for all addon services in ONE query.
+     */
+    const subServiceMap =
+      await this.getSubServiceSnapshotsByServiceIds(
+        requestedServiceObjectIds,
+      );
+
+    const addonServices:
+      IAddonService[] = [];
+
+    for (
+      const serviceId
+      of serviceIds
+    ) {
+      const serviceIdString =
+        serviceId.toString();
+
+      const matchedService =
+        allowedServices.find(
+          (service) =>
+            service.serviceId.toString() ===
+            serviceIdString,
+        );
+
       if (!matchedService) {
-        throw new Error(`Invalid addon service selected`);
+        throw new Error(
+          "Invalid addon service selected",
+        );
       }
 
-      if (matchedService.isRequired || !matchedService.isRelated) {
-        throw new Error(`${matchedService.name} is not an addon service.`);
+      /**
+       * Only related non-required services
+       * can be addons.
+       */
+      if (
+        matchedService.isRequired ||
+        !matchedService.isRelated
+      ) {
+        throw new Error(
+          `${matchedService.name} is not an addon service.`,
+        );
       }
 
-      const price = pricingMap.get(serviceId.toString());
+      const price =
+        pricingMap.get(
+          serviceIdString,
+        );
 
-      if (price === undefined) {
-        throw new Error(`Pricing not found for service ${matchedService.name}`);
+      if (
+        price === undefined
+      ) {
+        throw new Error(
+          `Pricing not found for service ${matchedService.name}`,
+        );
       }
 
       addonServices.push({
-        serviceId: matchedService.serviceId,
-        name: matchedService.name,
+        serviceId:
+          matchedService.serviceId,
 
-        priceBeforeDiscount: price,
+        name:
+          matchedService.name,
+
+        /**
+         * Automatically included.
+         */
+        subServices:
+          subServiceMap.get(
+            serviceIdString,
+          ) ?? [],
+
+        priceBeforeDiscount:
+          price,
+
         discountAmount: 0,
+
         price,
       });
     }
 
-    cart.addonServices = addonServices;
+    cart.addonServices =
+      addonServices;
 
     await Cart.updateOne(
-      { _id: cart._id },
+      {
+        _id: cart._id,
+      },
       {
         $set: {
           addonServices,
@@ -1415,9 +2078,14 @@ class CartService {
       },
     );
 
-    const result = await this.recalculateCart(owner, cart._id.toString(), {
-      persist: true,
-    });
+    const result =
+      await this.recalculateCart(
+        owner,
+        cart._id.toString(),
+        {
+          persist: true,
+        },
+      );
 
     return result.cart;
   }

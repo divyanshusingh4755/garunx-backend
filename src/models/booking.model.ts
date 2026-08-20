@@ -198,6 +198,13 @@ export interface IPendingReschedule {
   assignmentRound: number;
 }
 
+export interface IBookingSubService {
+  subServiceId: Types.ObjectId;
+  name: string;
+  description: string;
+  image?: string;
+}
+
 const pendingRescheduleSchema = new Schema<IPendingReschedule>(
   {
     previousScheduledAt: {
@@ -553,8 +560,40 @@ const bookingComponentSchema = new Schema<IBookingComponent>(
   { _id: false },
 );
 
+const bookingSubServiceSchema =
+  new Schema<IBookingSubService>(
+    {
+      subServiceId: {
+        type: Schema.Types.ObjectId,
+        ref: "SubServiceComponent",
+        required: true,
+      },
+
+      name: {
+        type: String,
+        required: true,
+        trim: true,
+      },
+
+      description: {
+        type: String,
+        required: true,
+        trim: true,
+      },
+
+      image: {
+        type: String,
+        trim: true,
+      },
+    },
+    {
+      _id: false,
+    },
+  );
+
 export interface IBookingServiceConfiguration {
   serviceId: Types.ObjectId;
+
   serviceSnapshot: {
     name: string;
     shortDescription?: string;
@@ -563,10 +602,8 @@ export interface IBookingServiceConfiguration {
   };
 
   serviceRole: ServiceRole;
-  subService?: {
-    subServiceId: Types.ObjectId;
-    name: string;
-  };
+
+  subServices: IBookingSubService[];
 
   tier: {
     tierId: Types.ObjectId;
@@ -579,6 +616,7 @@ export interface IBookingServiceConfiguration {
   };
 
   components: IBookingComponent[];
+
   pricing: {
     priceBeforeDiscount: number;
     discountAmount: number;
@@ -611,12 +649,9 @@ const bookingServiceConfigurationSchema =
         default: "PRIMARY",
       },
 
-      subService: {
-        subServiceId: {
-          type: Schema.Types.ObjectId,
-          ref: "SubServiceComponent",
-        },
-        name: String,
+      subServices: {
+        type: [bookingSubServiceSchema],
+        default: [],
       },
 
       tier: {

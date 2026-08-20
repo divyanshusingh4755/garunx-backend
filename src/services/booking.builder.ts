@@ -20,9 +20,18 @@ import { ServiceComponent } from "../models/servicecomponent.model.js";
 
 interface PackageCartServiceLine {
   serviceId: Types.ObjectId;
+
+  subServices: {
+    subServiceId: Types.ObjectId;
+    name: string;
+    description: string;
+    image?: string;
+  }[];
+
   priceBeforeDiscount: number;
   discountAmount: number;
   price: number;
+
   tax?: ISelectedComponent["tax"];
 }
 
@@ -118,84 +127,179 @@ export class BookingBuilder {
       : this.buildPackageBooking(cart);
   }
 
-  static async buildServiceBooking(cart: ICart): Promise<BookingBuildResult> {
+  static async buildServiceBooking(
+    cart: ICart,
+  ): Promise<BookingBuildResult> {
     if (!cart.serviceId) {
-      throw new Error("Service ID is required for service booking");
+      throw new Error(
+        "Service ID is required for service booking",
+      );
     }
 
     if (cart.packageId) {
-      throw new Error("Service booking cart cannot contain packageId");
+      throw new Error(
+        "Service booking cart cannot contain packageId",
+      );
     }
 
-    const service = await Service.findById(cart.serviceId).lean();
+    const service =
+      await Service.findById(
+        cart.serviceId,
+      ).lean();
 
     if (!service) {
-      throw new Error("Service not found");
+      throw new Error(
+        "Service not found",
+      );
     }
 
-    const plainCart = this.toPlainCart(cart);
+    const plainCart =
+      this.toPlainCart(cart);
 
     const selectedComponents = [
-      ...(plainCart.selectedComponents ?? []).map((component) => ({
+      ...(
+        plainCart.selectedComponents ?? []
+      ).map((component) => ({
         ...component,
-        componentType: "DEFAULT" as const,
+        componentType:
+          "DEFAULT" as const,
       })),
-      ...(plainCart.addonComponents ?? []).map((component) => ({
+
+      ...(
+        plainCart.addonComponents ?? []
+      ).map((component) => ({
         ...component,
-        componentType: "ADDON" as const,
+        componentType:
+          "ADDON" as const,
       })),
     ];
 
-    const components = await this.buildComponentSnapshots(
-      selectedComponents,
-      service._id,
-      cart.tierId,
-    );
+    const components =
+      await this.buildComponentSnapshots(
+        selectedComponents,
+        service._id,
+        cart.tierId,
+      );
+
+    /**
+     * For direct SERVICE cart,
+     * selectedServices[0] represents
+     * the main service itself.
+     */
+    const mainCartService =
+      plainCart.selectedServices?.find(
+        (selectedService) =>
+          selectedService.serviceId.toString() ===
+          service._id.toString(),
+      );
 
     const entry: IBookingEntry = {
       entryType: "SERVICE",
+
       serviceConfiguration: {
-        serviceId: service._id,
+        serviceId:
+          service._id,
+
         serviceSnapshot: {
-          name: service.name,
+          name:
+            service.name,
+
           ...(service.shortDescription
             ? {
-              shortDescription: service.shortDescription,
+              shortDescription:
+                service.shortDescription,
             }
             : {}),
+
           ...(service.thumbnailImage
             ? {
-              thumbnailImage: service.thumbnailImage,
+              thumbnailImage:
+                service.thumbnailImage,
             }
             : {}),
+
           ...(service.serviceReference
             ? {
-              serviceReference: service.serviceReference,
+              serviceReference:
+                service.serviceReference,
             }
             : {}),
         },
-        serviceRole: "PRIMARY",
+
+        serviceRole:
+          "PRIMARY",
+
+        /**
+         * Copy the cart snapshot.
+         *
+         * Do NOT query SubServiceComponent again.
+         */
+        subServices:
+          mainCartService?.subServices?.map(
+            (subService) => ({
+              subServiceId:
+                subService.subServiceId,
+
+              name:
+                subService.name,
+
+              description:
+                subService.description,
+
+              ...(subService.image
+                ? {
+                  image:
+                    subService.image,
+                }
+                : {}),
+            }),
+          ) ?? [],
+
         tier: {
-          tierId: cart.tierId,
-          name: cart.tierName,
+          tierId:
+            cart.tierId,
+
+          name:
+            cart.tierName,
         },
+
         location: {
-          locationId: cart.locationId,
-          name: cart.locationName,
+          locationId:
+            cart.locationId,
+
+          name:
+            cart.locationName,
         },
+
         components,
+
         pricing: {
-          priceBeforeDiscount: cart.subtotal,
-          discountAmount: cart.discountAmount,
-          finalAmount: cart.totalAmount,
-          taxSummary: this.buildTaxSummary(cart.taxSummary),
+          priceBeforeDiscount:
+            cart.subtotal,
+
+          discountAmount:
+            cart.discountAmount,
+
+          finalAmount:
+            cart.totalAmount,
+
+          taxSummary:
+            this.buildTaxSummary(
+              cart.taxSummary,
+            ),
         },
       },
     };
 
     return {
-      entries: [entry],
-      pricing: this.buildMainPricing(cart),
+      entries: [
+        entry,
+      ],
+
+      pricing:
+        this.buildMainPricing(
+          cart,
+        ),
     };
   }
 
@@ -321,6 +425,7 @@ export class BookingBuilder {
 
   private static buildPackageServiceConfiguration(
     cart: ICart,
+
     service: {
       _id: Types.ObjectId;
       name: string;
@@ -328,49 +433,111 @@ export class BookingBuilder {
       thumbnailImage?: string;
       serviceReference?: string;
     },
-    selectedService: PackageCartServiceLine,
-    serviceRole: "INCLUDED" | "ADDON",
+
+    selectedService:
+      PackageCartServiceLine,
+
+    serviceRole:
+      "INCLUDED" | "ADDON",
   ): IBookingServiceConfiguration {
     return {
-      serviceId: service._id,
+      serviceId:
+        service._id,
+
       serviceSnapshot: {
-        name: service.name,
+        name:
+          service.name,
+
         ...(service.shortDescription
           ? {
-            shortDescription: service.shortDescription,
+            shortDescription:
+              service.shortDescription,
           }
           : {}),
+
         ...(service.thumbnailImage
           ? {
-            thumbnailImage: service.thumbnailImage,
+            thumbnailImage:
+              service.thumbnailImage,
           }
           : {}),
+
         ...(service.serviceReference
           ? {
-            serviceReference: service.serviceReference,
+            serviceReference:
+              service.serviceReference,
           }
           : {}),
       },
+
       serviceRole,
+
+      /**
+       * Copy all service steps
+       * directly from cart snapshot.
+       */
+      subServices:
+        selectedService.subServices?.map(
+          (subService) => ({
+            subServiceId:
+              subService.subServiceId,
+
+            name:
+              subService.name,
+
+            description:
+              subService.description,
+
+            ...(subService.image
+              ? {
+                image:
+                  subService.image,
+              }
+              : {}),
+          }),
+        ) ?? [],
+
       tier: {
-        tierId: cart.tierId,
-        name: cart.tierName,
+        tierId:
+          cart.tierId,
+
+        name:
+          cart.tierName,
       },
+
       location: {
-        locationId: cart.locationId,
-        name: cart.locationName,
+        locationId:
+          cart.locationId,
+
+        name:
+          cart.locationName,
       },
+
       components: [],
+
       pricing: {
-        priceBeforeDiscount: selectedService.priceBeforeDiscount,
-        discountAmount: selectedService.discountAmount,
-        finalAmount: selectedService.price,
+        priceBeforeDiscount:
+          selectedService
+            .priceBeforeDiscount,
+
+        discountAmount:
+          selectedService
+            .discountAmount,
+
+        finalAmount:
+          selectedService.price,
+
         ...(selectedService.tax
           ? {
-            tax: selectedService.tax,
+            tax:
+              selectedService.tax,
           }
           : {}),
-        taxSummary: this.buildTaxSummaryFromLine(selectedService.tax),
+
+        taxSummary:
+          this.buildTaxSummaryFromLine(
+            selectedService.tax,
+          ),
       },
     };
   }

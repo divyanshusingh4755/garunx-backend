@@ -95,6 +95,12 @@ export interface IPendingReschedule {
     requestedAt: Date;
     assignmentRound: number;
 }
+export interface IBookingSubService {
+    subServiceId: Types.ObjectId;
+    name: string;
+    description: string;
+    image?: string;
+}
 export interface IBookingComponent {
     componentType: ComponentType;
     componentId: Types.ObjectId;
@@ -123,10 +129,7 @@ export interface IBookingServiceConfiguration {
         serviceReference?: string;
     };
     serviceRole: ServiceRole;
-    subService?: {
-        subServiceId: Types.ObjectId;
-        name: string;
-    };
+    subServices: IBookingSubService[];
     tier: {
         tierId: Types.ObjectId;
         name: string;

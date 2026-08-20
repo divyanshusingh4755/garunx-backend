@@ -84,6 +84,13 @@ export class BookingBuilder {
             })),
         ];
         const components = await this.buildComponentSnapshots(selectedComponents, service._id, cart.tierId);
+        /**
+         * For direct SERVICE cart,
+         * selectedServices[0] represents
+         * the main service itself.
+         */
+        const mainCartService = plainCart.selectedServices?.find((selectedService) => selectedService.serviceId.toString() ===
+            service._id.toString());
         const entry = {
             entryType: "SERVICE",
             serviceConfiguration: {
@@ -107,6 +114,21 @@ export class BookingBuilder {
                         : {}),
                 },
                 serviceRole: "PRIMARY",
+                /**
+                 * Copy the cart snapshot.
+                 *
+                 * Do NOT query SubServiceComponent again.
+                 */
+                subServices: mainCartService?.subServices?.map((subService) => ({
+                    subServiceId: subService.subServiceId,
+                    name: subService.name,
+                    description: subService.description,
+                    ...(subService.image
+                        ? {
+                            image: subService.image,
+                        }
+                        : {}),
+                })) ?? [],
                 tier: {
                     tierId: cart.tierId,
                     name: cart.tierName,
@@ -125,7 +147,9 @@ export class BookingBuilder {
             },
         };
         return {
-            entries: [entry],
+            entries: [
+                entry,
+            ],
             pricing: this.buildMainPricing(cart),
         };
     }
@@ -231,6 +255,20 @@ export class BookingBuilder {
                     : {}),
             },
             serviceRole,
+            /**
+             * Copy all service steps
+             * directly from cart snapshot.
+             */
+            subServices: selectedService.subServices?.map((subService) => ({
+                subServiceId: subService.subServiceId,
+                name: subService.name,
+                description: subService.description,
+                ...(subService.image
+                    ? {
+                        image: subService.image,
+                    }
+                    : {}),
+            })) ?? [],
             tier: {
                 tierId: cart.tierId,
                 name: cart.tierName,
@@ -241,8 +279,10 @@ export class BookingBuilder {
             },
             components: [],
             pricing: {
-                priceBeforeDiscount: selectedService.priceBeforeDiscount,
-                discountAmount: selectedService.discountAmount,
+                priceBeforeDiscount: selectedService
+                    .priceBeforeDiscount,
+                discountAmount: selectedService
+                    .discountAmount,
                 finalAmount: selectedService.price,
                 ...(selectedService.tax
                     ? {

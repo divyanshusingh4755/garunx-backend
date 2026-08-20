@@ -1,5 +1,24 @@
 import mongoose, { Schema, Types } from "mongoose";
 import { lineTaxSchema } from "./tax.schema.js";
+const cartSubServiceSchema = new Schema({
+    subServiceId: {
+        type: Schema.Types.ObjectId,
+        ref: "SubServiceComponent",
+        required: true,
+    },
+    name: {
+        type: String,
+        required: true,
+        trim: true,
+    },
+    description: {
+        type: String,
+        required: true,
+        trim: true,
+    },
+}, {
+    _id: false,
+});
 const cartTaxSummarySchema = new Schema({
     taxableAmount: {
         type: Number,
@@ -88,6 +107,10 @@ const selectedServiceSchema = new Schema({
         ref: "Service",
         required: true,
     },
+    subServices: {
+        type: [cartSubServiceSchema],
+        default: [],
+    },
     name: {
         type: String,
         required: true,
@@ -111,7 +134,9 @@ const selectedServiceSchema = new Schema({
         type: lineTaxSchema,
         default: undefined,
     },
-}, { _id: false });
+}, {
+    _id: false,
+});
 const cartSchema = new Schema({
     userId: {
         type: Schema.Types.ObjectId,

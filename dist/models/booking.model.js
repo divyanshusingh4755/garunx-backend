@@ -261,6 +261,29 @@ const bookingComponentSchema = new Schema({
         },
     },
 }, { _id: false });
+const bookingSubServiceSchema = new Schema({
+    subServiceId: {
+        type: Schema.Types.ObjectId,
+        ref: "SubServiceComponent",
+        required: true,
+    },
+    name: {
+        type: String,
+        required: true,
+        trim: true,
+    },
+    description: {
+        type: String,
+        required: true,
+        trim: true,
+    },
+    image: {
+        type: String,
+        trim: true,
+    },
+}, {
+    _id: false,
+});
 const bookingServiceConfigurationSchema = new Schema({
     serviceId: {
         type: Schema.Types.ObjectId,
@@ -278,12 +301,9 @@ const bookingServiceConfigurationSchema = new Schema({
         enum: ["PRIMARY", "INCLUDED", "ADDON"],
         default: "PRIMARY",
     },
-    subService: {
-        subServiceId: {
-            type: Schema.Types.ObjectId,
-            ref: "SubServiceComponent",
-        },
-        name: String,
+    subServices: {
+        type: [bookingSubServiceSchema],
+        default: [],
     },
     tier: {
         tierId: {

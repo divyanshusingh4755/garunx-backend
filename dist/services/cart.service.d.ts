@@ -10,6 +10,7 @@ interface CartValidationResult {
 }
 declare class CartService {
     private static applyLineTax;
+    private static getSubServiceSnapshotsByServiceIds;
     private static round;
     private static ensureUniqueIds;
     private static clearLineDiscounts;
@@ -30,7 +31,31 @@ declare class CartService {
         tierName: any;
         locationId: any;
         locationName: any;
+        /**
+         * Keep your existing common pricing items.
+         */
         items: import("./cart-pricing.engine.js").CalculatedComponentItem[] | import("./cart-pricing.engine.js").CalculatedServiceItem[];
+        /**
+         * Now always return service structure too.
+         *
+         * SERVICE:
+         * [
+         *   {
+         *     serviceId,
+         *     name,
+         *     subServices: [...]
+         *   }
+         * ]
+         *
+         * PACKAGE:
+         * [
+         *   service1,
+         *   service2,
+         *   ...
+         * ]
+         */
+        selectedServices: any;
+        selectedComponents: any;
         addonComponents: any;
         addonServices: any;
         basePrice: any;
@@ -56,7 +81,31 @@ declare class CartService {
         tierName: any;
         locationId: any;
         locationName: any;
+        /**
+         * Keep your existing common pricing items.
+         */
         items: import("./cart-pricing.engine.js").CalculatedComponentItem[] | import("./cart-pricing.engine.js").CalculatedServiceItem[];
+        /**
+         * Now always return service structure too.
+         *
+         * SERVICE:
+         * [
+         *   {
+         *     serviceId,
+         *     name,
+         *     subServices: [...]
+         *   }
+         * ]
+         *
+         * PACKAGE:
+         * [
+         *   service1,
+         *   service2,
+         *   ...
+         * ]
+         */
+        selectedServices: any;
+        selectedComponents: any;
         addonComponents: any;
         addonServices: any;
         basePrice: any;

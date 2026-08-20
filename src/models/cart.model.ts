@@ -42,7 +42,49 @@ export interface ISelectedService {
   tax?: ILineTax;
 }
 
-export interface IAddonService extends ISelectedService {}
+export interface ICartSubService {
+  subServiceId: Types.ObjectId;
+  name: string;
+  description: string;
+  image?: string;
+}
+
+export interface ISelectedService {
+  serviceId: Types.ObjectId;
+
+  subServices: ICartSubService[];
+
+  name: string;
+  priceBeforeDiscount: number;
+  discountAmount: number;
+  price: number;
+  tax?: ILineTax;
+}
+
+export interface IAddonService extends ISelectedService { }
+
+const cartSubServiceSchema = new Schema<ICartSubService>(
+  {
+    subServiceId: {
+      type: Schema.Types.ObjectId,
+      ref: "SubServiceComponent",
+      required: true,
+    },
+    name: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    description: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+  },
+  {
+    _id: false,
+  },
+);
 
 export interface ICart extends Document {
   _id: Types.ObjectId;
@@ -191,31 +233,43 @@ const selectedServiceSchema = new Schema<ISelectedService>(
       ref: "Service",
       required: true,
     },
+
+    subServices: {
+      type: [cartSubServiceSchema],
+      default: [],
+    },
+
     name: {
       type: String,
       required: true,
     },
+
     priceBeforeDiscount: {
       type: Number,
       required: true,
       min: 0,
     },
+
     discountAmount: {
       type: Number,
       default: 0,
       min: 0,
     },
+
     price: {
       type: Number,
       required: true,
       min: 0,
     },
+
     tax: {
       type: lineTaxSchema,
       default: undefined,
     },
   },
-  { _id: false },
+  {
+    _id: false,
+  },
 );
 
 const cartSchema = new Schema<ICart>(

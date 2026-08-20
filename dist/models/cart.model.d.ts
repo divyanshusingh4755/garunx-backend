@@ -27,6 +27,21 @@ export interface ISelectedService {
     price: number;
     tax?: ILineTax;
 }
+export interface ICartSubService {
+    subServiceId: Types.ObjectId;
+    name: string;
+    description: string;
+    image?: string;
+}
+export interface ISelectedService {
+    serviceId: Types.ObjectId;
+    subServices: ICartSubService[];
+    name: string;
+    priceBeforeDiscount: number;
+    discountAmount: number;
+    price: number;
+    tax?: ILineTax;
+}
 export interface IAddonService extends ISelectedService {
 }
 export interface ICart extends Document {
