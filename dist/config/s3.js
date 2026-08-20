@@ -8,11 +8,5 @@ if (!region) {
 if (!accessKeyId || !secretAccessKey) {
     throw new Error("AWS credentials are not configured");
 }
-export const s3 = new S3Client({
-    region,
-    credentials: {
-        accessKeyId,
-        secretAccessKey,
-    },
-});
+export const s3 = new S3Client({ region, credentials: { accessKeyId, secretAccessKey } });
 //# sourceMappingURL=s3.js.map

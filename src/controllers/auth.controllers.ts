@@ -2,23 +2,12 @@ import type { Request, Response } from "express";
 import AuthService from "../services/auth.service.js";
 import { Role } from "../types/rbac.js";
 import { getClientIp } from "../utils/clientIp.js";
-import {
-  ApprovalStatus,
-  AvailabilityStatus,
-  type Caste,
-  type Gotra,
-} from "../types/enums.js";
+import { ApprovalStatus, AvailabilityStatus, type Caste, type Gotra } from "../types/enums.js";
 
 export const register = async (req: Request, res: Response) => {
   try {
     const { role, password, userEmail, phoneNumber } = req.body;
-
-    const user = await AuthService.registerUser(
-      role,
-      password,
-      userEmail,
-      phoneNumber,
-    );
+    const user = await AuthService.registerUser(role, password, userEmail, phoneNumber);
 
     const nextStep = "VERIFY_OTP";
 
@@ -49,14 +38,11 @@ export const socialAuth = async (req: Request, res: Response) => {
     const { userAgent, ip } = getClientIp(req);
 
     const result = await AuthService.socialAuth(role, idToken, email, userAgent, ip);
-
     const nextStep = result.isNewUser ? "COMPLETE_PROFILE" : "DASHBOARD";
 
     res.status(200).json({
       success: true,
-      message: result.isNewUser
-        ? "Social account linked. Please complete your profile."
-        : "Login successful",
+      message: result.isNewUser ? "Social account linked. Please complete your profile." : "Login successful",
       ...result,
       nextStep,
     });
@@ -85,9 +71,7 @@ export const verifyOtp = async (req: Request, res: Response) => {
 
     res.status(200).json({
       success: true,
-      message: isRegistrationFlow
-        ? "OTP verified. Please complete your profile."
-        : "OTP verified. You may now reset your password.",
+      message: isRegistrationFlow ? "OTP verified. Please complete your profile." : "OTP verified. You may now reset your password.",
       data: {
         userId: user._id,
         role: user.role,
@@ -135,23 +119,14 @@ export const login = async (req: Request, res: Response) => {
     const { identifier, password, role } = req.body;
 
     if (!role) {
-      return res
-        .status(400)
-        .json({
-          success: false,
-          message: "Please specify the role for login.",
-        });
+      return res.status(400).json({
+        success: false,
+        message: "Please specify the role for login.",
+      });
     }
 
     const { userAgent, ip } = getClientIp(req);
-
-    const { user, accessToken, refreshToken } = await AuthService.loginUser(
-      identifier,
-      role,
-      password,
-      userAgent,
-      ip,
-    );
+    const { user, accessToken, refreshToken } = await AuthService.loginUser(identifier, role, password, userAgent, ip);
 
     res.cookie("refreshToken", refreshToken, {
       httpOnly: true,
@@ -195,19 +170,15 @@ export const login = async (req: Request, res: Response) => {
 export const refreshToken = async (req: Request, res: Response) => {
   const oldToken = req.cookies?.refreshToken || req.body?.refreshToken;
   if (!oldToken) {
-    return res
-      .status(401)
-      .json({
-        success: false,
-        message: "Session expired. Please login again.",
-      });
+    return res.status(401).json({
+      success: false,
+      message: "Session expired. Please login again.",
+    });
   }
 
   try {
     const { userAgent, ip } = getClientIp(req);
-
-    const { accessToken, refreshToken: newRefreshToken } =
-      await AuthService.refreshAccesToken(oldToken, userAgent, ip);
+    const { accessToken, refreshToken: newRefreshToken } = await AuthService.refreshAccesToken(oldToken, userAgent, ip);
 
     res.cookie("refreshToken", newRefreshToken, {
       httpOnly: true,
@@ -250,9 +221,7 @@ export const logout = async (req: Request, res: Response) => {
 
     res.status(200).json({
       success: true,
-      message: allDevices
-        ? "Logged out from all devices for this role"
-        : "Logged out successfully",
+      message: allDevices ? "Logged out from all devices for this role" : "Logged out successfully",
     });
   } catch (error: any) {
     res.clearCookie("refreshToken", {
@@ -286,7 +255,6 @@ export const forgotPassword = async (req: Request, res: Response) => {
     });
   } catch (error: any) {
     const statusCode = error.message.includes("not found") ? 404 : 500;
-
     res.status(statusCode).json({
       success: false,
       message:
@@ -300,9 +268,10 @@ export const resetPassword = async (req: Request, res: Response) => {
     const { userId, newPassword } = req.body;
 
     if (!userId) {
-      return res
-        .status(400)
-        .json({ success: false, message: "UserId is missing" });
+      return res.status(400).json({
+        success: false,
+        message: "UserId is missing"
+      });
     }
 
     if (!newPassword || newPassword.length < 8) {
@@ -323,15 +292,10 @@ export const resetPassword = async (req: Request, res: Response) => {
 
     res.status(200).json({
       success: true,
-      message:
-        "Password reset successfully. Please login with your new credentials.",
+      message: "Password reset successfully. Please login with your new credentials.",
     });
   } catch (error: any) {
-    const statusCode =
-      error.message.includes("expired") || error.message.includes("invalid")
-        ? 400
-        : 500;
-
+    const statusCode = error.message.includes("expired") || error.message.includes("invalid") ? 400 : 500;
     res.status(statusCode).json({
       success: false,
       message: error.message || "Failed to reset password.",
@@ -344,14 +308,13 @@ export const changePassword = async (req: Request, res: Response) => {
     const { oldPassword, newPassword } = req.body;
     const userId = req.user?.userId;
 
-    if (!userId) {
-      return res.status(401).json({ success: false, message: "Unauthorized" });
-    }
+    if (!userId) { return res.status(401).json({ success: false, message: "Unauthorized" }); }
 
     if (!oldPassword) {
-      return res
-        .status(400)
-        .json({ success: false, message: "Existing Password missing" });
+      return res.status(400).json({
+        success: false,
+        message: "Existing Password missing"
+      });
     }
 
     if (!newPassword || newPassword.length < 8) {
@@ -361,11 +324,7 @@ export const changePassword = async (req: Request, res: Response) => {
       });
     }
 
-    await AuthService.changePassword(
-      userId as string,
-      oldPassword,
-      newPassword,
-    );
+    await AuthService.changePassword(userId as string, oldPassword, newPassword);
 
     res.clearCookie("refreshToken", {
       httpOnly: true,
@@ -376,15 +335,10 @@ export const changePassword = async (req: Request, res: Response) => {
 
     res.status(200).json({
       success: true,
-      message:
-        "Password reset successfully. Please login with your new credentials.",
+      message: "Password reset successfully. Please login with your new credentials.",
     });
   } catch (error: any) {
-    const statusCode =
-      error.message.includes("expired") || error.message.includes("invalid")
-        ? 400
-        : 500;
-
+    const statusCode = error.message.includes("expired") || error.message.includes("invalid") ? 400 : 500;
     res.status(statusCode).json({
       success: false,
       message: error.message || "Failed to reset password.",
@@ -394,16 +348,7 @@ export const changePassword = async (req: Request, res: Response) => {
 
 export const getAllUsers = async (req: Request, res: Response) => {
   try {
-    const {
-      limit,
-      page,
-      role,
-      isComplete,
-      isActive,
-      search,
-      sortBy,
-      sortOrder,
-    } = req.query;
+    const { limit, page, role, isComplete, isActive, search, sortBy, sortOrder } = req.query;
 
     const { users, pagination } = await AuthService.GetAllUsers(
       Number(page) || 1,
@@ -422,7 +367,6 @@ export const getAllUsers = async (req: Request, res: Response) => {
       pagination,
     });
   } catch (error: any) {
-    console.error("GetAllUsers Error:", error);
     res.status(500).json({
       success: false,
       message: error.message || "Error fetching users. Please try again later.",
@@ -435,9 +379,10 @@ export const getUserById = async (req: Request, res: Response) => {
     const { id } = req.params;
 
     if (!id) {
-      return res
-        .status(400)
-        .json({ success: false, message: "User ID is required." });
+      return res.status(400).json({
+        success: false,
+        message: "User ID is required."
+      });
     }
 
     const data = await AuthService.GetUserById(id as string);
@@ -448,9 +393,7 @@ export const getUserById = async (req: Request, res: Response) => {
     });
   } catch (error: any) {
     const isNotFound = error.message.toLowerCase().includes("not found");
-    const isInvalidId =
-      error.name === "CastError" || error.message.includes("format");
-
+    const isInvalidId = error.name === "CastError" || error.message.includes("format");
     const status = isNotFound ? 404 : isInvalidId ? 400 : 500;
 
     res.status(status).json({
@@ -472,10 +415,7 @@ export const getUserByEmailOrPhone = async (req: Request, res: Response) => {
       });
     }
 
-    const data = await AuthService.GetUserByEmailOrPhone(
-      identifier as string,
-      role as Role,
-    );
+    const data = await AuthService.GetUserByEmailOrPhone(identifier as string, role as Role);
 
     res.status(200).json({
       success: true,
@@ -487,8 +427,7 @@ export const getUserByEmailOrPhone = async (req: Request, res: Response) => {
 
     res.status(status).json({
       success: false,
-      message:
-        error.message || "Error retrieving user data. Please try again later.",
+      message: error.message || "Error retrieving user data. Please try again later.",
     });
   }
 };
@@ -499,18 +438,17 @@ export const deactivateUser = async (req: Request, res: Response) => {
     const { status } = req.body;
 
     if (!id || status === undefined) {
-      return res
-        .status(400)
-        .json({ success: false, message: "User ID and Status is required." });
+      return res.status(400).json({
+        success: false,
+        message: "User ID and Status is required."
+      });
     }
 
     await AuthService.deactivateUser(id as string, status);
 
     res.status(200).json({
       success: true,
-      message: status
-        ? "Account activated successfully"
-        : "Account deactivated successfully and all sessions revoked",
+      message: status ? "Account activated successfully" : "Account deactivated successfully and all sessions revoked",
     });
   } catch (error: any) {
     const isNotFound = error.message.toLowerCase().includes("not found");
@@ -520,27 +458,14 @@ export const deactivateUser = async (req: Request, res: Response) => {
 
     res.status(status).json({
       success: false,
-      message:
-        error.message || "Error deactivating user. Please try again later.",
+      message: error.message || "Error deactivating user. Please try again later.",
     });
   }
 };
 
 export const completeProfile = async (req: Request, res: Response) => {
   try {
-    const {
-      userId,
-      fullName,
-      dob,
-      gender,
-      referralCode,
-      password,
-      profileImage,
-      email,
-      phoneNumber,
-      caste,
-      gotra,
-    } = req.body;
+    const { userId, fullName, dob, gender, referralCode, password, profileImage, email, phoneNumber, caste, gotra } = req.body;
 
     if (!userId || !fullName) {
       return res.status(400).json({
@@ -551,22 +476,7 @@ export const completeProfile = async (req: Request, res: Response) => {
 
     const { userAgent, ip } = getClientIp(req);
 
-    const { user, accessToken, refreshToken } =
-      await AuthService.completeProfile(
-        userId,
-        fullName,
-        dob,
-        gender,
-        referralCode,
-        password,
-        profileImage,
-        userAgent,
-        ip,
-        email,
-        phoneNumber,
-        caste,
-        gotra,
-      );
+    const { user, accessToken, refreshToken } = await AuthService.completeProfile(userId, fullName, dob, gender, referralCode, password, profileImage, userAgent, ip, email, phoneNumber, caste, gotra);
 
     res.cookie("refreshToken", refreshToken, {
       httpOnly: true,
@@ -597,25 +507,11 @@ export const updateProfile = async (req: Request, res: Response) => {
 
     const dataToUpdate: Record<string, unknown> = {};
 
-    if (fullName !== undefined) {
-      dataToUpdate.fullName = fullName;
-    }
-
-    if (dob !== undefined) {
-      dataToUpdate.dob = dob;
-    }
-
-    if (gender !== undefined) {
-      dataToUpdate.gender = gender;
-    }
-
-    if (profileImage !== undefined) {
-      dataToUpdate.profileImage = profileImage;
-    }
-
-    if (savedLocations !== undefined) {
-      dataToUpdate.savedLocations = savedLocations;
-    }
+    if (fullName !== undefined) { dataToUpdate.fullName = fullName }
+    if (dob !== undefined) { dataToUpdate.dob = dob }
+    if (gender !== undefined) { dataToUpdate.gender = gender }
+    if (profileImage !== undefined) { dataToUpdate.profileImage = profileImage }
+    if (savedLocations !== undefined) { dataToUpdate.savedLocations = savedLocations }
 
     if (Object.keys(dataToUpdate).length === 0) {
       return res.status(400).json({
@@ -662,10 +558,7 @@ export const uploadMutliple = async (req: Request, res: Response) => {
   }
 };
 
-export const submitVerificationDocuments = async (
-  req: Request,
-  res: Response,
-) => {
+export const submitVerificationDocuments = async (req: Request, res: Response) => {
   try {
     const userId = req.user?.userId;
 
@@ -676,35 +569,13 @@ export const submitVerificationDocuments = async (
       });
     }
 
-    const {
-      aadharCard,
-      panCard,
-      bankPassbook,
-      accountNumber,
-      accountName,
-      bankName,
-      ifscCode,
-    } = req.body;
+    const { aadharCard, panCard, bankPassbook, accountNumber, accountName, bankName, ifscCode } = req.body;
 
-    const updatedUser = await AuthService.uploadVerificationDocuments(userId, {
-      aadharCard,
-      panCard,
-      bankPassbook,
-      accountNumber,
-      accountName,
-      bankName,
-      ifscCode,
-    });
-
+    const updatedUser = await AuthService.uploadVerificationDocuments(userId, { aadharCard, panCard, bankPassbook, accountNumber, accountName, bankName, ifscCode });
     const submitted: string[] = [];
 
-    if (aadharCard || panCard) {
-      submitted.push("Identity documents submitted for verification");
-    }
-
-    if (bankPassbook) {
-      submitted.push("Bank details submitted for verification");
-    }
+    if (aadharCard || panCard) { submitted.push("Identity documents submitted for verification") }
+    if (bankPassbook) { submitted.push("Bank details submitted for verification") }
 
     return res.status(200).json({
       success: true,
@@ -733,39 +604,24 @@ export const approveOrRejectDocs = async (req: Request, res: Response) => {
   try {
     const { userId, type, status, rejectionReason } = req.body;
 
-    const updatedUser = await AuthService.updateVerificationStatus(
-      userId,
-      type,
-      status,
-      rejectionReason,
-    );
+    const updatedUser = await AuthService.updateVerificationStatus(userId, type, status, rejectionReason);
 
-    const verificationName =
-      type === "document" ? "Identity documents" : "Bank details";
+    const verificationName = type === "document" ? "Identity documents" : "Bank details";
 
     return res.status(200).json({
       success: true,
       message: `${verificationName} ${status.toLowerCase()} successfully`,
       data: {
         userId: updatedUser?._id,
-
         documentStatus: updatedUser?.documentVerification.status,
-
         bankStatus: updatedUser?.bankDocumentVerification.status,
-
         isDocumentVerified: updatedUser?.isDocumentVerified,
-
         isBankDocumentVerified: updatedUser?.isBankDocumentVerified,
-
-        coordinatorApprovalStatus:
-          updatedUser?.coordinatorProfile?.approvalStatus,
+        coordinatorApprovalStatus: updatedUser?.coordinatorProfile?.approvalStatus,
       },
     });
   } catch (error: any) {
-    const statusCode = error.message?.toLowerCase().includes("not found")
-      ? 404
-      : 400;
-
+    const statusCode = error.message?.toLowerCase().includes("not found") ? 404 : 400;
     return res.status(statusCode).json({
       success: false,
       message: error.message || "Failed to update verification status",
@@ -792,7 +648,6 @@ export const getCurrentUser = async (req: Request, res: Response) => {
     });
   } catch (error: any) {
     const statusCode = error.message.includes("not found") ? 404 : 500;
-
     res.status(statusCode).json({
       success: false,
       message: error.message || "Failed to fetch current user",
@@ -808,26 +663,15 @@ export const updateCoordinatorApproval = async (
     const { coordinatorId } = req.params;
     const { status, rejectionReason } = req.body;
 
-    const coordinator = await AuthService.updateCoordinatorApproval(
-      coordinatorId as string,
-      status as ApprovalStatus,
-      rejectionReason,
-    );
+    const coordinator = await AuthService.updateCoordinatorApproval(coordinatorId as string, status as ApprovalStatus, rejectionReason);
 
     res.status(200).json({
       success: true,
-      message:
-        status === ApprovalStatus.APPROVED
-          ? "Coordinator approved successfully"
-          : "Coordinator approval updated successfully",
+      message: status === ApprovalStatus.APPROVED ? "Coordinator approved successfully" : "Coordinator approval updated successfully",
       data: coordinator,
     });
   } catch (error: any) {
-    const statusCode = error.message.includes("not found")
-      ? 404
-      : error.message.includes("verified")
-        ? 409
-        : 400;
+    const statusCode = error.message.includes("not found") ? 404 : error.message.includes("verified") ? 409 : 400;
 
     res.status(statusCode).json({
       success: false,
@@ -836,10 +680,7 @@ export const updateCoordinatorApproval = async (
   }
 };
 
-export const updateCoordinatorAvailability = async (
-  req: Request,
-  res: Response,
-) => {
+export const updateCoordinatorAvailability = async (req: Request, res: Response) => {
   try {
     const coordinatorId = req.user?.userId;
     const { availabilityStatus } = req.body;
@@ -851,10 +692,7 @@ export const updateCoordinatorAvailability = async (
       });
     }
 
-    const data = await AuthService.updateCoordinatorAvailability(
-      coordinatorId,
-      availabilityStatus as AvailabilityStatus,
-    );
+    const data = await AuthService.updateCoordinatorAvailability(coordinatorId, availabilityStatus as AvailabilityStatus);
 
     res.status(200).json({
       success: true,
@@ -862,11 +700,7 @@ export const updateCoordinatorAvailability = async (
       data,
     });
   } catch (error: any) {
-    const statusCode = error.message.includes("not found")
-      ? 404
-      : error.message.includes("approved")
-        ? 403
-        : 400;
+    const statusCode = error.message.includes("not found") ? 404 : error.message.includes("approved") ? 403 : 400;
 
     res.status(statusCode).json({
       success: false,
@@ -875,10 +709,7 @@ export const updateCoordinatorAvailability = async (
   }
 };
 
-export const updateCoordinatorSettings = async (
-  req: Request,
-  res: Response,
-) => {
+export const updateCoordinatorSettings = async (req: Request, res: Response) => {
   try {
     const adminId = req.user?.userId;
     const { maxDailyBookings, autoAssignmentEnabled } = req.body;
@@ -892,18 +723,13 @@ export const updateCoordinatorSettings = async (
     }
 
     if (!coordinatorId) {
-      return res
-        .status(400)
-        .json({ success: false, message: "Coordinator ID is required." });
+      return res.status(400).json({
+        success: false,
+        message: "Coordinator ID is required."
+      });
     }
 
-    const data = await AuthService.updateCoordinatorSettings(
-      coordinatorId as string,
-      {
-        maxDailyBookings,
-        autoAssignmentEnabled,
-      },
-    );
+    const data = await AuthService.updateCoordinatorSettings(coordinatorId as string, { maxDailyBookings, autoAssignmentEnabled });
 
     res.status(200).json({
       success: true,
@@ -911,12 +737,7 @@ export const updateCoordinatorSettings = async (
       data,
     });
   } catch (error: any) {
-    const statusCode = error.message.includes("not found")
-      ? 404
-      : error.message.includes("approved")
-        ? 403
-        : 400;
-
+    const statusCode = error.message.includes("not found") ? 404 : error.message.includes("approved") ? 403 : 400;
     res.status(statusCode).json({
       success: false,
       message: error.message || "Failed to update coordinator settings",
@@ -924,10 +745,7 @@ export const updateCoordinatorSettings = async (
   }
 };
 
-export const updateServiceableLocations = async (
-  req: Request,
-  res: Response,
-) => {
+export const updateServiceableLocations = async (req: Request, res: Response) => {
   try {
     const coordinatorId = req.user?.userId;
     const { serviceableLocations } = req.body;
@@ -939,10 +757,7 @@ export const updateServiceableLocations = async (
       });
     }
 
-    const coordinator = await AuthService.updateCoordinatorServiceableLocations(
-      coordinatorId,
-      serviceableLocations,
-    );
+    const coordinator = await AuthService.updateCoordinatorServiceableLocations(coordinatorId, serviceableLocations);
 
     res.status(200).json({
       success: true,
@@ -951,7 +766,6 @@ export const updateServiceableLocations = async (
     });
   } catch (error: any) {
     const statusCode = error.message.includes("not found") ? 404 : 400;
-
     res.status(statusCode).json({
       success: false,
       message: error.message || "Failed to update serviceable locations",
@@ -973,7 +787,6 @@ export const getCoordinatorById = async (req: Request, res: Response) => {
     });
   } catch (error: any) {
     const statusCode = error.message.includes("not found") ? 404 : 400;
-
     res.status(statusCode).json({
       success: false,
       message: error.message || "Failed to fetch coordinator",
@@ -983,65 +796,20 @@ export const getCoordinatorById = async (req: Request, res: Response) => {
 
 export const getCoordinators = async (req: Request, res: Response) => {
   try {
-    const {
-      page,
-      limit,
-      approvalStatus,
-      availabilityStatus,
-      locationId,
-      caste,
-      gotra,
-      autoAssignmentEnabled,
-      minimumRating,
-      search,
-      sortBy,
-      sortOrder,
-    } = req.query;
+    const { page, limit, approvalStatus, availabilityStatus, locationId, caste, gotra, autoAssignmentEnabled, minimumRating, search, sortBy, sortOrder } = req.query;
 
-    const filters: Parameters<typeof AuthService.getCoordinators>[0] = {
-      page: Number(page) || 1,
-      limit: Number(limit) || 20,
-    };
+    const filters: Parameters<typeof AuthService.getCoordinators>[0] = { page: Number(page) || 1, limit: Number(limit) || 20 };
 
-    if (approvalStatus !== undefined) {
-      filters.approvalStatus = approvalStatus as ApprovalStatus;
-    }
-
-    if (availabilityStatus !== undefined) {
-      filters.availabilityStatus = availabilityStatus as AvailabilityStatus;
-    }
-
-    if (locationId !== undefined) {
-      filters.locationId = locationId as string;
-    }
-
-    if (caste !== undefined) {
-      filters.caste = caste as Caste;
-    }
-
-    if (gotra !== undefined) {
-      filters.gotra = gotra as Gotra;
-    }
-
-    if (autoAssignmentEnabled !== undefined) {
-      filters.autoAssignmentEnabled = autoAssignmentEnabled === "true";
-    }
-
-    if (minimumRating !== undefined) {
-      filters.minimumRating = Number(minimumRating);
-    }
-
-    if (search !== undefined) {
-      filters.search = search as string;
-    }
-
-    if (sortBy !== undefined) {
-      filters.sortBy = sortBy as string;
-    }
-
-    if (sortOrder !== undefined) {
-      filters.sortOrder = sortOrder as "asc" | "desc";
-    }
+    if (approvalStatus !== undefined) { filters.approvalStatus = approvalStatus as ApprovalStatus }
+    if (availabilityStatus !== undefined) { filters.availabilityStatus = availabilityStatus as AvailabilityStatus }
+    if (locationId !== undefined) { filters.locationId = locationId as string }
+    if (caste !== undefined) { filters.caste = caste as Caste }
+    if (gotra !== undefined) { filters.gotra = gotra as Gotra }
+    if (autoAssignmentEnabled !== undefined) { filters.autoAssignmentEnabled = autoAssignmentEnabled === "true" }
+    if (minimumRating !== undefined) { filters.minimumRating = Number(minimumRating) }
+    if (search !== undefined) { filters.search = search as string }
+    if (sortBy !== undefined) { filters.sortBy = sortBy as string }
+    if (sortOrder !== undefined) { filters.sortOrder = sortOrder as "asc" | "desc" }
 
     const result = await AuthService.getCoordinators(filters);
 
@@ -1058,37 +826,19 @@ export const getCoordinators = async (req: Request, res: Response) => {
   }
 };
 
-export const createAdmin = async (
-  req: Request,
-  res: Response,
-) => {
+export const createAdmin = async (req: Request, res: Response) => {
   try {
-    const {
-      fullName,
-      email,
-      password,
-      phoneNumber,
-    } = req.body;
+    const { fullName, email, password, phoneNumber } = req.body;
 
-    const admin =
-      await AuthService.createAdmin({
-        fullName,
-        email,
-        password,
-        phoneNumber,
-      });
+    const admin = await AuthService.createAdmin({ fullName, email, password, phoneNumber });
 
     return res.status(201).json({
       success: true,
-      message:
-        "Admin account created successfully",
+      message: "Admin account created successfully",
       data: admin,
     });
   } catch (error: any) {
-    if (
-      error.message ===
-      "Admin account with this email or phone number already exists"
-    ) {
+    if (error.message === "Admin account with this email or phone number already exists") {
       return res.status(409).json({
         success: false,
         message: error.message,
@@ -1097,52 +847,23 @@ export const createAdmin = async (
 
     return res.status(400).json({
       success: false,
-      message:
-        error.message ||
-        "Failed to create admin account",
+      message: error.message || "Failed to create admin account",
     });
   }
 };
 
-export const exportUsersCsv = async (
-  req: Request,
-  res: Response,
-) => {
+export const exportUsersCsv = async (req: Request, res: Response) => {
   try {
-    const {
-      userIds,
-    }: {
-      userIds: string[];
-    } = req.body;
+    const { userIds }: { userIds: string[] } = req.body;
+    const result = await AuthService.exportUsersToCsv(userIds);
 
-    const result =
-      await AuthService.exportUsersToCsv(
-        userIds,
-      );
+    const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="users-${timestamp}.csv"`);
 
-    const timestamp =
-      new Date()
-        .toISOString()
-        .replace(/[:.]/g, "-");
-
-    res.setHeader(
-      "Content-Type",
-      "text/csv; charset=utf-8",
-    );
-
-    res.setHeader(
-      "Content-Disposition",
-      `attachment; filename="users-${timestamp}.csv"`,
-    );
-
-    return res.status(200).send(
-      result.csv,
-    );
+    return res.status(200).send(result.csv);
   } catch (error: any) {
-    if (
-      error.message ===
-      "No users found for export"
-    ) {
+    if (error.message === "No users found for export") {
       return res.status(404).json({
         success: false,
         message: error.message,
@@ -1151,9 +872,7 @@ export const exportUsersCsv = async (
 
     return res.status(400).json({
       success: false,
-      message:
-        error.message ||
-        "Failed to export users",
+      message: error.message || "Failed to export users",
     });
   }
 };

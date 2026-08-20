@@ -1,15 +1,7 @@
-import express, {
-  type Application,
-  type NextFunction,
-  type Request,
-  type Response,
-} from "express";
-
+import express, { type Application, type NextFunction, type Request, type Response } from "express";
 import cors from "cors";
 import { corsOptions } from "./config/cors.js";
-
 import helmet from "helmet";
-
 import authRoutes from "./routes/auth.routes.js";
 import brandingRoutes from "./routes/branding.routes.js";
 import locationRoutes from "./routes/location.routes.js";
@@ -48,11 +40,8 @@ import multer from "multer";
 const app: Application = express();
 
 app.set("trust proxy", 1);
-
 app.use(cors(corsOptions));
-
 app.options("/*splat", cors(corsOptions));
-
 app.use(
   helmet({
     crossOriginResourcePolicy: {
@@ -65,80 +54,42 @@ app.use(
  * The webhook must remain before express.json().
  * Cashfree signature verification requires the original raw body.
  */
-app.post(
-  "/api/booking/webhooks/cashfree",
-  express.raw({
-    type: "application/json",
-  }),
+app.post("/api/booking/webhooks/cashfree",
+  express.raw({ type: "application/json" }),
   paymentWebhooks,
 );
 
 app.use(express.json());
-
-app.use(
-  express.urlencoded({
-    extended: true,
-  }),
-);
-
+app.use(express.urlencoded({ extended: true }));
 app.use("/api/auth", authRoutes);
-
 app.use("/api/state", stateRoutes);
-
 app.use("/api/city", cityRoutes);
-
 app.use("/api/location", locationRoutes);
-
 app.use("/api/category", categoryRoutes);
-
 app.use("/api/tier", tierRoutes);
-
 app.use("/api/tax", taxRoutes);
-
 app.use("/api/coupon", couponRoutes);
-
 app.use("/api/referral-reward", referralRewardRoutes);
-
 app.use("/api/component", componentRoutes);
-
 app.use("/api/component-item", componentItemRoutes);
-
 app.use("/api/service", serviceRoutes);
-
 app.use("/api/sub-services", subServicesRoutes);
-
 app.use("/api/service-component", serviceComponentRoutes);
-
 app.use("/api/service-pricing", servicePricingRoutes);
-
 app.use("/api/package", packageRoutes);
-
 app.use("/api/package-tier-map", packageTierMapRoutes);
-
 app.use("/api/package-tier-pricing", packageTierPricingRoutes);
-
 app.use("/api/cart", cartRoutes);
-
 app.use("/api/booking", bookingRoutes);
-
 app.use("/api/family-tree", familyTreeRoutes);
-
 app.use("/api/banner", bannerRoutes);
-
 app.use("/api/faq", faqRoutes);
-
 app.use("/api/policy", policyRoutes);
-
 app.use("/api/review", reviewRoutes);
-
 app.use("/api/queries", queriesRoutes);
-
 app.use("/api/branding", brandingRoutes);
-
 app.use("/api/chat", chatRoutes);
-
 app.use("/api/rbac", rbacRoutes);
-
 app.use("/api/notification", notificationRoutes);
 
 app.get("/health", (_req: Request, res: Response): void => {
@@ -155,53 +106,33 @@ app.use((_req: Request, res: Response): void => {
   });
 });
 
-app.use(
-  (
-    error: unknown,
-    _req: Request,
-    res: Response,
-    _next: NextFunction,
-  ): void => {
-    let status = 500;
+app.use((error: unknown, _req: Request, res: Response, _next: NextFunction): void => {
+  let status = 500;
 
-    if (error instanceof HttpError) {
-      status = error.statusCode;
-    } else if (error instanceof multer.MulterError) {
-      status = 400;
-    }
+  if (error instanceof HttpError) {
+    status = error.statusCode;
+  } else if (error instanceof multer.MulterError) {
+    status = 400;
+  }
 
-    let errorMessage =
-      error instanceof Error
-        ? error.message
-        : "Unknown server error";
+  let errorMessage = error instanceof Error ? error.message : "Unknown server error";
+  if (error instanceof multer.MulterError && error.code === "LIMIT_FILE_SIZE") {
+    errorMessage = "Uploaded file exceeds the maximum allowed size";
+  }
 
-    if (
-      error instanceof multer.MulterError &&
-      error.code === "LIMIT_FILE_SIZE"
-    ) {
-      errorMessage =
-        "Uploaded file exceeds the maximum allowed size";
-    }
+  if (error instanceof Error) {
+    console.error(error.stack ?? error.message,);
+  } else {
+    console.error(error);
+  }
 
-    if (error instanceof Error) {
-      console.error(
-        error.stack ?? error.message,
-      );
-    } else {
-      console.error(error);
-    }
+  const message = process.env.NODE_ENV === "production" && status === 500 ? "Internal server error" : errorMessage;
 
-    const message =
-      process.env.NODE_ENV === "production" &&
-        status === 500
-        ? "Internal server error"
-        : errorMessage;
-
-    res.status(status).json({
-      success: false,
-      message,
-    });
-  },
+  res.status(status).json({
+    success: false,
+    message,
+  });
+},
 );
 
 export default app;

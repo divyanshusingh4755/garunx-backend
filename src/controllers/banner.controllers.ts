@@ -3,30 +3,15 @@ import { BannerService } from "../services/banner.service.js";
 import type { IBanner } from "../models/banner.model.js";
 
 const getErrorStatus = (error: unknown): number => {
-  if (error instanceof Error && error.message === "Banner not found") {
-    return 404;
-  }
-
+  if (error instanceof Error && error.message === "Banner not found") { return 404 }
   return 400;
 };
 
-const getErrorMessage = (error: unknown, fallback: string): string => {
-  return error instanceof Error ? error.message : fallback;
-};
+const getErrorMessage = (error: unknown, fallback: string): string => { return error instanceof Error ? error.message : fallback };
 
 export const createBanner = async (req: Request, res: Response) => {
   try {
-    const {
-      name,
-      description,
-      buttonText,
-      placement,
-      format,
-      image,
-      displayOrder,
-      isActive,
-      redirect,
-    } = req.body;
+    const { name, description, buttonText, placement, format, image, displayOrder, isActive, redirect } = req.body;
 
     const banner = await BannerService.createBanner({
       name,
@@ -56,11 +41,7 @@ export const createBanner = async (req: Request, res: Response) => {
 export const updateBanner = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-
-    const banner = await BannerService.updateBanner(
-      id as string,
-      req.body as Partial<IBanner>,
-    );
+    const banner = await BannerService.updateBanner(id as string, req.body as Partial<IBanner>);
 
     return res.status(200).json({
       success: true,
@@ -78,7 +59,6 @@ export const updateBanner = async (req: Request, res: Response) => {
 export const getBannerById = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-
     const banner = await BannerService.getBannerById(id as string);
 
     return res.status(200).json({
@@ -96,7 +76,6 @@ export const getBannerById = async (req: Request, res: Response) => {
 export const deleteBanner = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-
     await BannerService.deleteBanner(id as string);
 
     return res.status(200).json({
@@ -114,13 +93,11 @@ export const deleteBanner = async (req: Request, res: Response) => {
 export const toggleBannerStatus = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-
     const banner = await BannerService.toggleBannerStatus(id as string);
 
     return res.status(200).json({
       success: true,
-      message: `Banner ${banner.isActive ? "activated" : "deactivated"
-        } successfully`,
+      message: `Banner ${banner.isActive ? "activated" : "deactivated"} successfully`,
       data: banner,
     });
   } catch (error: unknown) {
@@ -133,38 +110,16 @@ export const toggleBannerStatus = async (req: Request, res: Response) => {
 
 export const getAllBanners = async (req: Request, res: Response) => {
   try {
-    const {
-      searchTerm,
-      placement,
-      format,
-      redirectType,
-      isActive,
-      limit,
-      page,
-      sortBy,
-      sortOrder,
-    } = req.query;
-
+    const { searchTerm, placement, format, redirectType, isActive, limit, page, sortBy, sortOrder } = req.query;
     const parsedLimit = typeof limit === "number" ? limit : Number(limit);
-
     const parsedPage = typeof page === "number" ? page : Number(page);
 
     const result = await BannerService.findBanners(
       typeof searchTerm === "string" ? searchTerm : undefined,
       typeof placement === "string" ? placement : undefined,
       typeof format === "string" ? format : undefined,
-      typeof redirectType === "string"
-        ? (redirectType as
-          | "NONE"
-          | "SERVICE"
-          | "PACKAGE"
-          | "CATEGORY"
-          | "PRODUCT"
-          | "URL")
-        : undefined,
-      Number.isInteger(parsedLimit) && parsedLimit > 0
-        ? Math.min(parsedLimit, 100)
-        : 20,
+      typeof redirectType === "string" ? (redirectType as | "NONE" | "SERVICE" | "PACKAGE" | "CATEGORY" | "PRODUCT" | "URL") : undefined,
+      Number.isInteger(parsedLimit) && parsedLimit > 0 ? Math.min(parsedLimit, 100) : 20,
       Number.isInteger(parsedPage) && parsedPage > 0 ? parsedPage : 1,
       isActive === "true" ? true : isActive === "false" ? false : undefined,
       typeof sortBy === "string" ? sortBy : "displayOrder",
@@ -183,76 +138,24 @@ export const getAllBanners = async (req: Request, res: Response) => {
   }
 };
 
-export const getPublicBanners = async (
-  req: Request,
-  res: Response,
-) => {
+export const getPublicBanners = async (req: Request, res: Response) => {
   try {
-    const {
-      searchTerm,
-      placement,
-      format,
-      redirectType,
-      limit,
-      page,
-      sortBy,
-      sortOrder,
-    } = req.query;
+    const { searchTerm, placement, format, redirectType, limit, page, sortBy, sortOrder } = req.query;
 
-    const parsedLimit =
-      typeof limit === "number"
-        ? limit
-        : Number(limit);
+    const parsedLimit = typeof limit === "number" ? limit : Number(limit);
+    const parsedPage = typeof page === "number" ? page : Number(page);
 
-    const parsedPage =
-      typeof page === "number"
-        ? page
-        : Number(page);
-
-    const result =
-      await BannerService.findBanners(
-        typeof searchTerm === "string"
-          ? searchTerm
-          : undefined,
-
-        typeof placement === "string"
-          ? placement
-          : undefined,
-
-        typeof format === "string"
-          ? format
-          : undefined,
-
-        typeof redirectType === "string"
-          ? (redirectType as
-            | "NONE"
-            | "SERVICE"
-            | "PACKAGE"
-            | "CATEGORY"
-            | "PRODUCT"
-            | "URL")
-          : undefined,
-
-        Number.isInteger(parsedLimit) &&
-          parsedLimit > 0
-          ? Math.min(parsedLimit, 100)
-          : 20,
-
-        Number.isInteger(parsedPage) &&
-          parsedPage > 0
-          ? parsedPage
-          : 1,
-
-        true, // IMPORTANT: public only active
-
-        typeof sortBy === "string"
-          ? sortBy
-          : "displayOrder",
-
-        sortOrder === "desc"
-          ? "desc"
-          : "asc",
-      );
+    const result = await BannerService.findBanners(
+      typeof searchTerm === "string" ? searchTerm : undefined,
+      typeof placement === "string" ? placement : undefined,
+      typeof format === "string" ? format : undefined,
+      typeof redirectType === "string" ? (redirectType as | "NONE" | "SERVICE" | "PACKAGE" | "CATEGORY" | "PRODUCT" | "URL") : undefined,
+      Number.isInteger(parsedLimit) && parsedLimit > 0 ? Math.min(parsedLimit, 100) : 20,
+      Number.isInteger(parsedPage) && parsedPage > 0 ? parsedPage : 1,
+      true, // IMPORTANT: public only active
+      typeof sortBy === "string" ? sortBy : "displayOrder",
+      sortOrder === "desc" ? "desc" : "asc",
+    );
 
     return res.status(200).json({
       success: true,
@@ -261,70 +164,25 @@ export const getPublicBanners = async (
   } catch (error: unknown) {
     return res.status(400).json({
       success: false,
-      message: getErrorMessage(
-        error,
-        "Failed to fetch banners",
-      ),
+      message: getErrorMessage(error, "Failed to fetch banners"),
     });
   }
 };
 
-export const exportBannersCsv = async (
-  req: Request,
-  res: Response,
-) => {
+export const exportBannersCsv = async (req: Request, res: Response) => {
   try {
-    const {
-      bannerIds,
-    }: {
-      bannerIds: string[];
-    } = req.body;
+    const { bannerIds }: { bannerIds: string[] } = req.body;
 
-    const result =
-      await BannerService.exportBannersToCsv(
-        bannerIds,
-      );
+    const result = await BannerService.exportBannersToCsv(bannerIds);
+    const timestamp = new Date().toISOString().replace(/[:.]/g, "-",);
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="banners-${timestamp}.csv"`);
 
-    const timestamp =
-      new Date()
-        .toISOString()
-        .replace(
-          /[:.]/g,
-          "-",
-        );
-
-    res.setHeader(
-      "Content-Type",
-      "text/csv; charset=utf-8",
-    );
-
-    res.setHeader(
-      "Content-Disposition",
-      `attachment; filename="banners-${timestamp}.csv"`,
-    );
-
-    return res
-      .status(200)
-      .send(
-        result.csv,
-      );
-  } catch (
-  error: unknown
-  ) {
-    return res
-      .status(
-        getErrorStatus(
-          error,
-        ),
-      )
-      .json({
-        success: false,
-
-        message:
-          getErrorMessage(
-            error,
-            "Failed to export banners",
-          ),
-      });
+    return res.status(200).send(result.csv);
+  } catch (error: unknown) {
+    return res.status(getErrorStatus(error)).json({
+      success: false,
+      message: getErrorMessage(error, "Failed to export banners"),
+    });
   }
 };

@@ -48,13 +48,9 @@ app.use(helmet({
  * The webhook must remain before express.json().
  * Cashfree signature verification requires the original raw body.
  */
-app.post("/api/booking/webhooks/cashfree", express.raw({
-    type: "application/json",
-}), paymentWebhooks);
+app.post("/api/booking/webhooks/cashfree", express.raw({ type: "application/json" }), paymentWebhooks);
 app.use(express.json());
-app.use(express.urlencoded({
-    extended: true,
-}));
+app.use(express.urlencoded({ extended: true }));
 app.use("/api/auth", authRoutes);
 app.use("/api/state", stateRoutes);
 app.use("/api/city", cityRoutes);
@@ -105,13 +101,9 @@ app.use((error, _req, res, _next) => {
     else if (error instanceof multer.MulterError) {
         status = 400;
     }
-    let errorMessage = error instanceof Error
-        ? error.message
-        : "Unknown server error";
-    if (error instanceof multer.MulterError &&
-        error.code === "LIMIT_FILE_SIZE") {
-        errorMessage =
-            "Uploaded file exceeds the maximum allowed size";
+    let errorMessage = error instanceof Error ? error.message : "Unknown server error";
+    if (error instanceof multer.MulterError && error.code === "LIMIT_FILE_SIZE") {
+        errorMessage = "Uploaded file exceeds the maximum allowed size";
     }
     if (error instanceof Error) {
         console.error(error.stack ?? error.message);
@@ -119,10 +111,7 @@ app.use((error, _req, res, _next) => {
     else {
         console.error(error);
     }
-    const message = process.env.NODE_ENV === "production" &&
-        status === 500
-        ? "Internal server error"
-        : errorMessage;
+    const message = process.env.NODE_ENV === "production" && status === 500 ? "Internal server error" : errorMessage;
     res.status(status).json({
         success: false,
         message,

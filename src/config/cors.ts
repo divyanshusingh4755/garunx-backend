@@ -12,19 +12,12 @@ export const corsOptions: CorsOptions = {
       callback(null, true);
       return;
     }
-
-    callback(
-      new HttpError(
-        403,
-        "Origin is not allowed",
-      ),
+    callback(new HttpError(403, "Origin is not allowed"),
     );
   },
 
   credentials: true,
 
-  methods: [
-    "GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"
-  ],
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Accept"]
 }

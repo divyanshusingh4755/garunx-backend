@@ -74,7 +74,5 @@ export const CACHE_TTL_SECONDS = {
     RBAC_ROLE_DETAIL: 15 * 60,
     RBAC_USER_ACCESS: 2 * 60,
 };
-export const CACHE_PREFIX = process.env.REDIS_CACHE_PREFIX
-    ?.trim() ||
-    "garunx:cache:v1";
+export const CACHE_PREFIX = process.env.REDIS_CACHE_PREFIX?.trim() || "garunx:cache:v1";
 //# sourceMappingURL=constants.js.map

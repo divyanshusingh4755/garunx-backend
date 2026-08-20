@@ -28,10 +28,5 @@ const currency = process.env.DEFAULT_CURRENCY?.trim().toUpperCase() || "INR";
 if (!/^[A-Z]{3}$/.test(currency)) {
     throw new Error("DEFAULT_CURRENCY must be a three-letter currency code");
 }
-export const taxConfig = {
-    enabled: gstEnabled,
-    supplierStateCode: supplierStateCode ?? "",
-    currency,
-    ...(gstin !== undefined ? { gstin } : {}),
-};
+export const taxConfig = { enabled: gstEnabled, supplierStateCode: supplierStateCode ?? "", currency, ...(gstin !== undefined ? { gstin } : {}) };
 //# sourceMappingURL=tax.config.js.map
