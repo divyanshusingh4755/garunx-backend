@@ -329,6 +329,7 @@ export class ReviewService {
 
           {
             session,
+            updatePipeline: true,
           },
         );
 
@@ -504,6 +505,7 @@ export class ReviewService {
 
           {
             session,
+            updatePipeline: true,
           },
         );
 

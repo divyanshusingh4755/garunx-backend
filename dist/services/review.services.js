@@ -209,6 +209,7 @@ export class ReviewService {
                 },
             ], {
                 session,
+                updatePipeline: true,
             });
             if (result.matchedCount === 0) {
                 /*
@@ -342,6 +343,7 @@ export class ReviewService {
                 },
             ], {
                 session,
+                updatePipeline: true,
             });
             if (result.matchedCount === 0) {
                 const reviewee = await User.findById(revieweeId)
