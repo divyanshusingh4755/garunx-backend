@@ -273,6 +273,7 @@ const assignmentRequestSchema = new Schema<IAssignmentRequest>(
       enum: [
         "ANOTHER_COORDINATOR_ACCEPTED",
         "REASSIGNMENT_STARTED",
+        "REASSIGNMENT_COMPLETED",
         "RESCHEDULE_COORDINATOR_CHANGE",
         "USER_CANCELLED",
         "SYSTEM_CANCELLED",

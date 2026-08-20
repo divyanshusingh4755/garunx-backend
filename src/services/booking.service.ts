@@ -5261,49 +5261,77 @@ export class BookingService {
     const isOwner =
       booking.userId?.toString() === userId;
 
+    const assignment =
+      booking.assignment;
+
     const activeReassignment =
-      booking.assignment
-        ?.reassignment;
+      assignment?.reassignment;
+
+    const currentRound =
+      assignment?.currentRound ?? 1;
+
+    /*
+* Active manual-selection phase of AUTO reassignment.
+*
+* requestReassignment() always creates USER/COORDINATOR
+* reassignment with mode AUTO.
+*
+* The currently assigned coordinator stays assigned until
+* one replacement coordinator accepts.
+*/
 
     const isActiveReassignment =
-      booking.status ===
-      "ASSIGNED" &&
-      activeReassignment?.mode ===
-      "AUTO" &&
-      ["USER", "COORDINATOR"].includes(
-        activeReassignment.requestedByRole,
+      booking.status === "ASSIGNED" &&
+      assignment?.status === "ACCEPTED" &&
+      !!assignment.assignedCoordinatorId &&
+      !!activeReassignment &&
+      activeReassignment.mode === "AUTO" &&
+      activeReassignment.assignmentRound === currentRound &&
+      (
+        activeReassignment.requestedByRole === "USER" ||
+        activeReassignment.requestedByRole === "COORDINATOR"
       ) &&
-      [
-        "PENDING_REPLACEMENT",
-        "REPLACEMENT_REQUESTED",
-      ].includes(
-        activeReassignment.status,
+      (
+        activeReassignment.status === "PENDING_REPLACEMENT" ||
+        activeReassignment.status === "REPLACEMENT_REQUESTED"
       );
+
+    /*
+* Coordinator access is allowed only to the coordinator
+* who actually initiated this active reassignment.
+*
+* Also make sure that coordinator is still the currently
+* assigned coordinator. requestReassignment() guarantees
+* this when the reassignment is created.
+*/
 
     const isRequestingCoordinator =
       isActiveReassignment &&
-      activeReassignment?.requestedByRole ===
-      "COORDINATOR" &&
-      activeReassignment.requestedBy?.toString() ===
-      userId;
+      activeReassignment.requestedByRole === "COORDINATOR" &&
+      activeReassignment.requestedBy.toString() === userId &&
+      assignment.assignedCoordinatorId?.toString() === userId;
+
+    /*
+* Booking owner may use:
+* - initial coordinator selection
+* - reschedule selection
+* - USER reassignment selection
+*
+* Assigned coordinator may use:
+* - only the reassignment they initiated.
+*/
 
     if (!isOwner && !isRequestingCoordinator) {
       throw new Error(
-        "You are not authorized to select a coordinator for this booking",
+        "You are not authorized to view available coordinators for this booking",
       );
     }
 
     /*
-     * Do not mix reschedule and reassignment.
-     */
+    * Never mix rescheduling and reassignment.
+    */
     if (
-      activeReassignment &&
-      [
-        "PENDING_REPLACEMENT",
-        "REPLACEMENT_REQUESTED",
-      ].includes(
-        activeReassignment.status,
-      ) &&
+      isActiveReassignment &&
       options.scheduledAt
     ) {
       throw new Error(
@@ -5312,13 +5340,15 @@ export class BookingService {
     }
 
     /*
-     * An ASSIGNED booking can show coordinator choices only for:
-     * - reschedule replacement selection, or
-     * - active USER reassignment selection.
-     */
+    * ASSIGNED booking normally cannot expose coordinator
+    * selection.
+    *
+    * Exceptions:
+    * 1. User is checking coordinators for a new reschedule date.
+    * 2. Active USER/COORDINATOR reassignment is in progress.
+    */
     if (
-      booking.status ===
-      "ASSIGNED" &&
+      booking.status === "ASSIGNED" &&
       !options.scheduledAt &&
       !isActiveReassignment
     ) {
@@ -5417,37 +5447,25 @@ export class BookingService {
         targetScheduledAt,
       );
 
-    const currentRound =
-      booking.assignment
-        ?.currentRound ??
-      1;
-
     const currentRoundRequests =
       (
-        booking.assignment
-          ?.requests ?? []
+        booking.assignment?.requests ?? []
       ).filter(
         (request: any) =>
-          (
-            request
-              .assignmentRound ??
-            1
-          ) ===
+          (request.assignmentRound ?? 1) ===
           currentRound,
       );
 
     const manualRequestCount =
       currentRoundRequests.filter(
         (request: any) =>
-          request.assignmentType ===
-          "MANUAL",
+          request.assignmentType === "MANUAL",
       ).length;
 
     const automaticFallbackStarted =
       currentRoundRequests.some(
         (request: any) =>
-          request.assignmentType ===
-          "AUTO",
+          request.assignmentType === "AUTO",
       );
 
     const maxManualRequests =
