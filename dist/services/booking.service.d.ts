@@ -145,7 +145,7 @@ export declare class BookingService {
         cancellation: {
             reason?: string;
             cancelledBy?: Types.ObjectId;
-            cancelledByRole?: "USER" | "ADMIN" | "SUBADMIN" | "SYSTEM";
+            cancelledByRole?: "USER" | "ADMIN" | "COORDINATOR" | "SYSTEM";
             cancelledAt?: Date;
             refundPercentage?: number;
             refundAmount?: number;
@@ -427,7 +427,7 @@ export declare class BookingService {
         cancellation?: {
             reason?: string;
             cancelledBy?: Types.ObjectId;
-            cancelledByRole?: "USER" | "ADMIN" | "SUBADMIN" | "SYSTEM";
+            cancelledByRole?: "USER" | "ADMIN" | "COORDINATOR" | "SYSTEM";
             cancelledAt?: Date;
             refundPercentage?: number;
             refundAmount?: number;

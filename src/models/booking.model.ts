@@ -1155,7 +1155,7 @@ export interface IBooking extends Document {
   cancellation?: {
     reason?: string;
     cancelledBy?: Types.ObjectId;
-    cancelledByRole?: "USER" | "ADMIN" | "SUBADMIN" | "SYSTEM";
+    cancelledByRole?: "USER" | "ADMIN" | "COORDINATOR" | "SYSTEM";
     cancelledAt?: Date;
     refundPercentage?: number;
     refundAmount?: number;
@@ -1398,7 +1398,7 @@ const bookingSchema = new Schema<IBooking>(
       cancelledBy: { type: Schema.Types.ObjectId, ref: "User" },
       cancelledByRole: {
         type: String,
-        enum: ["USER", "ADMIN", "SUBADMIN", "SYSTEM"],
+        enum: ["USER", "ADMIN", "COORDINATOR", "SYSTEM"],
       },
       cancelledAt: Date,
       refundPercentage: Number,

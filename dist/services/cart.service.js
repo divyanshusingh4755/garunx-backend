@@ -1324,8 +1324,8 @@ class CartService {
             }
             catch {
                 changes.push(`Coupon ${cart.couponCode} was removed because it is no longer valid`);
-                delete cart.couponId;
-                delete cart.couponCode;
+                cart.set("couponId", undefined);
+                cart.set("couponCode", undefined);
             }
         }
         /*
@@ -1827,8 +1827,8 @@ class CartService {
             throw new Error("Cart not found");
         }
         this.ensureCartEditable(cart);
-        delete cart.couponId;
-        delete cart.couponCode;
+        cart.set("couponId", undefined);
+        cart.set("couponCode", undefined);
         await cart.save();
         const result = await this.recalculateCart(owner, cartId, {
             persist: true,

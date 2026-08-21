@@ -760,7 +760,7 @@ const bookingSchema = new Schema({
         cancelledBy: { type: Schema.Types.ObjectId, ref: "User" },
         cancelledByRole: {
             type: String,
-            enum: ["USER", "ADMIN", "SUBADMIN", "SYSTEM"],
+            enum: ["USER", "ADMIN", "COORDINATOR", "SYSTEM"],
         },
         cancelledAt: Date,
         refundPercentage: Number,

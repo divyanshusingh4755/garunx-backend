@@ -2754,8 +2754,22 @@ export class BookingService {
             throw new Error("Booking not found");
         }
         const isOwner = booking.userId?.toString() === userId;
-        const isAdmin = role === "ADMIN" || role === "SUBADMIN";
-        if (!isOwner && !isAdmin) {
+        const isAssignedCoordinator = booking.assignment?.assignedCoordinatorId?.toString() ===
+            userId;
+        if (role === Role.USER) {
+            if (!isOwner) {
+                throw new Error("You are not authorized to cancel this booking");
+            }
+        }
+        else if (role === Role.COORDINATOR) {
+            if (!isAssignedCoordinator) {
+                throw new Error("You are not authorized to cancel this booking");
+            }
+        }
+        else if (role === Role.ADMIN) {
+            // No ownership/assignment restriction.
+        }
+        else {
             throw new Error("You are not authorized to cancel this booking");
         }
         await this.invalidateBookingCache(bookingId);

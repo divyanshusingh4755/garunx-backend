@@ -2323,8 +2323,8 @@ class CartService {
           `Coupon ${cart.couponCode} was removed because it is no longer valid`,
         );
 
-        delete cart.couponId;
-        delete cart.couponCode;
+        cart.set("couponId", undefined);
+        cart.set("couponCode", undefined);
       }
     }
 
@@ -3055,8 +3055,8 @@ class CartService {
 
     this.ensureCartEditable(cart);
 
-    delete cart.couponId;
-    delete cart.couponCode;
+    cart.set("couponId", undefined);
+    cart.set("couponCode", undefined);
 
     await cart.save();
 

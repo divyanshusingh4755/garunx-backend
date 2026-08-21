@@ -207,7 +207,19 @@ declare class CartService {
             phone?: string;
             address?: string;
             caste?: string;
-            gotra?: string;
+            gotra
+            /**
+             * One query for ALL services.
+             *
+             * Avoids N+1 queries when a package
+             * contains many services.
+             */
+            ? /**
+             * One query for ALL services.
+             *
+             * Avoids N+1 queries when a package
+             * contains many services.
+             */: string;
         };
         selectedServices: ISelectedService[];
         addonServices: IAddonService[];
@@ -307,7 +319,19 @@ declare class CartService {
             phone?: string;
             address?: string;
             caste?: string;
-            gotra?: string;
+            gotra
+            /**
+             * One query for ALL services.
+             *
+             * Avoids N+1 queries when a package
+             * contains many services.
+             */
+            ? /**
+             * One query for ALL services.
+             *
+             * Avoids N+1 queries when a package
+             * contains many services.
+             */: string;
         };
         selectedComponents: ISelectedComponent[];
         addonComponents: ISelectedComponent[];

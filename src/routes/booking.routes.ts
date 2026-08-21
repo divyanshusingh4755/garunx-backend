@@ -376,7 +376,10 @@ router.post(
 router.post(
   "/:bookingId/cancel",
   authenticate,
-  authorizeRoles(Role.USER),
+  authorizeRoles(
+    Role.USER,
+    Role.COORDINATOR,
+  ),
   param("bookingId")
     .isMongoId()
     .withMessage("Invalid booking ID"),

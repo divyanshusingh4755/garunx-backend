@@ -3910,7 +3910,7 @@ export class BookingService {
           reason: reason.trim(),
           cancelledAt: now,
           cancelledBy: new Types.ObjectId(userId),
-          cancelledByRole: role as "USER" | "ADMIN" | "SUBADMIN" | "SYSTEM",
+          cancelledByRole: role as "USER" | "ADMIN" | "COORDINATOR" | "SYSTEM",
           refundPercentage: booking.cancellation?.refundPercentage ?? 0,
           refundAmount: booking.cancellation?.refundAmount ?? 0,
         };
@@ -4780,12 +4780,31 @@ export class BookingService {
       throw new Error("Booking not found");
     }
 
-    const isOwner = booking.userId?.toString() === userId;
+    const isOwner =
+      booking.userId?.toString() === userId;
 
-    const isAdmin = role === "ADMIN" || role === "SUBADMIN";
+    const isAssignedCoordinator =
+      booking.assignment?.assignedCoordinatorId?.toString() ===
+      userId;
 
-    if (!isOwner && !isAdmin) {
-      throw new Error("You are not authorized to cancel this booking");
+    if (role === Role.USER) {
+      if (!isOwner) {
+        throw new Error(
+          "You are not authorized to cancel this booking",
+        );
+      }
+    } else if (role === Role.COORDINATOR) {
+      if (!isAssignedCoordinator) {
+        throw new Error(
+          "You are not authorized to cancel this booking",
+        );
+      }
+    } else if (role === Role.ADMIN) {
+      // No ownership/assignment restriction.
+    } else {
+      throw new Error(
+        "You are not authorized to cancel this booking",
+      );
     }
 
     await this.invalidateBookingCache(

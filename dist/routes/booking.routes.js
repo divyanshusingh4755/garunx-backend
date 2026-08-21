@@ -150,7 +150,7 @@ router.post("/:bookingId/retry-payment", authenticate, authorizeRoles(Role.USER)
 // =========================================================
 // USER - BOOKING MANAGEMENT
 // =========================================================
-router.post("/:bookingId/cancel", authenticate, authorizeRoles(Role.USER), param("bookingId")
+router.post("/:bookingId/cancel", authenticate, authorizeRoles(Role.USER, Role.COORDINATOR), param("bookingId")
     .isMongoId()
     .withMessage("Invalid booking ID"), body("reason")
     .isString()

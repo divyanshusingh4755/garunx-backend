@@ -19,14 +19,6 @@ export interface ISelectedComponent {
     totalPrice: number;
     tax?: ILineTax;
 }
-export interface ISelectedService {
-    serviceId: Types.ObjectId;
-    name: string;
-    priceBeforeDiscount: number;
-    discountAmount: number;
-    price: number;
-    tax?: ILineTax;
-}
 export interface ICartSubService {
     subServiceId: Types.ObjectId;
     name: string;
