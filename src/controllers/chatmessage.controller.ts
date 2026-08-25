@@ -2,17 +2,14 @@ import type { Request, Response } from "express"
 import { ChatMessageService } from "../services/chatmessage.service.js";
 import type { ChatMessageType } from "../models/chatmessage.model.js";
 
-interface S3UploadedFile extends Express.Multer.File {
-  key: string;
-  location?: string;
-}
+interface S3UploadedFile extends Express.Multer.File { key: string; location?: string; }
 
 export const getMessages = async (req: Request, res: Response) => {
   try {
     const { conversationId } = req.params;
     const { cursor, limit } = req.query;
-
     const requestedBy = req.user?.userId;
+
     if (!requestedBy) {
       return res.status(401).json({ success: false, message: "Unauthorized" });
     }
@@ -51,7 +48,10 @@ export const sendMessage = async (req: Request, res: Response) => {
 
     const senderId = req.user?.userId;
     if (!senderId) {
-      return res.status(401).json({ success: false, message: "Unauthorized" });
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized"
+      });
     }
 
     if (!conversationId || Array.isArray(conversationId)) {
@@ -61,15 +61,7 @@ export const sendMessage = async (req: Request, res: Response) => {
       });
     }
 
-    const { message } = await ChatMessageService.sendMessage({
-      conversationId,
-      senderId,
-      clientMessageId,
-      type: type as ChatMessageType,
-      text,
-      images,
-      replyToMessageId
-    })
+    const { message } = await ChatMessageService.sendMessage({ conversationId, senderId, clientMessageId, type: type as ChatMessageType, text, images, replyToMessageId })
 
     return res.status(201).json({
       success: true,
@@ -100,17 +92,12 @@ export const getUnreadCount = async (req: Request, res: Response) => {
       });
     }
 
-    const unreadCount = await ChatMessageService.getUnreadCount({
-      conversationId,
-      userId
-    })
+    const unreadCount = await ChatMessageService.getUnreadCount({ conversationId, userId })
 
     return res.status(200).json({
       success: true,
       message: "Unread message count fetched successfully",
-      data: {
-        unreadCount
-      }
+      data: { unreadCount }
     })
   } catch (error: any) {
     return res.status(400).json({

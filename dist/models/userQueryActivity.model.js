@@ -14,25 +14,12 @@ const userQueryActivitySchema = new Schema({
     },
     type: {
         type: String,
-        enum: [
-            "QUERY_CREATED",
-            "REQUESTER_REPLIED",
-            "ADMIN_REPLIED",
-            "STATUS_CHANGED",
-            "ASSIGNED",
-            "PRIORITY_CHANGED",
-            "CATEGORY_CHANGED",
-            "QUERY_DELETED",
-        ],
+        enum: ["QUERY_CREATED", "REQUESTER_REPLIED", "ADMIN_REPLIED", "STATUS_CHANGED", "ASSIGNED", "PRIORITY_CHANGED", "CATEGORY_CHANGED", "QUERY_DELETED"],
         required: true,
         index: true,
     },
-    oldValue: {
-        type: Schema.Types.Mixed,
-    },
-    newValue: {
-        type: Schema.Types.Mixed,
-    },
+    oldValue: { type: Schema.Types.Mixed },
+    newValue: { type: Schema.Types.Mixed, },
     note: {
         type: String,
         trim: true,
@@ -41,14 +28,7 @@ const userQueryActivitySchema = new Schema({
 }, {
     timestamps: true,
 });
-userQueryActivitySchema.index({
-    queryId: 1,
-    createdAt: -1,
-});
-userQueryActivitySchema.index({
-    queryId: 1,
-    type: 1,
-    createdAt: -1,
-});
+userQueryActivitySchema.index({ queryId: 1, createdAt: -1 });
+userQueryActivitySchema.index({ queryId: 1, type: 1, createdAt: -1 });
 export const UserQueryActivity = model("UserQueryActivity", userQueryActivitySchema);
 //# sourceMappingURL=userQueryActivity.model.js.map

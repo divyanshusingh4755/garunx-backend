@@ -29,14 +29,7 @@ const subServiceComponentSchema = new Schema({
 }, {
     timestamps: true,
 });
-subServiceComponentSchema.index({
-    name: 1,
-});
-subServiceComponentSchema.index({
-    name: "text",
-    description: "text",
-}, {
-    name: "SubServiceComponentTextSearchIndex",
-});
+subServiceComponentSchema.index({ name: 1 });
+subServiceComponentSchema.index({ name: "text", description: "text" }, { name: "SubServiceComponentTextSearchIndex" });
 export const SubServiceComponent = model("SubServiceComponent", subServiceComponentSchema);
 //# sourceMappingURL=subservices.model.js.map

@@ -14,16 +14,14 @@ const getStatusCode = (error) => {
 };
 export const createService = async (req, res) => {
     try {
-        const { name, shortDescription, fullDescription, categoryId, thumbnailImage, bannerImage, } = req.body;
+        const { name, shortDescription, fullDescription, categoryId, thumbnailImage, bannerImage } = req.body;
         const service = await ServiceService.createService({
             name,
             shortDescription,
             fullDescription,
             categoryId,
             thumbnailImage,
-            ...(bannerImage !== undefined && {
-                bannerImage,
-            }),
+            ...(bannerImage !== undefined && { bannerImage }),
         });
         return res.status(201).json({
             success: true,
@@ -94,46 +92,19 @@ export const getServiceById = async (req, res) => {
 };
 export const getServicesByLocation = async (req, res) => {
     try {
-        const { cityIds, categoryIds, limit, page, sortBy, sortOrder, } = req.query;
-        const cityIdArray = typeof cityIds === "string"
-            ? cityIds
-                .split(",")
-                .map((id) => id.trim())
-                .filter(Boolean)
-            : undefined;
-        const categoryIdArray = typeof categoryIds === "string"
-            ? categoryIds
-                .split(",")
-                .map((id) => id.trim())
-                .filter(Boolean)
-            : undefined;
+        const { cityIds, categoryIds, limit, page, sortBy, sortOrder } = req.query;
+        const cityIdArray = typeof cityIds === "string" ? cityIds.split(",").map((id) => id.trim()).filter(Boolean) : undefined;
+        const categoryIdArray = typeof categoryIds === "string" ? categoryIds.split(",").map((id) => id.trim()).filter(Boolean) : undefined;
         const result = await ServiceService.getServicesByLocation({
-            limit: limit
-                ? Number(limit)
-                : 20,
-            page: page
-                ? Number(page)
-                : 1,
-            /*
-             * This is a USER-facing endpoint.
-             * Never allow the client to request
-             * inactive/incomplete services.
-             */
+            limit: limit ? Number(limit) : 20,
+            page: page ? Number(page) : 1,
+            // This is a USER-facing endpoint. Never allow the client to request inactive/incomplete services.
             isActive: true,
             isComplete: true,
-            sortBy: typeof sortBy === "string"
-                ? sortBy
-                : "name",
-            sortOrder: sortOrder === "asc" ||
-                sortOrder === "desc"
-                ? sortOrder
-                : "asc",
-            ...(cityIdArray !== undefined && {
-                cityIds: cityIdArray,
-            }),
-            ...(categoryIdArray !== undefined && {
-                categoryIds: categoryIdArray,
-            }),
+            sortBy: typeof sortBy === "string" ? sortBy : "name",
+            sortOrder: sortOrder === "asc" || sortOrder === "desc" ? sortOrder : "asc",
+            ...(cityIdArray !== undefined && { cityIds: cityIdArray, }),
+            ...(categoryIdArray !== undefined && { categoryIds: categoryIdArray, }),
         });
         return res.status(200).json({
             success: true,
@@ -144,39 +115,25 @@ export const getServicesByLocation = async (req, res) => {
         });
     }
     catch (error) {
-        return res
-            .status(getStatusCode(error))
-            .json({
+        return res.status(getStatusCode(error)).json({
             success: false,
-            message: error.message ||
-                "Failed to fetch services by location",
+            message: error.message || "Failed to fetch services by location",
         });
     }
 };
 export const getAllServices = async (req, res) => {
     try {
-        const { searchTerm, categoryId, locationId, limit, page, sortBy, sortOrder, } = req.query;
+        const { searchTerm, categoryId, locationId, limit, page, sortBy, sortOrder } = req.query;
         const result = await ServiceService.findServices({
             limit: limit ? Number(limit) : 20,
             page: page ? Number(page) : 1,
             isActive: true,
             isComplete: true,
-            sortBy: typeof sortBy === "string"
-                ? sortBy
-                : "name",
-            sortOrder: sortOrder === "asc" ||
-                sortOrder === "desc"
-                ? sortOrder
-                : "asc",
-            ...(typeof searchTerm === "string" && {
-                searchTerm,
-            }),
-            ...(typeof categoryId === "string" && {
-                categoryId,
-            }),
-            ...(typeof locationId === "string" && {
-                locationId,
-            }),
+            sortBy: typeof sortBy === "string" ? sortBy : "name",
+            sortOrder: sortOrder === "asc" || sortOrder === "desc" ? sortOrder : "asc",
+            ...(typeof searchTerm === "string" && { searchTerm }),
+            ...(typeof categoryId === "string" && { categoryId }),
+            ...(typeof locationId === "string" && { locationId }),
         });
         return res.status(200).json({
             success: true,
@@ -195,42 +152,19 @@ export const getAllServices = async (req, res) => {
 };
 export const getAllServicesAdmin = async (req, res) => {
     try {
-        const { searchTerm, categoryId, locationId, limit, page, isActive, isComplete, sortBy, sortOrder, } = req.query;
-        const activeStatus = isActive === "true"
-            ? true
-            : isActive === "false"
-                ? false
-                : undefined;
-        const completeStatus = isComplete === "true"
-            ? true
-            : isComplete === "false"
-                ? false
-                : undefined;
+        const { searchTerm, categoryId, locationId, limit, page, isActive, isComplete, sortBy, sortOrder } = req.query;
+        const activeStatus = isActive === "true" ? true : isActive === "false" ? false : undefined;
+        const completeStatus = isComplete === "true" ? true : isComplete === "false" ? false : undefined;
         const result = await ServiceService.findServices({
             limit: limit ? Number(limit) : 20,
             page: page ? Number(page) : 1,
-            sortBy: typeof sortBy === "string"
-                ? sortBy
-                : "name",
-            sortOrder: sortOrder === "asc" ||
-                sortOrder === "desc"
-                ? sortOrder
-                : "asc",
-            ...(typeof searchTerm === "string" && {
-                searchTerm,
-            }),
-            ...(typeof categoryId === "string" && {
-                categoryId,
-            }),
-            ...(typeof locationId === "string" && {
-                locationId,
-            }),
-            ...(activeStatus !== undefined && {
-                isActive: activeStatus,
-            }),
-            ...(completeStatus !== undefined && {
-                isComplete: completeStatus,
-            }),
+            sortBy: typeof sortBy === "string" ? sortBy : "name",
+            sortOrder: sortOrder === "asc" || sortOrder === "desc" ? sortOrder : "asc",
+            ...(typeof searchTerm === "string" && { searchTerm, }),
+            ...(typeof categoryId === "string" && { categoryId, }),
+            ...(typeof locationId === "string" && { locationId, }),
+            ...(activeStatus !== undefined && { isActive: activeStatus, }),
+            ...(completeStatus !== undefined && { isComplete: completeStatus, }),
         });
         return res.status(200).json({
             success: true,
@@ -298,27 +232,16 @@ export const removeServiceTier = async (req, res) => {
 };
 export const getFullServiceAdmin = async (req, res) => {
     try {
-        const data = await ServiceService
-            .getFullServiceAdmin(req.params
-            .serviceId);
-        return res
-            .status(200)
-            .json({
+        const data = await ServiceService.getFullServiceAdmin(req.params.serviceId);
+        return res.status(200).json({
             success: true,
             data,
         });
     }
     catch (error) {
-        return res
-            .status(typeof error
-            ?.statusCode ===
-            "number"
-            ? error.statusCode
-            : 500)
-            .json({
+        return res.status(typeof error?.statusCode === "number" ? error.statusCode : 500).json({
             success: false,
-            message: error.message ||
-                "Failed to fetch service",
+            message: error.message || "Failed to fetch service",
         });
     }
 };
@@ -369,22 +292,16 @@ export const getServiceDiagnostics = async (req, res) => {
 };
 export const exportServicesCsv = async (req, res) => {
     try {
-        const { serviceIds, } = req.body;
-        const result = await ServiceService
-            .exportServicesToCsv(serviceIds);
-        const timestamp = new Date()
-            .toISOString()
-            .replace(/[:.]/g, "-");
+        const { serviceIds } = req.body;
+        const result = await ServiceService.exportServicesToCsv(serviceIds);
+        const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
         res.setHeader("Content-Type", "text/csv; charset=utf-8");
         res.setHeader("Content-Disposition", `attachment; filename="services-${timestamp}.csv"`);
         res.setHeader("Cache-Control", "no-store");
-        return res
-            .status(200)
-            .send(`\uFEFF${result.csv}`);
+        return res.status(200).send(`\uFEFF${result.csv}`);
     }
     catch (error) {
-        if (error.message ===
-            "No services found for export") {
+        if (error.message === "No services found for export") {
             return res.status(404).json({
                 success: false,
                 message: error.message,
@@ -392,8 +309,7 @@ export const exportServicesCsv = async (req, res) => {
         }
         return res.status(getStatusCode(error)).json({
             success: false,
-            message: error.message ||
-                "Failed to export services",
+            message: error.message || "Failed to export services",
         });
     }
 };

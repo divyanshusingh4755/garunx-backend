@@ -87,23 +87,7 @@ const serviceComponentSchema = new Schema<IServiceComponent>(
   },
 );
 
-serviceComponentSchema.index(
-  {
-    serviceId: 1,
-    componentId: 1,
-    tierId: 1,
-  },
-  {
-    unique: true,
-  },
-);
+serviceComponentSchema.index({ serviceId: 1, componentId: 1, tierId: 1 }, { unique: true });
+serviceComponentSchema.index({ serviceId: 1, tierId: 1 });
 
-serviceComponentSchema.index({
-  serviceId: 1,
-  tierId: 1,
-});
-
-export const ServiceComponent = model<IServiceComponent>(
-  "ServiceComponent",
-  serviceComponentSchema,
-);
+export const ServiceComponent = model<IServiceComponent>("ServiceComponent", serviceComponentSchema);

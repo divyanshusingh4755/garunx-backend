@@ -5,647 +5,198 @@ import { RedisCacheService } from "./redis-cache.service.js";
 import { CacheKeys } from "../cache/cache-keys.js";
 import { CACHE_TTL_SECONDS } from "../cache/constants.js";
 
-type StateUpdate = Partial<
-  Pick<
-    IState,
-    | "country"
-    | "name"
-    | "gstCode"
-    | "image"
-    | "description"
-    | "location"
-  >
->;
+type StateUpdate = Partial<Pick<IState, | "country" | "name" | "gstCode" | "image" | "description" | "location">>;
 
 const createHttpError = (message: string, statusCode: number) => {
   const error = new Error(message) as Error & {
     statusCode: number;
   };
-
   error.statusCode = statusCode;
   return error;
 };
 
 export class StateService {
-  private static async invalidateStateCache(
-    stateId?:
-      string,
-  ): Promise<void> {
-    const operations:
-      Promise<unknown>[] = [
-        RedisCacheService.deleteByPattern(
-          CacheKeys.stateListPattern(),
-        ),
+  private static async invalidateStateCache(stateId?: string): Promise<void> {
+    const operations: Promise<unknown>[] = [
+      RedisCacheService.deleteByPattern(CacheKeys.stateListPattern()),
+      RedisCacheService.deleteByPattern(CacheKeys.cityListPattern()),
+      RedisCacheService.deleteByPattern(CacheKeys.cityDetailPattern()),
+      RedisCacheService.deleteByPattern(CacheKeys.locationListPattern()),
+      RedisCacheService.deleteByPattern(CacheKeys.locationDetailPattern()),
+      RedisCacheService.deleteByPattern(CacheKeys.locationIdsPattern()),
+    ];
 
-        RedisCacheService.deleteByPattern(
-          CacheKeys.cityListPattern(),
-        ),
+    if (stateId) { operations.push(RedisCacheService.delete(CacheKeys.stateDetail(stateId))); }
 
-        RedisCacheService.deleteByPattern(
-          CacheKeys.cityDetailPattern(),
-        ),
-
-        RedisCacheService.deleteByPattern(
-          CacheKeys.locationListPattern(),
-        ),
-
-        RedisCacheService.deleteByPattern(
-          CacheKeys.locationDetailPattern(),
-        ),
-
-        RedisCacheService.deleteByPattern(
-          CacheKeys.locationIdsPattern(),
-        ),
-      ];
-
-    if (
-      stateId
-    ) {
-      operations.push(
-        RedisCacheService.delete(
-          CacheKeys.stateDetail(
-            stateId,
-          ),
-        ),
-      );
-    }
-
-    await Promise.all(
-      operations,
-    );
+    await Promise.all(operations);
   }
 
-  private static applyFilter(
-    filterValue?: string,
-  ): { $in: string[] } | undefined {
+  private static applyFilter(filterValue?: string): { $in: string[] } | undefined {
     if (!filterValue?.trim()) return undefined;
 
-    const values = filterValue
-      .split(",")
-      .map((value) => value.trim())
-      .filter(Boolean);
-
+    const values = filterValue.split(",").map((value) => value.trim()).filter(Boolean);
     return values.length > 0 ? { $in: values } : undefined;
   }
 
   static async createState(
-    params: {
-      name: string;
-      country: string;
-      gstCode: string;
-      image?: string;
-      description?: string;
-      location?: IGeoPoint;
-    },
+    params: { name: string; country: string; gstCode: string; image?: string; description?: string; location?: IGeoPoint; },
   ) {
-    const {
-      name,
-      country,
-      gstCode,
-      image,
-      description,
-      location,
-    } = params;
+    const { name, country, gstCode, image, description, location } = params;
 
-    const state =
-      await State.create({
-        name:
-          name.trim(),
-
-        country:
-          country.trim(),
-
-        gstCode:
-          gstCode.trim(),
-
-        ...(image !== undefined && {
-          image,
-        }),
-
-        ...(description !== undefined && {
-          description,
-        }),
-
-        ...(location !== undefined && {
-          location,
-        }),
-      });
+    const state = await State.create({
+      name: name.trim(),
+      country: country.trim(),
+      gstCode: gstCode.trim(),
+      ...(image !== undefined && { image }),
+      ...(description !== undefined && { description }),
+      ...(location !== undefined && { location }),
+    });
 
     await this.invalidateStateCache();
-
     return state;
   }
 
-  static async findState(
-    params: {
-      searchTerm?: string;
-      countryFilter?: string;
-      stateFilter?: string;
-      limit?: number;
-      page?: number;
-      isActive?: boolean;
-      sortBy?: string;
-      sortOrder?:
-      "asc" | "desc";
-    },
+  static async findState(params: { searchTerm?: string; countryFilter?: string; stateFilter?: string; limit?: number; page?: number; isActive?: boolean; sortBy?: string; sortOrder?: "asc" | "desc"; },
   ) {
-    const {
-      searchTerm,
-      countryFilter,
-      stateFilter,
-      limit = 40,
-      page = 1,
-      isActive,
-      sortBy = "createdAt",
-      sortOrder = "desc",
-    } = params;
-
-    const safeLimit =
-      Math.min(
-        Math.max(
-          limit,
-          1,
-        ),
-        100,
-      );
-
-    const safePage =
-      Math.max(
-        page,
-        1,
-      );
-
-    const term =
-      searchTerm?.trim();
-
-    const isTextSearch =
-      Boolean(
-        term &&
-        term.length >
-        4,
-      );
-
-    const allowedSortFields =
-      new Set([
-        "name",
-        "country",
-        "gstCode",
-        "createdAt",
-        "updatedAt",
-      ]);
-
-    const safeSortBy =
-      isTextSearch &&
-        sortBy ===
-        "relevance"
-        ? "relevance"
-        : allowedSortFields.has(
-          sortBy,
-        )
-          ? sortBy
-          : "createdAt";
-
-    const cacheKey =
-      CacheKeys.stateList({
-        searchTerm,
-        countryFilter,
-        stateFilter,
-        limit:
-          safeLimit,
-        page:
-          safePage,
-        isActive,
-        sortBy:
-          safeSortBy,
-        sortOrder,
-      });
+    const { searchTerm, countryFilter, stateFilter, limit = 40, page = 1, isActive, sortBy = "createdAt", sortOrder = "desc" } = params;
+    const safeLimit = Math.min(Math.max(limit, 1), 100);
+    const safePage = Math.max(page, 1);
+    const term = searchTerm?.trim();
+    const isTextSearch = Boolean(term && term.length > 4);
+    const allowedSortFields = new Set(["name", "country", "gstCode", "createdAt", "updatedAt"]);
+    const safeSortBy = isTextSearch && sortBy === "relevance" ? "relevance" : allowedSortFields.has(sortBy) ? sortBy : "createdAt";
+    const cacheKey = CacheKeys.stateList({ searchTerm, countryFilter, stateFilter, limit: safeLimit, page: safePage, isActive, sortBy: safeSortBy, sortOrder });
 
     return RedisCacheService.getOrSet({
-      key:
-        cacheKey,
+      key: cacheKey,
+      ttlSeconds: CACHE_TTL_SECONDS.STATE_LIST,
+      loader: async () => {
+        const skip = safeLimit * (safePage - 1);
+        const query: QueryFilter<IState> = {};
 
-      ttlSeconds:
-        CACHE_TTL_SECONDS
-          .STATE_LIST,
+        if (typeof isActive === "boolean") { query.isActive = isActive; }
+        const countryQuery = this.applyFilter(countryFilter);
+        const stateQuery = this.applyFilter(stateFilter);
+        if (countryQuery) { query.country = countryQuery; }
 
-      loader:
-        async () => {
-          const skip =
-            safeLimit *
-            (safePage - 1);
-
-          const query:
-            QueryFilter<IState> =
-            {};
-
-          if (
-            typeof isActive ===
-            "boolean"
-          ) {
-            query.isActive =
-              isActive;
-          }
-
-          const countryQuery =
-            this.applyFilter(
-              countryFilter,
-            );
-
-          const stateQuery =
-            this.applyFilter(
-              stateFilter,
-            );
-
-          if (countryQuery) {
-            query.country = countryQuery;
-          }
-
-          if (term && !isTextSearch) {
-            const nameSearch = {
-              $regex: `^${escapeRegex(term)}`,
-              $options: "i",
-            };
-
-            if (stateQuery) {
-              query.$and = [
-                {
-                  name: stateQuery,
-                },
-                {
-                  name: nameSearch,
-                },
-              ];
-            } else {
-              query.name = nameSearch;
-            }
+        if (term && !isTextSearch) {
+          const nameSearch = { $regex: `^${escapeRegex(term)}`, $options: "i" };
+          if (stateQuery) {
+            query.$and = [{ name: stateQuery }, { name: nameSearch }];
           } else {
-            if (stateQuery) {
-              query.name = stateQuery;
-            }
-
-            if (term && isTextSearch) {
-              query.$text = {
-                $search: term,
-              };
-            }
+            query.name = nameSearch;
           }
-
-          let projection:
-            Record<
-              string,
-              unknown
-            > |
-            undefined;
-
-          let sortCriteria:
-            Record<
-              string,
-              SortOrder | {
-                $meta:
-                "textScore";
-              }
-            >;
-
-          if (
-            isTextSearch &&
-            safeSortBy ===
-            "relevance"
-          ) {
-            projection = {
-              score: {
-                $meta:
-                  "textScore",
-              },
-            };
-
-            sortCriteria = {
-              score: {
-                $meta:
-                  "textScore",
-              },
-            };
-          } else {
-            sortCriteria = {
-              [safeSortBy]:
-                sortOrder ===
-                  "asc"
-                  ? 1
-                  : -1,
-            };
-
-            if (
-              safeSortBy !==
-              "createdAt"
-            ) {
-              sortCriteria.createdAt =
-                -1;
-            }
+        } else {
+          if (stateQuery) { query.name = stateQuery; }
+          if (term && isTextSearch) {
+            query.$text = { $search: term };
           }
+        }
 
-          const [
-            data,
-            total,
-          ] =
-            await Promise.all([
-              State.find(
-                query,
-                projection,
-              )
-                .sort(
-                  sortCriteria,
-                )
-                .skip(
-                  skip,
-                )
-                .limit(
-                  safeLimit,
-                )
-                .lean(),
+        let projection: Record<string, unknown> | undefined;
+        let sortCriteria: Record<string, SortOrder | { $meta: "textScore"; }>;
+        if (isTextSearch && safeSortBy === "relevance") {
+          projection = { score: { $meta: "textScore" } };
+          sortCriteria = { score: { $meta: "textScore" } };
+        } else {
+          sortCriteria = { [safeSortBy]: sortOrder === "asc" ? 1 : -1 };
+          if (safeSortBy !== "createdAt") { sortCriteria.createdAt = -1; }
+        }
 
-              State.countDocuments(
-                query,
-              ),
-            ]);
+        const [data, total] = await Promise.all([
+          State.find(query, projection).sort(sortCriteria).skip(skip).limit(safeLimit).lean(),
+          State.countDocuments(query),
+        ]);
 
-          return {
-            data,
-            total,
-
-            page:
-              safePage,
-
-            totalPages:
-              Math.ceil(
-                total /
-                safeLimit,
-              ),
-          };
-        },
+        return {
+          data, total, page: safePage, totalPages: Math.ceil(total / safeLimit),
+        };
+      },
     });
   }
 
   static async updateState(stateId: string, updateData: StateUpdate) {
-    const updatedState = await State.findByIdAndUpdate(
-      stateId,
-      {
-        $set: updateData,
-      },
-      {
-        new: true,
-        runValidators: true,
-      },
-    ).lean();
-
-    if (!updatedState) {
-      throw createHttpError("State not found", 404);
-    }
-
-    await this.invalidateStateCache(
-      stateId,
-    );
-
+    const updatedState = await State.findByIdAndUpdate(stateId, { $set: updateData }, { new: true, runValidators: true }).lean();
+    if (!updatedState) { throw createHttpError("State not found", 404); }
+    await this.invalidateStateCache(stateId);
     return updatedState;
   }
 
   static async softDeleteState(stateId: string, status: boolean) {
-    const updatedState = await State.findByIdAndUpdate(
-      stateId,
-      {
-        $set: {
-          isActive: status,
-        },
-      },
-      {
-        new: true,
-        runValidators: true,
-      },
-    ).lean();
+    const updatedState = await State.findByIdAndUpdate(stateId, { $set: { isActive: status } }, { new: true, runValidators: true }).lean();
+    if (!updatedState) { throw createHttpError("State not found", 404); }
 
-    if (!updatedState) {
-      throw createHttpError("State not found", 404);
-    }
-
-    await this.invalidateStateCache(
-      stateId,
-    );
-
+    await this.invalidateStateCache(stateId);
     return updatedState;
   }
 
   static async getStateById(stateId: string) {
     const state = await State.findById(stateId).lean().exec();
-
-    if (!state) {
-      throw createHttpError("State not found", 404);
-    }
-
+    if (!state) { throw createHttpError("State not found", 404); }
     return state;
   }
 
-  static async exportStatesToCsv(
-    params: {
-      exportAll?: boolean;
-      stateIds?: string[];
-    },
-  ) {
-    const {
-      exportAll = false,
-      stateIds,
-    } = params;
-
-    let query:
-      QueryFilter<IState> = {};
+  static async exportStatesToCsv(params: { exportAll?: boolean; stateIds?: string[]; }) {
+    const { exportAll = false, stateIds } = params;
+    let query: QueryFilter<IState> = {};
 
     if (!exportAll) {
-      const uniqueStateIds = [
-        ...new Set(
-          stateIds ?? [],
-        ),
-      ];
+      const uniqueStateIds = [...new Set(stateIds ?? [])];
 
-      if (
-        uniqueStateIds.length === 0
-      ) {
-        throw createHttpError(
-          "At least one state ID is required",
-          400,
-        );
-      }
+      if (uniqueStateIds.length === 0) { throw createHttpError("At least one state ID is required", 400); }
 
-      query = {
-        _id: {
-          $in: uniqueStateIds,
-        },
-      };
+      query = { _id: { $in: uniqueStateIds } };
     }
 
-    const states =
-      await State.find(query)
-        .select(
-          [
-            "country",
-            "name",
-            "gstCode",
-            "description",
-            "image",
-            "isActive",
-            "location",
-            "createdAt",
-            "updatedAt",
-          ].join(" "),
-        )
-        .sort({
-          country: 1,
-          name: 1,
-        })
-        .lean();
+    const states = await State.find(query).select(["country", "name", "gstCode", "description", "image", "isActive", "location", "createdAt", "updatedAt"].join(" ")).sort({ country: 1, name: 1 }).lean();
 
-    if (
-      states.length === 0
-    ) {
-      throw createHttpError(
-        "No states found for export",
-        404,
-      );
-    }
+    if (states.length === 0) { throw createHttpError("No states found for export", 404); }
 
-    /*
-     * If selected IDs were supplied,
-     * make sure every requested state exists.
-     */
-    if (
-      !exportAll &&
-      stateIds
-    ) {
-      const requestedCount =
-        new Set(
-          stateIds,
-        ).size;
+    // If selected IDs were supplied, make sure every requested state exists.
+    if (!exportAll && stateIds) {
+      const requestedCount = new Set(stateIds).size;
 
-      if (
-        states.length !==
-        requestedCount
-      ) {
-        throw createHttpError(
-          "One or more selected states were not found",
-          404,
-        );
+      if (states.length !== requestedCount) {
+        throw createHttpError("One or more selected states were not found", 404);
       }
     }
 
-    const escapeCsv = (
-      value: unknown,
-    ): string => {
-      if (
-        value === null ||
-        value === undefined
-      ) {
+    const escapeCsv = (value: unknown): string => {
+      if (value === null || value === undefined) {
         return "";
       }
 
-      let stringValue =
-        String(value);
+      let stringValue = String(value);
 
-      /*
-       * Protect CSV files opened in Excel
-       * from formula injection.
-       */
-      if (
-        /^[=+\-@]/.test(
-          stringValue,
-        )
-      ) {
-        stringValue =
-          `'${stringValue}`;
-      }
+      // Protect CSV files opened in Excel from formula injection.
+      if (/^[=+\-@]/.test(stringValue)) { stringValue = `'${stringValue}`; }
 
-      if (
-        stringValue.includes(",") ||
-        stringValue.includes('"') ||
-        stringValue.includes("\n") ||
-        stringValue.includes("\r")
-      ) {
-        return `"${stringValue.replace(
-          /"/g,
-          '""',
-        )}"`;
+      if (stringValue.includes(",") || stringValue.includes('"') || stringValue.includes("\n") || stringValue.includes("\r")) {
+        return `"${stringValue.replace(/"/g, '""')}"`;
       }
 
       return stringValue;
     };
 
-    const headers = [
-      "State ID",
-      "Country",
-      "State Name",
-      "GST Code",
-      "Description",
-      "Image",
-      "Status",
-      "Longitude",
-      "Latitude",
-      "Created At",
-      "Updated At",
-    ];
+    const headers = ["State ID", "Country", "State Name", "GST Code", "Description", "Image", "Status", "Longitude", "Latitude", "Created At", "Updated At"];
 
-    const rows =
-      states.map(
-        (state) => [
-          state._id.toString(),
+    const rows = states.map((state) => [
+      state._id.toString(),
+      state.country,
+      state.name,
+      state.gstCode,
+      state.description ?? "",
+      state.image ?? "",
+      state.isActive ? "Active" : "Inactive",
+      state.location?.coordinates?.[0] ?? "",
+      state.location?.coordinates?.[1] ?? "",
+      state.createdAt ? new Date(state.createdAt).toISOString() : "",
+      state.updatedAt ? new Date(state.updatedAt).toISOString() : "",
+    ],
+    );
 
-          state.country,
+    const csv = [headers.map(escapeCsv).join(","), ...rows.map((row) => row.map(escapeCsv).join(","))].join("\n");
 
-          state.name,
-
-          state.gstCode,
-
-          state.description ?? "",
-
-          state.image ?? "",
-
-          state.isActive
-            ? "Active"
-            : "Inactive",
-
-          state.location
-            ?.coordinates?.[0] ??
-          "",
-
-          state.location
-            ?.coordinates?.[1] ??
-          "",
-
-          state.createdAt
-            ? new Date(
-              state.createdAt,
-            ).toISOString()
-            : "",
-
-          state.updatedAt
-            ? new Date(
-              state.updatedAt,
-            ).toISOString()
-            : "",
-        ],
-      );
-
-    const csv = [
-      headers
-        .map(escapeCsv)
-        .join(","),
-
-      ...rows.map(
-        (row) =>
-          row
-            .map(escapeCsv)
-            .join(","),
-      ),
-    ].join("\n");
-
-    return {
-      csv,
-      total:
-        states.length,
-    };
+    return { csv, total: states.length };
   }
 }

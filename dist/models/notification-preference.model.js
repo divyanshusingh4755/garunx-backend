@@ -1,13 +1,5 @@
-import { model, Schema, Types, } from "mongoose";
-export const NOTIFICATION_PREFERENCE_CATEGORIES = [
-    "BOOKING",
-    "PAYMENT",
-    "QUERY",
-    "REVIEW",
-    "PROMOTIONAL",
-    "APP_UPDATE",
-    "NEW_FEATURE",
-];
+import { model, Schema, Types } from "mongoose";
+export const NOTIFICATION_PREFERENCE_CATEGORIES = ["BOOKING", "PAYMENT", "QUERY", "REVIEW", "PROMOTIONAL", "APP_UPDATE", "NEW_FEATURE"];
 const notificationPreferenceSchema = new Schema({
     userId: {
         type: Schema.Types.ObjectId,

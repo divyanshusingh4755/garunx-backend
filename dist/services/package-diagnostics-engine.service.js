@@ -36,81 +36,31 @@ export class PackageDiagnosticsEngine {
         if (!packageDocument) {
             throw new Error("Package not found");
         }
-        const packageTierIds = packageDocument.tiers
-            .map((tier) => this.safeObjectIdString(tier.tierId))
-            .filter((id) => id !== null);
-        const packageLocationIds = packageDocument.locations
-            .map((location) => this.safeObjectIdString(location.locationId))
-            .filter((id) => id !== null);
+        const packageTierIds = packageDocument.tiers.map((tier) => this.safeObjectIdString(tier.tierId)).filter((id) => id !== null);
+        const packageLocationIds = packageDocument.locations.map((location) => this.safeObjectIdString(location.locationId)).filter((id) => id !== null);
         const [mappings, pricing, locations, tiers] = await Promise.all([
-            PackageTierMap.find({
-                packageId: packageDocument._id,
-            }).lean(),
-            PackageTierPricing.find({
-                packageId: packageDocument._id,
-            }).lean(),
-            packageLocationIds.length > 0
-                ? Location.find({
-                    _id: {
-                        $in: packageLocationIds,
-                    },
-                }).lean()
-                : Promise.resolve([]),
-            packageTierIds.length > 0
-                ? Tier.find({
-                    _id: {
-                        $in: packageTierIds,
-                    },
-                }).lean()
-                : Promise.resolve([]),
+            PackageTierMap.find({ packageId: packageDocument._id }).lean(),
+            PackageTierPricing.find({ packageId: packageDocument._id }).lean(),
+            packageLocationIds.length > 0 ? Location.find({ _id: { $in: packageLocationIds } }).lean() : Promise.resolve([]),
+            packageTierIds.length > 0 ? Tier.find({ _id: { $in: packageTierIds } }).lean() : Promise.resolve([]),
         ]);
-        const mappedServiceIds = [
-            ...new Set(mappings.flatMap((mapping) => (mapping.services ?? [])
-                .map((service) => this.safeObjectIdString(service.serviceId))
-                .filter((id) => id !== null))),
+        const mappedServiceIds = [...new Set(mappings.flatMap((mapping) => (mapping.services ?? []).map((service) => this.safeObjectIdString(service.serviceId)).filter((id) => id !== null))),
         ];
-        const services = mappedServiceIds.length > 0
-            ? await Service.find({
-                _id: {
-                    $in: mappedServiceIds,
-                },
-            })
-                .select("name isActive")
-                .lean()
-            : [];
+        const services = mappedServiceIds.length > 0 ? await Service.find({ _id: { $in: mappedServiceIds } }).select("name isActive").lean() : [];
         const issues = [];
         const locationMap = new Map(locations.map((location) => [location._id.toString(), location]));
         const tierMap = new Map(tiers.map((tier) => [tier._id.toString(), tier.name]));
         const serviceMap = new Map(services.map((service) => [service._id.toString(), service]));
-        /*
-         * Package status is reported separately from structural
-         * completeness. Inactive must not automatically mean
-         * incomplete.
-         */
+        // Package status is reported separately from structural completeness. Inactive must not automatically mean incomplete.
         if (!packageDocument.isActive) {
-            issues.push({
-                code: "PACKAGE_INACTIVE",
-                message: `Package "${packageDocument.name}" is inactive`,
-                severity: "info",
-            });
+            issues.push({ code: "PACKAGE_INACTIVE", message: `Package "${packageDocument.name}" is inactive`, severity: "info" });
         }
         if (packageDocument.tiers.length === 0) {
-            issues.push({
-                code: "NO_TIERS",
-                message: `No tiers configured for package "${packageDocument.name}"`,
-                severity: "blocking",
-            });
+            issues.push({ code: "NO_TIERS", message: `No tiers configured for package "${packageDocument.name}"`, severity: "blocking" });
         }
         const malformedTiers = packageDocument.tiers.filter((tier) => this.safeObjectIdString(tier.tierId) === null);
         if (malformedTiers.length > 0) {
-            issues.push({
-                code: "MALFORMED_TIERS",
-                message: "Some package tiers contain invalid IDs",
-                severity: "blocking",
-                meta: {
-                    count: malformedTiers.length,
-                },
-            });
+            issues.push({ code: "MALFORMED_TIERS", message: "Some package tiers contain invalid IDs", severity: "blocking", meta: { count: malformedTiers.length } });
         }
         const duplicateTierIds = this.findDuplicates(packageTierIds);
         if (duplicateTierIds.length > 0) {
@@ -118,10 +68,7 @@ export class PackageDiagnosticsEngine {
                 code: "DUPLICATE_TIERS",
                 message: "Some package tiers are configured more than once",
                 severity: "blocking",
-                meta: duplicateTierIds.map((tierId) => ({
-                    tierId,
-                    tierName: tierMap.get(tierId) ?? "UNKNOWN",
-                })),
+                meta: duplicateTierIds.map((tierId) => ({ tierId, tierName: tierMap.get(tierId) ?? "UNKNOWN" })),
             });
         }
         const missingTierIds = packageTierIds.filter((tierId) => !tierMap.has(tierId));
@@ -130,10 +77,7 @@ export class PackageDiagnosticsEngine {
                 code: "INVALID_TIERS",
                 message: "Some configured tiers are missing or deleted",
                 severity: "blocking",
-                meta: missingTierIds.map((tierId) => ({
-                    tierId,
-                    tierName: "UNKNOWN",
-                })),
+                meta: missingTierIds.map((tierId) => ({ tierId, tierName: "UNKNOWN" })),
             });
         }
         const malformedLocations = packageDocument.locations.filter((location) => this.safeObjectIdString(location.locationId) === null);
@@ -142,9 +86,7 @@ export class PackageDiagnosticsEngine {
                 code: "MALFORMED_LOCATIONS",
                 message: "Some package locations contain invalid IDs",
                 severity: "blocking",
-                meta: {
-                    count: malformedLocations.length,
-                },
+                meta: { count: malformedLocations.length },
             });
         }
         const duplicateLocationIds = this.findDuplicates(packageLocationIds);
@@ -153,10 +95,7 @@ export class PackageDiagnosticsEngine {
                 code: "DUPLICATE_LOCATIONS",
                 message: "Some package locations are configured more than once",
                 severity: "blocking",
-                meta: duplicateLocationIds.map((locationId) => ({
-                    locationId,
-                    locationName: locationMap.get(locationId)?.name ?? "UNKNOWN",
-                })),
+                meta: duplicateLocationIds.map((locationId) => ({ locationId, locationName: locationMap.get(locationId)?.name ?? "UNKNOWN" })),
             });
         }
         const missingLocationIds = packageLocationIds.filter((locationId) => !locationMap.has(locationId));
@@ -165,25 +104,14 @@ export class PackageDiagnosticsEngine {
                 code: "INVALID_LOCATIONS",
                 message: "Some configured package locations are missing or deleted",
                 severity: "blocking",
-                meta: missingLocationIds.map((locationId) => ({
-                    locationId,
-                    locationName: "UNKNOWN",
-                })),
+                meta: missingLocationIds.map((locationId) => ({ locationId, locationName: "UNKNOWN" })),
             });
         }
-        const activeLocations = packageDocument.locations.filter((location) => location.isActive &&
-            this.safeObjectIdString(location.locationId) !== null);
+        const activeLocations = packageDocument.locations.filter((location) => location.isActive && this.safeObjectIdString(location.locationId) !== null);
         if (activeLocations.length === 0) {
-            issues.push({
-                code: "NO_ACTIVE_LOCATIONS",
-                message: "No active locations configured",
-                severity: "blocking",
-            });
+            issues.push({ code: "NO_ACTIVE_LOCATIONS", message: "No active locations configured", severity: "blocking" });
         }
-        const inactiveMasterLocations = activeLocations
-            .map((location) => this.safeObjectIdString(location.locationId))
-            .filter((id) => id !== null)
-            .filter((locationId) => {
+        const inactiveMasterLocations = activeLocations.map((location) => this.safeObjectIdString(location.locationId)).filter((id) => id !== null).filter((locationId) => {
             const location = locationMap.get(locationId);
             return location !== undefined && location.isActive === false;
         });
@@ -192,10 +120,7 @@ export class PackageDiagnosticsEngine {
                 code: "INACTIVE_MASTER_LOCATIONS",
                 message: "Some active package locations are inactive in the location master",
                 severity: "blocking",
-                meta: inactiveMasterLocations.map((locationId) => ({
-                    locationId,
-                    locationName: locationMap.get(locationId)?.name ?? "UNKNOWN",
-                })),
+                meta: inactiveMasterLocations.map((locationId) => ({ locationId, locationName: locationMap.get(locationId)?.name ?? "UNKNOWN" })),
             });
         }
         const orphanMappings = mappings.filter((mapping) => !packageTierIds.includes(mapping.tierId.toString()));
@@ -209,9 +134,7 @@ export class PackageDiagnosticsEngine {
                     return {
                         tierId: mapping.tierId.toString(),
                         serviceId: serviceId ?? "INVALID",
-                        serviceName: serviceId
-                            ? (serviceMap.get(serviceId)?.name ?? "UNKNOWN")
-                            : "UNKNOWN",
+                        serviceName: serviceId ? (serviceMap.get(serviceId)?.name ?? "UNKNOWN") : "UNKNOWN",
                     };
                 })),
             });
@@ -224,16 +147,11 @@ export class PackageDiagnosticsEngine {
                 code: "DUPLICATE_TIER_MAPPINGS",
                 message: "More than one package mapping exists for the same tier",
                 severity: "blocking",
-                meta: duplicateMappingTierIds.map((tierId) => ({
-                    tierId,
-                    tierName: tierMap.get(tierId) ?? "UNKNOWN",
-                })),
+                meta: duplicateMappingTierIds.map((tierId) => ({ tierId, tierName: tierMap.get(tierId) ?? "UNKNOWN" })),
             });
         }
         const tiersWithoutServices = packageTierIds.filter((tierId) => {
-            const tierServices = validMappings
-                .filter((mapping) => mapping.tierId.toString() === tierId)
-                .flatMap((mapping) => mapping.services ?? []);
+            const tierServices = validMappings.filter((mapping) => mapping.tierId.toString() === tierId).flatMap((mapping) => mapping.services ?? []);
             return tierServices.length === 0;
         });
         if (tiersWithoutServices.length > 0) {
@@ -241,25 +159,17 @@ export class PackageDiagnosticsEngine {
                 code: "TIERS_WITHOUT_SERVICES",
                 message: "Some package tiers have no mapped services",
                 severity: "blocking",
-                meta: tiersWithoutServices.map((tierId) => ({
-                    tierId,
-                    tierName: tierMap.get(tierId) ?? "UNKNOWN",
-                })),
+                meta: tiersWithoutServices.map((tierId) => ({ tierId, tierName: tierMap.get(tierId) ?? "UNKNOWN" })),
             });
         }
-        const allMappedServices = validMappings.flatMap((mapping) => (mapping.services ?? []).map((service) => ({
-            tierId: mapping.tierId,
-            serviceId: service.serviceId,
-        })));
+        const allMappedServices = validMappings.flatMap((mapping) => (mapping.services ?? []).map((service) => ({ tierId: mapping.tierId, serviceId: service.serviceId })));
         const malformedServices = allMappedServices.filter((service) => this.safeObjectIdString(service.serviceId) === null);
         if (malformedServices.length > 0) {
             issues.push({
                 code: "MALFORMED_SERVICES",
                 message: "Some mapped services contain invalid IDs",
                 severity: "blocking",
-                meta: {
-                    count: malformedServices.length,
-                },
+                meta: { count: malformedServices.length },
             });
         }
         const invalidServices = allMappedServices.filter((service) => {
@@ -271,15 +181,10 @@ export class PackageDiagnosticsEngine {
                 code: "INVALID_SERVICES",
                 message: "Some mapped services are missing or deleted",
                 severity: "blocking",
-                meta: invalidServices.slice(0, 10).map((service) => ({
-                    serviceId: service.serviceId.toString(),
-                })),
+                meta: invalidServices.slice(0, 10).map((service) => ({ serviceId: service.serviceId.toString() })),
             });
         }
-        const inactiveServices = allMappedServices
-            .map((service) => this.safeObjectIdString(service.serviceId))
-            .filter((id) => id !== null)
-            .filter((serviceId) => {
+        const inactiveServices = allMappedServices.map((service) => this.safeObjectIdString(service.serviceId)).filter((id) => id !== null).filter((serviceId) => {
             const service = serviceMap.get(serviceId);
             return service !== undefined && service.isActive === false;
         });
@@ -288,28 +193,20 @@ export class PackageDiagnosticsEngine {
                 code: "INACTIVE_SERVICES",
                 message: "Some mapped services are inactive",
                 severity: "blocking",
-                meta: [...new Set(inactiveServices)].map((serviceId) => ({
-                    serviceId,
-                    serviceName: serviceMap.get(serviceId)?.name ?? "UNKNOWN",
-                })),
+                meta: [...new Set(inactiveServices)].map((serviceId) => ({ serviceId, serviceName: serviceMap.get(serviceId)?.name ?? "UNKNOWN" })),
             });
         }
-        const mappedCombinationKeys = allMappedServices
-            .map((service) => {
+        const mappedCombinationKeys = allMappedServices.map((service) => {
             const serviceId = this.safeObjectIdString(service.serviceId);
             return serviceId ? `${service.tierId.toString()}_${serviceId}` : null;
-        })
-            .filter((key) => key !== null);
+        }).filter((key) => key !== null);
         const duplicateMappedServices = this.findDuplicates(mappedCombinationKeys);
         if (duplicateMappedServices.length > 0) {
             issues.push({
                 code: "DUPLICATE_MAPPED_SERVICES",
                 message: "Some services are mapped more than once in the same tier",
                 severity: "blocking",
-                meta: {
-                    count: duplicateMappedServices.length,
-                    samples: duplicateMappedServices.slice(0, 10),
-                },
+                meta: { count: duplicateMappedServices.length, samples: duplicateMappedServices.slice(0, 10) },
             });
         }
         const pricingKeys = pricing.map((pricingRow) => `${pricingRow.tierId.toString()}_${pricingRow.locationId.toString()}_${pricingRow.serviceId.toString()}`);
@@ -319,10 +216,7 @@ export class PackageDiagnosticsEngine {
                 code: "DUPLICATE_PRICING",
                 message: "Duplicate package pricing rows exist",
                 severity: "blocking",
-                meta: {
-                    count: duplicatePricingKeys.length,
-                    samples: duplicatePricingKeys.slice(0, 10),
-                },
+                meta: { count: duplicatePricingKeys.length, samples: duplicatePricingKeys.slice(0, 10) },
             });
         }
         const priceSet = new Set(pricingKeys);
@@ -332,14 +226,8 @@ export class PackageDiagnosticsEngine {
             if (!tierId) {
                 continue;
             }
-            /*
-             * This intentionally checks every mapped service.
-             * PackageCascadingEngine also requires pricing for
-             * every mapped service, regardless of isRequired.
-             */
-            const tierServices = validMappings
-                .filter((mapping) => mapping.tierId.toString() === tierId)
-                .flatMap((mapping) => mapping.services ?? []);
+            // This intentionally checks every mapped service. PackageCascadingEngine also requires pricing for every mapped service, regardless of isRequired.
+            const tierServices = validMappings.filter((mapping) => mapping.tierId.toString() === tierId).flatMap((mapping) => mapping.services ?? []);
             for (const location of activeLocations) {
                 const locationId = this.safeObjectIdString(location.locationId);
                 if (!locationId) {
@@ -353,18 +241,9 @@ export class PackageDiagnosticsEngine {
                     const key = `${tierId}_${locationId}_${serviceId}`;
                     if (!priceSet.has(key)) {
                         missingPricing.push({
-                            tier: {
-                                id: tierId,
-                                name: tierMap.get(tierId) ?? "UNKNOWN",
-                            },
-                            location: {
-                                id: locationId,
-                                name: locationMap.get(locationId)?.name ?? "UNKNOWN",
-                            },
-                            service: {
-                                id: serviceId,
-                                name: serviceMap.get(serviceId)?.name ?? "UNKNOWN",
-                            },
+                            tier: { id: tierId, name: tierMap.get(tierId) ?? "UNKNOWN" },
+                            location: { id: locationId, name: locationMap.get(locationId)?.name ?? "UNKNOWN" },
+                            service: { id: serviceId, name: serviceMap.get(serviceId)?.name ?? "UNKNOWN" },
                         });
                     }
                 }
@@ -375,10 +254,7 @@ export class PackageDiagnosticsEngine {
                 code: "MISSING_PRICING",
                 message: "Missing pricing for mapped service combinations",
                 severity: "blocking",
-                meta: {
-                    count: missingPricing.length,
-                    samples: missingPricing.slice(0, 10),
-                },
+                meta: { count: missingPricing.length, samples: missingPricing.slice(0, 10) },
             });
         }
         const blockingIssues = issues.filter((issue) => issue.severity === "blocking");
@@ -390,12 +266,7 @@ export class PackageDiagnosticsEngine {
             packageName: packageDocument.name,
             isActive: packageDocument.isActive,
             isComplete,
-            summary: {
-                totalIssues: issues.length,
-                blocking: blockingIssues.length,
-                warnings: warnings.length,
-                info: info.length,
-            },
+            summary: { totalIssues: issues.length, blocking: blockingIssues.length, warnings: warnings.length, info: info.length },
             issues,
         };
     }

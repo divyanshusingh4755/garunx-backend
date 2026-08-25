@@ -78,32 +78,10 @@ const servicePricingSchema = new Schema<IServicePricing>(
 );
 
 servicePricingSchema.pre("validate", function () {
-  if (!this.taxProfileId) {
-    this.taxProfileId = null;
-    this.taxPriceMode = "EXCLUSIVE";
-  }
+  if (!this.taxProfileId) { this.taxProfileId = null; this.taxPriceMode = "EXCLUSIVE"; }
 });
 
-servicePricingSchema.index(
-  {
-    serviceId: 1,
-    componentId: 1,
-    tierId: 1,
-    locationId: 1,
-  },
-  {
-    unique: true,
-  },
-);
+servicePricingSchema.index({ serviceId: 1, componentId: 1, tierId: 1, locationId: 1 }, { unique: true });
+servicePricingSchema.index({ serviceId: 1, tierId: 1, locationId: 1, isActive: 1 });
 
-servicePricingSchema.index({
-  serviceId: 1,
-  tierId: 1,
-  locationId: 1,
-  isActive: 1,
-});
-
-export const ServicePricing = model<IServicePricing>(
-  "ServicePricing",
-  servicePricingSchema,
-);
+export const ServicePricing = model<IServicePricing>("ServicePricing", servicePricingSchema);

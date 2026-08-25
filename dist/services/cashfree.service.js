@@ -5,46 +5,25 @@ export class CashfreeService {
         const normalizedOrderId = this.validateOrderId(orderId);
         try {
             const response = await axios.get(`${this.baseUrl}/orders/${encodeURIComponent(normalizedOrderId)}/payments`, this.getRequestConfig());
-            const payments = Array.isArray(response.data)
-                ? response.data
-                : [];
-            const successfulPayments = payments.filter((payment) => payment.payment_status ===
-                "SUCCESS");
-            if (successfulPayments.length ===
-                0) {
+            const payments = Array.isArray(response.data) ? response.data : [];
+            const successfulPayments = payments.filter((payment) => payment.payment_status === "SUCCESS");
+            if (successfulPayments.length === 0) {
                 return null;
             }
-            /*
-             * Normally an order should have one
-             * successful payment.
-             *
-             * Selecting the latest makes the
-             * recovery flow deterministic if
-             * Cashfree returns multiple attempts.
-             */
+            // Normally an order should have one successful payment. Selecting the latest makes the recovery flow deterministic if Cashfree returns multiple attempts.
             successfulPayments.sort((a, b) => {
-                const aTime = new Date(a.payment_completion_time ??
-                    a.payment_time ??
-                    0).getTime();
-                const bTime = new Date(b.payment_completion_time ??
-                    b.payment_time ??
-                    0).getTime();
+                const aTime = new Date(a.payment_completion_time ?? a.payment_time ?? 0).getTime();
+                const bTime = new Date(b.payment_completion_time ?? b.payment_time ?? 0).getTime();
                 return bTime - aTime;
             });
-            return (successfulPayments[0] ??
-                null);
+            return (successfulPayments[0] ?? null);
         }
         catch (error) {
             throw this.getProviderError(error, "Failed to fetch Cashfree payment details");
         }
     }
-    static baseUrl = process.env.CASHFREE_ENV === "PROD"
-        ? "https://api.cashfree.com/pg"
-        : "https://sandbox.cashfree.com/pg";
-    /*
-     * Keep the version configurable so an API upgrade
-     * does not require a code change.
-     */
+    static baseUrl = process.env.CASHFREE_ENV === "PROD" ? "https://api.cashfree.com/pg" : "https://sandbox.cashfree.com/pg";
+    // Keep the version configurable so an API upgrade does not require a code change.
     static apiVersion = process.env.CASHFREE_API_VERSION ?? "2025-01-01";
     static async wait(milliseconds) {
         await new Promise((resolve) => setTimeout(resolve, milliseconds));
@@ -55,21 +34,14 @@ export class CashfreeService {
         if (!clientId || !clientSecret) {
             throw new Error("Cashfree credentials are not configured");
         }
-        return {
-            clientId,
-            clientSecret,
-        };
+        return { clientId, clientSecret };
     }
     static getRequestConfig(includeContentType = false) {
         const { clientId, clientSecret } = this.getCredentials();
         return {
             timeout: 15_000,
             headers: {
-                ...(includeContentType
-                    ? {
-                        "Content-Type": "application/json",
-                    }
-                    : {}),
+                ...(includeContentType ? { "Content-Type": "application/json" } : {}),
                 "x-client-id": clientId,
                 "x-client-secret": clientSecret,
                 "x-api-version": this.apiVersion,
@@ -86,9 +58,7 @@ export class CashfreeService {
     }
     static validateOrderId(orderId) {
         const normalized = this.validateIdentifier("orderId", orderId);
-        if (normalized.length < 3 ||
-            normalized.length > 45 ||
-            !/^[A-Za-z0-9_-]+$/.test(normalized)) {
+        if (normalized.length < 3 || normalized.length > 45 || !/^[A-Za-z0-9_-]+$/.test(normalized)) {
             throw new Error("orderId must be 3 to 45 characters and contain only letters, numbers, underscores or hyphens");
         }
         return normalized;
@@ -162,9 +132,7 @@ export class CashfreeService {
         const customerEmail = input.customerEmail.trim();
         const returnUrl = this.getReturnUrl(orderId);
         const notifyUrl = this.getNotifyUrl();
-        const orderMeta = {
-            return_url: returnUrl,
-        };
+        const orderMeta = { return_url: returnUrl };
         if (notifyUrl) {
             orderMeta.notify_url = notifyUrl;
         }
@@ -177,11 +145,7 @@ export class CashfreeService {
                 customer_id: customerId,
                 customer_name: customerName,
                 customer_phone: customerPhone,
-                ...(customerEmail
-                    ? {
-                        customer_email: customerEmail,
-                    }
-                    : {}),
+                ...(customerEmail ? { customer_email: customerEmail } : {}),
             },
             order_meta: orderMeta,
         };
@@ -195,23 +159,15 @@ export class CashfreeService {
                 const providerCode = error.response?.data?.code;
                 const providerMessage = error.response?.data?.message;
                 const requestId = error.response?.headers?.["x-request-id"];
-                console.error("Cashfree create-order failed", {
-                    status,
-                    providerCode,
-                    providerMessage,
-                    requestId,
-                    orderId,
-                });
+                console.error("Cashfree create-order failed", { status, providerCode, providerMessage, requestId, orderId });
                 const ambiguousFailure = status === 500 || status === 502 || status === 503 || status === 504;
-                const duplicateOrder = providerCode === "order_already_exists" ||
-                    providerMessage?.toLowerCase().includes("same id is already present");
+                const duplicateOrder = providerCode === "order_already_exists" || providerMessage?.toLowerCase().includes("same id is already present");
                 if (ambiguousFailure || duplicateOrder) {
                     let recoveryError;
                     for (let attempt = 1; attempt <= 3; attempt += 1) {
                         try {
                             const existingOrder = await this.getOrder(orderId);
-                            if (existingOrder?.order_id === orderId &&
-                                existingOrder?.payment_session_id) {
+                            if (existingOrder?.order_id === orderId && existingOrder?.payment_session_id) {
                                 return existingOrder;
                             }
                         }
@@ -222,12 +178,7 @@ export class CashfreeService {
                             await this.wait(500);
                         }
                     }
-                    console.error("Cashfree order recovery failed", {
-                        orderId,
-                        message: recoveryError instanceof Error
-                            ? recoveryError.message
-                            : "Unknown error",
-                    });
+                    console.error("Cashfree order recovery failed", { orderId, message: recoveryError instanceof Error ? recoveryError.message : "Unknown error" });
                 }
             }
             throw this.getProviderError(error, "Failed to create Cashfree order");
@@ -247,18 +198,11 @@ export class CashfreeService {
         const { clientSecret } = this.getCredentials();
         const normalizedTimestamp = timestamp.trim();
         const normalizedSignature = signature.trim();
-        if (!normalizedTimestamp ||
-            !/^\d+$/.test(normalizedTimestamp) ||
-            !normalizedSignature) {
+        if (!normalizedTimestamp || !/^\d+$/.test(normalizedTimestamp) || !normalizedSignature) {
             return false;
         }
-        const rawPayload = Buffer.isBuffer(rawBody)
-            ? rawBody.toString("utf8")
-            : rawBody;
-        const computedSignature = crypto
-            .createHmac("sha256", clientSecret)
-            .update(normalizedTimestamp + rawPayload, "utf8")
-            .digest();
+        const rawPayload = Buffer.isBuffer(rawBody) ? rawBody.toString("utf8") : rawBody;
+        const computedSignature = crypto.createHmac("sha256", clientSecret).update(normalizedTimestamp + rawPayload, "utf8").digest();
         let receivedSignature;
         try {
             receivedSignature = Buffer.from(normalizedSignature, "base64");
@@ -266,8 +210,7 @@ export class CashfreeService {
         catch {
             return false;
         }
-        if (receivedSignature.length === 0 ||
-            computedSignature.length !== receivedSignature.length) {
+        if (receivedSignature.length === 0 || computedSignature.length !== receivedSignature.length) {
             return false;
         }
         return crypto.timingSafeEqual(computedSignature, receivedSignature);
@@ -277,11 +220,7 @@ export class CashfreeService {
         const refundId = this.validateIdentifier("refundId", input.refundId);
         const amount = this.validateAmount("refund amount", input.amount);
         const reason = this.validateIdentifier("refund reason", input.reason);
-        const payload = {
-            refund_amount: amount,
-            refund_id: refundId,
-            refund_note: reason,
-        };
+        const payload = { refund_amount: amount, refund_id: refundId, refund_note: reason };
         try {
             const response = await axios.post(`${this.baseUrl}/orders/${encodeURIComponent(orderId)}/refunds`, payload, this.getRequestConfig(true));
             return response.data;

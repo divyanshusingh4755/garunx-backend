@@ -1,4 +1,4 @@
-import { Schema, model, } from "mongoose";
+import { Schema, model } from "mongoose";
 const permissionSchema = new Schema({
     name: {
         type: String,
@@ -11,10 +11,7 @@ const permissionSchema = new Schema({
         unique: true,
         lowercase: true,
         trim: true,
-        match: [
-            /^[a-z][a-z0-9_-]*\.[a-z][a-z0-9_-]*$/,
-            "Permission key must follow module.action format",
-        ],
+        match: [/^[a-z][a-z0-9_-]*\.[a-z][a-z0-9_-]*$/, "Permission key must follow module.action format"],
     },
     module: {
         type: String,
@@ -34,9 +31,6 @@ const permissionSchema = new Schema({
 }, {
     timestamps: true,
 });
-permissionSchema.index({
-    module: 1,
-    isActive: 1,
-});
+permissionSchema.index({ module: 1, isActive: 1 });
 export const Permission = model("Permission", permissionSchema);
 //# sourceMappingURL=permission.model.js.map

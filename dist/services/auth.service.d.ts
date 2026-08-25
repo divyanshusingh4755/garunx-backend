@@ -5,17 +5,6 @@ import mongoose from "mongoose";
 import { ApprovalStatus, AvailabilityStatus, VerificationStatus, type Caste, type Gender, type Gotra } from "../types/enums.js";
 declare class AuthService {
     private static invalidateUserCache;
-    private static invalidateUserListCache;
-    /**
-     * Auth/security notifications must never break the primary auth action.
-     *
-     * Example:
-     * - password was already changed successfully
-     * - admin already approved/rejected verification
-     *
-     * If Redis / BullMQ / Firebase / template configuration has a problem,
-     * we log it and keep the successful business action successful.
-     */
     private static sendAuthNotificationSafely;
     private static generateUserSession;
     static registerUser(role: Role, password?: string, userEmail?: string, phoneNumber?: string): Promise<mongoose.Document<unknown, {}, IUser, {}, mongoose.DefaultSchemaOptions> & IUser & Required<{

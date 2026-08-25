@@ -174,7 +174,7 @@ export const exportBannersCsv = async (req: Request, res: Response) => {
     const { bannerIds }: { bannerIds: string[] } = req.body;
 
     const result = await BannerService.exportBannersToCsv(bannerIds);
-    const timestamp = new Date().toISOString().replace(/[:.]/g, "-",);
+    const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
     res.setHeader("Content-Type", "text/csv; charset=utf-8");
     res.setHeader("Content-Disposition", `attachment; filename="banners-${timestamp}.csv"`);
 

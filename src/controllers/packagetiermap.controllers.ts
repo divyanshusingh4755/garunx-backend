@@ -1,10 +1,7 @@
 import type { Request, Response } from "express";
 import { PackageTierMapService } from "../services/packagetiermap.service.js";
 
-export const bulkUpsertPackageTierMappings = async (
-  req: Request,
-  res: Response,
-) => {
+export const bulkUpsertPackageTierMappings = async (req: Request, res: Response) => {
   try {
     const result = await PackageTierMapService.bulkUpsertMappings(req.body);
 
@@ -17,10 +14,7 @@ export const bulkUpsertPackageTierMappings = async (
   }
 };
 
-export const replacePackageTierMappings = async (
-  req: Request,
-  res: Response,
-) => {
+export const replacePackageTierMappings = async (req: Request, res: Response) => {
   try {
     const result = await PackageTierMapService.replaceMappings(req.body);
 
@@ -33,17 +27,11 @@ export const replacePackageTierMappings = async (
   }
 };
 
-export const getServicesByPackageAndTier = async (
-  req: Request,
-  res: Response,
-) => {
+export const getServicesByPackageAndTier = async (req: Request, res: Response) => {
   try {
     const { packageId, tierId } = req.params;
 
-    const data = await PackageTierMapService.getServicesByPackageAndTier(
-      packageId as string,
-      tierId as string,
-    );
+    const data = await PackageTierMapService.getServicesByPackageAndTier(packageId as string, tierId as string);
 
     return res.status(200).json({
       success: true,

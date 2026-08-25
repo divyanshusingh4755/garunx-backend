@@ -26,7 +26,6 @@ export interface TaxProfileFilters {
 export declare class TaxProfileService {
     private static invalidateTaxProfileCache;
     private static invalidateDependentPricingCaches;
-    private static getTaxProfileUsage;
     private static validateObjectId;
     private static toObjectId;
     private static normalizeOptionalString;

@@ -1,7 +1,7 @@
 import { Schema, Types, model } from "mongoose";
 import { Role } from "../types/rbac.js";
 import { Counter } from "./counter.model.js";
-import { ApprovalStatus, AvailabilityStatus, Caste, Gender, Gotra, VerificationStatus, } from "../types/enums.js";
+import { ApprovalStatus, AvailabilityStatus, Caste, Gender, Gotra, VerificationStatus } from "../types/enums.js";
 const ratingSummarySchema = new Schema({
     averageRating: {
         type: Number,
@@ -354,95 +354,22 @@ userSchema.pre("save", async function () {
     if (!this.isNew || this.userReference) {
         return;
     }
-    const counter = await Counter.findOneAndUpdate({
-        id: "userId",
-    }, {
-        $inc: {
-            seq: 1,
-        },
-    }, {
-        new: true,
-        upsert: true,
-        setDefaultsOnInsert: true,
-    }).lean();
+    const counter = await Counter.findOneAndUpdate({ id: "userId" }, { $inc: { seq: 1 } }, { new: true, upsert: true, setDefaultsOnInsert: true, }).lean();
     if (!counter) {
         throw new Error("Unable to generate user reference");
     }
     const seqString = counter.seq.toString().padStart(4, "0");
     this.userReference = `GX-${seqString}`;
 });
-userSchema.index({
-    email: 1,
-    role: 1,
-}, {
-    unique: true,
-    partialFilterExpression: {
-        email: {
-            $type: "string",
-        },
-    },
-});
-userSchema.index({
-    phoneNumber: 1,
-    role: 1,
-}, {
-    unique: true,
-    partialFilterExpression: {
-        phoneNumber: {
-            $type: "string",
-        },
-    },
-});
-userSchema.index({
-    referralCode: 1,
-}, {
-    unique: true,
-    sparse: true,
-});
-userSchema.index({
-    createdAt: 1,
-}, {
-    expireAfterSeconds: 86400,
-    partialFilterExpression: {
-        isOtpVerified: false,
-    },
-});
-userSchema.index({
-    fullName: 1,
-});
-userSchema.index({
-    role: 1,
-    createdAt: -1,
-});
-userSchema.index({
-    role: 1,
-    isActive: 1,
-    isDocumentVerified: 1,
-    isBankDocumentVerified: 1,
-    "coordinatorProfile.approvalStatus": 1,
-    "coordinatorProfile.availabilityStatus": 1,
-});
-userSchema.index({
-    role: 1,
-    "coordinatorProfile.averageRating": -1,
-});
-userSchema.index({
-    role: 1,
-    "coordinatorProfile.serviceableLocations.locationId": 1,
-});
-userSchema.index({
-    fullName: "text",
-    email: "text",
-    phoneNumber: "text",
-    userReference: "text",
-}, {
-    weights: {
-        fullName: 10,
-        email: 5,
-        phoneNumber: 2,
-        userReference: 1,
-    },
-    name: "UserSearchIndex",
-});
+userSchema.index({ email: 1, role: 1 }, { unique: true, partialFilterExpression: { email: { $type: "string" } } });
+userSchema.index({ phoneNumber: 1, role: 1 }, { unique: true, partialFilterExpression: { phoneNumber: { $type: "string" } } });
+userSchema.index({ referralCode: 1 }, { unique: true, sparse: true });
+userSchema.index({ createdAt: 1 }, { expireAfterSeconds: 86400, partialFilterExpression: { isOtpVerified: false } });
+userSchema.index({ fullName: 1 });
+userSchema.index({ role: 1, createdAt: -1 });
+userSchema.index({ role: 1, isActive: 1, isDocumentVerified: 1, isBankDocumentVerified: 1, "coordinatorProfile.approvalStatus": 1, "coordinatorProfile.availabilityStatus": 1 });
+userSchema.index({ role: 1, "coordinatorProfile.averageRating": -1 });
+userSchema.index({ role: 1, "coordinatorProfile.serviceableLocations.locationId": 1 });
+userSchema.index({ fullName: "text", email: "text", phoneNumber: "text", userReference: "text" }, { weights: { fullName: 10, email: 5, phoneNumber: 2, userReference: 1 }, name: "UserSearchIndex" });
 export const User = model("User", userSchema);
 //# sourceMappingURL=user.model.js.map

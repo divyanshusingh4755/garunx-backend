@@ -22,9 +22,7 @@ export class TaxContextService {
             throw new Error("GST is disabled");
         }
         const supplierStateCode = this.normalizeStateCode("Supplier GST state code", taxConfig.supplierStateCode);
-        const location = await Location.findById(id)
-            .select("stateId isActive")
-            .lean();
+        const location = await Location.findById(id).select("stateId isActive").lean();
         if (!location) {
             throw new Error("Location not found");
         }
@@ -34,9 +32,7 @@ export class TaxContextService {
         if (!location.stateId) {
             throw new Error("State is not configured for this location");
         }
-        const state = await State.findById(location.stateId)
-            .select("gstCode isActive name")
-            .lean();
+        const state = await State.findById(location.stateId).select("gstCode isActive name").lean();
         if (!state) {
             throw new Error("State not found for this location");
         }
@@ -51,10 +47,7 @@ export class TaxContextService {
         catch {
             throw new Error(`Invalid or missing GST code configured for state ${stateName}`);
         }
-        return {
-            supplierStateCode,
-            placeOfSupplyStateCode,
-        };
+        return { supplierStateCode, placeOfSupplyStateCode };
     }
 }
 //# sourceMappingURL=tax-context.service.js.map

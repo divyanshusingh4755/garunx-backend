@@ -8,9 +8,7 @@ export const getTheme = async (req, res) => {
         });
     }
     catch (error) {
-        const statusCode = error.message?.toLowerCase().includes("not found")
-            ? 404
-            : 500;
+        const statusCode = error.message?.toLowerCase().includes("not found") ? 404 : 500;
         return res.status(statusCode).json({
             success: false,
             message: error.message || "Failed to get app theme",
@@ -39,29 +37,17 @@ export const updateTheme = async (req, res) => {
 };
 export const exportBrandingCsv = async (req, res) => {
     try {
-        const { brandingIds, } = req.body;
+        const { brandingIds } = req.body;
         const result = await BrandingService.exportBrandingToCsv(brandingIds);
-        const timestamp = new Date()
-            .toISOString()
-            .replace(/[:.]/g, "-");
+        const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
         res.setHeader("Content-Type", "text/csv; charset=utf-8");
         res.setHeader("Content-Disposition", `attachment; filename="branding-${timestamp}.csv"`);
-        return res
-            .status(200)
-            .send(result.csv);
+        return res.status(200).send(result.csv);
     }
     catch (error) {
-        const message = error instanceof Error
-            ? error.message
-            : "Failed to export branding";
-        const statusCode = message
-            .toLowerCase()
-            .includes("not found")
-            ? 404
-            : 400;
-        return res
-            .status(statusCode)
-            .json({
+        const message = error instanceof Error ? error.message : "Failed to export branding";
+        const statusCode = message.toLowerCase().includes("not found") ? 404 : 400;
+        return res.status(statusCode).json({
             success: false,
             message,
         });

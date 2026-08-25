@@ -19,12 +19,7 @@ const familyMemberSchema = new Schema({
     },
     source: {
         type: String,
-        enum: [
-            "CUSTOMER_SELF",
-            "COORDINATOR_BOOKING",
-            "ADMIN_MANUAL",
-            "SYSTEM_IMPORT",
-        ],
+        enum: ["CUSTOMER_SELF", "COORDINATOR_BOOKING", "ADMIN_MANUAL", "SYSTEM_IMPORT",],
         required: true,
     },
     sourceBookingId: {
@@ -187,46 +182,21 @@ familyMemberSchema.pre("validate", function () {
     if (this._id && this.motherId?.equals(this._id)) {
         throw new Error("A family member cannot be their own mother");
     }
-    if (this._id &&
-        this.spouseIds.some((spouseId) => spouseId.equals(this._id))) {
+    if (this._id && this.spouseIds.some((spouseId) => spouseId.equals(this._id))) {
         throw new Error("A family member cannot be their own spouse");
     }
     if (this.isDeleted && (!this.deletedAt || !this.deletedBy)) {
         throw new Error("Deleted family members require deletedAt and deletedBy");
     }
-    if (!this.isDeleted &&
-        (this.deletedAt || this.deletedBy || this.deletionReason)) {
+    if (!this.isDeleted && (this.deletedAt || this.deletedBy || this.deletionReason)) {
         throw new Error("Deletion fields cannot be set when family member is not deleted");
     }
 });
-familyMemberSchema.index({
-    ownerId: 1,
-    isDeleted: 1,
-    fatherId: 1,
-});
-familyMemberSchema.index({
-    ownerId: 1,
-    isDeleted: 1,
-    motherId: 1,
-});
-familyMemberSchema.index({
-    ownerId: 1,
-    isDeleted: 1,
-    spouseIds: 1,
-});
-familyMemberSchema.index({
-    ownerId: 1,
-    isDeleted: 1,
-    fullName: 1,
-});
-familyMemberSchema.index({
-    ownerId: 1,
-    isDeleted: 1,
-    createdAt: -1,
-});
-familyMemberSchema.index({
-    sourceBookingId: 1,
-    isDeleted: 1,
-});
+familyMemberSchema.index({ ownerId: 1, isDeleted: 1, fatherId: 1 });
+familyMemberSchema.index({ ownerId: 1, isDeleted: 1, motherId: 1 });
+familyMemberSchema.index({ ownerId: 1, isDeleted: 1, spouseIds: 1 });
+familyMemberSchema.index({ ownerId: 1, isDeleted: 1, fullName: 1 });
+familyMemberSchema.index({ ownerId: 1, isDeleted: 1, createdAt: -1 });
+familyMemberSchema.index({ sourceBookingId: 1, isDeleted: 1 });
 export const FamilyMember = model("FamilyMember", familyMemberSchema);
 //# sourceMappingURL=family-member.model.js.map

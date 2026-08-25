@@ -1,11 +1,5 @@
-import type {
-    NotificationCategory,
-    NotificationPreferenceMode,
-} from "../models/notification-template.model.js";
-
-import type {
-    NotificationType,
-} from "../models/notification.model.js";
+import type { NotificationCategory, NotificationPreferenceMode } from "../models/notification-template.model.js";
+import type { NotificationType } from "../models/notification.model.js";
 
 interface BookingNotificationTemplateSeed {
     code: string;

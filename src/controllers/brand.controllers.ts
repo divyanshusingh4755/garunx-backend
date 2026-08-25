@@ -10,10 +10,7 @@ export const getTheme = async (req: Request, res: Response) => {
       theme,
     });
   } catch (error: any) {
-    const statusCode = error.message?.toLowerCase().includes("not found")
-      ? 404
-      : 500;
-
+    const statusCode = error.message?.toLowerCase().includes("not found") ? 404 : 500;
     return res.status(statusCode).json({
       success: false,
       message: error.message || "Failed to get app theme",
@@ -35,7 +32,6 @@ export const updateTheme = async (req: Request, res: Response) => {
     });
   } catch (error: any) {
     const statusCode = error?.code === 11000 ? 409 : 400;
-
     return res.status(statusCode).json({
       success: false,
       message: error.message || "Failed to update brand theme",
@@ -43,69 +39,24 @@ export const updateTheme = async (req: Request, res: Response) => {
   }
 };
 
-export const exportBrandingCsv = async (
-  req: Request,
-  res: Response,
-) => {
+export const exportBrandingCsv = async (req: Request, res: Response) => {
   try {
-    const {
-      brandingIds,
-    }: {
-      brandingIds: string[];
-    } = req.body;
+    const { brandingIds }: { brandingIds: string[] } = req.body;
 
-    const result =
-      await BrandingService.exportBrandingToCsv(
-        brandingIds,
-      );
+    const result = await BrandingService.exportBrandingToCsv(brandingIds);
+    const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
 
-    const timestamp =
-      new Date()
-        .toISOString()
-        .replace(
-          /[:.]/g,
-          "-",
-        );
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="branding-${timestamp}.csv"`);
 
-    res.setHeader(
-      "Content-Type",
-      "text/csv; charset=utf-8",
-    );
+    return res.status(200).send(result.csv,);
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Failed to export branding";
+    const statusCode = message.toLowerCase().includes("not found") ? 404 : 400;
 
-    res.setHeader(
-      "Content-Disposition",
-      `attachment; filename="branding-${timestamp}.csv"`,
-    );
-
-    return res
-      .status(200)
-      .send(
-        result.csv,
-      );
-  } catch (
-  error: unknown
-  ) {
-    const message =
-      error instanceof Error
-        ? error.message
-        : "Failed to export branding";
-
-    const statusCode =
-      message
-        .toLowerCase()
-        .includes(
-          "not found",
-        )
-        ? 404
-        : 400;
-
-    return res
-      .status(
-        statusCode,
-      )
-      .json({
-        success: false,
-        message,
-      });
+    return res.status(statusCode).json({
+      success: false,
+      message,
+    });
   }
 };

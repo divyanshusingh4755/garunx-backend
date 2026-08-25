@@ -14,7 +14,6 @@ declare class CartService {
     private static round;
     private static ensureUniqueIds;
     private static clearLineDiscounts;
-    private static calculateCouponDiscount;
     private static allocateDiscountToCartLines;
     private static applyPricingResults;
     static ensureCartEditable(cart: ICart): void;
@@ -31,9 +30,6 @@ declare class CartService {
         tierName: any;
         locationId: any;
         locationName: any;
-        /**
-         * Keep your existing common pricing items.
-         */
         items: import("./cart-pricing.engine.js").CalculatedComponentItem[] | import("./cart-pricing.engine.js").CalculatedServiceItem[];
         /**
          * Now always return service structure too.
@@ -81,9 +77,6 @@ declare class CartService {
         tierName: any;
         locationId: any;
         locationName: any;
-        /**
-         * Keep your existing common pricing items.
-         */
         items: import("./cart-pricing.engine.js").CalculatedComponentItem[] | import("./cart-pricing.engine.js").CalculatedServiceItem[];
         /**
          * Now always return service structure too.
@@ -207,19 +200,7 @@ declare class CartService {
             phone?: string;
             address?: string;
             caste?: string;
-            gotra
-            /**
-             * One query for ALL services.
-             *
-             * Avoids N+1 queries when a package
-             * contains many services.
-             */
-            ? /**
-             * One query for ALL services.
-             *
-             * Avoids N+1 queries when a package
-             * contains many services.
-             */: string;
+            gotra?: string;
         };
         selectedServices: ISelectedService[];
         addonServices: IAddonService[];
@@ -319,19 +300,7 @@ declare class CartService {
             phone?: string;
             address?: string;
             caste?: string;
-            gotra
-            /**
-             * One query for ALL services.
-             *
-             * Avoids N+1 queries when a package
-             * contains many services.
-             */
-            ? /**
-             * One query for ALL services.
-             *
-             * Avoids N+1 queries when a package
-             * contains many services.
-             */: string;
+            gotra?: string;
         };
         selectedComponents: ISelectedComponent[];
         addonComponents: ISelectedComponent[];

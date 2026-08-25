@@ -29,21 +29,9 @@ const componentItemSchema = new Schema<IComponentItem>(
       index: true,
     },
   },
-  {
-    timestamps: true,
-  },
+  { timestamps: true },
 );
 
-componentItemSchema.index(
-  {
-    name: "text",
-  },
-  {
-    name: "ComponentItemTextSearchIndex",
-  },
-);
+componentItemSchema.index({ name: "text" }, { name: "ComponentItemTextSearchIndex" });
 
-export const ComponentItem = model<IComponentItem>(
-  "ComponentItem",
-  componentItemSchema,
-);
+export const ComponentItem = model<IComponentItem>("ComponentItem", componentItemSchema);

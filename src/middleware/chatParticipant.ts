@@ -20,12 +20,7 @@ export const requireActiveChatParticipant = async (req: Request, res: Response, 
             })
         }
 
-        await ChatConversationService.assertParticipant({
-            conversationId,
-            userId,
-            requireActive: true
-        })
-
+        await ChatConversationService.assertParticipant({ conversationId, userId, requireActive: true })
         next();
     } catch (error: any) {
         return res.status(403).json({

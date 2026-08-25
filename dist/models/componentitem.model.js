@@ -16,13 +16,7 @@ const componentItemSchema = new Schema({
         default: true,
         index: true,
     },
-}, {
-    timestamps: true,
-});
-componentItemSchema.index({
-    name: "text",
-}, {
-    name: "ComponentItemTextSearchIndex",
-});
+}, { timestamps: true });
+componentItemSchema.index({ name: "text" }, { name: "ComponentItemTextSearchIndex" });
 export const ComponentItem = model("ComponentItem", componentItemSchema);
 //# sourceMappingURL=componentitem.model.js.map

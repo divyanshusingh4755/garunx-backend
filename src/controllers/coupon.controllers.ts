@@ -1,102 +1,42 @@
 import type { Request, Response } from "express";
-
 import { CouponService } from "../services/coupon.service.js";
-
 import type { ICoupon } from "../models/coupon.model.js";
 
 type CouponUpdateData = Partial<
   Pick<
-    ICoupon,
-    | "name"
-    | "couponCode"
-    | "applicableOn"
-    | "services"
-    | "packages"
-    | "assignedUserId"
-    | "discount"
-    | "discountType"
-    | "usageLimit"
-    | "validFrom"
-    | "validTill"
-    | "minOrderAmount"
-    | "maxDiscountAmount"
-    | "isFirstOrderOnly"
+    ICoupon, "name" | "couponCode" | "applicableOn" | "services" | "packages" | "assignedUserId" | "discount" | "discountType" | "usageLimit" | "validFrom" | "validTill" | "minOrderAmount" | "maxDiscountAmount" | "isFirstOrderOnly"
   >
 >;
 
-const getErrorMessage = (error: unknown, fallback: string): string =>
-  error instanceof Error ? error.message : fallback;
+const getErrorMessage = (error: unknown, fallback: string): string => error instanceof Error ? error.message : fallback;
 
 const getErrorStatus = (error: unknown): number => {
-  if (error instanceof Error && error.message === "Coupon not found") {
-    return 404;
-  }
-
-  if (error instanceof Error && error.message.includes("already exists")) {
-    return 409;
-  }
-
+  if (error instanceof Error && error.message === "Coupon not found") { return 404; }
+  if (error instanceof Error && error.message.includes("already exists")) { return 409; }
   return 400;
 };
 
 export const createCoupon = async (req: Request, res: Response) => {
   try {
-    const {
-      name,
-      couponCode,
-      applicableOn,
-      services,
-      packages,
-      assignedUserId,
-      discount,
-      discountType,
-      usageLimit,
-      validFrom,
-      validTill,
-      minOrderAmount,
-      maxDiscountAmount,
-      isFirstOrderOnly,
-    } = req.body;
+    const { name, couponCode, applicableOn, services, packages, assignedUserId, discount, discountType, usageLimit, validFrom, validTill, minOrderAmount, maxDiscountAmount, isFirstOrderOnly } = req.body;
 
     const couponData: CouponUpdateData = {
       name,
       couponCode,
       applicableOn,
-
-      services:
-        services ?? [],
-
-      packages:
-        packages ?? [],
-
+      services: services ?? [],
+      packages: packages ?? [],
       discount,
       discountType,
-
-      usageLimit:
-        usageLimit ?? 0,
-
-      minOrderAmount:
-        minOrderAmount ?? 0,
-
-      isFirstOrderOnly:
-        isFirstOrderOnly ?? false,
+      usageLimit: usageLimit ?? 0,
+      minOrderAmount: minOrderAmount ?? 0,
+      isFirstOrderOnly: isFirstOrderOnly ?? false,
     };
 
-    if (assignedUserId !== undefined) {
-      couponData.assignedUserId = assignedUserId;
-    }
-
-    if (validFrom !== undefined) {
-      couponData.validFrom = new Date(validFrom);
-    }
-
-    if (validTill !== undefined) {
-      couponData.validTill = new Date(validTill);
-    }
-
-    if (maxDiscountAmount !== undefined) {
-      couponData.maxDiscountAmount = maxDiscountAmount;
-    }
+    if (assignedUserId !== undefined) { couponData.assignedUserId = assignedUserId; }
+    if (validFrom !== undefined) { couponData.validFrom = new Date(validFrom); }
+    if (validTill !== undefined) { couponData.validTill = new Date(validTill); }
+    if (maxDiscountAmount !== undefined) { couponData.maxDiscountAmount = maxDiscountAmount; }
 
     const coupon = await CouponService.createCoupon(couponData);
 
@@ -118,26 +58,11 @@ export const updateCoupon = async (req: Request, res: Response) => {
     const { id } = req.params;
     const updateData: CouponUpdateData = {};
 
-    const directFields = [
-      "name",
-      "couponCode",
-      "applicableOn",
-      "services",
-      "packages",
-      "assignedUserId",
-      "discount",
-      "discountType",
-      "usageLimit",
-      "minOrderAmount",
-      "maxDiscountAmount",
-      "isFirstOrderOnly",
-    ] as const;
+    const directFields = ["name", "couponCode", "applicableOn", "services", "packages", "assignedUserId", "discount", "discountType", "usageLimit", "minOrderAmount", "maxDiscountAmount", "isFirstOrderOnly"] as const;
 
     for (const field of directFields) {
       if (Object.prototype.hasOwnProperty.call(req.body, field)) {
-        Object.assign(updateData, {
-          [field]: req.body[field],
-        });
+        Object.assign(updateData, { [field]: req.body[field] });
       }
     }
 
@@ -175,25 +100,14 @@ export const validateCoupon = async (req: Request, res: Response) => {
       });
     }
 
-    const {
-      couponCode,
-      serviceId,
-      packageId,
-      amount,
-    } = req.body;
+    const { couponCode, serviceId, packageId, amount } = req.body;
 
     const input = {
       couponCode,
       orderAmount: amount,
       userId,
-
-      ...(serviceId !== undefined && {
-        serviceId,
-      }),
-
-      ...(packageId !== undefined && {
-        packageId,
-      }),
+      ...(serviceId !== undefined && { serviceId }),
+      ...(packageId !== undefined && { packageId }),
     };
 
     const result = await CouponService.validateCoupon(input);
@@ -244,14 +158,11 @@ export const deleteCoupon = async (req: Request, res: Response) => {
 
 export const toggleCouponStatus = async (req: Request, res: Response) => {
   try {
-    const coupon = await CouponService.toggleCouponStatus(
-      req.params.id as string,
-    );
+    const coupon = await CouponService.toggleCouponStatus(req.params.id as string);
 
     return res.status(200).json({
       success: true,
-      message: `Coupon ${coupon.isActive ? "activated" : "deactivated"
-        } successfully`,
+      message: `Coupon ${coupon.isActive ? "activated" : "deactivated"} successfully`,
       data: coupon,
     });
   } catch (error: unknown) {
@@ -264,32 +175,18 @@ export const toggleCouponStatus = async (req: Request, res: Response) => {
 
 export const getAllCoupons = async (req: Request, res: Response) => {
   try {
-    const {
-      searchTerm,
-      isActive,
-      assignedUserId,
-      applicableOn,
-      limit,
-      page,
-      sortBy,
-      sortOrder,
-    } = req.query;
+    const { searchTerm, isActive, assignedUserId, applicableOn, limit, page, sortBy, sortOrder } = req.query;
 
     const parsedLimit = typeof limit === "number" ? limit : Number(limit);
-
     const parsedPage = typeof page === "number" ? page : Number(page);
 
     const result = await CouponService.findCoupons(
       typeof searchTerm === "string" ? searchTerm : undefined,
-      Number.isInteger(parsedLimit) && parsedLimit > 0
-        ? Math.min(parsedLimit, 100)
-        : 20,
+      Number.isInteger(parsedLimit) && parsedLimit > 0 ? Math.min(parsedLimit, 100) : 20,
       Number.isInteger(parsedPage) && parsedPage > 0 ? parsedPage : 1,
       isActive === "true" ? true : isActive === "false" ? false : undefined,
       typeof assignedUserId === "string" ? assignedUserId : undefined,
-      typeof applicableOn === "string" || Array.isArray(applicableOn)
-        ? (applicableOn as string | string[])
-        : undefined,
+      typeof applicableOn === "string" || Array.isArray(applicableOn) ? (applicableOn as string | string[]) : undefined,
       typeof sortBy === "string" ? sortBy : "createdAt",
       sortOrder === "asc" ? "asc" : "desc",
     );
@@ -306,10 +203,7 @@ export const getAllCoupons = async (req: Request, res: Response) => {
   }
 };
 
-export const getAvailableCoupons = async (
-  req: Request,
-  res: Response,
-) => {
+export const getAvailableCoupons = async (req: Request, res: Response) => {
   try {
     const userId = req.user?.userId;
 
@@ -320,28 +214,14 @@ export const getAvailableCoupons = async (
       });
     }
 
-    const {
-      serviceId,
-      packageId,
-      amount,
-    } = req.query;
+    const { serviceId, packageId, amount } = req.query;
 
-    const coupons =
-      await CouponService.getAvailableCoupons({
-        userId,
-
-        ...(typeof serviceId === "string" && {
-          serviceId,
-        }),
-
-        ...(typeof packageId === "string" && {
-          packageId,
-        }),
-
-        ...(amount !== undefined && {
-          orderAmount: Number(amount),
-        }),
-      });
+    const coupons = await CouponService.getAvailableCoupons({
+      userId,
+      ...(typeof serviceId === "string" && { serviceId }),
+      ...(typeof packageId === "string" && { packageId }),
+      ...(amount !== undefined && { orderAmount: Number(amount) }),
+    });
 
     return res.status(200).json({
       success: true,
@@ -352,59 +232,27 @@ export const getAvailableCoupons = async (
   } catch (error: unknown) {
     return res.status(400).json({
       success: false,
-      message: getErrorMessage(
-        error,
-        "Failed to fetch available coupons",
-      ),
+      message: getErrorMessage(error, "Failed to fetch available coupons"),
     });
   }
 };
 
-export const exportCouponsCsv = async (
-  req: Request,
-  res: Response,
-) => {
+export const exportCouponsCsv = async (req: Request, res: Response) => {
   try {
-    const {
-      couponIds,
-    }: {
-      couponIds: string[];
-    } = req.body;
+    const { couponIds }: { couponIds: string[] } = req.body;
 
     const result =
-      await CouponService.exportCouponsToCsv(
-        couponIds,
-      );
+      await CouponService.exportCouponsToCsv(couponIds);
 
-    const timestamp =
-      new Date()
-        .toISOString()
-        .replace(/[:.]/g, "-");
+    const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+    res.setHeader("Content-Type", "text/csv; charset=utf-8",);
+    res.setHeader("Content-Disposition", `attachment; filename="coupons-${timestamp}.csv"`,);
 
-    res.setHeader(
-      "Content-Type",
-      "text/csv; charset=utf-8",
-    );
-
-    res.setHeader(
-      "Content-Disposition",
-      `attachment; filename="coupons-${timestamp}.csv"`,
-    );
-
-    return res.status(200).send(
-      result.csv,
-    );
+    return res.status(200).send(result.csv);
   } catch (error: unknown) {
-    const message =
-      getErrorMessage(
-        error,
-        "Failed to export coupons",
-      );
+    const message = getErrorMessage(error, "Failed to export coupons");
 
-    if (
-      message ===
-      "No coupons found for export"
-    ) {
+    if (message === "No coupons found for export") {
       return res.status(404).json({
         success: false,
         message,

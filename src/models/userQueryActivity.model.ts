@@ -1,14 +1,6 @@
 import { Schema, Types, model, type Document, type Model } from "mongoose";
 
-export type UserQueryActivityType =
-  | "QUERY_CREATED"
-  | "REQUESTER_REPLIED"
-  | "ADMIN_REPLIED"
-  | "STATUS_CHANGED"
-  | "ASSIGNED"
-  | "PRIORITY_CHANGED"
-  | "CATEGORY_CHANGED"
-  | "QUERY_DELETED";
+export type UserQueryActivityType = "QUERY_CREATED" | "REQUESTER_REPLIED" | "ADMIN_REPLIED" | "STATUS_CHANGED" | "ASSIGNED" | "PRIORITY_CHANGED" | "CATEGORY_CHANGED" | "QUERY_DELETED";
 
 export interface IUserQueryActivity extends Document {
   queryId: Types.ObjectId;
@@ -39,27 +31,12 @@ const userQueryActivitySchema = new Schema<IUserQueryActivity>(
 
     type: {
       type: String,
-      enum: [
-        "QUERY_CREATED",
-        "REQUESTER_REPLIED",
-        "ADMIN_REPLIED",
-        "STATUS_CHANGED",
-        "ASSIGNED",
-        "PRIORITY_CHANGED",
-        "CATEGORY_CHANGED",
-        "QUERY_DELETED",
-      ] satisfies UserQueryActivityType[],
+      enum: ["QUERY_CREATED", "REQUESTER_REPLIED", "ADMIN_REPLIED", "STATUS_CHANGED", "ASSIGNED", "PRIORITY_CHANGED", "CATEGORY_CHANGED", "QUERY_DELETED"] satisfies UserQueryActivityType[],
       required: true,
       index: true,
     },
-
-    oldValue: {
-      type: Schema.Types.Mixed,
-    },
-
-    newValue: {
-      type: Schema.Types.Mixed,
-    },
+    oldValue: { type: Schema.Types.Mixed },
+    newValue: { type: Schema.Types.Mixed, },
 
     note: {
       type: String,
@@ -72,16 +49,7 @@ const userQueryActivitySchema = new Schema<IUserQueryActivity>(
   },
 );
 
-userQueryActivitySchema.index({
-  queryId: 1,
-  createdAt: -1,
-});
+userQueryActivitySchema.index({ queryId: 1, createdAt: -1 });
+userQueryActivitySchema.index({ queryId: 1, type: 1, createdAt: -1 });
 
-userQueryActivitySchema.index({
-  queryId: 1,
-  type: 1,
-  createdAt: -1,
-});
-
-export const UserQueryActivity: Model<IUserQueryActivity> =
-  model<IUserQueryActivity>("UserQueryActivity", userQueryActivitySchema);
+export const UserQueryActivity: Model<IUserQueryActivity> = model<IUserQueryActivity>("UserQueryActivity", userQueryActivitySchema);

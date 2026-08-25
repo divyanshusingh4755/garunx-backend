@@ -1,4 +1,4 @@
-import { NotificationDeviceService, } from "../services/notification-device.service.js";
+import { NotificationDeviceService } from "../services/notification-device.service.js";
 export const registerNotificationDevice = async (req, res) => {
     try {
         const userId = req.user?.userId;
@@ -8,15 +8,12 @@ export const registerNotificationDevice = async (req, res) => {
                 message: "Unauthorized",
             });
         }
-        const { token, platform, deviceId, } = req.body;
-        const device = await NotificationDeviceService
-            .registerDevice({
+        const { token, platform, deviceId } = req.body;
+        const device = await NotificationDeviceService.registerDevice({
             userId,
             token,
             platform: platform,
-            ...(deviceId && {
-                deviceId,
-            }),
+            ...(deviceId && { deviceId }),
         });
         return res.status(200).json({
             success: true,
@@ -25,12 +22,9 @@ export const registerNotificationDevice = async (req, res) => {
         });
     }
     catch (error) {
-        console.error("Register notification device error:", error);
         return res.status(500).json({
             success: false,
-            message: error instanceof Error
-                ? error.message
-                : "Failed to register notification device",
+            message: error instanceof Error ? error.message : "Failed to register notification device",
         });
     }
 };
@@ -43,12 +37,8 @@ export const unregisterNotificationDevice = async (req, res) => {
                 message: "Unauthorized",
             });
         }
-        const { token, } = req.body;
-        const device = await NotificationDeviceService
-            .deactivateDevice({
-            userId,
-            token,
-        });
+        const { token } = req.body;
+        const device = await NotificationDeviceService.deactivateDevice({ userId, token });
         return res.status(200).json({
             success: true,
             message: "Notification device unregistered successfully",
@@ -56,12 +46,9 @@ export const unregisterNotificationDevice = async (req, res) => {
         });
     }
     catch (error) {
-        console.error("Unregister notification device error:", error);
         return res.status(500).json({
             success: false,
-            message: error instanceof Error
-                ? error.message
-                : "Failed to unregister notification device",
+            message: error instanceof Error ? error.message : "Failed to unregister notification device",
         });
     }
 };

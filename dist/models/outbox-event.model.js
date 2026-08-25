@@ -1,11 +1,6 @@
-import { model, Schema, } from "mongoose";
-import { DOMAIN_EVENTS, } from "../events/domain-events.js";
-export const OUTBOX_EVENT_STATUSES = [
-    "PENDING",
-    "PROCESSING",
-    "PROCESSED",
-    "FAILED",
-];
+import { model, Schema } from "mongoose";
+import { DOMAIN_EVENTS } from "../events/domain-events.js";
+export const OUTBOX_EVENT_STATUSES = ["PENDING", "PROCESSING", "PROCESSED", "FAILED"];
 const outboxEventSchema = new Schema({
     eventId: {
         type: String,
@@ -66,19 +61,8 @@ const outboxEventSchema = new Schema({
 }, {
     timestamps: true,
 });
-outboxEventSchema.index({
-    status: 1,
-    nextRetryAt: 1,
-    createdAt: 1,
-});
-outboxEventSchema.index({
-    status: 1,
-    lockedAt: 1,
-});
-outboxEventSchema.index({
-    aggregateType: 1,
-    aggregateId: 1,
-    createdAt: -1,
-});
+outboxEventSchema.index({ status: 1, nextRetryAt: 1, createdAt: 1 });
+outboxEventSchema.index({ status: 1, lockedAt: 1 });
+outboxEventSchema.index({ aggregateType: 1, aggregateId: 1, createdAt: -1 });
 export const OutboxEvent = model("OutboxEvent", outboxEventSchema);
 //# sourceMappingURL=outbox-event.model.js.map

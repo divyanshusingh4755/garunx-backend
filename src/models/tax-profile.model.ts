@@ -96,19 +96,7 @@ taxProfileSchema.pre("validate", function () {
   }
 });
 
-taxProfileSchema.index({
-  treatment: 1,
-  totalRate: 1,
-});
-
-taxProfileSchema.index(
-  {
-    name: "text",
-    code: "text",
-  },
-  {
-    name: "TaxProfileTextSearchIndex",
-  },
-);
+taxProfileSchema.index({ treatment: 1, totalRate: 1 });
+taxProfileSchema.index({ name: "text", code: "text" }, { name: "TaxProfileTextSearchIndex" });
 
 export const TaxProfile = model<ITaxProfile>("TaxProfile", taxProfileSchema);

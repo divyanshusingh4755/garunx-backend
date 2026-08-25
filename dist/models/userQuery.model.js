@@ -29,16 +29,7 @@ const userQuerySchema = new Schema({
     },
     category: {
         type: String,
-        enum: [
-            "BOOKING",
-            "PAYMENT",
-            "REFUND",
-            "SERVICE",
-            "PACKAGE",
-            "ACCOUNT",
-            "TECHNICAL",
-            "OTHER",
-        ],
+        enum: ["BOOKING", "PAYMENT", "REFUND", "SERVICE", "PACKAGE", "ACCOUNT", "TECHNICAL", "OTHER"],
         required: true,
         index: true,
     },
@@ -51,12 +42,7 @@ const userQuerySchema = new Schema({
     },
     status: {
         type: String,
-        enum: [
-            "PENDING",
-            "ONGOING",
-            "RESOLVED",
-            "REJECTED",
-        ],
+        enum: ["PENDING", "ONGOING", "RESOLVED", "REJECTED"],
         default: "PENDING",
         required: true,
         index: true,
@@ -77,16 +63,7 @@ const userQuerySchema = new Schema({
     },
     lastAction: {
         type: String,
-        enum: [
-            "QUERY_CREATED",
-            "REQUESTER_REPLIED",
-            "ADMIN_REPLIED",
-            "STATUS_CHANGED",
-            "ASSIGNED",
-            "PRIORITY_CHANGED",
-            "CATEGORY_CHANGED",
-            "QUERY_DELETED",
-        ],
+        enum: ["QUERY_CREATED", "REQUESTER_REPLIED", "ADMIN_REPLIED", "STATUS_CHANGED", "ASSIGNED", "PRIORITY_CHANGED", "CATEGORY_CHANGED", "QUERY_DELETED"],
         default: "QUERY_CREATED",
         required: true,
     },
@@ -153,51 +130,19 @@ userQuerySchema.pre("validate", function () {
     if (this.status === "RESOLVED" && (!this.resolvedAt || !this.resolvedBy)) {
         throw new Error("Resolved query requires resolvedAt and resolvedBy");
     }
-    if (this.status === "REJECTED" &&
-        (!this.rejectedAt || !this.rejectedBy || !this.rejectionReason?.trim())) {
+    if (this.status === "REJECTED" && (!this.rejectedAt || !this.rejectedBy || !this.rejectionReason?.trim())) {
         throw new Error("Rejected query requires rejection details");
     }
-    if (this.isDeleted &&
-        (!this.deletedAt || !this.deletedBy || !this.deletionReason?.trim())) {
+    if (this.isDeleted && (!this.deletedAt || !this.deletedBy || !this.deletionReason?.trim())) {
         throw new Error("Deleted query requires deletion details");
     }
 });
-userQuerySchema.index({
-    requesterId: 1,
-    isDeleted: 1,
-    createdAt: -1,
-});
-userQuerySchema.index({
-    requesterType: 1,
-    isDeleted: 1,
-    createdAt: -1,
-});
-userQuerySchema.index({
-    status: 1,
-    isDeleted: 1,
-    createdAt: -1,
-});
-userQuerySchema.index({
-    category: 1,
-    status: 1,
-    isDeleted: 1,
-    createdAt: -1,
-});
-userQuerySchema.index({
-    priority: 1,
-    status: 1,
-    isDeleted: 1,
-    createdAt: -1,
-});
-userQuerySchema.index({
-    assignedAdminId: 1,
-    status: 1,
-    isDeleted: 1,
-    createdAt: -1,
-});
-userQuerySchema.index({
-    isDeleted: 1,
-    lastActionAt: -1,
-});
+userQuerySchema.index({ requesterId: 1, isDeleted: 1, createdAt: -1 });
+userQuerySchema.index({ requesterType: 1, isDeleted: 1, createdAt: -1 });
+userQuerySchema.index({ status: 1, isDeleted: 1, createdAt: -1 });
+userQuerySchema.index({ category: 1, status: 1, isDeleted: 1, createdAt: -1 });
+userQuerySchema.index({ priority: 1, status: 1, isDeleted: 1, createdAt: -1 });
+userQuerySchema.index({ assignedAdminId: 1, status: 1, isDeleted: 1, createdAt: -1 });
+userQuerySchema.index({ isDeleted: 1, lastActionAt: -1 });
 export const UserQuery = model("UserQuery", userQuerySchema);
 //# sourceMappingURL=userQuery.model.js.map

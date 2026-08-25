@@ -1,5 +1,5 @@
 import { Schema } from "mongoose";
-import { TaxJurisdiction, TaxPriceMode, TaxSource, } from "../types/tax.types.js";
+import { TaxJurisdiction, TaxPriceMode, TaxSource } from "../types/tax.types.js";
 export const taxProfileSnapshotSchema = new Schema({
     taxProfileId: {
         type: Schema.Types.ObjectId,

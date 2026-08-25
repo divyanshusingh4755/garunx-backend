@@ -1,27 +1,16 @@
 import type { NextFunction, Request, Response } from "express";
 import { verifyAccessToken } from "../utils/accessToken.js";
 
-const extractBearerToken = (
-  authorization: string | undefined,
-): string | null => {
-  if (!authorization) {
-    return null;
-  }
+const extractBearerToken = (authorization: string | undefined): string | null => {
+  if (!authorization) { return null; }
 
   const [scheme, token, ...rest] = authorization.trim().split(/\s+/);
 
-  if (scheme !== "Bearer" || !token || rest.length > 0) {
-    return null;
-  }
-
+  if (scheme !== "Bearer" || !token || rest.length > 0) { return null; }
   return token;
 };
 
-export const authenticate = (
-  req: Request,
-  res: Response,
-  next: NextFunction,
-): void => {
+export const authenticate = (req: Request, res: Response, next: NextFunction): void => {
   const token = extractBearerToken(req.headers.authorization);
 
   if (!token) {
@@ -33,8 +22,6 @@ export const authenticate = (
     return;
   }
 
-  let secret: string;
-
   try {
     const decoded = verifyAccessToken(token);
 
@@ -43,15 +30,10 @@ export const authenticate = (
         success: false,
         message: "Invalid access token payload",
       });
-
       return;
     }
 
-    req.user = {
-      userId: decoded.userId,
-      role: decoded.role,
-    };
-
+    req.user = { userId: decoded.userId, role: decoded.role };
     next();
   } catch (error: unknown) {
 
@@ -60,7 +42,6 @@ export const authenticate = (
         success: false,
         message: "Authentication configuration error"
       });
-
       return;
     }
 
@@ -71,17 +52,10 @@ export const authenticate = (
   }
 };
 
-export const optionalAuthenticate = (
-  req: Request,
-  res: Response,
-  next: NextFunction,
-): void => {
+export const optionalAuthenticate = (req: Request, res: Response, next: NextFunction): void => {
   const authorization = req.headers.authorization;
 
-  if (!authorization) {
-    next();
-    return;
-  }
+  if (!authorization) { next(); return; }
 
   const token = extractBearerToken(authorization);
 
@@ -90,7 +64,6 @@ export const optionalAuthenticate = (
       success: false,
       message: "Invalid Bearer token format",
     });
-
     return;
   }
 
@@ -102,15 +75,10 @@ export const optionalAuthenticate = (
         success: false,
         message: "Invalid access token payload",
       });
-
       return;
     }
 
-    req.user = {
-      userId: decoded.userId,
-      role: decoded.role,
-    };
-
+    req.user = { userId: decoded.userId, role: decoded.role };
     next();
   } catch (error: unknown) {
     if (error instanceof Error && error.message === "JWT_ACCESS_SECRET is not configured") {
@@ -118,7 +86,6 @@ export const optionalAuthenticate = (
         success: false,
         message: "Authentication configuration error"
       })
-
       return;
     }
 

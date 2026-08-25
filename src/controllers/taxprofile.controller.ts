@@ -1,37 +1,21 @@
-import type { NextFunction, Request, Response } from "express";
-
-import {
-  TaxProfileService,
-  type TaxProfileFilters,
-  type CreateTaxProfilePayload,
-  type UpdateTaxProfilePayload,
-} from "../services/taxprofile.service.js";
+import type { Request, Response } from "express";
+import { TaxProfileService, type TaxProfileFilters, type CreateTaxProfilePayload, type UpdateTaxProfilePayload } from "../services/taxprofile.service.js";
 import type { TaxTreatment } from "../types/tax.types.js";
 
 const getStatusCode = (error: any): number => {
-  if (typeof error?.statusCode === "number") {
-    return error.statusCode;
-  }
-
-  if (error?.name === "ValidationError") {
-    return 400;
-  }
-
-  if (error?.code === 11000) {
-    return 409;
-  }
-
+  if (typeof error?.statusCode === "number") { return error.statusCode; }
+  if (error?.name === "ValidationError") { return 400; }
+  if (error?.code === 11000) { return 409; }
   return 500;
 };
 
 function getAuthenticatedUserId(req: Request): string | null {
   const userId = req.user?.userId;
-
   return userId ? String(userId) : null;
 }
 
 export class TaxProfileController {
-  static async create(req: Request, res: Response, next: NextFunction) {
+  static async create(req: Request, res: Response) {
     try {
       const adminId = getAuthenticatedUserId(req);
 
@@ -50,9 +34,7 @@ export class TaxProfileController {
         createdBy: adminId,
       };
 
-      if (Object.prototype.hasOwnProperty.call(req.body, "description")) {
-        payload.description = req.body.description;
-      }
+      if (Object.prototype.hasOwnProperty.call(req.body, "description")) { payload.description = req.body.description; }
 
       const taxProfile = await TaxProfileService.createTaxProfile(payload);
 
@@ -69,41 +51,19 @@ export class TaxProfileController {
     }
   }
 
-  static async list(req: Request, res: Response, next: NextFunction) {
+  static async list(req: Request, res: Response) {
     try {
       const filters: TaxProfileFilters = {};
 
-      if (typeof req.query.search === "string") {
-        filters.search = req.query.search;
-      }
+      if (typeof req.query.search === "string") { filters.search = req.query.search; }
+      if (typeof req.query.treatment === "string") { filters.treatment = req.query.treatment as TaxTreatment; }
+      if (req.query.isActive === "true") { filters.isActive = true; }
+      else if (req.query.isActive === "false") { filters.isActive = false; }
 
-      if (typeof req.query.treatment === "string") {
-        filters.treatment = req.query.treatment as TaxTreatment;
-      }
-
-      if (req.query.isActive === "true") {
-        filters.isActive = true;
-      } else if (req.query.isActive === "false") {
-        filters.isActive = false;
-      }
-
-      const page =
-        typeof req.query.page === "number"
-          ? req.query.page
-          : Number(req.query.page);
-
-      if (Number.isInteger(page) && page > 0) {
-        filters.page = page;
-      }
-
-      const limit =
-        typeof req.query.limit === "number"
-          ? req.query.limit
-          : Number(req.query.limit);
-
-      if (Number.isInteger(limit) && limit > 0) {
-        filters.limit = Math.min(limit, 100);
-      }
+      const page = typeof req.query.page === "number" ? req.query.page : Number(req.query.page);
+      if (Number.isInteger(page) && page > 0) { filters.page = page; }
+      const limit = typeof req.query.limit === "number" ? req.query.limit : Number(req.query.limit);
+      if (Number.isInteger(limit) && limit > 0) { filters.limit = Math.min(limit, 100); }
 
       const result = await TaxProfileService.getTaxProfiles(filters);
 
@@ -120,7 +80,7 @@ export class TaxProfileController {
     }
   }
 
-  static async listActive(_req: Request, res: Response, next: NextFunction) {
+  static async listActive(_req: Request, res: Response) {
     try {
       const taxProfiles = await TaxProfileService.getActiveTaxProfiles();
 
@@ -137,11 +97,9 @@ export class TaxProfileController {
     }
   }
 
-  static async getById(req: Request, res: Response, next: NextFunction) {
+  static async getById(req: Request, res: Response) {
     try {
-      const taxProfile = await TaxProfileService.getTaxProfileById(
-        req.params.taxProfileId as string,
-      );
+      const taxProfile = await TaxProfileService.getTaxProfileById(req.params.taxProfileId as string);
 
       return res.status(200).json({
         success: true,
@@ -155,7 +113,7 @@ export class TaxProfileController {
     }
   }
 
-  static async update(req: Request, res: Response, next: NextFunction) {
+  static async update(req: Request, res: Response) {
     try {
       const adminId = getAuthenticatedUserId(req);
 
@@ -166,30 +124,14 @@ export class TaxProfileController {
         });
       }
 
-      const payload: UpdateTaxProfilePayload = {
-        updatedBy: adminId,
-      };
+      const payload: UpdateTaxProfilePayload = { updatedBy: adminId };
 
-      if (Object.prototype.hasOwnProperty.call(req.body, "name")) {
-        payload.name = req.body.name;
-      }
+      if (Object.prototype.hasOwnProperty.call(req.body, "name")) { payload.name = req.body.name; }
+      if (Object.prototype.hasOwnProperty.call(req.body, "treatment")) { payload.treatment = req.body.treatment; }
+      if (Object.prototype.hasOwnProperty.call(req.body, "totalRate")) { payload.totalRate = req.body.totalRate; }
+      if (Object.prototype.hasOwnProperty.call(req.body, "description")) { payload.description = req.body.description; }
 
-      if (Object.prototype.hasOwnProperty.call(req.body, "treatment")) {
-        payload.treatment = req.body.treatment;
-      }
-
-      if (Object.prototype.hasOwnProperty.call(req.body, "totalRate")) {
-        payload.totalRate = req.body.totalRate;
-      }
-
-      if (Object.prototype.hasOwnProperty.call(req.body, "description")) {
-        payload.description = req.body.description;
-      }
-
-      const taxProfile = await TaxProfileService.updateTaxProfile(
-        req.params.taxProfileId as string,
-        payload,
-      );
+      const taxProfile = await TaxProfileService.updateTaxProfile(req.params.taxProfileId as string, payload);
 
       return res.status(200).json({
         success: true,
@@ -204,7 +146,7 @@ export class TaxProfileController {
     }
   }
 
-  static async updateStatus(req: Request, res: Response, next: NextFunction) {
+  static async updateStatus(req: Request, res: Response) {
     try {
       const adminId = getAuthenticatedUserId(req);
 
@@ -215,17 +157,11 @@ export class TaxProfileController {
         });
       }
 
-      const taxProfile = await TaxProfileService.updateTaxProfileStatus(
-        req.params.taxProfileId as string,
-        req.body.isActive,
-        adminId,
-      );
+      const taxProfile = await TaxProfileService.updateTaxProfileStatus(req.params.taxProfileId as string, req.body.isActive, adminId);
 
       return res.status(200).json({
         success: true,
-        message: req.body.isActive
-          ? "Tax profile activated successfully"
-          : "Tax profile deactivated successfully",
+        message: req.body.isActive ? "Tax profile activated successfully" : "Tax profile deactivated successfully",
         data: taxProfile,
       });
     } catch (error: any) {
@@ -236,43 +172,22 @@ export class TaxProfileController {
     }
   }
 
-  static async exportCsv(
-    req: Request,
-    res: Response,
-    next: NextFunction,
-  ) {
+  static async exportCsv(req: Request, res: Response,) {
     try {
-      const {
-        taxProfileIds,
-      }: {
-        taxProfileIds: string[];
-      } = req.body;
+      const { taxProfileIds }: { taxProfileIds: string[] } = req.body;
 
-      const result =
-        await TaxProfileService.exportTaxProfilesToCsv(
-          taxProfileIds,
-        );
+      const result = await TaxProfileService.exportTaxProfilesToCsv(taxProfileIds);
+      const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
 
-      const timestamp =
-        new Date()
-          .toISOString()
-          .replace(/[:.]/g, "-");
+      res.setHeader("Content-Type", "text/csv; charset=utf-8");
+      res.setHeader("Content-Disposition", `attachment; filename="tax-profiles-${timestamp}.csv"`);
 
-      res.setHeader(
-        "Content-Type",
-        "text/csv; charset=utf-8",
-      );
-
-      res.setHeader(
-        "Content-Disposition",
-        `attachment; filename="tax-profiles-${timestamp}.csv"`,
-      );
-
-      return res
-        .status(200)
-        .send(result.csv);
-    } catch (error: unknown) {
-      return next(error);
+      return res.status(200).send(result.csv);
+    } catch (error: any) {
+      return res.status(getStatusCode(error)).json({
+        success: false,
+        message: error.message || "Failed to export tax profile",
+      });
     }
   }
 }

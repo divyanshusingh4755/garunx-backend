@@ -14,14 +14,7 @@ const getStatusCode = (error) => {
 export const createCity = async (req, res) => {
     try {
         const { name, country, stateId, image, description, location } = req.body;
-        const city = await CityService.createCity({
-            name,
-            country,
-            stateId,
-            image,
-            description,
-            location,
-        });
+        const city = await CityService.createCity({ name, country, stateId, image, description, location });
         return res.status(201).json({
             success: true,
             message: "City created successfully",
@@ -52,31 +45,18 @@ export const updateCity = async (req, res) => {
 };
 export const getAllCity = async (req, res) => {
     try {
-        const { searchTerm, cityFilter, stateIdFilter, countryFilter, limit, page, sortBy, sortOrder, } = req.query;
+        const { searchTerm, cityFilter, stateIdFilter, countryFilter, limit, page, sortBy, sortOrder } = req.query;
         const result = await CityService.findCity({
             limit: limit ? Number(limit) : 40,
             page: page ? Number(page) : 1,
             // Public API must only expose active cities.
             isActive: true,
-            sortBy: typeof sortBy === "string"
-                ? sortBy
-                : "createdAt",
-            sortOrder: sortOrder === "asc" ||
-                sortOrder === "desc"
-                ? sortOrder
-                : "desc",
-            ...(typeof searchTerm === "string" && {
-                searchTerm,
-            }),
-            ...(typeof cityFilter === "string" && {
-                cityFilter,
-            }),
-            ...(typeof stateIdFilter === "string" && {
-                stateIdFilter,
-            }),
-            ...(typeof countryFilter === "string" && {
-                countryFilter,
-            }),
+            sortBy: typeof sortBy === "string" ? sortBy : "createdAt",
+            sortOrder: sortOrder === "asc" || sortOrder === "desc" ? sortOrder : "desc",
+            ...(typeof searchTerm === "string" && { searchTerm }),
+            ...(typeof cityFilter === "string" && { cityFilter }),
+            ...(typeof stateIdFilter === "string" && { stateIdFilter }),
+            ...(typeof countryFilter === "string" && { countryFilter }),
         });
         return res.status(200).json({
             success: true,
@@ -89,44 +69,24 @@ export const getAllCity = async (req, res) => {
     catch (error) {
         return res.status(getStatusCode(error)).json({
             success: false,
-            message: error.message ||
-                "Failed to fetch cities",
+            message: error.message || "Failed to fetch cities"
         });
     }
 };
 export const getAllCitiesAdmin = async (req, res) => {
     try {
-        const { searchTerm, cityFilter, stateIdFilter, countryFilter, limit, page, isActive, sortBy, sortOrder, } = req.query;
-        const activeStatus = isActive === "true"
-            ? true
-            : isActive === "false"
-                ? false
-                : undefined;
+        const { searchTerm, cityFilter, stateIdFilter, countryFilter, limit, page, isActive, sortBy, sortOrder } = req.query;
+        const activeStatus = isActive === "true" ? true : isActive === "false" ? false : undefined;
         const result = await CityService.findCity({
             limit: limit ? Number(limit) : 40,
             page: page ? Number(page) : 1,
-            sortBy: typeof sortBy === "string"
-                ? sortBy
-                : "createdAt",
-            sortOrder: sortOrder === "asc" ||
-                sortOrder === "desc"
-                ? sortOrder
-                : "desc",
-            ...(typeof searchTerm === "string" && {
-                searchTerm,
-            }),
-            ...(typeof cityFilter === "string" && {
-                cityFilter,
-            }),
-            ...(typeof stateIdFilter === "string" && {
-                stateIdFilter,
-            }),
-            ...(typeof countryFilter === "string" && {
-                countryFilter,
-            }),
-            ...(typeof activeStatus === "boolean" && {
-                isActive: activeStatus,
-            }),
+            sortBy: typeof sortBy === "string" ? sortBy : "createdAt",
+            sortOrder: sortOrder === "asc" || sortOrder === "desc" ? sortOrder : "desc",
+            ...(typeof searchTerm === "string" && { searchTerm }),
+            ...(typeof cityFilter === "string" && { cityFilter }),
+            ...(typeof stateIdFilter === "string" && { stateIdFilter }),
+            ...(typeof countryFilter === "string" && { countryFilter }),
+            ...(typeof activeStatus === "boolean" && { isActive: activeStatus }),
         });
         return res.status(200).json({
             success: true,
@@ -139,8 +99,7 @@ export const getAllCitiesAdmin = async (req, res) => {
     catch (error) {
         return res.status(getStatusCode(error)).json({
             success: false,
-            message: error.message ||
-                "Failed to fetch cities",
+            message: error.message || "Failed to fetch cities",
         });
     }
 };
@@ -180,20 +139,15 @@ export const exportCitiesCsv = async (req, res) => {
     try {
         const cityIds = req.body.cityIds;
         const result = await CityService.exportCitiesToCsv(cityIds);
-        const timestamp = new Date()
-            .toISOString()
-            .replace(/[:.]/g, "-");
+        const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
         res.setHeader("Content-Type", "text/csv; charset=utf-8");
         res.setHeader("Content-Disposition", `attachment; filename="cities-${timestamp}.csv"`);
         return res.status(200).send(result.csv);
     }
     catch (error) {
-        return res
-            .status(getStatusCode(error))
-            .json({
+        return res.status(getStatusCode(error)).json({
             success: false,
-            message: error.message ||
-                "Failed to export cities",
+            message: error.message || "Failed to export cities",
         });
     }
 };

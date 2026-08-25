@@ -56,19 +56,7 @@ servicePricingSchema.pre("validate", function () {
         this.taxPriceMode = "EXCLUSIVE";
     }
 });
-servicePricingSchema.index({
-    serviceId: 1,
-    componentId: 1,
-    tierId: 1,
-    locationId: 1,
-}, {
-    unique: true,
-});
-servicePricingSchema.index({
-    serviceId: 1,
-    tierId: 1,
-    locationId: 1,
-    isActive: 1,
-});
+servicePricingSchema.index({ serviceId: 1, componentId: 1, tierId: 1, locationId: 1 }, { unique: true });
+servicePricingSchema.index({ serviceId: 1, tierId: 1, locationId: 1, isActive: 1 });
 export const ServicePricing = model("ServicePricing", servicePricingSchema);
 //# sourceMappingURL=servicepricing.model.js.map

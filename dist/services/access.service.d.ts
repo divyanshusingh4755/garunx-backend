@@ -8,6 +8,6 @@ export interface ResolvedFamilyTreeAccess {
     bookingId?: string;
     bookingReference?: string;
 }
-export declare const resolveFamilyTreeOwnerId: ({ actorId, actorRole, requestedOwnerId, }: ResolveTreeOwnerParams) => Promise<ResolvedFamilyTreeAccess>;
+export declare const resolveFamilyTreeOwnerId: ({ actorId, actorRole, requestedOwnerId }: ResolveTreeOwnerParams) => Promise<ResolvedFamilyTreeAccess>;
 export {};
 //# sourceMappingURL=access.service.d.ts.map

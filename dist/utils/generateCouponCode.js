@@ -1,36 +1,15 @@
 import { randomBytes } from "node:crypto";
 const normalizePrefix = (prefix) => {
-    const normalized = prefix
-        .trim()
-        .toUpperCase()
-        .replace(/[^A-Z0-9]+/g, "-")
-        .replace(/^-+|-+$/g, "");
+    const normalized = prefix.trim().toUpperCase().replace(/[^A-Z0-9]+/g, "-").replace(/^-+|-+$/g, "");
     if (!normalized) {
         throw new Error("Coupon prefix must contain at least one alphanumeric character");
     }
     return normalized;
 };
-export const generateCouponCode = (prefix) => {
-    return `${normalizePrefix(prefix)}-${randomBytes(4)
-        .toString("hex")
-        .toUpperCase()}`;
-};
-export const generateSlug = (name) => {
-    return name
-        .toUpperCase()
-        .trim()
-        .replace(/[^A-Z0-9]+/g, "_")
-        .replace(/^_+|_+$/g, "");
-};
+export const generateCouponCode = (prefix) => { return `${normalizePrefix(prefix)}-${randomBytes(4).toString("hex").toUpperCase()}`; };
+export const generateSlug = (name) => { return name.toUpperCase().trim().replace(/[^A-Z0-9]+/g, "_").replace(/^_+|_+$/g, ""); };
 export const generateUniqueCode = () => {
-    /*
-     * Nine random Base64URL characters provide considerably
-     * better collision resistance than timestamp + Math.random.
-     */
-    return randomBytes(7)
-        .toString("base64url")
-        .replace(/[^A-Za-z0-9]/g, "")
-        .slice(0, 9)
-        .toUpperCase();
+    // Nine random Base64URL characters provide considerably better collision resistance than timestamp + Math.random.
+    return randomBytes(7).toString("base64url").replace(/[^A-Za-z0-9]/g, "").slice(0, 9).toUpperCase();
 };
 //# sourceMappingURL=generateCouponCode.js.map

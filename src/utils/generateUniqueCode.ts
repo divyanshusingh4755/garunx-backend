@@ -1,8 +1,6 @@
 export const generateUniqueCode = () => {
   // Convert timestamp to Base36 and remove non-alphanumeric chars
-  const rawTimestamp = (Date.now() + performance.now())
-    .toString(36)
-    .toUpperCase();
+  const rawTimestamp = (Date.now() + performance.now()).toString(36).toUpperCase();
   const cleanTimestamp = rawTimestamp.replace(/[^A-Z0-9]/g, "").slice(-6);
 
   // Generate random string and remove the "0." part correctly

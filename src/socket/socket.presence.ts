@@ -15,9 +15,7 @@ export const addUserSocket = (userId: string, socketId: string): number => {
 export const removeUserSocket = (userId: string, socketId: string): number => {
     const sockets = userSockets.get(userId);
 
-    if (!sockets) {
-        return 0
-    }
+    if (!sockets) { return 0 }
 
     sockets.delete(socketId);
 
@@ -29,10 +27,6 @@ export const removeUserSocket = (userId: string, socketId: string): number => {
     return sockets.size;
 }
 
-export const getUserSocketCount = (userId: string): number => {
-    return userSockets.get(userId)?.size ?? 0;
-}
+export const getUserSocketCount = (userId: string): number => { return userSockets.get(userId)?.size ?? 0; }
 
-export const isUserOnline = (userId: string): boolean => {
-    return getUserSocketCount(userId) > 0;
-}
+export const isUserOnline = (userId: string): boolean => { return getUserSocketCount(userId) > 0; }

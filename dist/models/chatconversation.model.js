@@ -55,8 +55,6 @@ const chatConversationSchema = new Schema({
 }, {
     timestamps: true,
 });
-chatConversationSchema.index({
-    "participants.userId": 1,
-});
+chatConversationSchema.index({ "participants.userId": 1 });
 export const ChatConversation = model("ChatConversation", chatConversationSchema);
 //# sourceMappingURL=chatconversation.model.js.map

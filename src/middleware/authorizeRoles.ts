@@ -1,5 +1,4 @@
 import type { NextFunction, Request, Response } from "express";
-
 import { Role } from "../types/rbac.js";
 
 export const authorizeRoles = (...allowedRoles: Role[]) => {
@@ -11,7 +10,6 @@ export const authorizeRoles = (...allowedRoles: Role[]) => {
         success: false,
         message: "Authentication required",
       });
-
       return;
     }
 
@@ -20,10 +18,8 @@ export const authorizeRoles = (...allowedRoles: Role[]) => {
         success: false,
         message: "You are not authorized to access this resource",
       });
-
       return;
     }
-
     next();
   };
 };

@@ -7,12 +7,10 @@ export interface IPackageTierPricing extends Document {
   tierId: Types.ObjectId;
   locationId: Types.ObjectId;
   serviceId: Types.ObjectId;
-
   basePrice: number;
   fixedPrice?: number | null;
   discountPercent?: number | null;
   finalPrice: number;
-
   taxProfileId: Types.ObjectId;
   taxPriceMode: TaxPriceMode;
 }
@@ -91,59 +89,21 @@ const packageTierPricingSchema = new Schema<IPackageTierPricing>(
   },
 );
 
-packageTierPricingSchema.pre(
-  "validate",
-  function () {
-    const hasFixedPrice =
-      typeof this.fixedPrice ===
-      "number";
+packageTierPricingSchema.pre("validate", function () {
+  const hasFixedPrice = typeof this.fixedPrice === "number";
+  const hasDiscountPercent = typeof this.discountPercent === "number";
 
-    const hasDiscountPercent =
-      typeof this.discountPercent ===
-      "number";
+  if (hasFixedPrice === hasDiscountPercent) {
+    throw new Error("Exactly one of fixedPrice or discountPercent is required");
+  }
 
-    if (
-      hasFixedPrice ===
-      hasDiscountPercent
-    ) {
-      throw new Error(
-        "Exactly one of fixedPrice or discountPercent is required",
-      );
-    }
-
-    if (
-      !Number.isFinite(
-        this.basePrice,
-      ) ||
-      !Number.isFinite(
-        this.finalPrice,
-      )
-    ) {
-      throw new Error(
-        "Package pricing values must be finite numbers",
-      );
-    }
-  },
+  if (!Number.isFinite(this.basePrice) || !Number.isFinite(this.finalPrice)) {
+    throw new Error("Package pricing values must be finite numbers");
+  }
+},
 );
 
-packageTierPricingSchema.index(
-  {
-    packageId: 1,
-    tierId: 1,
-    locationId: 1,
-    serviceId: 1,
-  },
-  {
-    unique: true,
-  },
-);
+packageTierPricingSchema.index({ packageId: 1, tierId: 1, locationId: 1, serviceId: 1 }, { unique: true });
+packageTierPricingSchema.index({ packageId: 1, tierId: 1 });
 
-packageTierPricingSchema.index({
-  packageId: 1,
-  tierId: 1,
-});
-
-export const PackageTierPricing = model<IPackageTierPricing>(
-  "PackageTierPricing",
-  packageTierPricingSchema,
-);
+export const PackageTierPricing = model<IPackageTierPricing>("PackageTierPricing", packageTierPricingSchema);

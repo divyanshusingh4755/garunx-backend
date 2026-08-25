@@ -1,4 +1,4 @@
-import { NotificationPreferenceService, } from "../services/notification-preference.service.js";
+import { NotificationPreferenceService } from "../services/notification-preference.service.js";
 export const getMyNotificationPreferences = async (req, res) => {
     try {
         const userId = req.user?.userId;
@@ -8,8 +8,7 @@ export const getMyNotificationPreferences = async (req, res) => {
                 message: "Unauthorized",
             });
         }
-        const preference = await NotificationPreferenceService
-            .getOrCreatePreferences(userId);
+        const preference = await NotificationPreferenceService.getOrCreatePreferences(userId);
         return res.status(200).json({
             success: true,
             message: "Notification preferences fetched successfully",
@@ -17,12 +16,9 @@ export const getMyNotificationPreferences = async (req, res) => {
         });
     }
     catch (error) {
-        console.error("Get notification preferences error:", error);
         return res.status(500).json({
             success: false,
-            message: error instanceof Error
-                ? error.message
-                : "Failed to fetch notification preferences",
+            message: error instanceof Error ? error.message : "Failed to fetch notification preferences",
         });
     }
 };
@@ -35,16 +31,11 @@ export const updateMyNotificationPreferences = async (req, res) => {
                 message: "Unauthorized",
             });
         }
-        const { categories, channels, } = req.body;
-        const preference = await NotificationPreferenceService
-            .updatePreferences({
+        const { categories, channels } = req.body;
+        const preference = await NotificationPreferenceService.updatePreferences({
             userId,
-            ...(categories && {
-                categories,
-            }),
-            ...(channels && {
-                channels,
-            }),
+            ...(categories && { categories }),
+            ...(channels && { channels }),
         });
         return res.status(200).json({
             success: true,
@@ -53,12 +44,9 @@ export const updateMyNotificationPreferences = async (req, res) => {
         });
     }
     catch (error) {
-        console.error("Update notification preferences error:", error);
         return res.status(500).json({
             success: false,
-            message: error instanceof Error
-                ? error.message
-                : "Failed to update notification preferences",
+            message: error instanceof Error ? error.message : "Failed to update notification preferences",
         });
     }
 };

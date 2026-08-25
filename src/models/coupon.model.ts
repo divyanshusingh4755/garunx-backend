@@ -1,36 +1,26 @@
 import { model, Schema, type Document, Types } from "mongoose";
 
 export type CouponApplicableOn = "ALL" | "SERVICE" | "PACKAGE" | "REFERRAL";
-
 export type CouponDiscountType = "PERCENTAGE" | "FIXED";
 
 export interface ICoupon extends Document {
   version: number;
   name: string;
   couponCode: string;
-
   applicableOn: CouponApplicableOn;
-
   services: Types.ObjectId[];
   packages: Types.ObjectId[];
-
   discount: number;
   discountType: CouponDiscountType;
-
   usageLimit: number;
   usedCount: number;
-
   validFrom?: Date;
   validTill?: Date;
-
   minOrderAmount: number;
   maxDiscountAmount?: number;
-
   isFirstOrderOnly: boolean;
   isActive: boolean;
-
   assignedUserId?: Types.ObjectId;
-
   createdAt: Date;
   updatedAt: Date;
 }
@@ -147,10 +137,7 @@ couponSchema.pre("validate", function () {
   const services = this.services ?? [];
   const packages = this.packages ?? [];
 
-  if (
-    this.discountType === "PERCENTAGE" &&
-    (this.discount <= 0 || this.discount > 100)
-  ) {
+  if (this.discountType === "PERCENTAGE" && (this.discount <= 0 || this.discount > 100)) {
     throw new Error("Percentage discount must be between 1 and 100");
   }
 
@@ -163,54 +150,26 @@ couponSchema.pre("validate", function () {
   }
 
   if (this.applicableOn === "SERVICE") {
-    if (services.length === 0) {
-      throw new Error("At least one service is required for SERVICE coupons");
-    }
+    if (services.length === 0) { throw new Error("At least one service is required for SERVICE coupons"); }
 
-    if (packages.length > 0) {
-      throw new Error("Packages are not allowed for SERVICE coupons");
-    }
+    if (packages.length > 0) { throw new Error("Packages are not allowed for SERVICE coupons"); }
   }
 
   if (this.applicableOn === "PACKAGE") {
-    if (packages.length === 0) {
-      throw new Error("At least one package is required for PACKAGE coupons");
-    }
+    if (packages.length === 0) { throw new Error("At least one package is required for PACKAGE coupons"); }
 
-    if (services.length > 0) {
-      throw new Error("Services are not allowed for PACKAGE coupons");
-    }
+    if (services.length > 0) { throw new Error("Services are not allowed for PACKAGE coupons"); }
   }
 
-  if (this.applicableOn === "ALL" || this.applicableOn === "REFERRAL") {
-    this.services = [];
-    this.packages = [];
-  }
+  if (this.applicableOn === "ALL" || this.applicableOn === "REFERRAL") { this.services = []; this.packages = []; }
 
-  if (this.applicableOn === "REFERRAL" && !this.assignedUserId) {
-    throw new Error("assignedUserId is required for REFERRAL coupons");
-  }
+  if (this.applicableOn === "REFERRAL" && !this.assignedUserId) { throw new Error("assignedUserId is required for REFERRAL coupons"); }
 });
 
-couponSchema.index({
-  name: 1,
-});
+couponSchema.index({ name: 1 });
 
-couponSchema.index({
-  isActive: 1,
-  applicableOn: 1,
-  assignedUserId: 1,
-  createdAt: -1,
-});
+couponSchema.index({ isActive: 1, applicableOn: 1, assignedUserId: 1, createdAt: -1 });
 
-couponSchema.index(
-  {
-    name: "text",
-    couponCode: "text",
-  },
-  {
-    name: "CouponTextSearchIndex",
-  },
-);
+couponSchema.index({ name: "text", couponCode: "text", }, { name: "CouponTextSearchIndex" });
 
 export const Coupon = model<ICoupon>("Coupon", couponSchema);

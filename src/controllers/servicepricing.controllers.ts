@@ -1,40 +1,16 @@
 import type { Request, Response } from "express";
-
 import { ServicePricingService } from "../services/servicepricing.service.js";
 
 const getStatusCode = (error: unknown): number => {
-  if (
-    typeof error === "object" &&
-    error !== null &&
-    "statusCode" in error &&
-    typeof (
-      error as {
-        statusCode?: unknown;
-      }
-    ).statusCode === "number"
-  ) {
-    return (
-      error as {
-        statusCode: number;
-      }
-    ).statusCode;
+  if (typeof error === "object" && error !== null && "statusCode" in error && typeof (error as { statusCode?: unknown; }).statusCode === "number") {
+    return (error as { statusCode: number; }).statusCode;
   }
 
-  if (
-    typeof error === "object" &&
-    error !== null &&
-    "name" in error &&
-    (error as { name?: unknown }).name === "ValidationError"
-  ) {
+  if (typeof error === "object" && error !== null && "name" in error && (error as { name?: unknown }).name === "ValidationError") {
     return 400;
   }
 
-  if (
-    typeof error === "object" &&
-    error !== null &&
-    "code" in error &&
-    (error as { code?: unknown }).code === 11000
-  ) {
+  if (typeof error === "object" && error !== null && "code" in error && (error as { code?: unknown }).code === 11000) {
     return 409;
   }
 

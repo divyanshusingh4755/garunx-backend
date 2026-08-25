@@ -20,104 +20,19 @@ export class TaxProfileService {
     }
     static async invalidateDependentPricingCaches() {
         await Promise.all([
-            /*
-             * ServicePricing.resolvePricing()
-             */
+            // ServicePricing.resolvePricing()
             RedisCacheService.deleteByPattern(CacheKeys.serviceResolvedPricingPattern()),
-            /*
-             * Service aggregate responses can
-             * contain populated tax configuration.
-             */
+            // Service aggregate responses can contain populated tax configuration.
             RedisCacheService.deleteByPattern(CacheKeys.serviceFullPattern()),
-            /*
-             * PackageTierPricing.resolvePricing()
-             */
+            // PackageTierPricing.resolvePricing()
             RedisCacheService.deleteByPattern(CacheKeys.packageResolvedPricingPattern()),
-            /*
-             * Package aggregate responses include
-             * PackageTierPricing / tax data.
-             */
+            // Package aggregate responses include PackageTierPricing / tax data.
             RedisCacheService.deleteByPattern(CacheKeys.packageFullPattern()),
         ]);
     }
-    static async getTaxProfileUsage(taxProfileId) {
-        const [servicePricing, packagePricing,] = await Promise.all([
-            ServicePricing.find({
-                taxProfileId,
-                isActive: true,
-            })
-                .populate("serviceId", "name")
-                .populate("locationId", "name")
-                .populate("tierId", "name")
-                .populate("componentId", "name")
-                .select("serviceId locationId tierId componentId")
-                .lean(),
-            PackageTierPricing.find({
-                taxProfileId,
-            })
-                .populate("packageId", "name")
-                .populate("locationId", "name")
-                .populate("tierId", "name")
-                .populate("serviceId", "name")
-                .select("packageId locationId tierId serviceId")
-                .lean(),
-        ]);
-        const serviceMap = new Map();
-        for (const pricing of servicePricing) {
-            const service = pricing.serviceId;
-            if (!service?._id) {
-                continue;
-            }
-            const serviceId = service._id.toString();
-            const existing = serviceMap.get(serviceId);
-            if (existing) {
-                existing.pricingCount += 1;
-            }
-            else {
-                serviceMap.set(serviceId, {
-                    serviceId,
-                    serviceName: service.name ?? "Unknown service",
-                    pricingCount: 1,
-                });
-            }
-        }
-        const packageMap = new Map();
-        for (const pricing of packagePricing) {
-            const packageDocument = pricing.packageId;
-            if (!packageDocument?._id) {
-                continue;
-            }
-            const packageId = packageDocument._id.toString();
-            const existing = packageMap.get(packageId);
-            if (existing) {
-                existing.pricingCount += 1;
-            }
-            else {
-                packageMap.set(packageId, {
-                    packageId,
-                    packageName: packageDocument.name ?? "Unknown package",
-                    pricingCount: 1,
-                });
-            }
-        }
-        const services = Array.from(serviceMap.values());
-        const packages = Array.from(packageMap.values());
-        return {
-            services,
-            packages,
-            summary: {
-                servicePricingCount: servicePricing.length,
-                packagePricingCount: packagePricing.length,
-                affectedServiceCount: services.length,
-                affectedPackageCount: packages.length,
-            },
-        };
-    }
-    static validateObjectId(id, fieldName = "taxProfileId") {
-        if (!Types.ObjectId.isValid(id)) {
-            throw new Error(`Invalid ${fieldName}`);
-        }
-    }
+    static validateObjectId(id, fieldName = "taxProfileId") { if (!Types.ObjectId.isValid(id)) {
+        throw new Error(`Invalid ${fieldName}`);
+    } }
     static toObjectId(value, fieldName) {
         const stringValue = value.toString();
         this.validateObjectId(stringValue, fieldName);
@@ -139,22 +54,12 @@ export class TaxProfileService {
         const code = payload.code.trim().toUpperCase();
         const name = payload.name.trim();
         this.validateTreatmentRate(payload.treatment, payload.totalRate);
-        const existingProfile = await TaxProfile.findOne({
-            code,
-        })
-            .select("_id")
-            .lean();
+        const existingProfile = await TaxProfile.findOne({ code }).select("_id").lean();
         if (existingProfile) {
             throw new Error(`Tax profile with code ${code} already exists`);
         }
         const description = this.normalizeOptionalString(payload.description);
-        const createPayload = {
-            name,
-            code,
-            treatment: payload.treatment,
-            totalRate: payload.totalRate,
-            isActive: true,
-        };
+        const createPayload = { name, code, treatment: payload.treatment, totalRate: payload.totalRate, isActive: true };
         if (description) {
             createPayload.description = description;
         }
@@ -169,92 +74,45 @@ export class TaxProfileService {
             return taxProfile;
         }
         catch (error) {
-            if (error &&
-                typeof error ===
-                    "object" &&
-                "code" in error &&
-                error.code ===
-                    11000) {
+            if (error && typeof error === "object" && "code" in error && error.code === 11000) {
                 throw new Error(`Tax profile with code ${code} already exists`);
             }
             throw error;
         }
     }
     static async getTaxProfiles(filters = {}) {
-        const page = Number.isInteger(filters.page) &&
-            (filters.page ?? 0) > 0
-            ? filters.page
-            : 1;
-        const limit = Number.isInteger(filters.limit) &&
-            (filters.limit ?? 0) > 0
-            ? Math.min(filters.limit, 100)
-            : 20;
+        const page = Number.isInteger(filters.page) && (filters.page ?? 0) > 0 ? filters.page : 1;
+        const limit = Number.isInteger(filters.limit) && (filters.limit ?? 0) > 0 ? Math.min(filters.limit, 100) : 20;
         const normalizedSearch = filters.search?.trim();
-        const cacheKey = CacheKeys.taxProfileList({
-            search: normalizedSearch,
-            treatment: filters.treatment,
-            isActive: filters.isActive,
-            page,
-            limit,
-        });
+        const cacheKey = CacheKeys.taxProfileList({ search: normalizedSearch, treatment: filters.treatment, isActive: filters.isActive, page, limit });
         return RedisCacheService.getOrSet({
             key: cacheKey,
-            ttlSeconds: CACHE_TTL_SECONDS
-                .TAX_PROFILE_LIST,
+            ttlSeconds: CACHE_TTL_SECONDS.TAX_PROFILE_LIST,
             loader: async () => {
-                const skip = (page - 1) *
-                    limit;
+                const skip = (page - 1) * limit;
                 const query = {};
                 if (filters.treatment) {
-                    query.treatment =
-                        filters.treatment;
+                    query.treatment = filters.treatment;
                 }
-                if (typeof filters.isActive ===
-                    "boolean") {
-                    query.isActive =
-                        filters.isActive;
+                if (typeof filters.isActive === "boolean") {
+                    query.isActive = filters.isActive;
                 }
                 if (normalizedSearch) {
-                    const regex = {
-                        $regex: escapeRegex(normalizedSearch),
-                        $options: "i",
-                    };
-                    query.$or = [
-                        {
-                            name: regex,
-                        },
-                        {
-                            code: regex,
-                        },
-                    ];
+                    const regex = { $regex: escapeRegex(normalizedSearch), $options: "i" };
+                    query.$or = [{ name: regex }, { code: regex }];
                 }
-                const [taxProfiles, total,] = await Promise.all([
+                const [taxProfiles, total] = await Promise.all([
                     TaxProfile.find(query)
                         .populate("createdBy", "fullName email role")
-                        .populate("updatedBy", "fullName email role")
-                        .sort({
-                        isActive: -1,
-                        createdAt: -1,
-                    })
+                        .populate("updatedBy", "fullName email role").sort({ isActive: -1, createdAt: -1 })
                         .skip(skip)
                         .limit(limit)
                         .lean(),
                     TaxProfile.countDocuments(query),
                 ]);
-                const totalPages = Math.ceil(total /
-                    limit);
+                const totalPages = Math.ceil(total / limit);
                 return {
-                    data: taxProfiles,
-                    pagination: {
-                        total,
-                        page,
-                        limit,
-                        totalPages,
-                        hasNextPage: page <
-                            totalPages,
-                        hasPreviousPage: page >
-                            1,
-                    },
+                    data: taxProfiles, pagination: { total, page, limit, totalPages, hasNextPage: page < totalPages, hasPreviousPage: page > 1 },
                 };
             },
         });
@@ -262,18 +120,11 @@ export class TaxProfileService {
     static async getActiveTaxProfiles() {
         return RedisCacheService.getOrSet({
             key: CacheKeys.activeTaxProfileList(),
-            ttlSeconds: CACHE_TTL_SECONDS
-                .ACTIVE_TAX_PROFILE_LIST,
+            ttlSeconds: CACHE_TTL_SECONDS.ACTIVE_TAX_PROFILE_LIST,
             loader: async () => {
-                return TaxProfile.find({
-                    isActive: true,
-                })
+                return TaxProfile.find({ isActive: true })
                     .select("name code treatment totalRate")
-                    .sort({
-                    treatment: 1,
-                    totalRate: 1,
-                    name: 1,
-                })
+                    .sort({ treatment: 1, totalRate: 1, name: 1 })
                     .lean();
             },
         });
@@ -282,8 +133,7 @@ export class TaxProfileService {
         this.validateObjectId(taxProfileId);
         return RedisCacheService.getOrSet({
             key: CacheKeys.taxProfileDetail(taxProfileId),
-            ttlSeconds: CACHE_TTL_SECONDS
-                .TAX_PROFILE_DETAIL,
+            ttlSeconds: CACHE_TTL_SECONDS.TAX_PROFILE_DETAIL,
             loader: async () => {
                 const taxProfile = await TaxProfile.findById(taxProfileId)
                     .populate("createdBy", "fullName email role")
@@ -302,39 +152,29 @@ export class TaxProfileService {
         if (!taxProfile) {
             throw new Error("Tax profile not found");
         }
-        const nextTreatment = payload.treatment ??
-            taxProfile.treatment;
-        const nextTotalRate = payload.totalRate ??
-            taxProfile.totalRate;
+        const nextTreatment = payload.treatment ?? taxProfile.treatment;
+        const nextTotalRate = payload.totalRate ?? taxProfile.totalRate;
         this.validateTreatmentRate(nextTreatment, nextTotalRate);
-        if (payload.name !==
-            undefined) {
-            taxProfile.name =
-                payload.name.trim();
+        if (payload.name !== undefined) {
+            taxProfile.name = payload.name.trim();
         }
-        if (payload.treatment !==
-            undefined) {
-            taxProfile.treatment =
-                payload.treatment;
+        if (payload.treatment !== undefined) {
+            taxProfile.treatment = payload.treatment;
         }
-        if (payload.totalRate !==
-            undefined) {
-            taxProfile.totalRate =
-                payload.totalRate;
+        if (payload.totalRate !== undefined) {
+            taxProfile.totalRate = payload.totalRate;
         }
         if (Object.prototype.hasOwnProperty.call(payload, "description")) {
             const description = this.normalizeOptionalString(payload.description);
             if (description) {
-                taxProfile.description =
-                    description;
+                taxProfile.description = description;
             }
             else {
                 taxProfile.set("description", undefined);
             }
         }
         if (payload.updatedBy) {
-            taxProfile.updatedBy =
-                this.toObjectId(payload.updatedBy, "updatedBy");
+            taxProfile.updatedBy = this.toObjectId(payload.updatedBy, "updatedBy");
         }
         const updatedTaxProfile = await taxProfile.save();
         await Promise.all([
@@ -354,53 +194,27 @@ export class TaxProfileService {
                 if (!taxProfile) {
                     throw new Error("Tax profile not found");
                 }
-                if (taxProfile.isActive ===
-                    isActive) {
-                    updatedTaxProfile =
-                        taxProfile;
+                if (taxProfile.isActive === isActive) {
+                    updatedTaxProfile = taxProfile;
                     return;
                 }
-                /*
-                 * Pricing writers also modify
-                 * pricingRevision.
-                 *
-                 * Deactivation writes this same
-                 * TaxProfile document, so concurrent
-                 * pricing/deactivation cannot both
-                 * commit with a stale view.
-                 */
+                // Pricing writers also modify pricingRevision. Deactivation writes this same TaxProfile document, so concurrent pricing/deactivation cannot both commit with a stale view.
                 if (!isActive) {
-                    const [servicePricingCount, packagePricingCount,] = await Promise.all([
-                        ServicePricing.countDocuments({
-                            taxProfileId: objectId,
-                            isActive: true,
-                        }).session(session),
-                        PackageTierPricing
-                            .countDocuments({
-                            taxProfileId: objectId,
-                        })
-                            .session(session),
+                    const [servicePricingCount, packagePricingCount] = await Promise.all([
+                        ServicePricing.countDocuments({ taxProfileId: objectId, isActive: true }).session(session),
+                        PackageTierPricing.countDocuments({ taxProfileId: objectId }).session(session),
                     ]);
-                    if (servicePricingCount >
-                        0 ||
-                        packagePricingCount >
-                            0) {
+                    if (servicePricingCount > 0 || packagePricingCount > 0) {
                         const error = new Error("Cannot deactivate this tax profile because it is used by active service or package pricing. Reassign those pricing records first.");
-                        error.statusCode =
-                            409;
+                        error.statusCode = 409;
                         throw error;
                     }
                 }
-                taxProfile.isActive =
-                    isActive;
+                taxProfile.isActive = isActive;
                 if (updatedBy) {
-                    taxProfile.updatedBy =
-                        this.toObjectId(updatedBy, "updatedBy");
+                    taxProfile.updatedBy = this.toObjectId(updatedBy, "updatedBy");
                 }
-                updatedTaxProfile =
-                    await taxProfile.save({
-                        session,
-                    });
+                updatedTaxProfile = await taxProfile.save({ session });
             });
         }
         finally {
@@ -416,93 +230,29 @@ export class TaxProfileService {
         return updatedTaxProfile;
     }
     static async exportTaxProfilesToCsv(taxProfileIds) {
-        const uniqueTaxProfileIds = [
-            ...new Set(taxProfileIds),
-        ];
-        const taxProfiles = await TaxProfile.find({
-            _id: {
-                $in: uniqueTaxProfileIds,
-            },
-        })
-            .select([
-            "code",
-            "name",
-            "treatment",
-            "totalRate",
-            "description",
-            "isActive",
-            "createdAt",
-            "updatedAt",
-        ].join(" "))
-            .sort({
-            name: 1,
-            _id: 1,
-        })
-            .lean();
+        const uniqueTaxProfileIds = [...new Set(taxProfileIds)];
+        const taxProfiles = await TaxProfile.find({ _id: { $in: uniqueTaxProfileIds } }).select(["code", "name", "treatment", "totalRate", "description", "isActive", "createdAt", "updatedAt"].join(" ")).sort({ name: 1, _id: 1 }).lean();
         if (taxProfiles.length === 0) {
             throw new HttpError(404, "No tax profiles found for export");
         }
         const escapeCsv = (value) => {
-            if (value === null ||
-                value === undefined) {
+            if (value === null || value === undefined) {
                 return "";
             }
             let stringValue = String(value);
-            /*
-             * Protect CSV files opened in Excel /
-             * spreadsheet software from formula
-             * injection.
-             */
+            // Protect CSV files opened in Excel / spreadsheet software from formula injection.
             if (/^[=+\-@]/.test(stringValue.trimStart())) {
-                stringValue =
-                    `'${stringValue}`;
+                stringValue = `'${stringValue}`;
             }
-            if (stringValue.includes(",") ||
-                stringValue.includes('"') ||
-                stringValue.includes("\n") ||
-                stringValue.includes("\r")) {
+            if (stringValue.includes(",") || stringValue.includes('"') || stringValue.includes("\n") || stringValue.includes("\r")) {
                 return `"${stringValue.replace(/"/g, '""')}"`;
             }
             return stringValue;
         };
-        const headers = [
-            "Code",
-            "Name",
-            "Treatment",
-            "Total Rate (%)",
-            "Description",
-            "Active",
-            "Created At",
-            "Updated At",
-        ];
-        const rows = taxProfiles.map((taxProfile) => [
-            taxProfile.code,
-            taxProfile.name,
-            taxProfile.treatment,
-            taxProfile.totalRate,
-            taxProfile.description ?? "",
-            taxProfile.isActive
-                ? "Yes"
-                : "No",
-            taxProfile.createdAt
-                ? new Date(taxProfile.createdAt).toISOString()
-                : "",
-            taxProfile.updatedAt
-                ? new Date(taxProfile.updatedAt).toISOString()
-                : "",
-        ]);
-        const csv = [
-            headers
-                .map(escapeCsv)
-                .join(","),
-            ...rows.map((row) => row
-                .map(escapeCsv)
-                .join(",")),
-        ].join("\n");
-        return {
-            csv,
-            total: taxProfiles.length,
-        };
+        const headers = ["Code", "Name", "Treatment", "Total Rate (%)", "Description", "Active", "Created At", "Updated At"];
+        const rows = taxProfiles.map((taxProfile) => [taxProfile.code, taxProfile.name, taxProfile.treatment, taxProfile.totalRate, taxProfile.description ?? "", taxProfile.isActive ? "Yes" : "No", taxProfile.createdAt ? new Date(taxProfile.createdAt).toISOString() : "", taxProfile.updatedAt ? new Date(taxProfile.updatedAt).toISOString() : ""]);
+        const csv = [headers.map(escapeCsv).join(","), ...rows.map((row) => row.map(escapeCsv).join(","))].join("\n");
+        return { csv, total: taxProfiles.length };
     }
 }
 //# sourceMappingURL=taxprofile.service.js.map

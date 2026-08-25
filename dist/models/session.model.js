@@ -32,14 +32,7 @@ const sessionSchema = new Schema({
     timestamps: true,
 });
 // Auto-delete the session after its refresh token expires.
-sessionSchema.index({
-    expiresAt: 1,
-}, {
-    expireAfterSeconds: 0,
-});
-sessionSchema.index({
-    userId: 1,
-    familyId: 1,
-});
+sessionSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
+sessionSchema.index({ userId: 1, familyId: 1 });
 export const Session = model("Session", sessionSchema);
 //# sourceMappingURL=session.model.js.map

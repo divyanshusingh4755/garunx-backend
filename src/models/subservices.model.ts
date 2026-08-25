@@ -48,21 +48,7 @@ const subServiceComponentSchema = new Schema<ISubServiceComponent>(
   },
 );
 
-subServiceComponentSchema.index({
-  name: 1,
-});
+subServiceComponentSchema.index({ name: 1 });
+subServiceComponentSchema.index({ name: "text", description: "text" }, { name: "SubServiceComponentTextSearchIndex" });
 
-subServiceComponentSchema.index(
-  {
-    name: "text",
-    description: "text",
-  },
-  {
-    name: "SubServiceComponentTextSearchIndex",
-  },
-);
-
-export const SubServiceComponent = model<ISubServiceComponent>(
-  "SubServiceComponent",
-  subServiceComponentSchema,
-);
+export const SubServiceComponent = model<ISubServiceComponent>("SubServiceComponent", subServiceComponentSchema);

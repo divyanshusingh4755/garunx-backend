@@ -24,45 +24,32 @@ export enum TaxTreatment {
 
 export interface ITaxProfileSnapshot {
   taxProfileId: Types.ObjectId;
-
   name: string;
   code: string;
-
   treatment: TaxTreatment;
-
   totalRate: number;
-
   priceMode: TaxPriceMode;
-
   source: TaxSource;
 }
 
 export interface ILineTax {
   profile: ITaxProfileSnapshot;
-
   jurisdiction: TaxJurisdiction;
-
   taxableAmount: number;
-
   cgstRate: number;
   cgstAmount: number;
-
   sgstRate: number;
   sgstAmount: number;
-
   igstRate: number;
   igstAmount: number;
-
   totalTax: number;
   finalAmount: number;
 }
 
 export interface ITaxSummary {
   taxableAmount: number;
-
   cgstAmount: number;
   sgstAmount: number;
   igstAmount: number;
-
   totalTax: number;
 }

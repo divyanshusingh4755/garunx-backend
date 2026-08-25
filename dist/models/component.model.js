@@ -36,25 +36,10 @@ const componentSchema = new Schema({
         default: true,
         index: true,
     },
-}, {
-    timestamps: true,
-});
-componentSchema.index({
-    categoryId: 1,
-});
-componentSchema.index({
-    name: "text",
-    description: "text",
-}, {
-    name: "ComponentTextSearchIndex",
-});
-componentSchema.index({
-    isRemovable: 1,
-    createdAt: -1,
-});
-componentSchema.index({
-    isBundled: 1,
-    createdAt: -1,
-});
+}, { timestamps: true });
+componentSchema.index({ categoryId: 1 });
+componentSchema.index({ name: "text", description: "text" }, { name: "ComponentTextSearchIndex" });
+componentSchema.index({ isRemovable: 1, createdAt: -1 });
+componentSchema.index({ isBundled: 1, createdAt: -1 });
 export const Component = model("Component", componentSchema);
 //# sourceMappingURL=component.model.js.map

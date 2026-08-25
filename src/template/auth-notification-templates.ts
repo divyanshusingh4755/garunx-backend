@@ -1,11 +1,5 @@
-import type {
-    NotificationCategory,
-    NotificationPreferenceMode,
-} from "../models/notification-template.model.js";
-
-import type {
-    NotificationType,
-} from "../models/notification.model.js";
+import type { NotificationCategory, NotificationPreferenceMode } from "../models/notification-template.model.js";
+import type { NotificationType } from "../models/notification.model.js";
 
 interface AuthNotificationTemplateSeed {
     code: string;
@@ -29,14 +23,11 @@ export const AUTH_NOTIFICATION_TEMPLATES:
             category: "SYSTEM",
             preferenceMode: "REQUIRED",
             title: "Security alert",
-            message:
-                "Suspicious session activity was detected. For your security, all active sessions were revoked. Please sign in again and change your password if you did not perform this action.",
+            message: "Suspicious session activity was detected. For your security, all active sessions were revoked. Please sign in again and change your password if you did not perform this action.",
             emailSubject: "Security alert on your account",
-            emailBody:
-                "Suspicious session activity was detected on your account. For your security, all active sessions were revoked. Please sign in again. If this was not you, change your password immediately.",
+            emailBody: "Suspicious session activity was detected on your account. For your security, all active sessions were revoked. Please sign in again. If this was not you, change your password immediately.",
             pushTitle: "Security alert",
-            pushMessage:
-                "Suspicious session activity was detected and all active sessions were revoked.",
+            pushMessage: "Suspicious session activity was detected and all active sessions were revoked.",
             isActive: true,
         },
 
@@ -46,14 +37,11 @@ export const AUTH_NOTIFICATION_TEMPLATES:
             category: "SYSTEM",
             preferenceMode: "REQUIRED",
             title: "Password updated",
-            message:
-                "Your account password was {{action}} successfully. All previous sessions have been signed out for security.",
+            message: "Your account password was {{action}} successfully. All previous sessions have been signed out for security.",
             emailSubject: "Your password was updated",
-            emailBody:
-                "Your account password was {{action}} successfully. All previous sessions have been signed out for security. If you did not perform this action, contact support immediately.",
+            emailBody: "Your account password was {{action}} successfully. All previous sessions have been signed out for security. If you did not perform this action, contact support immediately.",
             pushTitle: "Password updated",
-            pushMessage:
-                "Your password was {{action}} successfully. Previous sessions were signed out.",
+            pushMessage: "Your password was {{action}} successfully. Previous sessions were signed out.",
             isActive: true,
         },
 
@@ -63,14 +51,11 @@ export const AUTH_NOTIFICATION_TEMPLATES:
             category: "SYSTEM",
             preferenceMode: "REQUIRED",
             title: "Account status updated",
-            message:
-                "Your account has been {{accountStatus}}.",
+            message: "Your account has been {{accountStatus}}.",
             emailSubject: "Your account status was updated",
-            emailBody:
-                "Your account has been {{accountStatus}}. If you believe this change is incorrect, please contact support.",
+            emailBody: "Your account has been {{accountStatus}}. If you believe this change is incorrect, please contact support.",
             pushTitle: "Account status updated",
-            pushMessage:
-                "Your account has been {{accountStatus}}.",
+            pushMessage: "Your account has been {{accountStatus}}.",
             isActive: true,
         },
 
@@ -80,14 +65,11 @@ export const AUTH_NOTIFICATION_TEMPLATES:
             category: "SYSTEM",
             preferenceMode: "REQUIRED",
             title: "{{verificationType}} verification updated",
-            message:
-                "Your {{verificationType}} verification is {{status}}. {{details}}",
+            message: "Your {{verificationType}} verification is {{status}}. {{details}}",
             emailSubject: "{{verificationType}} verification updated",
-            emailBody:
-                "Your {{verificationType}} verification is {{status}}. {{details}}",
+            emailBody: "Your {{verificationType}} verification is {{status}}. {{details}}",
             pushTitle: "Verification updated",
-            pushMessage:
-                "Your {{verificationType}} verification is {{status}}.",
+            pushMessage: "Your {{verificationType}} verification is {{status}}.",
             isActive: true,
         },
 
@@ -97,14 +79,11 @@ export const AUTH_NOTIFICATION_TEMPLATES:
             category: "SYSTEM",
             preferenceMode: "REQUIRED",
             title: "Coordinator approval updated",
-            message:
-                "Your coordinator approval status is {{status}}. {{details}}",
+            message: "Your coordinator approval status is {{status}}. {{details}}",
             emailSubject: "Coordinator approval status updated",
-            emailBody:
-                "Your coordinator approval status is {{status}}. {{details}}",
+            emailBody: "Your coordinator approval status is {{status}}. {{details}}",
             pushTitle: "Coordinator status updated",
-            pushMessage:
-                "Your coordinator approval status is {{status}}.",
+            pushMessage: "Your coordinator approval status is {{status}}.",
             isActive: true,
         },
     ];

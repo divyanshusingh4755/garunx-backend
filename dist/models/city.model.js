@@ -52,25 +52,10 @@ const citySchema = new Schema({
             },
         },
     },
-}, {
-    timestamps: true,
-});
-citySchema.index({
-    location: "2dsphere",
-});
-citySchema.index({
-    country: 1,
-    stateId: 1,
-    name: 1,
-});
-citySchema.index({
-    isActive: 1,
-    createdAt: -1,
-});
-citySchema.index({
-    name: "text",
-}, {
-    name: "CityTextSearchIndex",
-});
+}, { timestamps: true });
+citySchema.index({ location: "2dsphere" });
+citySchema.index({ country: 1, stateId: 1, name: 1 });
+citySchema.index({ isActive: 1, createdAt: -1 });
+citySchema.index({ name: "text" }, { name: "CityTextSearchIndex" });
 export const City = model("City", citySchema);
 //# sourceMappingURL=city.model.js.map

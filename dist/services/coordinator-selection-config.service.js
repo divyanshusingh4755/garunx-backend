@@ -1,4 +1,4 @@
-import { CoordinatorSelectionConfig, } from "../models/coordinator-selection-config.model.js";
+import { CoordinatorSelectionConfig } from "../models/coordinator-selection-config.model.js";
 const DEFAULT_SETTINGS = {
     matchCaste: false,
     matchGotra: false,
@@ -10,17 +10,8 @@ const DEFAULT_SETTINGS = {
 };
 export class CoordinatorSelectionConfigService {
     static async getEffectiveConfig() {
-        const config = await CoordinatorSelectionConfig
-            .findOne({
-            key: "DEFAULT",
-            isActive: true,
-        })
-            .lean();
-        /*
-         * Important:
-         * Booking flow must continue working even
-         * before admin creates the first config.
-         */
+        const config = await CoordinatorSelectionConfig.findOne({ key: "DEFAULT", isActive: true }).lean();
+        // Important: Booking flow must continue working even before admin creates the first config.
         if (!config) {
             return DEFAULT_SETTINGS;
         }
@@ -29,34 +20,20 @@ export class CoordinatorSelectionConfigService {
             matchGotra: config.matchGotra,
             minRating: config.minRating,
             minCompletedBookings: config.minCompletedBookings,
-            autoAssignmentEnabled: config.autoAssignmentEnabled ??
-                null,
+            autoAssignmentEnabled: config.autoAssignmentEnabled ?? null,
             sortBy: config.sortBy,
             sortOrder: config.sortOrder,
         };
     }
     static async getAdminConfig() {
-        const config = await CoordinatorSelectionConfig
-            .findOne({
-            key: "DEFAULT",
-        })
-            .lean();
+        const config = await CoordinatorSelectionConfig.findOne({ key: "DEFAULT" }).lean();
         if (!config) {
-            return {
-                key: "DEFAULT",
-                ...DEFAULT_SETTINGS,
-                isActive: true,
-                createdAt: null,
-                updatedAt: null,
-            };
+            return { key: "DEFAULT", ...DEFAULT_SETTINGS, isActive: true, createdAt: null, updatedAt: null };
         }
         return config;
     }
     static async updateConfig(params) {
-        return CoordinatorSelectionConfig
-            .findOneAndUpdate({
-            key: "DEFAULT",
-        }, {
+        return CoordinatorSelectionConfig.findOneAndUpdate({ key: "DEFAULT" }, {
             $set: {
                 matchCaste: params.matchCaste,
                 matchGotra: params.matchGotra,
@@ -68,16 +45,8 @@ export class CoordinatorSelectionConfigService {
                 isActive: params.isActive,
                 updatedBy: params.updatedBy,
             },
-            $setOnInsert: {
-                key: "DEFAULT",
-            },
-        }, {
-            new: true,
-            upsert: true,
-            runValidators: true,
-            setDefaultsOnInsert: true,
-        })
-            .lean();
+            $setOnInsert: { key: "DEFAULT" },
+        }, { new: true, upsert: true, runValidators: true, setDefaultsOnInsert: true }).lean();
     }
 }
 //# sourceMappingURL=coordinator-selection-config.service.js.map

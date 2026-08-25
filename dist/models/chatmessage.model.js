@@ -8,8 +8,7 @@ export var ChatMessageType;
 const isHttpUrl = (value) => {
     try {
         const parsed = new URL(value);
-        return (parsed.protocol === "http:" ||
-            parsed.protocol === "https:");
+        return (parsed.protocol === "http:" || parsed.protocol === "https:");
     }
     catch {
         return false;
@@ -52,9 +51,7 @@ const chatMessageSchema = new Schema({
         ],
         default: [],
         validate: {
-            validator: (value) => Array.isArray(value) &&
-                value.length <=
-                    5,
+            validator: (value) => Array.isArray(value) && value.length <= 5,
             message: "Maximum 5 images are allowed per message",
         },
     },
@@ -74,37 +71,22 @@ const chatMessageSchema = new Schema({
 chatMessageSchema.pre("validate", function () {
     const normalizedText = this.text?.trim();
     const images = this.images ?? [];
-    if (this.type ===
-        ChatMessageType.TEXT) {
+    if (this.type === ChatMessageType.TEXT) {
         if (!normalizedText) {
             throw new Error("Text is required for TEXT message");
         }
-        if (images.length >
-            0) {
+        if (images.length > 0) {
             throw new Error("Text message cannot contain images");
         }
     }
-    if (this.type ===
-        ChatMessageType.IMAGE &&
-        images.length ===
-            0) {
+    if (this.type === ChatMessageType.IMAGE && images.length === 0) {
         throw new Error("At least one image is required for IMAGE message");
     }
     if (!this.clientMessageId?.trim()) {
         throw new Error("Client message ID is required");
     }
 });
-chatMessageSchema.index({
-    conversationId: 1,
-    createdAt: -1,
-    _id: -1,
-});
-chatMessageSchema.index({
-    conversationId: 1,
-    senderId: 1,
-    clientMessageId: 1,
-}, {
-    unique: true,
-});
+chatMessageSchema.index({ conversationId: 1, createdAt: -1, _id: -1 });
+chatMessageSchema.index({ conversationId: 1, senderId: 1, clientMessageId: 1 }, { unique: true, });
 export const ChatMessage = model("ChatMessage", chatMessageSchema);
 //# sourceMappingURL=chatmessage.model.js.map

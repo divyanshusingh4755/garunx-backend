@@ -1,65 +1,36 @@
 import { Schema, Types, model, type Document, type Model } from "mongoose";
 
 export type UserQueryStatus = "PENDING" | "ONGOING" | "RESOLVED" | "REJECTED";
-
-export type UserQueryCategory =
-  | "BOOKING"
-  | "PAYMENT"
-  | "REFUND"
-  | "SERVICE"
-  | "PACKAGE"
-  | "ACCOUNT"
-  | "TECHNICAL"
-  | "OTHER";
-
+export type UserQueryCategory = "BOOKING" | "PAYMENT" | "REFUND" | "SERVICE" | "PACKAGE" | "ACCOUNT" | "TECHNICAL" | "OTHER";
 export type UserQueryPriority = "LOW" | "NORMAL" | "HIGH" | "URGENT";
-
 export type UserQueryRequesterType = "USER" | "COORDINATOR";
-
-export type UserQueryLastAction =
-  | "QUERY_CREATED"
-  | "REQUESTER_REPLIED"
-  | "ADMIN_REPLIED"
-  | "STATUS_CHANGED"
-  | "ASSIGNED"
-  | "PRIORITY_CHANGED"
-  | "CATEGORY_CHANGED"
-  | "QUERY_DELETED";
+export type UserQueryLastAction = "QUERY_CREATED" | "REQUESTER_REPLIED" | "ADMIN_REPLIED" | "STATUS_CHANGED" | "ASSIGNED" | "PRIORITY_CHANGED" | "CATEGORY_CHANGED" | "QUERY_DELETED";
 
 export interface IUserQuery extends Document {
   requesterId: Types.ObjectId;
   requesterType: UserQueryRequesterType;
-
   queryReference: string;
   subject: string;
   category: UserQueryCategory;
   priority: UserQueryPriority;
   status: UserQueryStatus;
-
   assignedAdminId?: Types.ObjectId;
-
   latestMessage?: string;
   latestMessageAt?: Date;
-
   lastAction: UserQueryLastAction;
   lastActionAt: Date;
   lastActionBy: Types.ObjectId;
-
   requesterUnreadCount: number;
   adminUnreadCount: number;
-
   resolvedAt?: Date;
   resolvedBy?: Types.ObjectId;
-
   rejectedAt?: Date;
   rejectedBy?: Types.ObjectId;
   rejectionReason?: string;
-
   isDeleted: boolean;
   deletedAt?: Date;
   deletedBy?: Types.ObjectId;
   deletionReason?: string;
-
   createdAt: Date;
   updatedAt: Date;
 }
@@ -99,16 +70,7 @@ const userQuerySchema = new Schema<IUserQuery>(
 
     category: {
       type: String,
-      enum: [
-        "BOOKING",
-        "PAYMENT",
-        "REFUND",
-        "SERVICE",
-        "PACKAGE",
-        "ACCOUNT",
-        "TECHNICAL",
-        "OTHER",
-      ] satisfies UserQueryCategory[],
+      enum: ["BOOKING", "PAYMENT", "REFUND", "SERVICE", "PACKAGE", "ACCOUNT", "TECHNICAL", "OTHER"] satisfies UserQueryCategory[],
       required: true,
       index: true,
     },
@@ -123,12 +85,7 @@ const userQuerySchema = new Schema<IUserQuery>(
 
     status: {
       type: String,
-      enum: [
-        "PENDING",
-        "ONGOING",
-        "RESOLVED",
-        "REJECTED",
-      ] satisfies UserQueryStatus[],
+      enum: ["PENDING", "ONGOING", "RESOLVED", "REJECTED"] satisfies UserQueryStatus[],
       default: "PENDING",
       required: true,
       index: true,
@@ -153,16 +110,7 @@ const userQuerySchema = new Schema<IUserQuery>(
 
     lastAction: {
       type: String,
-      enum: [
-        "QUERY_CREATED",
-        "REQUESTER_REPLIED",
-        "ADMIN_REPLIED",
-        "STATUS_CHANGED",
-        "ASSIGNED",
-        "PRIORITY_CHANGED",
-        "CATEGORY_CHANGED",
-        "QUERY_DELETED",
-      ] satisfies UserQueryLastAction[],
+      enum: ["QUERY_CREATED", "REQUESTER_REPLIED", "ADMIN_REPLIED", "STATUS_CHANGED", "ASSIGNED", "PRIORITY_CHANGED", "CATEGORY_CHANGED", "QUERY_DELETED"] satisfies UserQueryLastAction[],
       default: "QUERY_CREATED",
       required: true,
     },
@@ -246,66 +194,21 @@ userQuerySchema.pre("validate", function () {
     throw new Error("Resolved query requires resolvedAt and resolvedBy");
   }
 
-  if (
-    this.status === "REJECTED" &&
-    (!this.rejectedAt || !this.rejectedBy || !this.rejectionReason?.trim())
-  ) {
+  if (this.status === "REJECTED" && (!this.rejectedAt || !this.rejectedBy || !this.rejectionReason?.trim())) {
     throw new Error("Rejected query requires rejection details");
   }
 
-  if (
-    this.isDeleted &&
-    (!this.deletedAt || !this.deletedBy || !this.deletionReason?.trim())
-  ) {
+  if (this.isDeleted && (!this.deletedAt || !this.deletedBy || !this.deletionReason?.trim())) {
     throw new Error("Deleted query requires deletion details");
   }
 });
 
-userQuerySchema.index({
-  requesterId: 1,
-  isDeleted: 1,
-  createdAt: -1,
-});
+userQuerySchema.index({ requesterId: 1, isDeleted: 1, createdAt: -1 });
+userQuerySchema.index({ requesterType: 1, isDeleted: 1, createdAt: -1 });
+userQuerySchema.index({ status: 1, isDeleted: 1, createdAt: -1 });
+userQuerySchema.index({ category: 1, status: 1, isDeleted: 1, createdAt: -1 });
+userQuerySchema.index({ priority: 1, status: 1, isDeleted: 1, createdAt: -1 });
+userQuerySchema.index({ assignedAdminId: 1, status: 1, isDeleted: 1, createdAt: -1 });
+userQuerySchema.index({ isDeleted: 1, lastActionAt: -1 });
 
-userQuerySchema.index({
-  requesterType: 1,
-  isDeleted: 1,
-  createdAt: -1,
-});
-
-userQuerySchema.index({
-  status: 1,
-  isDeleted: 1,
-  createdAt: -1,
-});
-
-userQuerySchema.index({
-  category: 1,
-  status: 1,
-  isDeleted: 1,
-  createdAt: -1,
-});
-
-userQuerySchema.index({
-  priority: 1,
-  status: 1,
-  isDeleted: 1,
-  createdAt: -1,
-});
-
-userQuerySchema.index({
-  assignedAdminId: 1,
-  status: 1,
-  isDeleted: 1,
-  createdAt: -1,
-});
-
-userQuerySchema.index({
-  isDeleted: 1,
-  lastActionAt: -1,
-});
-
-export const UserQuery: Model<IUserQuery> = model<IUserQuery>(
-  "UserQuery",
-  userQuerySchema,
-);
+export const UserQuery: Model<IUserQuery> = model<IUserQuery>("UserQuery", userQuerySchema);

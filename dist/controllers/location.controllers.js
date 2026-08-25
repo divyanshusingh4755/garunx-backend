@@ -13,18 +13,8 @@ const getStatusCode = (error) => {
 };
 export const createLocation = async (req, res) => {
     try {
-        const { name, country, stateId, cityId, fullAddress, pincode, image, description, location, } = req.body;
-        const result = await LocationService.createLocation({
-            name,
-            country,
-            stateId,
-            cityId,
-            fullAddress,
-            pincode,
-            image,
-            description,
-            location,
-        });
+        const { name, country, stateId, cityId, fullAddress, pincode, image, description, location } = req.body;
+        const result = await LocationService.createLocation({ name, country, stateId, cityId, fullAddress, pincode, image, description, location });
         return res.status(201).json({
             success: true,
             message: "Location created successfully",
@@ -56,33 +46,18 @@ export const updateLocation = async (req, res) => {
 };
 export const getAllLocation = async (req, res) => {
     try {
-        const { searchTerm, countryFilter, stateIdFilter, cityIdFilter, pincodeFilter, limit, page, sortBy, sortOrder, } = req.query;
+        const { searchTerm, countryFilter, stateIdFilter, cityIdFilter, pincodeFilter, limit, page, sortBy, sortOrder } = req.query;
         const result = await LocationService.findLocation({
             limit: limit ? Number(limit) : 40,
             page: page ? Number(page) : 1,
             isActive: true,
-            sortBy: typeof sortBy === "string"
-                ? sortBy
-                : "createdAt",
-            sortOrder: sortOrder === "asc" ||
-                sortOrder === "desc"
-                ? sortOrder
-                : "desc",
-            ...(typeof searchTerm === "string" && {
-                searchTerm,
-            }),
-            ...(typeof countryFilter === "string" && {
-                countryFilter,
-            }),
-            ...(typeof stateIdFilter === "string" && {
-                stateIdFilter,
-            }),
-            ...(typeof cityIdFilter === "string" && {
-                cityIdFilter,
-            }),
-            ...(typeof pincodeFilter === "string" && {
-                pincodeFilter,
-            }),
+            sortBy: typeof sortBy === "string" ? sortBy : "createdAt",
+            sortOrder: sortOrder === "asc" || sortOrder === "desc" ? sortOrder : "desc",
+            ...(typeof searchTerm === "string" && { searchTerm }),
+            ...(typeof countryFilter === "string" && { countryFilter }),
+            ...(typeof stateIdFilter === "string" && { stateIdFilter }),
+            ...(typeof cityIdFilter === "string" && { cityIdFilter }),
+            ...(typeof pincodeFilter === "string" && { pincodeFilter }),
         });
         return res.status(200).json({
             success: true,
@@ -92,8 +67,7 @@ export const getAllLocation = async (req, res) => {
     catch (error) {
         return res.status(getStatusCode(error)).json({
             success: false,
-            message: error.message ||
-                "Failed to fetch locations",
+            message: error.message || "Failed to fetch locations",
         });
     }
 };
@@ -156,40 +130,19 @@ export const getLocationIds = async (req, res) => {
 };
 export const getAllLocationsAdmin = async (req, res) => {
     try {
-        const { searchTerm, countryFilter, stateIdFilter, cityIdFilter, pincodeFilter, limit, page, isActive, sortBy, sortOrder, } = req.query;
-        const activeStatus = isActive === "true"
-            ? true
-            : isActive === "false"
-                ? false
-                : undefined;
+        const { searchTerm, countryFilter, stateIdFilter, cityIdFilter, pincodeFilter, limit, page, isActive, sortBy, sortOrder } = req.query;
+        const activeStatus = isActive === "true" ? true : isActive === "false" ? false : undefined;
         const result = await LocationService.findLocation({
             limit: limit ? Number(limit) : 40,
             page: page ? Number(page) : 1,
-            sortBy: typeof sortBy === "string"
-                ? sortBy
-                : "createdAt",
-            sortOrder: sortOrder === "asc" ||
-                sortOrder === "desc"
-                ? sortOrder
-                : "desc",
-            ...(typeof searchTerm === "string" && {
-                searchTerm,
-            }),
-            ...(typeof countryFilter === "string" && {
-                countryFilter,
-            }),
-            ...(typeof stateIdFilter === "string" && {
-                stateIdFilter,
-            }),
-            ...(typeof cityIdFilter === "string" && {
-                cityIdFilter,
-            }),
-            ...(typeof pincodeFilter === "string" && {
-                pincodeFilter,
-            }),
-            ...(typeof activeStatus === "boolean" && {
-                isActive: activeStatus,
-            }),
+            sortBy: typeof sortBy === "string" ? sortBy : "createdAt",
+            sortOrder: sortOrder === "asc" || sortOrder === "desc" ? sortOrder : "desc",
+            ...(typeof searchTerm === "string" && { searchTerm }),
+            ...(typeof countryFilter === "string" && { countryFilter }),
+            ...(typeof stateIdFilter === "string" && { stateIdFilter }),
+            ...(typeof cityIdFilter === "string" && { cityIdFilter }),
+            ...(typeof pincodeFilter === "string" && { pincodeFilter }),
+            ...(typeof activeStatus === "boolean" && { isActive: activeStatus }),
         });
         return res.status(200).json({
             success: true,
@@ -199,25 +152,21 @@ export const getAllLocationsAdmin = async (req, res) => {
     catch (error) {
         return res.status(getStatusCode(error)).json({
             success: false,
-            message: error.message ||
-                "Failed to fetch locations",
+            message: error.message || "Failed to fetch locations",
         });
     }
 };
 export const exportLocationsCsv = async (req, res) => {
     try {
-        const { locationIds, } = req.body;
+        const { locationIds } = req.body;
         const result = await LocationService.exportLocationsToCsv(locationIds);
-        const timestamp = new Date()
-            .toISOString()
-            .replace(/[:.]/g, "-");
+        const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
         res.setHeader("Content-Type", "text/csv; charset=utf-8");
         res.setHeader("Content-Disposition", `attachment; filename="locations-${timestamp}.csv"`);
         return res.status(200).send(result.csv);
     }
     catch (error) {
-        if (error.message ===
-            "No locations found for export") {
+        if (error.message === "No locations found for export") {
             return res.status(404).json({
                 success: false,
                 message: error.message,
@@ -225,8 +174,7 @@ export const exportLocationsCsv = async (req, res) => {
         }
         return res.status(getStatusCode(error)).json({
             success: false,
-            message: error.message ||
-                "Failed to export locations",
+            message: error.message || "Failed to export locations"
         });
     }
 };

@@ -66,25 +66,8 @@ const packageTierMapSchema = new Schema<IPackageTierMap>(
   },
 );
 
-packageTierMapSchema.index(
-  {
-    packageId: 1,
-    tierId: 1,
-  },
-  {
-    unique: true,
-    name:
-      "UniquePackageTierMapping",
-  },
-);
+packageTierMapSchema.index({ packageId: 1, tierId: 1 }, { unique: true, name: "UniquePackageTierMapping" });
 
-packageTierServiceSchema.pre("validate", function () {
-  if (this.isRequired && this.isRelated) {
-    throw new Error("A service cannot be both required and related");
-  }
-});
+packageTierServiceSchema.pre("validate", function () { if (this.isRequired && this.isRelated) { throw new Error("A service cannot be both required and related"); } });
 
-export const PackageTierMap = model<IPackageTierMap>(
-  "PackageTierMap",
-  packageTierMapSchema,
-);
+export const PackageTierMap = model<IPackageTierMap>("PackageTierMap", packageTierMapSchema);

@@ -1,10 +1,6 @@
 import { model, Schema, type Document } from "mongoose";
 
-export type FaqType =
-  | "User"
-  | "Coordinator"
-  | "User_Query"
-  | "Coordinator_Query";
+export type FaqType = "User" | "Coordinator" | "User_Query" | "Coordinator_Query";
 
 export interface IFAQ extends Document {
   version: number;
@@ -66,25 +62,8 @@ const faqSchema = new Schema<IFAQ>(
   },
 );
 
-faqSchema.index({
-  name: 1,
-});
-
-faqSchema.index(
-  {
-    name: "text",
-    question: "text",
-    answer: "text",
-  },
-  {
-    name: "FAQTextSearchIndex",
-  },
-);
-
-faqSchema.index({
-  faqType: 1,
-  isActive: 1,
-  displayOrder: 1,
-});
+faqSchema.index({ name: 1 });
+faqSchema.index({ name: "text", question: "text", answer: "text" }, { name: "FAQTextSearchIndex" });
+faqSchema.index({ faqType: 1, isActive: 1, displayOrder: 1 });
 
 export const FAQ = model<IFAQ>("FAQ", faqSchema);

@@ -1,14 +1,7 @@
 export const COUPON_NOTIFICATION_TEMPLATES = [
     {
         code: "REFERRAL_COUPON_ASSIGNED",
-        /*
-         * NotificationType currently does not contain PROMOTIONAL.
-         * Keep the transport type as SYSTEM for now, while the category
-         * remains PROMOTIONAL so user promotional preferences are respected.
-         *
-         * If PROMOTIONAL is later added to NOTIFICATION_TYPES,
-         * change this type to "PROMOTIONAL".
-         */
+        // NotificationType currently does not contain PROMOTIONAL. Keep the transport type as SYSTEM for now, while the category remains PROMOTIONAL so user promotional preferences are respected. If PROMOTIONAL is later added to NOTIFICATION_TYPES, change this type to "PROMOTIONAL".
         type: "SYSTEM",
         category: "PROMOTIONAL",
         preferenceMode: "OPTIONAL",

@@ -20,10 +20,7 @@ const reviewSchema = new Schema({
     },
     direction: {
         type: String,
-        enum: [
-            "CUSTOMER_TO_COORDINATOR",
-            "COORDINATOR_TO_CUSTOMER",
-        ],
+        enum: ["CUSTOMER_TO_COORDINATOR", "COORDINATOR_TO_CUSTOMER"],
         required: true,
     },
     rating: {
@@ -104,36 +101,11 @@ reviewSchema.pre("validate", function () {
         this.deletedAt = new Date();
     }
 });
-reviewSchema.index({
-    bookingId: 1,
-    reviewerId: 1,
-}, {
-    unique: true,
-    name: "UniqueReviewerPerBooking",
-});
-reviewSchema.index({
-    revieweeId: 1,
-    createdAt: -1,
-});
-reviewSchema.index({
-    reviewerId: 1,
-    createdAt: -1,
-});
-reviewSchema.index({
-    bookingId: 1,
-    direction: 1,
-});
-reviewSchema.index({
-    revieweeId: 1,
-    visibility: 1,
-    isDeleted: 1,
-    createdAt: -1,
-});
-reviewSchema.index({
-    moderationStatus: 1,
-    visibility: 1,
-    isDeleted: 1,
-    createdAt: -1,
-});
+reviewSchema.index({ bookingId: 1, reviewerId: 1 }, { unique: true, name: "UniqueReviewerPerBooking" });
+reviewSchema.index({ revieweeId: 1, createdAt: -1 });
+reviewSchema.index({ reviewerId: 1, createdAt: -1 });
+reviewSchema.index({ bookingId: 1, direction: 1 });
+reviewSchema.index({ revieweeId: 1, visibility: 1, isDeleted: 1, createdAt: -1 });
+reviewSchema.index({ moderationStatus: 1, visibility: 1, isDeleted: 1, createdAt: -1 });
 export const Review = model("Review", reviewSchema);
 //# sourceMappingURL=review.model.js.map

@@ -6,9 +6,7 @@ import { CacheKeys } from "../cache/cache-keys.js";
 import { CACHE_TTL_SECONDS } from "../cache/constants.js";
 export class FAQService {
     static async invalidateFaqCache(faqId) {
-        const operations = [
-            RedisCacheService.deleteByPattern(CacheKeys.faqListPattern()),
-        ];
+        const operations = [RedisCacheService.deleteByPattern(CacheKeys.faqListPattern()),];
         if (faqId) {
             operations.push(RedisCacheService.delete(CacheKeys.faqDetail(faqId)));
         }
@@ -51,8 +49,7 @@ export class FAQService {
         this.ensureValidId(id);
         return RedisCacheService.getOrSet({
             key: CacheKeys.faqDetail(id),
-            ttlSeconds: CACHE_TTL_SECONDS
-                .FAQ_DETAIL,
+            ttlSeconds: CACHE_TTL_SECONDS.FAQ_DETAIL,
             loader: async () => {
                 const faq = await FAQ.findById(id).lean();
                 if (!faq) {
@@ -77,148 +74,76 @@ export class FAQService {
         if (!faq) {
             throw new Error("FAQ not found");
         }
-        faq.isActive =
-            !faq.isActive;
+        faq.isActive = !faq.isActive;
         const updatedFaq = await faq.save();
         await this.invalidateFaqCache(id);
         return updatedFaq;
     }
     static async findFaqs(searchTerm, faqType, limit = 20, page = 1, isActive, sortBy = "displayOrder", sortOrder = "asc") {
-        const safeLimit = Number.isInteger(limit) &&
-            limit > 0
-            ? Math.min(limit, 100)
-            : 20;
-        const safePage = Number.isInteger(page) &&
-            page > 0
-            ? page
-            : 1;
+        const safeLimit = Number.isInteger(limit) && limit > 0 ? Math.min(limit, 100) : 20;
+        const safePage = Number.isInteger(page) && page > 0 ? page : 1;
         const normalizedSearch = searchTerm?.trim();
-        const isTextSearch = Boolean(normalizedSearch &&
-            normalizedSearch.length > 4);
-        const allowedSortFields = new Set([
-            "displayOrder",
-            "createdAt",
-            "updatedAt",
-            "name",
-            "faqType",
-            "isActive",
-            "relevance",
-        ]);
-        const safeSortBy = allowedSortFields.has(sortBy)
-            ? sortBy
-            : "displayOrder";
-        const effectiveSortBy = safeSortBy === "relevance" &&
-            !isTextSearch
-            ? "displayOrder"
-            : safeSortBy;
-        const cacheKey = CacheKeys.faqList({
-            searchTerm: normalizedSearch,
-            faqType,
-            limit: safeLimit,
-            page: safePage,
-            isActive,
-            sortBy: effectiveSortBy,
-            sortOrder,
-        });
+        const isTextSearch = Boolean(normalizedSearch && normalizedSearch.length > 4);
+        const allowedSortFields = new Set(["displayOrder", "createdAt", "updatedAt", "name", "faqType", "isActive", "relevance",]);
+        const safeSortBy = allowedSortFields.has(sortBy) ? sortBy : "displayOrder";
+        const effectiveSortBy = safeSortBy === "relevance" && !isTextSearch ? "displayOrder" : safeSortBy;
+        const cacheKey = CacheKeys.faqList({ searchTerm: normalizedSearch, faqType, limit: safeLimit, page: safePage, isActive, sortBy: effectiveSortBy, sortOrder });
         return RedisCacheService.getOrSet({
             key: cacheKey,
-            ttlSeconds: CACHE_TTL_SECONDS
-                .FAQ_LIST,
+            ttlSeconds: CACHE_TTL_SECONDS.FAQ_LIST,
             loader: async () => {
-                const skip = safeLimit *
-                    (safePage - 1);
+                const skip = safeLimit * (safePage - 1);
                 const query = {};
                 if (faqType) {
-                    query.faqType =
-                        faqType;
+                    query.faqType = faqType;
                 }
-                if (typeof isActive ===
-                    "boolean") {
-                    query.isActive =
-                        isActive;
+                if (typeof isActive === "boolean") {
+                    query.isActive = isActive;
                 }
                 if (normalizedSearch) {
                     if (isTextSearch) {
-                        query.$text = {
-                            $search: normalizedSearch,
-                        };
+                        query.$text = { $search: normalizedSearch };
                     }
                     else {
-                        query.name = {
-                            $regex: `^${escapeRegex(normalizedSearch)}`,
-                            $options: "i",
-                        };
+                        query.name = { $regex: `^${escapeRegex(normalizedSearch)}`, $options: "i" };
                     }
                 }
                 let projection = {};
                 let sortCriteria;
-                if (isTextSearch &&
-                    effectiveSortBy ===
-                        "relevance") {
-                    projection = {
-                        score: {
-                            $meta: "textScore",
-                        },
-                    };
-                    sortCriteria = {
-                        score: {
-                            $meta: "textScore",
-                        },
-                    };
+                if (isTextSearch && effectiveSortBy === "relevance") {
+                    projection = { score: { $meta: "textScore" } };
+                    sortCriteria = { score: { $meta: "textScore" } };
                 }
                 else {
-                    sortCriteria = {
-                        [effectiveSortBy]: sortOrder ===
-                            "desc"
-                            ? -1
-                            : 1,
-                    };
-                    if (effectiveSortBy !==
-                        "createdAt") {
-                        sortCriteria.createdAt =
-                            -1;
+                    sortCriteria = { [effectiveSortBy]: sortOrder === "desc" ? -1 : 1 };
+                    if (effectiveSortBy !== "createdAt") {
+                        sortCriteria.createdAt = -1;
                     }
                 }
                 try {
                     const [data, total,] = await Promise.all([
-                        FAQ.find(query, projection)
-                            .sort(sortCriteria)
-                            .skip(skip)
-                            .limit(safeLimit)
-                            .lean(),
+                        FAQ.find(query, projection).sort(sortCriteria).skip(skip).limit(safeLimit).lean(),
                         FAQ.countDocuments(query),
                     ]);
                     return {
-                        data,
-                        total,
-                        page: safePage,
-                        limit: safeLimit,
-                        totalPages: Math.ceil(total /
-                            safeLimit),
+                        data, total, page: safePage, limit: safeLimit, totalPages: Math.ceil(total / safeLimit),
                     };
                 }
                 catch (error) {
-                    const message = error instanceof Error
-                        ? error.message
-                        : "Unknown error";
+                    const message = error instanceof Error ? error.message : "Unknown error";
                     throw new Error(`FAQ fetch failed: ${message}`);
                 }
             },
         });
     }
     static async exportFaqsToCsv(faqIds) {
-        if (!Array.isArray(faqIds) ||
-            faqIds.length ===
-                0) {
+        if (!Array.isArray(faqIds) || faqIds.length === 0) {
             throw new Error("At least one FAQ ID is required");
         }
-        if (faqIds.length >
-            1000) {
+        if (faqIds.length > 1000) {
             throw new Error("A maximum of 1000 FAQs can be exported at once");
         }
-        const uniqueFaqIds = [
-            ...new Set(faqIds),
-        ];
+        const uniqueFaqIds = [...new Set(faqIds),];
         for (const faqId of uniqueFaqIds) {
             if (!Types.ObjectId.isValid(faqId)) {
                 throw new Error("Invalid FAQ ID");
@@ -226,57 +151,22 @@ export class FAQService {
         }
         const faqObjectIds = uniqueFaqIds.map((faqId) => new Types.ObjectId(faqId));
         const faqs = await FAQ.find({
-            _id: {
-                $in: faqObjectIds,
-            },
-        })
-            .select([
-            "version",
-            "name",
-            "question",
-            "answer",
-            "faqType",
-            "isActive",
-            "displayOrder",
-            "createdAt",
-            "updatedAt",
-        ].join(" "))
-            .lean();
-        if (faqs.length ===
-            0) {
+            _id: { $in: faqObjectIds },
+        }).select(["version", "name", "question", "answer", "faqType", "isActive", "displayOrder", "createdAt", "updatedAt",].join(" ")).lean();
+        if (faqs.length === 0) {
             throw new Error("No FAQs found for export");
         }
-        /*
-         * Preserve the same order in which
-         * IDs were received from frontend.
-         */
-        const faqMap = new Map(faqs.map((faq) => [
-            faq._id
-                .toString(),
-            faq,
-        ]));
-        const orderedFaqs = uniqueFaqIds
-            .map((faqId) => faqMap.get(faqId))
-            .filter((faq) => Boolean(faq));
+        // Preserve the same order in which IDs were received from frontend.
+        const faqMap = new Map(faqs.map((faq) => [faq._id.toString(), faq,]));
+        const orderedFaqs = uniqueFaqIds.map((faqId) => faqMap.get(faqId)).filter((faq) => Boolean(faq));
         const escapeCsv = (value) => {
-            if (value ===
-                null ||
-                value ===
-                    undefined) {
+            if (value === null || value === undefined) {
                 return "";
             }
             const stringValue = String(value);
-            /*
-             * Protect spreadsheet applications
-             * from formula injection.
-             */
-            const safeValue = /^[=+\-@]/.test(stringValue)
-                ? `'${stringValue}`
-                : stringValue;
-            if (safeValue.includes(",") ||
-                safeValue.includes('"') ||
-                safeValue.includes("\n") ||
-                safeValue.includes("\r")) {
+            // Protect spreadsheet applications from formula injection.
+            const safeValue = /^[=+\-@]/.test(stringValue) ? `'${stringValue}` : stringValue;
+            if (safeValue.includes(",") || safeValue.includes('"') || safeValue.includes("\n") || safeValue.includes("\r")) {
                 return `"${safeValue.replace(/"/g, '""')}"`;
             }
             return safeValue;
@@ -289,46 +179,12 @@ export class FAQService {
             if (Number.isNaN(date.getTime())) {
                 return "";
             }
-            return date
-                .toISOString();
+            return date.toISOString();
         };
-        const headers = [
-            "FAQ ID",
-            "Version",
-            "Name",
-            "Question",
-            "Answer",
-            "FAQ Type",
-            "Active",
-            "Display Order",
-            "Created At",
-            "Updated At",
-        ];
-        const rows = orderedFaqs.map((faq) => [
-            faq._id
-                .toString(),
-            faq.version,
-            faq.name,
-            faq.question,
-            faq.answer,
-            faq.faqType,
-            faq.isActive,
-            faq.displayOrder,
-            formatDate(faq.createdAt),
-            formatDate(faq.updatedAt),
-        ]);
-        const csv = [
-            headers
-                .map(escapeCsv)
-                .join(","),
-            ...rows.map((row) => row
-                .map(escapeCsv)
-                .join(",")),
-        ].join("\n");
-        return {
-            csv,
-            total: orderedFaqs.length,
-        };
+        const headers = ["FAQ ID", "Version", "Name", "Question", "Answer", "FAQ Type", "Active", "Display Order", "Created At", "Updated At",];
+        const rows = orderedFaqs.map((faq) => [faq._id.toString(), faq.version, faq.name, faq.question, faq.answer, faq.faqType, faq.isActive, faq.displayOrder, formatDate(faq.createdAt), formatDate(faq.updatedAt),]);
+        const csv = [headers.map(escapeCsv).join(","), ...rows.map((row) => row.map(escapeCsv).join(",")),].join("\n");
+        return { csv, total: orderedFaqs.length };
     }
 }
 //# sourceMappingURL=faq.service.js.map

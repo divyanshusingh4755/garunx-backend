@@ -1,11 +1,6 @@
 import { validationResult } from "express-validator";
 import { RbacService } from "../services/rbac.service.js";
-const isDuplicateKeyError = (error) => {
-    return (typeof error === "object" &&
-        error !== null &&
-        "code" in error &&
-        error.code === 11000);
-};
+const isDuplicateKeyError = (error) => { return (typeof error === "object" && error !== null && "code" in error && error.code === 11000); };
 export const createPermission = async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -17,12 +12,7 @@ export const createPermission = async (req, res) => {
         return;
     }
     try {
-        const permission = await RbacService.createPermission({
-            name: req.body.name,
-            key: req.body.key,
-            module: req.body.module,
-            description: req.body.description,
-        });
+        const permission = await RbacService.createPermission({ name: req.body.name, key: req.body.key, module: req.body.module, description: req.body.description });
         res.status(201).json({
             success: true,
             message: "Permission created successfully",
@@ -30,19 +20,15 @@ export const createPermission = async (req, res) => {
         });
     }
     catch (error) {
-        const message = error instanceof Error
-            ? error.message
-            : "Unable to create permission";
-        if (message ===
-            "Permission with this key already exists") {
+        const message = error instanceof Error ? error.message : "Unable to create permission";
+        if (message === "Permission with this key already exists") {
             res.status(409).json({
                 success: false,
                 message,
             });
             return;
         }
-        if (message ===
-            "Permission key module must match the module field") {
+        if (message === "Permission key module must match the module field") {
             res.status(400).json({
                 success: false,
                 message,
@@ -66,31 +52,15 @@ export const getPermissions = async (req, res) => {
         return;
     }
     try {
-        const module = typeof req.query.module === "string"
-            ? req.query.module
-            : undefined;
-        const isActive = typeof req.query.isActive === "string"
-            ? req.query.isActive === "true"
-            : undefined;
-        const page = typeof req.query.page === "string"
-            ? Number(req.query.page)
-            : undefined;
-        const limit = typeof req.query.limit === "string"
-            ? Number(req.query.limit)
-            : undefined;
+        const module = typeof req.query.module === "string" ? req.query.module : undefined;
+        const isActive = typeof req.query.isActive === "string" ? req.query.isActive === "true" : undefined;
+        const page = typeof req.query.page === "string" ? Number(req.query.page) : undefined;
+        const limit = typeof req.query.limit === "string" ? Number(req.query.limit) : undefined;
         const result = await RbacService.getPermissions({
-            ...(module !== undefined && {
-                module,
-            }),
-            ...(isActive !== undefined && {
-                isActive,
-            }),
-            ...(page !== undefined && {
-                page,
-            }),
-            ...(limit !== undefined && {
-                limit,
-            }),
+            ...(module !== undefined && { module }),
+            ...(isActive !== undefined && { isActive }),
+            ...(page !== undefined && { page }),
+            ...(limit !== undefined && { limit }),
         });
         res.status(200).json({
             success: true,
@@ -126,9 +96,7 @@ export const getPermissionById = async (req, res) => {
         });
     }
     catch (error) {
-        const message = error instanceof Error
-            ? error.message
-            : "Unable to fetch permission";
+        const message = error instanceof Error ? error.message : "Unable to fetch permission";
         if (message === "Permission not found") {
             res.status(404).json({
                 success: false,
@@ -167,9 +135,7 @@ export const updatePermission = async (req, res) => {
         });
     }
     catch (error) {
-        const message = error instanceof Error
-            ? error.message
-            : "Unable to update permission";
+        const message = error instanceof Error ? error.message : "Unable to update permission";
         if (message === "Permission not found") {
             res.status(404).json({
                 success: false,
@@ -177,17 +143,14 @@ export const updatePermission = async (req, res) => {
             });
             return;
         }
-        if (message ===
-            "Permission with this key already exists" ||
-            isDuplicateKeyError(error)) {
+        if (message === "Permission with this key already exists" || isDuplicateKeyError(error)) {
             res.status(409).json({
                 success: false,
                 message: "Permission with this key already exists",
             });
             return;
         }
-        if (message ===
-            "Permission key module must match the module field") {
+        if (message === "Permission key module must match the module field") {
             res.status(400).json({
                 success: false,
                 message,
@@ -214,16 +177,12 @@ export const updatePermissionStatus = async (req, res) => {
         const permission = await RbacService.updatePermissionStatus(String(req.params.id), req.body.isActive);
         res.status(200).json({
             success: true,
-            message: permission.isActive
-                ? "Permission activated successfully"
-                : "Permission deactivated successfully",
+            message: permission.isActive ? "Permission activated successfully" : "Permission deactivated successfully",
             data: permission,
         });
     }
     catch (error) {
-        const message = error instanceof Error
-            ? error.message
-            : "Unable to update permission status";
+        const message = error instanceof Error ? error.message : "Unable to update permission status";
         if (message === "Permission not found") {
             res.status(404).json({
                 success: false,
@@ -261,19 +220,15 @@ export const createRole = async (req, res) => {
         });
     }
     catch (error) {
-        const message = error instanceof Error
-            ? error.message
-            : "Unable to create role";
-        if (message ===
-            "Role with this key already exists" || isDuplicateKeyError(error)) {
+        const message = error instanceof Error ? error.message : "Unable to create role";
+        if (message === "Role with this key already exists" || isDuplicateKeyError(error)) {
             res.status(409).json({
                 success: false,
                 message: "Role with this key already exists",
             });
             return;
         }
-        if (message ===
-            "One or more permissions are invalid or inactive") {
+        if (message === "One or more permissions are invalid or inactive") {
             res.status(400).json({
                 success: false,
                 message,
@@ -297,25 +252,13 @@ export const getRoles = async (req, res) => {
         return;
     }
     try {
-        const isActive = typeof req.query.isActive === "string"
-            ? req.query.isActive === "true"
-            : undefined;
-        const page = typeof req.query.page === "string"
-            ? Number(req.query.page)
-            : undefined;
-        const limit = typeof req.query.limit === "string"
-            ? Number(req.query.limit)
-            : undefined;
+        const isActive = typeof req.query.isActive === "string" ? req.query.isActive === "true" : undefined;
+        const page = typeof req.query.page === "string" ? Number(req.query.page) : undefined;
+        const limit = typeof req.query.limit === "string" ? Number(req.query.limit) : undefined;
         const result = await RbacService.getRoles({
-            ...(isActive !== undefined && {
-                isActive,
-            }),
-            ...(page !== undefined && {
-                page,
-            }),
-            ...(limit !== undefined && {
-                limit,
-            }),
+            ...(isActive !== undefined && { isActive }),
+            ...(page !== undefined && { page }),
+            ...(limit !== undefined && { limit }),
         });
         res.status(200).json({
             success: true,
@@ -350,9 +293,7 @@ export const getRoleById = async (req, res) => {
         });
     }
     catch (error) {
-        const message = error instanceof Error
-            ? error.message
-            : "Unable to fetch role";
+        const message = error instanceof Error ? error.message : "Unable to fetch role";
         if (message === "Role not found") {
             res.status(404).json({
                 success: false,
@@ -390,9 +331,7 @@ export const updateRole = async (req, res) => {
         });
     }
     catch (error) {
-        const message = error instanceof Error
-            ? error.message
-            : "Unable to update role";
+        const message = error instanceof Error ? error.message : "Unable to update role";
         if (message === "Role not found") {
             res.status(404).json({
                 success: false,
@@ -400,17 +339,14 @@ export const updateRole = async (req, res) => {
             });
             return;
         }
-        if (message ===
-            "Role with this key already exists" ||
-            isDuplicateKeyError(error)) {
+        if (message === "Role with this key already exists" || isDuplicateKeyError(error)) {
             res.status(409).json({
                 success: false,
                 message: "Role with this key already exists",
             });
             return;
         }
-        if (message ===
-            "System role cannot be modified") {
+        if (message === "System role cannot be modified") {
             res.status(400).json({
                 success: false,
                 message,
@@ -437,16 +373,12 @@ export const updateRoleStatus = async (req, res) => {
         const role = await RbacService.updateRoleStatus(String(req.params.id), req.body.isActive);
         res.status(200).json({
             success: true,
-            message: role.isActive
-                ? "Role activated successfully"
-                : "Role deactivated successfully",
+            message: role.isActive ? "Role activated successfully" : "Role deactivated successfully",
             data: role,
         });
     }
     catch (error) {
-        const message = error instanceof Error
-            ? error.message
-            : "Unable to update role status";
+        const message = error instanceof Error ? error.message : "Unable to update role status";
         if (message === "Role not found") {
             res.status(404).json({
                 success: false,
@@ -454,8 +386,7 @@ export const updateRoleStatus = async (req, res) => {
             });
             return;
         }
-        if (message ===
-            "System role status cannot be changed") {
+        if (message === "System role status cannot be changed") {
             res.status(400).json({
                 success: false,
                 message,
@@ -479,10 +410,7 @@ export const addRolePermissions = async (req, res) => {
         return;
     }
     try {
-        const role = await RbacService.addRolePermissions({
-            roleId: String(req.params.id),
-            permissions: req.body.permissions,
-        });
+        const role = await RbacService.addRolePermissions({ roleId: String(req.params.id), permissions: req.body.permissions });
         res.status(200).json({
             success: true,
             message: "Permissions added to role successfully",
@@ -490,9 +418,7 @@ export const addRolePermissions = async (req, res) => {
         });
     }
     catch (error) {
-        const message = error instanceof Error
-            ? error.message
-            : "Unable to add permissions to role";
+        const message = error instanceof Error ? error.message : "Unable to add permissions to role";
         if (message === "Role not found") {
             res.status(404).json({
                 success: false,
@@ -500,10 +426,7 @@ export const addRolePermissions = async (req, res) => {
             });
             return;
         }
-        if (message ===
-            "One or more permissions are invalid or inactive" ||
-            message ===
-                "System role permissions cannot be modified") {
+        if (message === "One or more permissions are invalid or inactive" || message === "System role permissions cannot be modified") {
             res.status(400).json({
                 success: false,
                 message,
@@ -535,9 +458,7 @@ export const removeRolePermission = async (req, res) => {
         });
     }
     catch (error) {
-        const message = error instanceof Error
-            ? error.message
-            : "Unable to remove permission from role";
+        const message = error instanceof Error ? error.message : "Unable to remove permission from role";
         if (message === "Role not found") {
             res.status(404).json({
                 success: false,
@@ -545,16 +466,14 @@ export const removeRolePermission = async (req, res) => {
             });
             return;
         }
-        if (message ===
-            "Permission is not assigned to this role") {
+        if (message === "Permission is not assigned to this role") {
             res.status(400).json({
                 success: false,
                 message,
             });
             return;
         }
-        if (message ===
-            "System role permissions cannot be modified") {
+        if (message === "System role permissions cannot be modified") {
             res.status(400).json({
                 success: false,
                 message,
@@ -586,9 +505,7 @@ export const assignUserRoles = async (req, res) => {
         });
     }
     catch (error) {
-        const message = error instanceof Error
-            ? error.message
-            : "Unable to assign roles";
+        const message = error instanceof Error ? error.message : "Unable to assign roles";
         if (message === "User not found") {
             res.status(404).json({
                 success: false,
@@ -596,16 +513,14 @@ export const assignUserRoles = async (req, res) => {
             });
             return;
         }
-        if (message ===
-            "RBAC roles can only be assigned to admin users") {
+        if (message === "RBAC roles can only be assigned to admin users") {
             res.status(400).json({
                 success: false,
                 message,
             });
             return;
         }
-        if (message ===
-            "One or more roles are invalid or inactive") {
+        if (message === "One or more roles are invalid or inactive") {
             res.status(400).json({
                 success: false,
                 message,
@@ -637,9 +552,7 @@ export const removeUserRole = async (req, res) => {
         });
     }
     catch (error) {
-        const message = error instanceof Error
-            ? error.message
-            : "Unable to remove role";
+        const message = error instanceof Error ? error.message : "Unable to remove role";
         if (message === "User not found") {
             res.status(404).json({
                 success: false,
@@ -647,8 +560,7 @@ export const removeUserRole = async (req, res) => {
             });
             return;
         }
-        if (message ===
-            "Role is not assigned to this user") {
+        if (message === "Role is not assigned to this user") {
             res.status(400).json({
                 success: false,
                 message,
@@ -680,9 +592,7 @@ export const removeAllUserRoles = async (req, res) => {
         });
     }
     catch (error) {
-        const message = error instanceof Error
-            ? error.message
-            : "Unable to remove RBAC roles";
+        const message = error instanceof Error ? error.message : "Unable to remove RBAC roles";
         if (message === "User not found") {
             res.status(404).json({
                 success: false,
@@ -715,9 +625,7 @@ export const getUserAccess = async (req, res) => {
         });
     }
     catch (error) {
-        const message = error instanceof Error
-            ? error.message
-            : "Unable to fetch user access";
+        const message = error instanceof Error ? error.message : "Unable to fetch user access";
         if (message === "User not found") {
             res.status(404).json({
                 success: false,
@@ -733,21 +641,16 @@ export const getUserAccess = async (req, res) => {
 };
 export const exportRolesCsv = async (req, res) => {
     try {
-        const { roleIds, } = req.body;
+        const { roleIds } = req.body;
         const result = await RbacService.exportRolesToCsv(roleIds);
-        const timestamp = new Date()
-            .toISOString()
-            .replace(/[:.]/g, "-");
+        const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
         res.setHeader("Content-Type", "text/csv; charset=utf-8");
         res.setHeader("Content-Disposition", `attachment; filename="rbac-roles-${timestamp}.csv"`);
         res.status(200).send(result.csv);
     }
     catch (error) {
-        const message = error instanceof Error
-            ? error.message
-            : "Unable to export roles";
-        if (message ===
-            "No roles found for export") {
+        const message = error instanceof Error ? error.message : "Unable to export roles";
+        if (message === "No roles found for export") {
             res.status(404).json({
                 success: false,
                 message,
@@ -755,10 +658,7 @@ export const exportRolesCsv = async (req, res) => {
             return;
         }
         res.status(400).json({
-            success: false,
-            message: error instanceof Error
-                ? error.message
-                : "Unable to export roles",
+            success: false, message: error instanceof Error ? error.message : "Unable to export roles",
         });
     }
 };

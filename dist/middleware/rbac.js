@@ -1,12 +1,9 @@
 import { Role } from "../types/rbac.js";
-import { RbacService, } from "../services/rbac.service.js";
+import { RbacService } from "../services/rbac.service.js";
 export const requirePermission = (requiredPermission) => {
     return async (req, res, next) => {
         try {
-            /*
-             * Authentication should already
-             * have populated req.user.
-             */
+            //  Authentication should already have populated req.user.
             if (!req.user) {
                 res.status(401).json({
                     success: false,
@@ -14,25 +11,15 @@ export const requirePermission = (requiredPermission) => {
                 });
                 return;
             }
-            /*
-             * RBAC permissions are only
-             * applicable to ADMIN users.
-             */
-            if (req.user.role !==
-                Role.ADMIN) {
+            // RBAC permissions are only applicable to ADMIN users.
+            if (req.user.role !== Role.ADMIN) {
                 res.status(403).json({
                     success: false,
                     message: "Admin access required",
                 });
                 return;
             }
-            /*
-             * This now goes through Redis.
-             *
-             * RbacService.getUserAccess()
-             * loads from Redis first and
-             * falls back to MongoDB.
-             */
+            // This now goes through Redis. RbacService.getUserAccess() loads from Redis first and falls back to MongoDB.
             const user = await RbacService.getUserAccess(req.user.userId);
             if (!user) {
                 res.status(401).json({
@@ -42,42 +29,21 @@ export const requirePermission = (requiredPermission) => {
                 return;
             }
             const roles = user.rbacRoles;
-            if (!roles ||
-                roles.length === 0) {
+            if (!roles || roles.length === 0) {
                 res.status(403).json({
                     success: false,
                     message: "Access denied. No RBAC role assigned",
                 });
                 return;
             }
-            /*
-             * SUPER_ADMIN bypass.
-             *
-             * System SUPER_ADMIN has access
-             * regardless of explicit permission.
-             */
-            const isSuperAdmin = roles.some((role) => role.isActive &&
-                role.isSystem &&
-                role.key ===
-                    "SUPER_ADMIN");
+            // SUPER_ADMIN bypass. System SUPER_ADMIN has access regardless of explicit permission.
+            const isSuperAdmin = roles.some((role) => role.isActive && role.isSystem && role.key === "SUPER_ADMIN");
             if (isSuperAdmin) {
                 next();
                 return;
             }
-            /*
-             * Check required permission against
-             * all active roles.
-             *
-             * getUserAccess() already filters
-             * inactive roles/permissions, but
-             * keeping the checks here adds
-             * another defensive layer.
-             */
-            const hasRequiredPermission = roles.some((role) => role.isActive &&
-                Array.isArray(role.permissions) &&
-                role.permissions.some((permission) => permission.isActive &&
-                    permission.key ===
-                        requiredPermission));
+            // Check required permission against all active roles. getUserAccess() already filters inactive roles/permissions, but keeping the checks here adds another defensive layer.
+            const hasRequiredPermission = roles.some((role) => role.isActive && Array.isArray(role.permissions) && role.permissions.some((permission) => permission.isActive && permission.key === requiredPermission));
             if (!hasRequiredPermission) {
                 res.status(403).json({
                     success: false,

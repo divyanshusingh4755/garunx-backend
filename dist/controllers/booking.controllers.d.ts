@@ -18,13 +18,6 @@ export declare const getAvailableCoordinators: (req: Request, res: Response) => 
 export declare const selectCoordinator: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
 export declare const respondToAssignment: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
 export declare const requestReassignment: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
-/**
- * Coordinator booking list.
- *
- * Views:
- * - REQUESTS: Pending booking requests awaiting coordinator response
- * - BOOKINGS: Accepted, ongoing, completed, or cancelled bookings
- */
 export declare const getCoordinatorBookingList: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
 export declare const processAssignmentTimeouts: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
 export declare const getBookingExecution: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;

@@ -1,7 +1,5 @@
 import { FAQService } from "../services/faq.service.js";
-const getErrorMessage = (error, fallback) => {
-    return error instanceof Error ? error.message : fallback;
-};
+const getErrorMessage = (error, fallback) => { return error instanceof Error ? error.message : fallback; };
 const getErrorStatus = (error) => {
     if (error instanceof Error && error.message === "FAQ not found") {
         return 404;
@@ -36,19 +34,10 @@ export const updateFaq = async (req, res) => {
     try {
         const { id } = req.params;
         const updateData = {};
-        const allowedFields = [
-            "name",
-            "question",
-            "answer",
-            "faqType",
-            "displayOrder",
-            "isActive",
-        ];
+        const allowedFields = ["name", "question", "answer", "faqType", "displayOrder", "isActive"];
         for (const field of allowedFields) {
             if (Object.prototype.hasOwnProperty.call(req.body, field)) {
-                Object.assign(updateData, {
-                    [field]: req.body[field],
-                });
+                Object.assign(updateData, { [field]: req.body[field] });
             }
         }
         const faq = await FAQService.updateFaq(id, updateData);
@@ -119,9 +108,7 @@ export const getAllFaqs = async (req, res) => {
         const { searchTerm, faqType, isActive, limit, page, sortBy, sortOrder } = req.query;
         const parsedLimit = typeof limit === "number" ? limit : Number(limit);
         const parsedPage = typeof page === "number" ? page : Number(page);
-        const result = await FAQService.findFaqs(typeof searchTerm === "string" ? searchTerm : undefined, typeof faqType === "string" ? faqType : undefined, Number.isInteger(parsedLimit) && parsedLimit > 0
-            ? Math.min(parsedLimit, 100)
-            : 20, Number.isInteger(parsedPage) && parsedPage > 0 ? parsedPage : 1, isActive === "true" ? true : isActive === "false" ? false : undefined, typeof sortBy === "string" ? sortBy : "displayOrder", sortOrder === "desc" ? "desc" : "asc");
+        const result = await FAQService.findFaqs(typeof searchTerm === "string" ? searchTerm : undefined, typeof faqType === "string" ? faqType : undefined, Number.isInteger(parsedLimit) && parsedLimit > 0 ? Math.min(parsedLimit, 100) : 20, Number.isInteger(parsedPage) && parsedPage > 0 ? parsedPage : 1, isActive === "true" ? true : isActive === "false" ? false : undefined, typeof sortBy === "string" ? sortBy : "displayOrder", sortOrder === "desc" ? "desc" : "asc");
         return res.status(200).json({
             success: true,
             ...result,
@@ -136,22 +123,10 @@ export const getAllFaqs = async (req, res) => {
 };
 export const getPublicFaqs = async (req, res) => {
     try {
-        const { searchTerm, faqType, limit, page, sortBy, sortOrder, } = req.query;
+        const { searchTerm, faqType, limit, page, sortBy, sortOrder } = req.query;
         const parsedLimit = Number(limit);
         const parsedPage = Number(page);
-        const result = await FAQService.findFaqs(typeof searchTerm === "string"
-            ? searchTerm
-            : undefined, typeof faqType === "string"
-            ? faqType
-            : undefined, Number.isInteger(parsedLimit) && parsedLimit > 0
-            ? Math.min(parsedLimit, 100)
-            : 20, Number.isInteger(parsedPage) && parsedPage > 0
-            ? parsedPage
-            : 1, true, typeof sortBy === "string"
-            ? sortBy
-            : "displayOrder", sortOrder === "desc"
-            ? "desc"
-            : "asc");
+        const result = await FAQService.findFaqs(typeof searchTerm === "string" ? searchTerm : undefined, typeof faqType === "string" ? faqType : undefined, Number.isInteger(parsedLimit) && parsedLimit > 0 ? Math.min(parsedLimit, 100) : 20, Number.isInteger(parsedPage) && parsedPage > 0 ? parsedPage : 1, true, typeof sortBy === "string" ? sortBy : "displayOrder", sortOrder === "desc" ? "desc" : "asc");
         return res.status(200).json({
             success: true,
             ...result,
@@ -166,21 +141,15 @@ export const getPublicFaqs = async (req, res) => {
 };
 export const exportFaqsCsv = async (req, res) => {
     try {
-        const { faqIds, } = req.body;
+        const { faqIds } = req.body;
         const result = await FAQService.exportFaqsToCsv(faqIds);
-        const timestamp = new Date()
-            .toISOString()
-            .replace(/[:.]/g, "-");
+        const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
         res.setHeader("Content-Type", "text/csv; charset=utf-8");
         res.setHeader("Content-Disposition", `attachment; filename="faqs-${timestamp}.csv"`);
-        return res
-            .status(200)
-            .send(result.csv);
+        return res.status(200).send(result.csv);
     }
     catch (error) {
-        return res
-            .status(getErrorStatus(error))
-            .json({
+        return res.status(getErrorStatus(error)).json({
             success: false,
             message: getErrorMessage(error, "Failed to export FAQs"),
         });

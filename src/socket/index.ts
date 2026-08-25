@@ -9,27 +9,11 @@ import { addUserSocket, removeUserSocket } from "./socket.presence.js";
 import { ChatConversationService } from "../services/chatconversation.service.js";
 import { setSocketServer } from "./socket.instance.js";
 
-export type ChatSocketServer = Server<
-  ClientToServerEvents,
-  ServerToClientEvents,
-  InterServerEvents,
-  SocketData
->;
-
-export type ChatSocket = Socket<
-  ClientToServerEvents,
-  ServerToClientEvents,
-  InterServerEvents,
-  SocketData
->;
+export type ChatSocketServer = Server<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
+export type ChatSocket = Socket<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
 
 export const initializeSocket = (httpServer: HttpServer): ChatSocketServer => {
-  const io = new Server<
-    ClientToServerEvents,
-    ServerToClientEvents,
-    InterServerEvents,
-    SocketData
-  >(httpServer, {
+  const io = new Server<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>(httpServer, {
     cors: {
       origin: (origin, callback): void => {
         if (origin === undefined || allowedOrigins.has(origin)) {

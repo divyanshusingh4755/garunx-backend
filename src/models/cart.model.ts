@@ -2,15 +2,7 @@ import mongoose, { type Document, type Model, Schema, Types } from "mongoose";
 import type { ILineTax, ITaxSummary } from "../types/tax.types.js";
 import { lineTaxSchema } from "./tax.schema.js";
 
-export type CartStatus =
-  | "ACTIVE"
-  | "SCHEDULED"
-  | "CHECKOUT_PENDING"
-  | "CHECKED_OUT"
-  | "EXPIRED"
-  | "CANCELLED"
-  | "DELETED";
-
+export type CartStatus = "ACTIVE" | "SCHEDULED" | "CHECKOUT_PENDING" | "CHECKED_OUT" | "EXPIRED" | "CANCELLED" | "DELETED";
 export type BookingFor = "MYSELF" | "OTHER";
 
 export interface ICartTaxSummary extends ITaxSummary {
@@ -42,9 +34,7 @@ export interface ICartSubService {
 
 export interface ISelectedService {
   serviceId: Types.ObjectId;
-
   subServices: ICartSubService[];
-
   name: string;
   priceBeforeDiscount: number;
   discountAmount: number;
@@ -415,15 +405,7 @@ const cartSchema = new Schema<ICart>(
     },
     status: {
       type: String,
-      enum: [
-        "ACTIVE",
-        "SCHEDULED",
-        "CHECKOUT_PENDING",
-        "CHECKED_OUT",
-        "EXPIRED",
-        "CANCELLED",
-        "DELETED",
-      ],
+      enum: ["ACTIVE", "SCHEDULED", "CHECKOUT_PENDING", "CHECKED_OUT", "EXPIRED", "CANCELLED", "DELETED"],
       default: "ACTIVE",
       index: true,
     },
@@ -441,9 +423,7 @@ cartSchema.pre("validate", function () {
   const hasService = Boolean(this.serviceId);
   const hasPackage = Boolean(this.packageId);
 
-  if (hasService === hasPackage) {
-    throw new Error("Cart must contain either serviceId or packageId");
-  }
+  if (hasService === hasPackage) { throw new Error("Cart must contain either serviceId or packageId"); }
 });
 
 cartSchema.pre("validate", function () {
@@ -451,18 +431,12 @@ cartSchema.pre("validate", function () {
   const hasGuest = Boolean(this.guestId);
 
   if (hasUser === hasGuest) {
-    throw new Error(
-      hasUser
-        ? "Cart cannot belong to both user and guest"
-        : "Cart must belong to a user or guest",
-    );
+    throw new Error(hasUser ? "Cart cannot belong to both user and guest" : "Cart must belong to a user or guest");
   }
 });
 
 cartSchema.pre("validate", function () {
-  if (Boolean(this.couponId) !== Boolean(this.couponCode)) {
-    throw new Error("couponId and couponCode must be provided together");
-  }
+  if (Boolean(this.couponId) !== Boolean(this.couponCode)) { throw new Error("couponId and couponCode must be provided together"); }
 });
 
 cartSchema.index({ userId: 1, status: 1 });
@@ -472,11 +446,8 @@ cartSchema.index({ status: 1, checkoutExpiresAt: 1 });
 cartSchema.index(
   { createdAt: 1 },
   {
-    expireAfterSeconds: 86400,
-    partialFilterExpression: {
-      status: "ACTIVE",
-      guestId: { $exists: true },
-      userId: { $exists: false },
+    expireAfterSeconds: 86400, partialFilterExpression: {
+      status: "ACTIVE", guestId: { $exists: true }, userId: { $exists: false },
     },
   },
 );

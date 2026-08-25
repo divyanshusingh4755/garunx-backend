@@ -1,4 +1,4 @@
-import { Schema, Types, model, } from "mongoose";
+import { Schema, Types, model } from "mongoose";
 const roleSchema = new Schema({
     name: {
         type: String,

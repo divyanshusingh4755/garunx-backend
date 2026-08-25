@@ -54,24 +54,10 @@ const stateSchema = new Schema({
 }, {
     timestamps: true,
 });
-stateSchema.index({
-    isActive: 1,
-    createdAt: -1,
-});
-stateSchema.index({
-    location: "2dsphere",
-});
-stateSchema.index({
-    country: 1,
-    name: 1,
-});
-stateSchema.index({
-    name: "text",
-}, {
-    name: "StateTextSearchIndex",
-});
-stateSchema.index({
-    gstCode: 1,
-});
+stateSchema.index({ isActive: 1, createdAt: -1 });
+stateSchema.index({ location: "2dsphere" });
+stateSchema.index({ country: 1, name: 1 });
+stateSchema.index({ name: "text" }, { name: "StateTextSearchIndex" });
+stateSchema.index({ gstCode: 1 });
 export const State = model("State", stateSchema);
 //# sourceMappingURL=state.model.js.map

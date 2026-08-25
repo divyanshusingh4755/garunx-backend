@@ -38,7 +38,10 @@ export const sendMessage = async (req, res) => {
         const { clientMessageId, type, text, images, replyToMessageId } = req.body;
         const senderId = req.user?.userId;
         if (!senderId) {
-            return res.status(401).json({ success: false, message: "Unauthorized" });
+            return res.status(401).json({
+                success: false,
+                message: "Unauthorized"
+            });
         }
         if (!conversationId || Array.isArray(conversationId)) {
             return res.status(400).json({
@@ -46,15 +49,7 @@ export const sendMessage = async (req, res) => {
                 message: "Valid conversation ID is required",
             });
         }
-        const { message } = await ChatMessageService.sendMessage({
-            conversationId,
-            senderId,
-            clientMessageId,
-            type: type,
-            text,
-            images,
-            replyToMessageId
-        });
+        const { message } = await ChatMessageService.sendMessage({ conversationId, senderId, clientMessageId, type: type, text, images, replyToMessageId });
         return res.status(201).json({
             success: true,
             message: "Message sent successfully",
@@ -81,16 +76,11 @@ export const getUnreadCount = async (req, res) => {
                 message: "Valid conversation ID is required",
             });
         }
-        const unreadCount = await ChatMessageService.getUnreadCount({
-            conversationId,
-            userId
-        });
+        const unreadCount = await ChatMessageService.getUnreadCount({ conversationId, userId });
         return res.status(200).json({
             success: true,
             message: "Unread message count fetched successfully",
-            data: {
-                unreadCount
-            }
+            data: { unreadCount }
         });
     }
     catch (error) {

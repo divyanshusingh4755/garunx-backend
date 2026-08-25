@@ -1,7 +1,4 @@
-import type {
-    INotification,
-    NotificationType,
-} from "../models/notification.model.js";
+import type { INotification, NotificationType } from "../models/notification.model.js";
 
 export interface NotificationSocketDto {
     id: string;
@@ -13,20 +10,14 @@ export interface NotificationSocketDto {
     createdAt: string;
 }
 
-export const toNotificationSocketDto = (
-    notification: INotification,
-): NotificationSocketDto => {
+export const toNotificationSocketDto = (notification: INotification): NotificationSocketDto => {
     return {
         id: notification._id.toString(),
         title: notification.title,
         message: notification.message,
         type: notification.type,
-        ...(notification.referenceId && {
-            referenceId:
-                notification.referenceId.toString(),
-        }),
+        ...(notification.referenceId && { referenceId: notification.referenceId.toString() }),
         isRead: notification.isRead,
-        createdAt:
-            notification.createdAt.toISOString(),
+        createdAt: notification.createdAt.toISOString(),
     };
 };

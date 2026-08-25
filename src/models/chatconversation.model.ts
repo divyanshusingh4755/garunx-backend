@@ -82,11 +82,6 @@ const chatConversationSchema = new Schema<IChatConversation>(
   },
 );
 
-chatConversationSchema.index({
-  "participants.userId": 1,
-});
+chatConversationSchema.index({ "participants.userId": 1 });
 
-export const ChatConversation = model<IChatConversation>(
-  "ChatConversation",
-  chatConversationSchema,
-);
+export const ChatConversation = model<IChatConversation>("ChatConversation", chatConversationSchema);

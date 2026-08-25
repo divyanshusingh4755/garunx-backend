@@ -18,7 +18,6 @@ export const authenticate = (req, res, next) => {
         });
         return;
     }
-    let secret;
     try {
         const decoded = verifyAccessToken(token);
         if (!decoded) {
@@ -28,10 +27,7 @@ export const authenticate = (req, res, next) => {
             });
             return;
         }
-        req.user = {
-            userId: decoded.userId,
-            role: decoded.role,
-        };
+        req.user = { userId: decoded.userId, role: decoded.role };
         next();
     }
     catch (error) {
@@ -71,10 +67,7 @@ export const optionalAuthenticate = (req, res, next) => {
             });
             return;
         }
-        req.user = {
-            userId: decoded.userId,
-            role: decoded.role,
-        };
+        req.user = { userId: decoded.userId, role: decoded.role };
         next();
     }
     catch (error) {

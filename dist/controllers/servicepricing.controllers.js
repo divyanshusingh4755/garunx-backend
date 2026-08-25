@@ -1,21 +1,12 @@
 import { ServicePricingService } from "../services/servicepricing.service.js";
 const getStatusCode = (error) => {
-    if (typeof error === "object" &&
-        error !== null &&
-        "statusCode" in error &&
-        typeof error.statusCode === "number") {
+    if (typeof error === "object" && error !== null && "statusCode" in error && typeof error.statusCode === "number") {
         return error.statusCode;
     }
-    if (typeof error === "object" &&
-        error !== null &&
-        "name" in error &&
-        error.name === "ValidationError") {
+    if (typeof error === "object" && error !== null && "name" in error && error.name === "ValidationError") {
         return 400;
     }
-    if (typeof error === "object" &&
-        error !== null &&
-        "code" in error &&
-        error.code === 11000) {
+    if (typeof error === "object" && error !== null && "code" in error && error.code === 11000) {
         return 409;
     }
     return 500;

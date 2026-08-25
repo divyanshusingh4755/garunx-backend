@@ -1,11 +1,10 @@
 import { isValidPreferenceModeForCategory } from "../constants/notification-policy.js";
-import { NotificationTemplate, } from "../models/notification-template.model.js";
+import { NotificationTemplate } from "../models/notification-template.model.js";
 export class NotificationTemplateService {
     static renderText(text, variables) {
         return text.replace(/{{\s*([^{}]+?)\s*}}/g, (_match, key) => {
             const value = variables[key];
-            if (value === undefined ||
-                value === null) {
+            if (value === undefined || value === null) {
                 return "";
             }
             if (value instanceof Date) {
@@ -31,27 +30,18 @@ export class NotificationTemplateService {
         return [...variables];
     }
     static validateVariables(requiredVariables, variables) {
-        const missingVariables = requiredVariables.filter((key) => variables[key] === undefined ||
-            variables[key] === null);
+        const missingVariables = requiredVariables.filter((key) => variables[key] === undefined || variables[key] === null);
         if (missingVariables.length > 0) {
             throw new Error(`Missing notification template variables: ${missingVariables.join(", ")}`);
         }
     }
     static async renderTemplate(params) {
-        const { templateCode, variables = {}, includeEmail = false, includePush = false, } = params;
-        const template = await NotificationTemplate.findOne({
-            code: templateCode
-                .trim()
-                .toUpperCase(),
-            isActive: true,
-        });
+        const { templateCode, variables = {}, includeEmail = false, includePush = false } = params;
+        const template = await NotificationTemplate.findOne({ code: templateCode.trim().toUpperCase(), isActive: true });
         if (!template) {
             throw new Error("Notification template not found or inactive");
         }
-        const textsToValidate = [
-            template.title,
-            template.message,
-        ];
+        const textsToValidate = [template.title, template.message,];
         if (includeEmail) {
             textsToValidate.push(template.emailSubject, template.emailBody);
         }
@@ -68,51 +58,28 @@ export class NotificationTemplateService {
             preferenceMode: template.preferenceMode,
             title: this.renderText(template.title, variables),
             message: this.renderText(template.message, variables),
-            ...(template.emailSubject && {
-                emailSubject: this.renderText(template.emailSubject, variables),
-            }),
-            ...(template.emailBody && {
-                emailBody: this.renderText(template.emailBody, variables),
-            }),
-            ...(template.pushTitle && {
-                pushTitle: this.renderText(template.pushTitle, variables),
-            }),
-            ...(template.pushMessage && {
-                pushMessage: this.renderText(template.pushMessage, variables),
-            }),
+            ...(template.emailSubject && { emailSubject: this.renderText(template.emailSubject, variables) }),
+            ...(template.emailBody && { emailBody: this.renderText(template.emailBody, variables) }),
+            ...(template.pushTitle && { pushTitle: this.renderText(template.pushTitle, variables) }),
+            ...(template.pushMessage && { pushMessage: this.renderText(template.pushMessage, variables) }),
         };
     }
     static async createTemplate(params) {
-        const code = params.code
-            .trim()
-            .toUpperCase();
-        const preferenceMode = params.preferenceMode ??
-            (params.category === "SYSTEM"
-                ? "REQUIRED"
-                : "OPTIONAL");
+        const code = params.code.trim().toUpperCase();
+        const preferenceMode = params.preferenceMode ?? (params.category === "SYSTEM" ? "REQUIRED" : "OPTIONAL");
         if (!isValidPreferenceModeForCategory(params.category, preferenceMode)) {
             throw new Error(`Invalid preference mode ${preferenceMode} for notification category ${params.category}`);
         }
-        const existing = await NotificationTemplate.findOne({
-            code,
-        });
+        const existing = await NotificationTemplate.findOne({ code });
         if (existing) {
             throw new Error("Notification template code already exists");
         }
-        return NotificationTemplate.create({
-            ...params,
-            code,
-            preferenceMode
-        });
+        return NotificationTemplate.create({ ...params, code, preferenceMode });
     }
     static async getTemplates(params) {
-        const { page = 1, limit = 20, type, isActive, category, } = params;
-        const safePage = Number.isInteger(page) && page > 0
-            ? page
-            : 1;
-        const safeLimit = Number.isInteger(limit) && limit > 0
-            ? Math.min(limit, 100)
-            : 20;
+        const { page = 1, limit = 20, type, isActive, category } = params;
+        const safePage = Number.isInteger(page) && page > 0 ? page : 1;
+        const safeLimit = Number.isInteger(limit) && limit > 0 ? Math.min(limit, 100) : 20;
         const query = {};
         if (type) {
             query.type = type;
@@ -125,28 +92,18 @@ export class NotificationTemplateService {
         }
         const skip = (safePage - 1) * safeLimit;
         const [templates, total,] = await Promise.all([
-            NotificationTemplate.find(query)
-                .sort({
-                createdAt: -1,
-            })
-                .skip(skip)
-                .limit(safeLimit),
-            NotificationTemplate
-                .countDocuments(query),
+            NotificationTemplate.find(query).sort({ createdAt: -1 }).skip(skip).limit(safeLimit),
+            NotificationTemplate.countDocuments(query),
         ]);
         return {
             templates,
             pagination: {
-                page: safePage,
-                limit: safeLimit,
-                total,
-                totalPages: Math.ceil(total / safeLimit),
+                page: safePage, limit: safeLimit, total, totalPages: Math.ceil(total / safeLimit),
             },
         };
     }
     static async getTemplateById(templateId) {
-        const template = await NotificationTemplate
-            .findById(templateId);
+        const template = await NotificationTemplate.findById(templateId);
         if (!template) {
             throw new Error("Notification template not found");
         }
@@ -158,45 +115,27 @@ export class NotificationTemplateService {
         if (!currentTemplate) {
             throw new Error("Notification template not found");
         }
-        const updateData = {
-            ...updates,
-        };
+        const updateData = { ...updates };
         if (code) {
             const normalizedCode = code.trim().toUpperCase();
-            const existing = await NotificationTemplate.findOne({
-                code: normalizedCode,
-                _id: {
-                    $ne: templateId,
-                },
-            });
+            const existing = await NotificationTemplate.findOne({ code: normalizedCode, _id: { $ne: templateId } });
             if (existing) {
                 throw new Error("Notification template code already exists");
             }
-            updateData.code =
-                normalizedCode;
+            updateData.code = normalizedCode;
         }
-        const effectiveCategory = category ??
-            currentTemplate.category;
-        const effectivePreferenceMode = preferenceMode ??
-            currentTemplate.preferenceMode;
+        const effectiveCategory = category ?? currentTemplate.category;
+        const effectivePreferenceMode = preferenceMode ?? currentTemplate.preferenceMode;
         if (!isValidPreferenceModeForCategory(effectiveCategory, effectivePreferenceMode)) {
             throw new Error(`Invalid preference mode ${effectivePreferenceMode} for notification category ${effectiveCategory}`);
         }
         if (category !== undefined) {
-            updateData.category =
-                category;
+            updateData.category = category;
         }
         if (preferenceMode !== undefined) {
-            updateData.preferenceMode =
-                preferenceMode;
+            updateData.preferenceMode = preferenceMode;
         }
-        const template = await NotificationTemplate
-            .findByIdAndUpdate(templateId, {
-            $set: updateData,
-        }, {
-            new: true,
-            runValidators: true,
-        });
+        const template = await NotificationTemplate.findByIdAndUpdate(templateId, { $set: updateData }, { new: true, runValidators: true });
         if (!template) {
             throw new Error("Notification template not found");
         }

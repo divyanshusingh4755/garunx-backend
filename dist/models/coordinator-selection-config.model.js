@@ -1,12 +1,6 @@
-import { Schema, model, } from "mongoose";
+import { Schema, model } from "mongoose";
 const coordinatorSelectionConfigSchema = new Schema({
-    /*
-     * Singleton configuration.
-     *
-     * Later, if you want different configurations
-     * per service/location/category, this can be
-     * expanded without changing BookingService heavily.
-     */
+    // Singleton configuration. Later, if you want different configurations per service/location/category, this can be expanded without changing BookingService heavily.
     key: {
         type: String,
         enum: ["DEFAULT"],
@@ -39,11 +33,7 @@ const coordinatorSelectionConfigSchema = new Schema({
     },
     sortBy: {
         type: String,
-        enum: [
-            "rating",
-            "completedBookings",
-            "acceptanceRate",
-        ],
+        enum: ["rating", "completedBookings", "acceptanceRate"],
         default: "rating",
     },
     sortOrder: {

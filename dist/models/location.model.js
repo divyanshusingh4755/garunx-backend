@@ -70,25 +70,9 @@ const locationSchema = new Schema({
 }, {
     timestamps: true,
 });
-locationSchema.index({
-    location: "2dsphere",
-});
-locationSchema.index({
-    country: 1,
-    stateId: 1,
-    cityId: 1,
-    pincode: 1,
-});
-locationSchema.index({
-    isActive: 1,
-    createdAt: -1,
-});
-locationSchema.index({
-    name: "text",
-    fullAddress: "text",
-    pincode: "text",
-}, {
-    name: "LocationTextSearchIndex",
-});
+locationSchema.index({ location: "2dsphere" });
+locationSchema.index({ country: 1, stateId: 1, cityId: 1, pincode: 1 });
+locationSchema.index({ isActive: 1, createdAt: -1 });
+locationSchema.index({ name: "text", fullAddress: "text", pincode: "text" }, { name: "LocationTextSearchIndex" });
 export const Location = model("Location", locationSchema);
 //# sourceMappingURL=location.model.js.map

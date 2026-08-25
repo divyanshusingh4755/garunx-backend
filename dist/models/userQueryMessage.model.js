@@ -47,9 +47,6 @@ userQueryMessageSchema.pre("validate", function () {
         throw new Error("Message or at least one image is required");
     }
 });
-userQueryMessageSchema.index({
-    queryId: 1,
-    createdAt: 1,
-});
+userQueryMessageSchema.index({ queryId: 1, createdAt: 1 });
 export const UserQueryMessage = model("UserQueryMessage", userQueryMessageSchema);
 //# sourceMappingURL=userQueryMessage.model.js.map

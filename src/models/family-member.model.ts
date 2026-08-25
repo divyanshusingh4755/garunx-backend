@@ -8,52 +8,37 @@ import {
   MemberLifeStatus,
 } from "../types/enums.js";
 
-export type FamilyMemberSource =
-  | "CUSTOMER_SELF"
-  | "COORDINATOR_BOOKING"
-  | "ADMIN_MANUAL"
-  | "SYSTEM_IMPORT";
+export type FamilyMemberSource = "CUSTOMER_SELF" | "COORDINATOR_BOOKING" | "ADMIN_MANUAL" | "SYSTEM_IMPORT";
 
 export interface IFamilyMember extends Document {
   ownerId: Types.ObjectId;
-
   createdBy: Types.ObjectId;
   updatedBy?: Types.ObjectId | null;
-
   source: FamilyMemberSource;
-
   sourceBookingId?: Types.ObjectId | null;
   sourceBookingReference?: string | null;
-
   isDeleted: boolean;
   deletedAt?: Date | null;
   deletedBy?: Types.ObjectId | null;
   deletionReason?: string | null;
-
   fullName: string;
   relation: FamilyRelation;
   gender?: Gender;
   dob?: Date;
-
   lifeStatus: MemberLifeStatus;
   dateOfDeath?: Date | null;
-
   fatherId?: Types.ObjectId | null;
   motherId?: Types.ObjectId | null;
   spouseIds: Types.ObjectId[];
-
   nativeVillage?: string;
   state?: string;
   district?: string;
   caste?: Caste;
   gotra?: Gotra;
-
   designatedPandit?: string;
   visitors: string[];
-
   profileImage?: string | null;
   notes?: string;
-
   createdAt: Date;
   updatedAt: Date;
 }
@@ -81,12 +66,7 @@ const familyMemberSchema = new Schema<IFamilyMember>(
 
     source: {
       type: String,
-      enum: [
-        "CUSTOMER_SELF",
-        "COORDINATOR_BOOKING",
-        "ADMIN_MANUAL",
-        "SYSTEM_IMPORT",
-      ] satisfies FamilyMemberSource[],
+      enum: ["CUSTOMER_SELF", "COORDINATOR_BOOKING", "ADMIN_MANUAL", "SYSTEM_IMPORT",] satisfies FamilyMemberSource[],
       required: true,
     },
 
@@ -184,10 +164,8 @@ const familyMemberSchema = new Schema<IFamilyMember>(
       validate: {
         validator: (spouseIds: Types.ObjectId[]): boolean => {
           const uniqueIds = new Set(spouseIds.map((id) => id.toString()));
-
           return uniqueIds.size === spouseIds.length;
         },
-
         message: "Duplicate spouse IDs are not allowed",
       },
     },
@@ -255,21 +233,15 @@ const familyMemberSchema = new Schema<IFamilyMember>(
 
 familyMemberSchema.pre("validate", function (): void {
   if (this.source === "COORDINATOR_BOOKING" && !this.sourceBookingId) {
-    throw new Error(
-      "Booking ID is required when a family member is added by a coordinator",
-    );
+    throw new Error("Booking ID is required when a family member is added by a coordinator",);
   }
 
   if (this.source !== "COORDINATOR_BOOKING" && this.sourceBookingId) {
-    throw new Error(
-      "Booking ID can only be provided for coordinator booking source",
-    );
+    throw new Error("Booking ID can only be provided for coordinator booking source");
   }
 
   if (this.lifeStatus === MemberLifeStatus.ALIVE && this.dateOfDeath) {
-    throw new Error(
-      "Date of death cannot be provided for an alive family member",
-    );
+    throw new Error("Date of death cannot be provided for an alive family member");
   }
 
   if (this.lifeStatus !== MemberLifeStatus.ALIVE && !this.dateOfDeath) {
@@ -292,10 +264,7 @@ familyMemberSchema.pre("validate", function (): void {
     throw new Error("A family member cannot be their own mother");
   }
 
-  if (
-    this._id &&
-    this.spouseIds.some((spouseId) => spouseId.equals(this._id))
-  ) {
+  if (this._id && this.spouseIds.some((spouseId) => spouseId.equals(this._id))) {
     throw new Error("A family member cannot be their own spouse");
   }
 
@@ -303,52 +272,16 @@ familyMemberSchema.pre("validate", function (): void {
     throw new Error("Deleted family members require deletedAt and deletedBy");
   }
 
-  if (
-    !this.isDeleted &&
-    (this.deletedAt || this.deletedBy || this.deletionReason)
-  ) {
-    throw new Error(
-      "Deletion fields cannot be set when family member is not deleted",
-    );
+  if (!this.isDeleted && (this.deletedAt || this.deletedBy || this.deletionReason)) {
+    throw new Error("Deletion fields cannot be set when family member is not deleted");
   }
 });
 
-familyMemberSchema.index({
-  ownerId: 1,
-  isDeleted: 1,
-  fatherId: 1,
-});
+familyMemberSchema.index({ ownerId: 1, isDeleted: 1, fatherId: 1 });
+familyMemberSchema.index({ ownerId: 1, isDeleted: 1, motherId: 1 });
+familyMemberSchema.index({ ownerId: 1, isDeleted: 1, spouseIds: 1 });
+familyMemberSchema.index({ ownerId: 1, isDeleted: 1, fullName: 1 });
+familyMemberSchema.index({ ownerId: 1, isDeleted: 1, createdAt: -1 });
+familyMemberSchema.index({ sourceBookingId: 1, isDeleted: 1 });
 
-familyMemberSchema.index({
-  ownerId: 1,
-  isDeleted: 1,
-  motherId: 1,
-});
-
-familyMemberSchema.index({
-  ownerId: 1,
-  isDeleted: 1,
-  spouseIds: 1,
-});
-
-familyMemberSchema.index({
-  ownerId: 1,
-  isDeleted: 1,
-  fullName: 1,
-});
-
-familyMemberSchema.index({
-  ownerId: 1,
-  isDeleted: 1,
-  createdAt: -1,
-});
-
-familyMemberSchema.index({
-  sourceBookingId: 1,
-  isDeleted: 1,
-});
-
-export const FamilyMember = model<IFamilyMember>(
-  "FamilyMember",
-  familyMemberSchema,
-);
+export const FamilyMember = model<IFamilyMember>("FamilyMember", familyMemberSchema,);

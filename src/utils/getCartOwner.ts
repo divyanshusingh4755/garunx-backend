@@ -1,70 +1,26 @@
 import type { Request } from "express";
-
 import { HttpError } from "../utils/httpError.js";
 
-export type CartOwner =
-  | {
-      userId: string;
-      guestId?: never;
-    }
-  | {
-      userId?: never;
-      guestId: string;
-    };
+export type CartOwner = { userId: string; guestId?: never; } | { userId?: never; guestId: string; };
 
-const getSingleHeaderValue = (
-  value: string | string[] | undefined,
-): string | undefined => {
-  if (typeof value !== "string") {
-    return undefined;
-  }
-
+const getSingleHeaderValue = (value: string | string[] | undefined,): string | undefined => {
+  if (typeof value !== "string") { return undefined; }
   const normalized = value.trim();
-
   return normalized || undefined;
 };
 
 export const getCartOwner = (req: Request): CartOwner => {
   const userId = req.user?.userId;
 
-  /*
-   * An authenticated user always owns their authenticated cart.
-   * Ignoring x-guest-id here prevents a caller from creating
-   * ambiguous owner queries containing both identities.
-   */
-  if (userId) {
-    return {
-      userId,
-    };
-  }
+  // An authenticated user always owns their authenticated cart. Ignoring x-guest-id here prevents a caller from creating ambiguous owner queries containing both identities.
+  if (userId) { return { userId }; }
 
   const guestId = getSingleHeaderValue(req.headers["x-guest-id"]);
-
-  if (!guestId) {
-    throw new HttpError(401, "Authentication or guestId is required");
-  }
-
-  return {
-    guestId,
-  };
+  if (!guestId) { throw new HttpError(401, "Authentication or guestId is required"); }
+  return { guestId };
 };
 
-export const buildCartOwnerQuery = (
-  owner: CartOwner,
-):
-  | {
-      userId: string;
-    }
-  | {
-      guestId: string;
-    } => {
-  if ("userId" in owner) {
-    return {
-      userId: owner.userId,
-    };
-  }
-
-  return {
-    guestId: owner.guestId,
-  };
+export const buildCartOwnerQuery = (owner: CartOwner): { userId: string; } | { guestId: string; } => {
+  if ("userId" in owner) { return { userId: owner.userId }; }
+  return { guestId: owner.guestId };
 };

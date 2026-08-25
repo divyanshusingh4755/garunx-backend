@@ -1,50 +1,27 @@
-import { Types, } from "mongoose";
+import { Types } from "mongoose";
 import { ensureRedisCacheConnection, redisCacheClient } from "../config/redis.js";
 const serializeCacheValue = (value) => {
     return JSON.stringify(value, function (key, currentValue) {
-        const originalValue = key === ""
-            ? value
-            : this[key];
-        if (originalValue instanceof
-            Date) {
-            return {
-                __redisCacheType: "Date",
-                value: originalValue
-                    .toISOString(),
-            };
+        const originalValue = key === "" ? value : this[key];
+        if (originalValue instanceof Date) {
+            return { __redisCacheType: "Date", value: originalValue.toISOString() };
         }
-        if (originalValue instanceof
-            Types.ObjectId) {
-            return {
-                __redisCacheType: "ObjectId",
-                value: originalValue
-                    .toHexString(),
-            };
+        if (originalValue instanceof Types.ObjectId) {
+            return { __redisCacheType: "ObjectId", value: originalValue.toHexString() };
         }
         return currentValue;
     });
 };
 const deserializeCacheValue = (value) => {
     return JSON.parse(value, (_key, currentValue) => {
-        if (!currentValue ||
-            typeof currentValue !==
-                "object") {
+        if (!currentValue || typeof currentValue !== "object") {
             return currentValue;
         }
         const marker = currentValue;
-        if (marker
-            .__redisCacheType ===
-            "Date" &&
-            typeof marker.value ===
-                "string") {
+        if (marker.__redisCacheType === "Date" && typeof marker.value === "string") {
             return new Date(marker.value);
         }
-        if (marker
-            .__redisCacheType ===
-            "ObjectId" &&
-            typeof marker.value ===
-                "string" &&
-            Types.ObjectId.isValid(marker.value)) {
+        if (marker.__redisCacheType === "ObjectId" && typeof marker.value === "string" && Types.ObjectId.isValid(marker.value)) {
             return new Types.ObjectId(marker.value);
         }
         return currentValue;
@@ -65,10 +42,8 @@ export class RedisCacheService {
             if (!(await this.ready())) {
                 return null;
             }
-            const cached = await redisCacheClient
-                .get(key);
-            if (cached ===
-                null) {
+            const cached = await redisCacheClient.get(key);
+            if (cached === null) {
                 return null;
             }
             return deserializeCacheValue(cached);
@@ -79,19 +54,14 @@ export class RedisCacheService {
         }
     }
     static async set(key, value, ttlSeconds) {
-        if (!Number.isInteger(ttlSeconds) ||
-            ttlSeconds <=
-                0) {
+        if (!Number.isInteger(ttlSeconds) || ttlSeconds <= 0) {
             throw new Error("Cache TTL must be a positive integer");
         }
         try {
             if (!(await this.ready())) {
                 return false;
             }
-            await redisCacheClient
-                .set(key, serializeCacheValue(value), {
-                EX: ttlSeconds,
-            });
+            await redisCacheClient.set(key, serializeCacheValue(value), { EX: ttlSeconds });
             return true;
         }
         catch (error) {
@@ -104,8 +74,7 @@ export class RedisCacheService {
             if (!(await this.ready())) {
                 return false;
             }
-            await redisCacheClient
-                .del(key);
+            await redisCacheClient.del(key);
             return true;
         }
         catch (error) {
@@ -119,18 +88,11 @@ export class RedisCacheService {
                 return 0;
             }
             let deleted = 0;
-            for await (const keys of redisCacheClient
-                .scanIterator({
-                MATCH: pattern,
-                COUNT: 100,
-            })) {
-                if (keys.length ===
-                    0) {
+            for await (const keys of redisCacheClient.scanIterator({ MATCH: pattern, COUNT: 100 })) {
+                if (keys.length === 0) {
                     continue;
                 }
-                deleted +=
-                    await redisCacheClient
-                        .del(keys);
+                deleted += await redisCacheClient.del(keys);
             }
             return deleted;
         }
@@ -141,15 +103,11 @@ export class RedisCacheService {
     }
     static async getOrSet(params) {
         const cached = await this.get(params.key);
-        if (cached !==
-            null) {
+        if (cached !== null) {
             return cached;
         }
         const value = await params.loader();
-        /*
-         * Cache failure is intentionally ignored.
-         * MongoDB/source-of-truth result still returns.
-         */
+        // Cache failure is intentionally ignored. MongoDB/source-of-truth result still returns.
         await this.set(params.key, value, params.ttlSeconds);
         return value;
     }

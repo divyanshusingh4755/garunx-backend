@@ -47,11 +47,6 @@ const brandingSchema = new Schema({
     timestamps: true,
 });
 brandingSchema.index({ version: 1 }, { unique: true });
-brandingSchema.index({ isActive: 1 }, {
-    unique: true,
-    partialFilterExpression: {
-        isActive: true,
-    },
-});
+brandingSchema.index({ isActive: 1 }, { unique: true, partialFilterExpression: { isActive: true, } });
 export const Branding = model("Branding", brandingSchema);
 //# sourceMappingURL=branding.model.js.map

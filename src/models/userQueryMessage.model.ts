@@ -51,8 +51,7 @@ const userQueryMessageSchema = new Schema<IUserQueryMessage>(
       ],
       default: [],
       validate: {
-        validator: (value: string[]) =>
-          Array.isArray(value) && value.length <= 5,
+        validator: (value: string[]) => Array.isArray(value) && value.length <= 5,
         message: "A maximum of 5 images is allowed",
       },
     },
@@ -63,9 +62,7 @@ const userQueryMessageSchema = new Schema<IUserQueryMessage>(
 );
 
 userQueryMessageSchema.pre("validate", function () {
-  const hasMessage =
-    typeof this.message === "string" && this.message.trim().length > 0;
-
+  const hasMessage = typeof this.message === "string" && this.message.trim().length > 0;
   const hasImages = Array.isArray(this.imageUrls) && this.imageUrls.length > 0;
 
   if (!hasMessage && !hasImages) {
@@ -73,10 +70,6 @@ userQueryMessageSchema.pre("validate", function () {
   }
 });
 
-userQueryMessageSchema.index({
-  queryId: 1,
-  createdAt: 1,
-});
+userQueryMessageSchema.index({ queryId: 1, createdAt: 1 });
 
-export const UserQueryMessage: Model<IUserQueryMessage> =
-  model<IUserQueryMessage>("UserQueryMessage", userQueryMessageSchema);
+export const UserQueryMessage: Model<IUserQueryMessage> = model<IUserQueryMessage>("UserQueryMessage", userQueryMessageSchema);

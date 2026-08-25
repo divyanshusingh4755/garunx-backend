@@ -107,28 +107,10 @@ const serviceSchema = new Schema({
         virtuals: true,
     },
 });
-serviceSchema.virtual("subServiceComponents", {
-    ref: "SubServiceComponent",
-    localField: "_id",
-    foreignField: "serviceId",
-});
-serviceSchema.index({
-    categoryId: 1,
-    isActive: 1,
-    isComplete: 1,
-});
-serviceSchema.index({
-    name: 1,
-});
-serviceSchema.index({
-    name: "text",
-    shortDescription: "text",
-}, {
-    name: "ServiceTextSearchIndex",
-});
-serviceSchema.index({
-    isActive: 1,
-    categoryId: 1,
-});
+serviceSchema.virtual("subServiceComponents", { ref: "SubServiceComponent", localField: "_id", foreignField: "serviceId" });
+serviceSchema.index({ categoryId: 1, isActive: 1, isComplete: 1 });
+serviceSchema.index({ name: 1 });
+serviceSchema.index({ name: "text", shortDescription: "text" }, { name: "ServiceTextSearchIndex" });
+serviceSchema.index({ isActive: 1, categoryId: 1 });
 export const Service = model("Service", serviceSchema);
 //# sourceMappingURL=service.model.js.map

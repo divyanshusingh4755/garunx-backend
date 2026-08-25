@@ -58,10 +58,7 @@ export const getUserCarts = async (req: Request, res: Response) => {
 export const getCartById = async (req: Request, res: Response) => {
   try {
     const owner = getCartOwner(req);
-    const cart = await CartService.getCartById(
-      owner,
-      req.params.cartId as string,
-    );
+    const cart = await CartService.getCartById(owner, req.params.cartId as string);
 
     res.status(200).json({
       success: true,
@@ -78,11 +75,7 @@ export const getCartById = async (req: Request, res: Response) => {
 export const updateSelectedComponents = async (req: Request, res: Response) => {
   try {
     const owner = getCartOwner(req);
-    const cart = await CartService.updateSelectedComponents(
-      owner,
-      req.params.cartId as string,
-      req.body,
-    );
+    const cart = await CartService.updateSelectedComponents(owner, req.params.cartId as string, req.body);
 
     res.status(200).json({
       success: true,
@@ -100,11 +93,7 @@ export const updateSelectedComponents = async (req: Request, res: Response) => {
 export const updateAddonComponents = async (req: Request, res: Response) => {
   try {
     const owner = getCartOwner(req);
-    const cart = await CartService.updateAddonComponents(
-      owner,
-      req.params.cartId as string,
-      req.body,
-    );
+    const cart = await CartService.updateAddonComponents(owner, req.params.cartId as string, req.body);
 
     res.status(200).json({
       success: true,
@@ -122,11 +111,7 @@ export const updateAddonComponents = async (req: Request, res: Response) => {
 export const updateAddonServices = async (req: Request, res: Response) => {
   try {
     const owner = getCartOwner(req);
-    const cart = await CartService.updateAddonServices(
-      owner,
-      req.params.cartId as string,
-      req.body,
-    );
+    const cart = await CartService.updateAddonServices(owner, req.params.cartId as string, req.body);
 
     res.status(200).json({
       success: true,
@@ -144,11 +129,7 @@ export const updateAddonServices = async (req: Request, res: Response) => {
 export const updateSelectedServices = async (req: Request, res: Response) => {
   try {
     const owner = getCartOwner(req);
-    const cart = await CartService.updateSelectedServices(
-      owner,
-      req.params.cartId as string,
-      req.body,
-    );
+    const cart = await CartService.updateSelectedServices(owner, req.params.cartId as string, req.body);
 
     res.status(200).json({
       success: true,
@@ -166,11 +147,7 @@ export const updateSelectedServices = async (req: Request, res: Response) => {
 export const updateSchedule = async (req: Request, res: Response) => {
   try {
     const owner = getCartOwner(req);
-    const cart = await CartService.updateSchedule(
-      owner,
-      req.params.cartId as string,
-      req.body,
-    );
+    const cart = await CartService.updateSchedule(owner, req.params.cartId as string, req.body);
 
     res.status(200).json({
       success: true,
@@ -204,11 +181,7 @@ export const updateCustomerDetails = async (req: Request, res: Response) => {
       });
     }
 
-    const cart = await CartService.updateCustomerDetails(
-      owner,
-      req.params.cartId as string,
-      req.body,
-    );
+    const cart = await CartService.updateCustomerDetails(owner, req.params.cartId as string, req.body);
 
     res.status(200).json({
       success: true,
@@ -226,11 +199,7 @@ export const updateCustomerDetails = async (req: Request, res: Response) => {
 export const updateCartNotes = async (req: Request, res: Response) => {
   try {
     const owner = getCartOwner(req);
-    const cart = await CartService.updateCartNotes(
-      owner,
-      req.params.cartId as string,
-      req.body,
-    );
+    const cart = await CartService.updateCartNotes(owner, req.params.cartId as string, req.body);
 
     res.status(200).json({
       success: true,
@@ -248,13 +217,7 @@ export const updateCartNotes = async (req: Request, res: Response) => {
 export const recalculateCart = async (req: Request, res: Response) => {
   try {
     const owner = getCartOwner(req);
-    const result = await CartService.recalculateCart(
-      owner,
-      req.params.cartId as string,
-      {
-        persist: true,
-      },
-    );
+    const result = await CartService.recalculateCart(owner, req.params.cartId as string, { persist: true });
 
     res.status(200).json({
       success: true,
@@ -282,11 +245,7 @@ export const validateCart = async (req: Request, res: Response) => {
       });
     }
 
-    const validation = await CartService.validateCart(
-      owner,
-      req.params.cartId as string,
-      persist,
-    );
+    const validation = await CartService.validateCart(owner, req.params.cartId as string, persist);
 
     res.status(200).json({
       success: true,
@@ -304,13 +263,13 @@ export const checkoutCart = async (req: Request, res: Response) => {
   try {
     const userId = req.user?.userId;
     if (!userId) {
-      return res.status(401).json({ success: false, message: "Unauthorized" });
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized"
+      });
     }
 
-    const checkout = await CartService.checkoutCart(
-      userId,
-      req.params.cartId as string,
-    );
+    const checkout = await CartService.checkoutCart(userId, req.params.cartId as string);
 
     res.status(200).json({
       success: true,
@@ -345,6 +304,7 @@ export const deleteCart = async (req: Request, res: Response) => {
 export const mergeGuestCartToUser = async (req: Request, res: Response) => {
   try {
     const userId = req.user?.userId;
+    const guestId = req.headers["x-guest-id"] as string | undefined;
 
     if (!userId) {
       return res.status(401).json({
@@ -352,8 +312,6 @@ export const mergeGuestCartToUser = async (req: Request, res: Response) => {
         message: "Unauthorized",
       });
     }
-
-    const guestId = req.headers["x-guest-id"] as string | undefined;
 
     if (!guestId) {
       return res.status(400).json({
@@ -379,7 +337,6 @@ export const mergeGuestCartToUser = async (req: Request, res: Response) => {
 export const applyCoupon = async (req: Request, res: Response) => {
   try {
     const owner = getCartOwner(req);
-
     const { couponCode } = req.body;
 
     if (!couponCode) {
@@ -389,11 +346,7 @@ export const applyCoupon = async (req: Request, res: Response) => {
       });
     }
 
-    const cart = await CartService.applyCoupon(
-      owner,
-      req.params.cartId as string,
-      couponCode,
-    );
+    const cart = await CartService.applyCoupon(owner, req.params.cartId as string, couponCode);
 
     res.status(200).json({
       success: true,
@@ -411,11 +364,7 @@ export const applyCoupon = async (req: Request, res: Response) => {
 export const removeCoupon = async (req: Request, res: Response) => {
   try {
     const owner = getCartOwner(req);
-
-    const cart = await CartService.removeCoupon(
-      owner,
-      req.params.cartId as string,
-    );
+    const cart = await CartService.removeCoupon(owner, req.params.cartId as string);
 
     res.status(200).json({
       success: true,
@@ -433,11 +382,7 @@ export const removeCoupon = async (req: Request, res: Response) => {
 export const reopenCart = async (req: Request, res: Response) => {
   try {
     const owner = getCartOwner(req);
-
-    const cart = await CartService.reopenCart(
-      owner,
-      req.params.cartId as string,
-    );
+    const cart = await CartService.reopenCart(owner, req.params.cartId as string);
 
     return res.status(200).json({
       success: true,
@@ -452,56 +397,21 @@ export const reopenCart = async (req: Request, res: Response) => {
   }
 };
 
-export const exportCartsCsv = async (
-  req: Request,
-  res: Response,
-) => {
+export const exportCartsCsv = async (req: Request, res: Response) => {
   try {
-    const {
-      cartIds,
-    } = req.body as {
-      cartIds: string[];
-    };
+    const { cartIds } = req.body as { cartIds: string[] };
 
-    const result =
-      await CartService.exportCartsToCsv(
-        cartIds,
-      );
+    const result = await CartService.exportCartsToCsv(cartIds);
+    const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
 
-    const timestamp =
-      new Date()
-        .toISOString()
-        .replace(/[:.]/g, "-");
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="carts-${timestamp}.csv"`);
+    res.setHeader("X-Export-Count", String(result.total));
 
-    res.setHeader(
-      "Content-Type",
-      "text/csv; charset=utf-8",
-    );
-
-    res.setHeader(
-      "Content-Disposition",
-      `attachment; filename="carts-${timestamp}.csv"`,
-    );
-
-    res.setHeader(
-      "X-Export-Count",
-      String(result.total),
-    );
-
-    /*
-     * BOM helps Excel correctly
-     * recognize UTF-8 content.
-     */
-    return res
-      .status(200)
-      .send(
-        `\uFEFF${result.csv}`,
-      );
+    // BOM helps Excel correctly recognize UTF-8 content
+    return res.status(200).send(`\uFEFF${result.csv}`);
   } catch (error: any) {
-    if (
-      error.message ===
-      "No carts found for export"
-    ) {
+    if (error.message === "No carts found for export") {
       return res.status(404).json({
         success: false,
         message: error.message,
@@ -510,10 +420,7 @@ export const exportCartsCsv = async (
 
     return res.status(400).json({
       success: false,
-
-      message:
-        error.message ||
-        "Failed to export carts",
+      message: error.message || "Failed to export carts"
     });
   }
 };

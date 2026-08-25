@@ -90,8 +90,7 @@ const couponSchema = new Schema({
 couponSchema.pre("validate", function () {
     const services = this.services ?? [];
     const packages = this.packages ?? [];
-    if (this.discountType === "PERCENTAGE" &&
-        (this.discount <= 0 || this.discount > 100)) {
+    if (this.discountType === "PERCENTAGE" && (this.discount <= 0 || this.discount > 100)) {
         throw new Error("Percentage discount must be between 1 and 100");
     }
     if (this.discountType === "FIXED" && this.maxDiscountAmount !== undefined) {
@@ -124,20 +123,8 @@ couponSchema.pre("validate", function () {
         throw new Error("assignedUserId is required for REFERRAL coupons");
     }
 });
-couponSchema.index({
-    name: 1,
-});
-couponSchema.index({
-    isActive: 1,
-    applicableOn: 1,
-    assignedUserId: 1,
-    createdAt: -1,
-});
-couponSchema.index({
-    name: "text",
-    couponCode: "text",
-}, {
-    name: "CouponTextSearchIndex",
-});
+couponSchema.index({ name: 1 });
+couponSchema.index({ isActive: 1, applicableOn: 1, assignedUserId: 1, createdAt: -1 });
+couponSchema.index({ name: "text", couponCode: "text", }, { name: "CouponTextSearchIndex" });
 export const Coupon = model("Coupon", couponSchema);
 //# sourceMappingURL=coupon.model.js.map

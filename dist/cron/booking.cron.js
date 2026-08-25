@@ -23,10 +23,6 @@ export const startBookingCronJobs = () => {
         catch (error) {
             console.error("[CRON] Auto assignment failed:", error);
         }
-    }, {
-        name: "booking-processing",
-        timezone: "UTC",
-        noOverlap: true,
-    });
+    }, { name: "booking-processing", timezone: "UTC", noOverlap: true });
 };
 //# sourceMappingURL=booking.cron.js.map

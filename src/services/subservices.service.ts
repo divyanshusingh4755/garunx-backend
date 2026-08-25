@@ -1,8 +1,5 @@
 import { Types, type QueryFilter, type SortOrder } from "mongoose";
-import {
-  SubServiceComponent,
-  type ISubServiceComponent,
-} from "../models/subservices.model.js";
+import { SubServiceComponent, type ISubServiceComponent } from "../models/subservices.model.js";
 import { Service } from "../models/service.model.js";
 import { escapeRegex } from "../utils/escapeRegex.js";
 import { RedisCacheService } from "./redis-cache.service.js";
@@ -17,650 +14,178 @@ type CreateSubServiceComponentInput = {
   isActive?: boolean;
 };
 
-type UpdateSubServiceComponentInput = Partial<
-  Pick<
-    ISubServiceComponent,
-    "name" | "description" | "image"
-  >
-> & {
-  serviceId?: string;
-};
+type UpdateSubServiceComponentInput = Partial<Pick<ISubServiceComponent, "name" | "description" | "image">> & { serviceId?: string; };
 
 const createHttpError = (message: string, statusCode: number) => {
-  const error = new Error(message) as Error & {
-    statusCode: number;
-  };
-
+  const error = new Error(message) as Error & { statusCode: number; };
   error.statusCode = statusCode;
   return error;
 };
 
 export class SubServiceComponentService {
-  private static async invalidateSubServiceComponentCache(
-    subServiceComponentId?: string,
-  ): Promise<void> {
-    const operations: Promise<unknown>[] = [
-      RedisCacheService.deleteByPattern(
-        CacheKeys.subServiceComponentListPattern(),
-      ),
-    ];
+  private static async invalidateSubServiceComponentCache(subServiceComponentId?: string): Promise<void> {
+    const operations: Promise<unknown>[] = [RedisCacheService.deleteByPattern(CacheKeys.subServiceComponentListPattern())];
 
     if (subServiceComponentId) {
-      operations.push(
-        RedisCacheService.delete(
-          CacheKeys.subServiceComponentDetail(
-            subServiceComponentId,
-          ),
-        ),
-      );
+      operations.push(RedisCacheService.delete(CacheKeys.subServiceComponentDetail(subServiceComponentId)));
     }
 
-    await Promise.all(
-      operations,
-    );
+    await Promise.all(operations);
   }
 
-  private static async invalidateParentServiceCache(
-    serviceIds: string[],
-  ): Promise<void> {
-    const uniqueServiceIds = [
-      ...new Set(
-        serviceIds.filter(Boolean),
-      ),
-    ];
-
+  private static async invalidateParentServiceCache(serviceIds: string[]): Promise<void> {
+    const uniqueServiceIds = [...new Set(serviceIds.filter(Boolean))];
     const operations: Promise<unknown>[] = [
-      RedisCacheService.deleteByPattern(
-        CacheKeys.serviceListPattern(),
-      ),
-
-      RedisCacheService.deleteByPattern(
-        CacheKeys.serviceByLocationListPattern(),
-      ),
+      RedisCacheService.deleteByPattern(CacheKeys.serviceListPattern()),
+      RedisCacheService.deleteByPattern(CacheKeys.serviceByLocationListPattern()),
     ];
 
     for (const serviceId of uniqueServiceIds) {
-      operations.push(
-        RedisCacheService.delete(
-          CacheKeys.serviceFull(
-            serviceId,
-          ),
-        ),
-
-        RedisCacheService.deleteByPattern(
-          CacheKeys.serviceFullByCitiesPattern(
-            serviceId,
-          ),
+      operations.push(RedisCacheService.delete(CacheKeys.serviceFull(serviceId)),
+        RedisCacheService.deleteByPattern(CacheKeys.serviceFullByCitiesPattern(serviceId),
         ),
       );
     }
 
-    await Promise.all(
-      operations,
-    );
+    await Promise.all(operations);
   }
 
-  private static applyServiceFilter(
-    filterValue?: string,
-  ): {
-    $in: Types.ObjectId[];
-  } | undefined {
-    if (!filterValue?.trim()) {
-      return undefined;
-    }
+  private static applyServiceFilter(filterValue?: string): { $in: Types.ObjectId[]; } | undefined {
+    if (!filterValue?.trim()) { return undefined; }
 
-    const values =
-      filterValue
-        .split(",")
-        .map(
-          (value) =>
-            value.trim(),
-        )
-        .filter(Boolean)
-        .filter(
-          (value) =>
-            Types.ObjectId.isValid(
-              value,
-            ),
-        )
-        .map(
-          (value) =>
-            new Types.ObjectId(
-              value,
-            ),
-        );
-
-    return values.length > 0
-      ? {
-        $in:
-          values,
-      }
-      : undefined;
+    const values = filterValue.split(",").map((value) => value.trim()).filter(Boolean).filter((value) => Types.ObjectId.isValid(value)).map((value) => new Types.ObjectId(value));
+    return values.length > 0 ? { $in: values } : undefined;
   }
 
-  static async createSubServiceComponent(
-    payload: CreateSubServiceComponentInput,
-  ) {
-    if (
-      !Types.ObjectId.isValid(
-        payload.serviceId,
-      )
-    ) {
-      throw createHttpError(
-        "Invalid service ID",
-        400,
-      );
-    }
+  static async createSubServiceComponent(payload: CreateSubServiceComponentInput) {
+    if (!Types.ObjectId.isValid(payload.serviceId)) { throw createHttpError("Invalid service ID", 400); }
 
-    const serviceExists =
-      await Service.exists({
-        _id: payload.serviceId,
-      });
+    const serviceExists = await Service.exists({ _id: payload.serviceId });
+    if (!serviceExists) { throw createHttpError("Service not found", 404); }
 
-    if (!serviceExists) {
-      throw createHttpError(
-        "Service not found",
-        404,
-      );
-    }
-
-    const subServiceComponent =
-      await SubServiceComponent.create({
-        name:
-          payload.name.trim(),
-
-        description:
-          payload.description.trim(),
-
-        serviceId:
-          payload.serviceId,
-
-        ...(payload.image !== undefined && {
-          image:
-            payload.image,
-        }),
-
-        ...(payload.isActive !== undefined && {
-          isActive:
-            payload.isActive,
-        }),
-      });
+    const subServiceComponent = await SubServiceComponent.create({
+      name: payload.name.trim(),
+      description: payload.description.trim(),
+      serviceId: payload.serviceId,
+      ...(payload.image !== undefined && { image: payload.image }),
+      ...(payload.isActive !== undefined && { isActive: payload.isActive }),
+    });
 
     await Promise.all([
       this.invalidateSubServiceComponentCache(),
-
-      this.invalidateParentServiceCache([
-        payload.serviceId,
-      ]),
+      this.invalidateParentServiceCache([payload.serviceId]),
     ]);
 
     return subServiceComponent;
   }
 
-  static async findSubServiceComponents(params: {
-    searchTerm?: string;
-    serviceId?: string;
-    limit?: number;
-    page?: number;
-    isActive?: boolean;
-    sortBy?: string;
-    sortOrder?: "asc" | "desc";
-  }) {
-    const {
-      searchTerm,
-      serviceId,
-      limit = 40,
-      page = 1,
-      isActive,
-      sortBy = "createdAt",
-      sortOrder = "desc",
-    } = params;
+  static async findSubServiceComponents(params: { searchTerm?: string; serviceId?: string; limit?: number; page?: number; isActive?: boolean; sortBy?: string; sortOrder?: "asc" | "desc"; }) {
+    const { searchTerm, serviceId, limit = 40, page = 1, isActive, sortBy = "createdAt", sortOrder = "desc" } = params;
 
-    const safeLimit =
-      Math.min(
-        Math.max(
-          limit,
-          1,
-        ),
-        100,
-      );
+    const safeLimit = Math.min(Math.max(limit, 1), 100);
+    const safePage = Math.max(page, 1);
 
-    const safePage =
-      Math.max(
-        page,
-        1,
-      );
-
-    /*
-     * Validate every supplied service ID
-     * before generating a cache key.
-     */
-    if (
-      serviceId?.trim()
-    ) {
-      const serviceIds =
-        serviceId
-          .split(",")
-          .map(
-            (value) =>
-              value.trim(),
-          )
-          .filter(Boolean);
-
-      const hasInvalidId =
-        serviceIds.some(
-          (id) =>
-            !Types.ObjectId.isValid(
-              id,
-            ),
-        );
-
-      if (hasInvalidId) {
-        throw createHttpError(
-          "Invalid service ID",
-          400,
-        );
-      }
+    // Validate every supplied service ID before generating a cache key.
+    if (serviceId?.trim()) {
+      const serviceIds = serviceId.split(",").map((value) => value.trim()).filter(Boolean);
+      const hasInvalidId = serviceIds.some((id) => !Types.ObjectId.isValid(id));
+      if (hasInvalidId) { throw createHttpError("Invalid service ID", 400); }
     }
 
-    const term =
-      searchTerm?.trim();
-
-    const isTextSearch =
-      Boolean(
-        term &&
-        term.length > 4,
-      );
-
-    const allowedSortFields =
-      new Set([
-        "name",
-        "createdAt",
-        "updatedAt",
-        "isActive",
-      ]);
-
-    const safeSortBy =
-      isTextSearch &&
-        sortBy === "relevance"
-        ? "relevance"
-        : allowedSortFields.has(
-          sortBy,
-        )
-          ? sortBy
-          : "createdAt";
-
-    const cacheKey =
-      CacheKeys.subServiceComponentList({
-        searchTerm:
-          term,
-
-        serviceId,
-
-        limit:
-          safeLimit,
-
-        page:
-          safePage,
-
-        isActive,
-
-        sortBy:
-          safeSortBy,
-
-        sortOrder,
-      });
+    const term = searchTerm?.trim();
+    const isTextSearch = Boolean(term && term.length > 4);
+    const allowedSortFields = new Set(["name", "createdAt", "updatedAt", "isActive"]);
+    const safeSortBy = isTextSearch && sortBy === "relevance" ? "relevance" : allowedSortFields.has(sortBy) ? sortBy : "createdAt";
+    const cacheKey = CacheKeys.subServiceComponentList({ searchTerm: term, serviceId, limit: safeLimit, page: safePage, isActive, sortBy: safeSortBy, sortOrder });
 
     return RedisCacheService.getOrSet({
-      key:
-        cacheKey,
+      key: cacheKey,
+      ttlSeconds: CACHE_TTL_SECONDS.SUB_SERVICE_COMPONENT_LIST,
 
-      ttlSeconds:
-        CACHE_TTL_SECONDS
-          .SUB_SERVICE_COMPONENT_LIST,
+      loader: async () => {
+        const skip = safeLimit * (safePage - 1);
+        const query: QueryFilter<ISubServiceComponent> = {};
 
-      loader:
-        async () => {
-          const skip =
-            safeLimit *
-            (safePage - 1);
+        if (typeof isActive === "boolean") { query.isActive = isActive; }
+        const serviceFilter = this.applyServiceFilter(serviceId);
+        if (serviceFilter) { query.serviceId = serviceFilter; }
+        if (term) {
+          if (isTextSearch) { query.$text = { $search: term }; }
+          else { query.name = { $regex: `^${escapeRegex(term)}`, $options: "i" }; }
+        }
 
-          const query:
-            QueryFilter<ISubServiceComponent> =
-            {};
+        let projection: Record<string, unknown> | undefined;
+        let sortCriteria: Record<string, SortOrder | { $meta: "textScore"; }>;
+        if (isTextSearch && safeSortBy === "relevance") {
+          projection = { score: { $meta: "textScore" } };
+          sortCriteria = { score: { $meta: "textScore" } };
+        } else {
+          sortCriteria = { [safeSortBy]: sortOrder === "asc" ? 1 : -1 };
+          if (safeSortBy !== "createdAt") { sortCriteria.createdAt = -1; }
+        }
 
-          if (
-            typeof isActive ===
-            "boolean"
-          ) {
-            query.isActive =
-              isActive;
-          }
+        const [data, total] = await Promise.all([
+          SubServiceComponent.find(query, projection).populate("serviceId", "name serviceReference isActive").sort(sortCriteria).skip(skip).limit(safeLimit).lean(),
+          SubServiceComponent.countDocuments(query)]);
 
-          const serviceFilter =
-            this.applyServiceFilter(
-              serviceId,
-            );
-
-          if (serviceFilter) {
-            query.serviceId =
-              serviceFilter;
-          }
-
-          if (term) {
-            if (isTextSearch) {
-              query.$text = {
-                $search:
-                  term,
-              };
-            } else {
-              query.name = {
-                $regex:
-                  `^${escapeRegex(term)}`,
-
-                $options:
-                  "i",
-              };
-            }
-          }
-
-          let projection:
-            Record<
-              string,
-              unknown
-            > |
-            undefined;
-
-          let sortCriteria:
-            Record<
-              string,
-              SortOrder | {
-                $meta:
-                "textScore";
-              }
-            >;
-
-          if (
-            isTextSearch &&
-            safeSortBy ===
-            "relevance"
-          ) {
-            projection = {
-              score: {
-                $meta:
-                  "textScore",
-              },
-            };
-
-            sortCriteria = {
-              score: {
-                $meta:
-                  "textScore",
-              },
-            };
-          } else {
-            sortCriteria = {
-              [safeSortBy]:
-                sortOrder ===
-                  "asc"
-                  ? 1
-                  : -1,
-            };
-
-            if (
-              safeSortBy !==
-              "createdAt"
-            ) {
-              sortCriteria.createdAt =
-                -1;
-            }
-          }
-
-          const [
-            data,
-            total,
-          ] =
-            await Promise.all([
-              SubServiceComponent.find(
-                query,
-                projection,
-              )
-                .populate(
-                  "serviceId",
-                  "name serviceReference isActive",
-                )
-                .sort(
-                  sortCriteria,
-                )
-                .skip(
-                  skip,
-                )
-                .limit(
-                  safeLimit,
-                )
-                .lean(),
-
-              SubServiceComponent
-                .countDocuments(
-                  query,
-                ),
-            ]);
-
-          return {
-            data,
-            total,
-
-            page:
-              safePage,
-
-            totalPages:
-              Math.ceil(
-                total /
-                safeLimit,
-              ),
-          };
-        },
+        return {
+          data, total, page: safePage, totalPages: Math.ceil(total / safeLimit),
+        };
+      },
     });
   }
 
-  static async updateSubServiceComponent(
-    subServiceComponentId: string,
-    updateData: UpdateSubServiceComponentInput,
-  ) {
+  static async updateSubServiceComponent(subServiceComponentId: string, updateData: UpdateSubServiceComponentInput) {
     if (updateData.serviceId !== undefined) {
-      const serviceExists = await Service.exists({
-        _id: updateData.serviceId,
-      });
-
-      if (!serviceExists) {
-        throw createHttpError("Service not found", 404);
-      }
+      const serviceExists = await Service.exists({ _id: updateData.serviceId });
+      if (!serviceExists) { throw createHttpError("Service not found", 404); }
     }
 
-    const normalizedUpdate: UpdateSubServiceComponentInput = {
-      ...updateData,
-    };
+    const normalizedUpdate: UpdateSubServiceComponentInput = { ...updateData };
+    if (updateData.name !== undefined) { normalizedUpdate.name = updateData.name.trim(); }
+    if (updateData.description !== undefined) { normalizedUpdate.description = updateData.description.trim(); }
+    const existing = await SubServiceComponent.findById(subServiceComponentId).select("serviceId").lean();
+    if (!existing) { throw createHttpError("Sub Service Component not found", 404); }
 
-    if (updateData.name !== undefined) {
-      normalizedUpdate.name = updateData.name.trim();
-    }
+    const updatedSubServiceComponent = await SubServiceComponent.findByIdAndUpdate(subServiceComponentId, { $set: normalizedUpdate }, { new: true, runValidators: true }).populate("serviceId", "name serviceReference isActive").lean();
+    if (!updatedSubServiceComponent) { throw createHttpError("Sub Service Component not found", 404); }
 
-    if (updateData.description !== undefined) {
-      normalizedUpdate.description = updateData.description.trim();
-    }
-
-    const existing =
-      await SubServiceComponent.findById(
-        subServiceComponentId,
-      )
-        .select(
-          "serviceId",
-        )
-        .lean();
-
-    if (!existing) {
-      throw createHttpError(
-        "Sub Service Component not found",
-        404,
-      );
-    }
-
-    const updatedSubServiceComponent =
-      await SubServiceComponent.findByIdAndUpdate(
-        subServiceComponentId,
-        {
-          $set: normalizedUpdate,
-        },
-        {
-          new: true,
-          runValidators: true,
-        },
-      )
-        .populate("serviceId", "name serviceReference isActive")
-        .lean();
-
-    if (!updatedSubServiceComponent) {
-      throw createHttpError("Sub Service Component not found", 404);
-    }
-
-    const affectedServiceIds = [
-      existing.serviceId.toString(),
-
-      ...(updatedSubServiceComponent.serviceId
-        ? [
-          typeof updatedSubServiceComponent.serviceId ===
-            "object" &&
-            "_id" in updatedSubServiceComponent.serviceId
-            ? (
-              updatedSubServiceComponent.serviceId as any
-            )._id.toString()
-            : updatedSubServiceComponent.serviceId,
-        ]
-        : []),
-    ];
+    const affectedServiceIds = [existing.serviceId.toString(), ...(updatedSubServiceComponent.serviceId ? [typeof updatedSubServiceComponent.serviceId === "object" && "_id" in updatedSubServiceComponent.serviceId ? (updatedSubServiceComponent.serviceId as any)._id.toString() : updatedSubServiceComponent.serviceId] : [])];
 
     await Promise.all([
-      this.invalidateSubServiceComponentCache(
-        subServiceComponentId,
-      ),
-
-      this.invalidateParentServiceCache(
-        affectedServiceIds,
-      ),
+      this.invalidateSubServiceComponentCache(subServiceComponentId),
+      this.invalidateParentServiceCache(affectedServiceIds),
     ]);
     return updatedSubServiceComponent;
   }
 
-  static async toggleSubServiceComponent(
-    subServiceComponentId: string,
-    status: boolean,
-  ) {
-    const existing =
-      await SubServiceComponent.findById(
-        subServiceComponentId,
-      )
-        .select(
-          "_id isActive serviceId",
-        )
-        .lean();
+  static async toggleSubServiceComponent(subServiceComponentId: string, status: boolean) {
+    const existing = await SubServiceComponent.findById(subServiceComponentId).select("_id isActive serviceId").lean();
+    if (!existing) { throw createHttpError("Sub Service Component not found", 404); }
+    if (existing.isActive === status) { return { ...existing, unchanged: true }; }
 
-    if (!existing) {
-      throw createHttpError("Sub Service Component not found", 404);
-    }
-
-    if (existing.isActive === status) {
-      return {
-        ...existing,
-        unchanged: true,
-      };
-    }
-
-    const updatedSubServiceComponent =
-      await SubServiceComponent
-        .findByIdAndUpdate(
-          subServiceComponentId,
-          {
-            $set: {
-              isActive: status,
-            },
-          },
-          {
-            new: true,
-            runValidators: true,
-          },
-        )
-        .populate(
-          "serviceId",
-          "name serviceReference isActive",
-        )
-        .lean();
-
-    if (!updatedSubServiceComponent) {
-      throw createHttpError(
-        "Sub Service Component not found",
-        404,
-      );
-    }
+    const updatedSubServiceComponent = await SubServiceComponent.findByIdAndUpdate(subServiceComponentId, { $set: { isActive: status } }, { new: true, runValidators: true }).populate("serviceId", "name serviceReference isActive").lean();
+    if (!updatedSubServiceComponent) { throw createHttpError("Sub Service Component not found", 404); }
 
     await Promise.all([
-      this.invalidateSubServiceComponentCache(
-        subServiceComponentId,
-      ),
-
-      this.invalidateParentServiceCache([
-        existing.serviceId.toString(),
-      ]),
+      this.invalidateSubServiceComponentCache(subServiceComponentId),
+      this.invalidateParentServiceCache([existing.serviceId.toString()]),
     ]);
 
     return updatedSubServiceComponent;
   }
 
-  static async getSubServiceComponentById(
-    subServiceComponentId: string,
-  ) {
-    if (
-      !Types.ObjectId.isValid(
-        subServiceComponentId,
-      )
-    ) {
-      throw createHttpError(
-        "Invalid Sub Service Component ID",
-        400,
-      );
-    }
+  static async getSubServiceComponentById(subServiceComponentId: string) {
+    if (!Types.ObjectId.isValid(subServiceComponentId)) { throw createHttpError("Invalid Sub Service Component ID", 400); }
 
     return RedisCacheService.getOrSet({
-      key:
-        CacheKeys.subServiceComponentDetail(
-          subServiceComponentId,
-        ),
-
-      ttlSeconds:
-        CACHE_TTL_SECONDS
-          .SUB_SERVICE_COMPONENT_DETAIL,
-
-      loader:
-        async () => {
-          const subServiceComponent =
-            await SubServiceComponent.findById(
-              subServiceComponentId,
-            )
-              .populate(
-                "serviceId",
-                "name serviceReference isActive",
-              )
-              .lean()
-              .exec();
-
-          if (!subServiceComponent) {
-            throw createHttpError(
-              "Sub Service Component not found",
-              404,
-            );
-          }
-
-          return subServiceComponent;
-        },
+      key: CacheKeys.subServiceComponentDetail(subServiceComponentId),
+      ttlSeconds: CACHE_TTL_SECONDS.SUB_SERVICE_COMPONENT_DETAIL,
+      loader: async () => {
+        const subServiceComponent = await SubServiceComponent.findById(subServiceComponentId).populate("serviceId", "name serviceReference isActive").lean().exec();
+        if (!subServiceComponent) { throw createHttpError("Sub Service Component not found", 404); }
+        return subServiceComponent;
+      },
     });
   }
 }

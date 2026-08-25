@@ -1,11 +1,5 @@
-import type {
-    NotificationCategory,
-    NotificationPreferenceMode,
-} from "../models/notification-template.model.js";
-
-import type {
-    NotificationType,
-} from "../models/notification.model.js";
+import type { NotificationCategory, NotificationPreferenceMode } from "../models/notification-template.model.js";
+import type { NotificationType } from "../models/notification.model.js";
 
 interface FamilyTreeNotificationTemplateSeed {
     code: string;
@@ -29,12 +23,9 @@ export const FAMILY_TREE_NOTIFICATION_TEMPLATES:
             category: "SYSTEM",
             preferenceMode: "REQUIRED",
             title: "Family tree updated",
-            message:
-                "{{fullName}} was added to your family tree by {{actorLabel}}{{bookingContext}}.",
-            pushTitle:
-                "Family tree updated",
-            pushMessage:
-                "{{fullName}} was added to your family tree.",
+            message: "{{fullName}} was added to your family tree by {{actorLabel}}{{bookingContext}}.",
+            pushTitle: "Family tree updated",
+            pushMessage: "{{fullName}} was added to your family tree.",
             isActive: true,
         },
 
@@ -44,12 +35,9 @@ export const FAMILY_TREE_NOTIFICATION_TEMPLATES:
             category: "SYSTEM",
             preferenceMode: "REQUIRED",
             title: "Family tree updated",
-            message:
-                "{{fullName}} was updated by {{actorLabel}}{{bookingContext}}. Updated fields: {{changedFields}}.",
-            pushTitle:
-                "Family member updated",
-            pushMessage:
-                "{{fullName}} was updated in your family tree.",
+            message: "{{fullName}} was updated by {{actorLabel}}{{bookingContext}}. Updated fields: {{changedFields}}.",
+            pushTitle: "Family member updated",
+            pushMessage: "{{fullName}} was updated in your family tree.",
             isActive: true,
         },
 
@@ -59,16 +47,11 @@ export const FAMILY_TREE_NOTIFICATION_TEMPLATES:
             category: "SYSTEM",
             preferenceMode: "REQUIRED",
             title: "Family member removed",
-            message:
-                "{{fullName}} was removed from your family tree by {{actorLabel}}{{bookingContext}}. Reason: {{reason}}.",
-            emailSubject:
-                "A family member was removed from your family tree",
-            emailBody:
-                "{{fullName}} was removed from your family tree by {{actorLabel}}{{bookingContext}}. Reason: {{reason}}.",
-            pushTitle:
-                "Family member removed",
-            pushMessage:
-                "{{fullName}} was removed from your family tree.",
+            message: "{{fullName}} was removed from your family tree by {{actorLabel}}{{bookingContext}}. Reason: {{reason}}.",
+            emailSubject: "A family member was removed from your family tree",
+            emailBody: "{{fullName}} was removed from your family tree by {{actorLabel}}{{bookingContext}}. Reason: {{reason}}.",
+            pushTitle: "Family member removed",
+            pushMessage: "{{fullName}} was removed from your family tree.",
             isActive: true,
         },
 
@@ -78,12 +61,9 @@ export const FAMILY_TREE_NOTIFICATION_TEMPLATES:
             category: "SYSTEM",
             preferenceMode: "REQUIRED",
             title: "Family member restored",
-            message:
-                "{{fullName}} was restored to your family tree by {{actorLabel}}{{bookingContext}}.",
-            pushTitle:
-                "Family member restored",
-            pushMessage:
-                "{{fullName}} was restored to your family tree.",
+            message: "{{fullName}} was restored to your family tree by {{actorLabel}}{{bookingContext}}.",
+            pushTitle: "Family member restored",
+            pushMessage: "{{fullName}} was restored to your family tree.",
             isActive: true,
         },
     ];

@@ -1,70 +1,23 @@
-import { Router, } from "express";
-import { body, param, query, validationResult } from "express-validator";
+import { Router } from "express";
+import { body, param, query } from "express-validator";
 import { authenticate } from "../middleware/authenticate.js";
 import { authorizeRoles } from "../middleware/authorizeRoles.js";
 import { Role } from "../types/rbac.js";
-import { createUserQuery, getMyQueries, getUserQueryById, sendUserQueryMessage, markUserQueryAsRead, getAllUserQueries, getAdminUserQueryById, sendAdminQueryReply, updateUserQueryStatus, updateUserQueryPriority, updateUserQueryCategory, assignUserQuery, deleteUserQuery, exportUserQueriesCsv, } from "../controllers/userQuery.controllers.js";
+import { createUserQuery, getMyQueries, getUserQueryById, sendUserQueryMessage, markUserQueryAsRead, getAllUserQueries, getAdminUserQueryById, sendAdminQueryReply, updateUserQueryStatus, updateUserQueryPriority, updateUserQueryCategory, assignUserQuery, deleteUserQuery, exportUserQueriesCsv } from "../controllers/userQuery.controllers.js";
 import { requirePermission } from "../middleware/rbac.js";
+import { validate } from "../utils/validate.js";
 const router = Router();
 const QUERY_STATUSES = ["PENDING", "ONGOING", "RESOLVED", "REJECTED"];
-const QUERY_CATEGORIES = [
-    "BOOKING",
-    "PAYMENT",
-    "REFUND",
-    "SERVICE",
-    "PACKAGE",
-    "ACCOUNT",
-    "TECHNICAL",
-    "OTHER",
-];
+const QUERY_CATEGORIES = ["BOOKING", "PAYMENT", "REFUND", "SERVICE", "PACKAGE", "ACCOUNT", "TECHNICAL", "OTHER"];
 const QUERY_PRIORITIES = ["LOW", "NORMAL", "HIGH", "URGENT"];
 const REQUESTER_TYPES = ["USER", "COORDINATOR"];
-const SORT_FIELDS = [
-    "createdAt",
-    "updatedAt",
-    "latestMessageAt",
-    "lastActionAt",
-];
+const SORT_FIELDS = ["createdAt", "updatedAt", "latestMessageAt", "lastActionAt"];
 const ADMIN_SORT_FIELDS = [...SORT_FIELDS, "priority"];
-const validate = (req, res, next) => {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-        const firstError = errors.array()[0];
-        return res.status(400).json({
-            success: false,
-            message: firstError?.msg ?? "Validation failed",
-            error: firstError,
-        });
-    }
-    return next();
-};
-const queryIdValidator = param("queryId")
-    .isMongoId()
-    .withMessage("Invalid query id");
+const queryIdValidator = param("queryId").isMongoId().withMessage("Invalid query id");
 const messageValidation = [
-    body("message")
-        .optional({ nullable: true })
-        .isString()
-        .withMessage("Message must be a string")
-        .trim()
-        .isLength({ max: 2000 })
-        .withMessage("Message cannot exceed 2000 characters"),
-    body("imageUrls")
-        .optional()
-        .isArray({ max: 5 })
-        .withMessage("imageUrls must be an array with maximum 5 images"),
-    body("imageUrls.*")
-        .optional()
-        .isString()
-        .withMessage("Each image URL must be a string")
-        .trim()
-        .isLength({ max: 2000 })
-        .withMessage("Image URL cannot exceed 2000 characters")
-        .isURL({
-        protocols: ["http", "https"],
-        require_protocol: true,
-    })
-        .withMessage("Each image URL must be a valid HTTP or HTTPS URL"),
+    body("message").optional({ nullable: true }).isString().withMessage("Message must be a string").trim().isLength({ max: 2000 }).withMessage("Message cannot exceed 2000 characters"),
+    body("imageUrls").optional().isArray({ max: 5 }).withMessage("imageUrls must be an array with maximum 5 images"),
+    body("imageUrls.*").optional().isString().withMessage("Each image URL must be a string").trim().isLength({ max: 2000 }).withMessage("Image URL cannot exceed 2000 characters").isURL({ protocols: ["http", "https"], require_protocol: true }).withMessage("Each image URL must be a valid HTTP or HTTPS URL"),
     body().custom((value) => {
         if (!value || typeof value !== "object" || Array.isArray(value)) {
             throw new Error("Request body must be an object");
@@ -78,43 +31,18 @@ const messageValidation = [
     }),
 ];
 export const createUserQueryValidation = [
-    body("subject")
-        .isString()
-        .withMessage("Subject must be a string")
-        .trim()
-        .isLength({ min: 3, max: 200 })
-        .withMessage("Subject must be between 3 and 200 characters"),
+    body("subject").isString().withMessage("Subject must be a string").trim().isLength({ min: 3, max: 200 }).withMessage("Subject must be between 3 and 200 characters"),
     body("category").isIn(QUERY_CATEGORIES).withMessage("Invalid query category"),
     ...messageValidation,
     validate,
 ];
 export const getMyQueriesValidation = [
-    query("status")
-        .optional()
-        .isIn(QUERY_STATUSES)
-        .withMessage("Invalid query status"),
-    query("category")
-        .optional()
-        .isIn(QUERY_CATEGORIES)
-        .withMessage("Invalid query category"),
-    query("page")
-        .optional()
-        .isInt({ min: 1 })
-        .withMessage("Page must be greater than 0")
-        .toInt(),
-    query("limit")
-        .optional()
-        .isInt({ min: 1, max: 100 })
-        .withMessage("Limit must be between 1 and 100")
-        .toInt(),
-    query("sortBy")
-        .optional()
-        .isIn(SORT_FIELDS)
-        .withMessage("Invalid sort field"),
-    query("sortOrder")
-        .optional()
-        .isIn(["asc", "desc"])
-        .withMessage("Sort order must be asc or desc"),
+    query("status").optional().isIn(QUERY_STATUSES).withMessage("Invalid query status"),
+    query("category").optional().isIn(QUERY_CATEGORIES).withMessage("Invalid query category"),
+    query("page").optional().isInt({ min: 1 }).withMessage("Page must be greater than 0").toInt(),
+    query("limit").optional().isInt({ min: 1, max: 100 }).withMessage("Limit must be between 1 and 100").toInt(),
+    query("sortBy").optional().isIn(SORT_FIELDS).withMessage("Invalid sort field"),
+    query("sortOrder").optional().isIn(["asc", "desc"]).withMessage("Sort order must be asc or desc"),
     validate,
 ];
 export const getUserQueryByIdValidation = [queryIdValidator, validate];
@@ -125,59 +53,18 @@ export const sendUserQueryMessageValidation = [
 ];
 export const markUserQueryAsReadValidation = [queryIdValidator, validate];
 export const getAllUserQueriesValidation = [
-    query("searchTerm")
-        .optional()
-        .isString()
-        .withMessage("Search term must be a string")
-        .trim()
-        .isLength({ max: 200 })
-        .withMessage("Search term cannot exceed 200 characters"),
-    query("status")
-        .optional()
-        .isIn(QUERY_STATUSES)
-        .withMessage("Invalid query status"),
-    query("category")
-        .optional()
-        .isIn(QUERY_CATEGORIES)
-        .withMessage("Invalid query category"),
-    query("priority")
-        .optional()
-        .isIn(QUERY_PRIORITIES)
-        .withMessage("Invalid query priority"),
-    query("requesterType")
-        .optional()
-        .isIn(REQUESTER_TYPES)
-        .withMessage("Invalid requester type"),
-    query("assignedAdminId")
-        .optional()
-        .isMongoId()
-        .withMessage("Invalid assigned admin id"),
-    query("requesterId")
-        .optional()
-        .isMongoId()
-        .withMessage("Invalid requester id"),
-    query("isDeleted")
-        .optional()
-        .isBoolean()
-        .withMessage("isDeleted must be true or false"),
-    query("page")
-        .optional()
-        .isInt({ min: 1 })
-        .withMessage("Page must be greater than 0")
-        .toInt(),
-    query("limit")
-        .optional()
-        .isInt({ min: 1, max: 100 })
-        .withMessage("Limit must be between 1 and 100")
-        .toInt(),
-    query("sortBy")
-        .optional()
-        .isIn(ADMIN_SORT_FIELDS)
-        .withMessage("Invalid sort field"),
-    query("sortOrder")
-        .optional()
-        .isIn(["asc", "desc"])
-        .withMessage("Sort order must be asc or desc"),
+    query("searchTerm").optional().isString().withMessage("Search term must be a string").trim().isLength({ max: 200 }).withMessage("Search term cannot exceed 200 characters"),
+    query("status").optional().isIn(QUERY_STATUSES).withMessage("Invalid query status"),
+    query("category").optional().isIn(QUERY_CATEGORIES).withMessage("Invalid query category"),
+    query("priority").optional().isIn(QUERY_PRIORITIES).withMessage("Invalid query priority"),
+    query("requesterType").optional().isIn(REQUESTER_TYPES).withMessage("Invalid requester type"),
+    query("assignedAdminId").optional().isMongoId().withMessage("Invalid assigned admin id"),
+    query("requesterId").optional().isMongoId().withMessage("Invalid requester id"),
+    query("isDeleted").optional().isBoolean().withMessage("isDeleted must be true or false"),
+    query("page").optional().isInt({ min: 1 }).withMessage("Page must be greater than 0").toInt(),
+    query("limit").optional().isInt({ min: 1, max: 100 }).withMessage("Limit must be between 1 and 100").toInt(),
+    query("sortBy").optional().isIn(ADMIN_SORT_FIELDS).withMessage("Invalid sort field"),
+    query("sortOrder").optional().isIn(["asc", "desc"]).withMessage("Sort order must be asc or desc"),
     validate,
 ];
 export const sendAdminQueryReplyValidation = [
@@ -188,16 +75,9 @@ export const sendAdminQueryReplyValidation = [
 export const updateUserQueryStatusValidation = [
     queryIdValidator,
     body("status").isIn(QUERY_STATUSES).withMessage("Invalid query status"),
-    body("reason")
-        .optional({ nullable: true })
-        .isString()
-        .withMessage("Reason must be a string")
-        .trim()
-        .isLength({ max: 1000 })
-        .withMessage("Reason cannot exceed 1000 characters"),
+    body("reason").optional({ nullable: true }).isString().withMessage("Reason must be a string").trim().isLength({ max: 1000 }).withMessage("Reason cannot exceed 1000 characters"),
     body().custom((value) => {
-        if (value?.status === "REJECTED" &&
-            (typeof value.reason !== "string" || !value.reason.trim())) {
+        if (value?.status === "REJECTED" && (typeof value.reason !== "string" || !value.reason.trim())) {
             throw new Error("Reason is required when rejecting a query");
         }
         return true;
@@ -207,25 +87,13 @@ export const updateUserQueryStatusValidation = [
 export const updateUserQueryPriorityValidation = [
     queryIdValidator,
     body("priority").isIn(QUERY_PRIORITIES).withMessage("Invalid query priority"),
-    body("reason")
-        .optional({ nullable: true })
-        .isString()
-        .withMessage("Reason must be a string")
-        .trim()
-        .isLength({ max: 1000 })
-        .withMessage("Reason cannot exceed 1000 characters"),
+    body("reason").optional({ nullable: true }).isString().withMessage("Reason must be a string").trim().isLength({ max: 1000 }).withMessage("Reason cannot exceed 1000 characters"),
     validate,
 ];
 export const updateUserQueryCategoryValidation = [
     queryIdValidator,
     body("category").isIn(QUERY_CATEGORIES).withMessage("Invalid query category"),
-    body("reason")
-        .optional({ nullable: true })
-        .isString()
-        .withMessage("Reason must be a string")
-        .trim()
-        .isLength({ max: 1000 })
-        .withMessage("Reason cannot exceed 1000 characters"),
+    body("reason").optional({ nullable: true }).isString().withMessage("Reason must be a string").trim().isLength({ max: 1000 }).withMessage("Reason cannot exceed 1000 characters"),
     validate,
 ];
 export const assignUserQueryValidation = [
@@ -244,64 +112,42 @@ export const deleteUserQueryValidation = [
     validate,
 ];
 const exportUserQueriesValidation = [
-    body("queryIds")
-        .isArray({
-        min: 1,
-        max: 1000,
-    })
-        .withMessage("queryIds must contain between 1 and 1000 query IDs"),
-    body("queryIds.*")
-        .isMongoId()
-        .withMessage("Each queryId must be a valid MongoDB ID"),
+    body("queryIds").isArray({ min: 1, max: 1000 }).withMessage("queryIds must contain between 1 and 1000 query IDs"),
+    body("queryIds.*").isMongoId().withMessage("Each queryId must be a valid MongoDB ID"),
     body("queryIds").custom((queryIds) => {
         if (!Array.isArray(queryIds)) {
             return true;
         }
         const uniqueIds = new Set(queryIds);
-        if (uniqueIds.size !==
-            queryIds.length) {
+        if (uniqueIds.size !== queryIds.length) {
             throw new Error("Duplicate query IDs are not allowed");
         }
         return true;
     }),
     validate,
 ];
-// =========================================================
 // USER - CREATE / OWN QUERIES
-// =========================================================
 router.post("/", authenticate, createUserQueryValidation, createUserQuery);
 router.get("/my-queries", authenticate, getMyQueriesValidation, getMyQueries);
-// =========================================================
 // ADMIN - STATIC ROUTES
-// =========================================================
 router.get("/admin", authenticate, authorizeRoles(Role.ADMIN), requirePermission("user_query.read"), getAllUserQueriesValidation, getAllUserQueries);
 router.post("/export", authenticate, authorizeRoles(Role.ADMIN), requirePermission("user_query.read"), exportUserQueriesValidation, exportUserQueriesCsv);
-// =========================================================
 // ADMIN - PREFIXED DETAIL ROUTE
 // Keep before generic /:queryId
-// =========================================================
 router.get("/admin/:queryId", authenticate, authorizeRoles(Role.ADMIN), requirePermission("user_query.read"), getUserQueryByIdValidation, getAdminUserQueryById);
-// =========================================================
 // QUERY - MESSAGE / READ ACTIONS
-// =========================================================
 router.post("/:queryId/messages", authenticate, sendUserQueryMessageValidation, sendUserQueryMessage);
 router.patch("/:queryId/read", authenticate, markUserQueryAsReadValidation, markUserQueryAsRead);
-// =========================================================
 // ADMIN - QUERY-SPECIFIC ACTIONS
-// =========================================================
 router.post("/:queryId/admin-reply", authenticate, authorizeRoles(Role.ADMIN), requirePermission("user_query.reply"), sendAdminQueryReplyValidation, sendAdminQueryReply);
 router.patch("/:queryId/status", authenticate, authorizeRoles(Role.ADMIN), requirePermission("user_query.status"), updateUserQueryStatusValidation, updateUserQueryStatus);
 router.patch("/:queryId/priority", authenticate, authorizeRoles(Role.ADMIN), requirePermission("user_query.priority"), updateUserQueryPriorityValidation, updateUserQueryPriority);
 router.patch("/:queryId/category", authenticate, authorizeRoles(Role.ADMIN), requirePermission("user_query.category"), updateUserQueryCategoryValidation, updateUserQueryCategory);
 router.patch("/:queryId/assign", authenticate, authorizeRoles(Role.ADMIN), requirePermission("user_query.assign"), assignUserQueryValidation, assignUserQuery);
-// =========================================================
 // ADMIN - DELETE
-// =========================================================
 router.delete("/:queryId", authenticate, authorizeRoles(Role.ADMIN), requirePermission("user_query.delete"), deleteUserQueryValidation, deleteUserQuery);
-// =========================================================
 // GENERIC QUERY DETAIL
 // Keep this LAST among GET /:queryId routes.
-// =========================================================
 router.get("/:queryId", authenticate, getUserQueryByIdValidation, getUserQueryById);
 export default router;
 //# sourceMappingURL=userQuery.routes.js.map

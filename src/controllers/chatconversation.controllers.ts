@@ -4,8 +4,8 @@ import { ChatConversationService } from "../services/chatconversation.service.js
 export const getByBookingId = async (req: Request, res: Response) => {
   try {
     const { bookingId } = req.params;
-
     const requestedBy = req.user?.userId;
+
     if (!requestedBy) {
       return res.status(401).json({ success: false, message: "Unauthorized" });
     }
@@ -35,8 +35,8 @@ export const getByBookingId = async (req: Request, res: Response) => {
 export const getById = async (req: Request, res: Response) => {
   try {
     const { conversationId } = req.params;
-
     const requestedBy = req.user?.userId;
+
     if (!requestedBy) {
       return res.status(401).json({ success: false, message: "Unauthorized" });
     }
@@ -70,8 +70,8 @@ export const markAsRead = async (req: Request, res: Response) => {
   try {
     const { conversationId } = req.params;
     const { messageId } = req.body;
-
     const userId = req.user?.userId;
+
     if (!userId) {
       return res.status(401).json({ success: false, message: "Unauthorized" });
     }
@@ -83,11 +83,7 @@ export const markAsRead = async (req: Request, res: Response) => {
       });
     }
 
-    const conversation = await ChatConversationService.markAsRead({
-      conversationId,
-      userId,
-      messageId
-    })
+    const conversation = await ChatConversationService.markAsRead({ conversationId, userId, messageId })
 
     return res.status(200).json({
       success: true,

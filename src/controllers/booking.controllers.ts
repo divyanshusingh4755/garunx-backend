@@ -650,13 +650,7 @@ export const requestReassignment = async (req: Request, res: Response) => {
   }
 };
 
-/**
- * Coordinator booking list.
- *
- * Views:
- * - REQUESTS: Pending booking requests awaiting coordinator response
- * - BOOKINGS: Accepted, ongoing, completed, or cancelled bookings
- */
+// Coordinator booking list. Views: - REQUESTS: Pending booking requests awaiting coordinator response - BOOKINGS: Accepted, ongoing, completed, or cancelled bookings
 export const getCoordinatorBookingList = async (req: Request, res: Response) => {
   try {
     const coordinatorId = req.user?.userId;

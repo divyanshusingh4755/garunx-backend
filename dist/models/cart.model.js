@@ -288,15 +288,7 @@ const cartSchema = new Schema({
     },
     status: {
         type: String,
-        enum: [
-            "ACTIVE",
-            "SCHEDULED",
-            "CHECKOUT_PENDING",
-            "CHECKED_OUT",
-            "EXPIRED",
-            "CANCELLED",
-            "DELETED",
-        ],
+        enum: ["ACTIVE", "SCHEDULED", "CHECKOUT_PENDING", "CHECKED_OUT", "EXPIRED", "CANCELLED", "DELETED"],
         default: "ACTIVE",
         index: true,
     },
@@ -318,9 +310,7 @@ cartSchema.pre("validate", function () {
     const hasUser = Boolean(this.userId);
     const hasGuest = Boolean(this.guestId);
     if (hasUser === hasGuest) {
-        throw new Error(hasUser
-            ? "Cart cannot belong to both user and guest"
-            : "Cart must belong to a user or guest");
+        throw new Error(hasUser ? "Cart cannot belong to both user and guest" : "Cart must belong to a user or guest");
     }
 });
 cartSchema.pre("validate", function () {
@@ -332,11 +322,8 @@ cartSchema.index({ userId: 1, status: 1 });
 cartSchema.index({ guestId: 1, status: 1 });
 cartSchema.index({ status: 1, checkoutExpiresAt: 1 });
 cartSchema.index({ createdAt: 1 }, {
-    expireAfterSeconds: 86400,
-    partialFilterExpression: {
-        status: "ACTIVE",
-        guestId: { $exists: true },
-        userId: { $exists: false },
+    expireAfterSeconds: 86400, partialFilterExpression: {
+        status: "ACTIVE", guestId: { $exists: true }, userId: { $exists: false },
     },
 });
 export const Cart = mongoose.model("Cart", cartSchema);

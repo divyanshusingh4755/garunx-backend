@@ -36,17 +36,8 @@ const categorySchema = new Schema({
 }, {
     timestamps: true,
 });
-categorySchema.index({
-    type: 1,
-    isActive: 1,
-    displayOrder: 1,
-});
+categorySchema.index({ type: 1, isActive: 1, displayOrder: 1 });
 categorySchema.index({ label: 1 });
-categorySchema.index({
-    label: "text",
-    value: "text",
-}, {
-    name: "CategoryTextSearchIndex",
-});
+categorySchema.index({ label: "text", value: "text" }, { name: "CategoryTextSearchIndex" });
 export const Category = model("Category", categorySchema);
 //# sourceMappingURL=category.model.js.map

@@ -1,40 +1,28 @@
 import { Schema, Types, model, type Document, type Model } from "mongoose";
 
-export type ReviewDirection =
-  | "CUSTOMER_TO_COORDINATOR"
-  | "COORDINATOR_TO_CUSTOMER";
-
+export type ReviewDirection = "CUSTOMER_TO_COORDINATOR" | "COORDINATOR_TO_CUSTOMER";
 export type ReviewVisibility = "PUBLISHED" | "HIDDEN" | "UNPUBLISHED";
-
 export type ReviewModerationStatus = "CLEAN" | "FLAGGED";
 
 export interface IReview extends Document {
   bookingId: Types.ObjectId;
-
   reviewerId: Types.ObjectId;
   revieweeId: Types.ObjectId;
-
   direction: ReviewDirection;
-
   rating: number;
   review: string | null;
   imageUrl: string | null;
-
   editedAt?: Date;
   editCount: number;
-
   visibility: ReviewVisibility;
-
   moderationStatus: ReviewModerationStatus;
   moderationReason?: string;
   moderatedBy?: Types.ObjectId;
   moderatedAt?: Date;
-
   isDeleted: boolean;
   deletedBy?: Types.ObjectId;
   deletedAt?: Date;
   deletionReason?: string;
-
   createdAt: Date;
   updatedAt: Date;
 }
@@ -64,10 +52,7 @@ const reviewSchema = new Schema<IReview>(
 
     direction: {
       type: String,
-      enum: [
-        "CUSTOMER_TO_COORDINATOR",
-        "COORDINATOR_TO_CUSTOMER",
-      ] satisfies ReviewDirection[],
+      enum: ["CUSTOMER_TO_COORDINATOR", "COORDINATOR_TO_CUSTOMER"] satisfies ReviewDirection[],
       required: true,
     },
 
@@ -158,53 +143,15 @@ const reviewSchema = new Schema<IReview>(
 );
 
 reviewSchema.pre("validate", function () {
-  if (this.reviewerId.equals(this.revieweeId)) {
-    throw new Error("Reviewer and reviewee cannot be the same");
-  }
-
-  if (this.isDeleted && !this.deletedAt) {
-    this.deletedAt = new Date();
-  }
+  if (this.reviewerId.equals(this.revieweeId)) { throw new Error("Reviewer and reviewee cannot be the same"); }
+  if (this.isDeleted && !this.deletedAt) { this.deletedAt = new Date(); }
 });
 
-reviewSchema.index(
-  {
-    bookingId: 1,
-    reviewerId: 1,
-  },
-  {
-    unique: true,
-    name: "UniqueReviewerPerBooking",
-  },
-);
-
-reviewSchema.index({
-  revieweeId: 1,
-  createdAt: -1,
-});
-
-reviewSchema.index({
-  reviewerId: 1,
-  createdAt: -1,
-});
-
-reviewSchema.index({
-  bookingId: 1,
-  direction: 1,
-});
-
-reviewSchema.index({
-  revieweeId: 1,
-  visibility: 1,
-  isDeleted: 1,
-  createdAt: -1,
-});
-
-reviewSchema.index({
-  moderationStatus: 1,
-  visibility: 1,
-  isDeleted: 1,
-  createdAt: -1,
-});
+reviewSchema.index({ bookingId: 1, reviewerId: 1 }, { unique: true, name: "UniqueReviewerPerBooking" });
+reviewSchema.index({ revieweeId: 1, createdAt: -1 });
+reviewSchema.index({ reviewerId: 1, createdAt: -1 });
+reviewSchema.index({ bookingId: 1, direction: 1 });
+reviewSchema.index({ revieweeId: 1, visibility: 1, isDeleted: 1, createdAt: -1 });
+reviewSchema.index({ moderationStatus: 1, visibility: 1, isDeleted: 1, createdAt: -1 });
 
 export const Review: Model<IReview> = model<IReview>("Review", reviewSchema);

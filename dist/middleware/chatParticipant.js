@@ -15,11 +15,7 @@ export const requireActiveChatParticipant = async (req, res, next) => {
                 message: "Valid conversation ID is required"
             });
         }
-        await ChatConversationService.assertParticipant({
-            conversationId,
-            userId,
-            requireActive: true
-        });
+        await ChatConversationService.assertParticipant({ conversationId, userId, requireActive: true });
         next();
     }
     catch (error) {

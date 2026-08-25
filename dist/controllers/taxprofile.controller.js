@@ -1,4 +1,4 @@
-import { TaxProfileService, } from "../services/taxprofile.service.js";
+import { TaxProfileService } from "../services/taxprofile.service.js";
 const getStatusCode = (error) => {
     if (typeof error?.statusCode === "number") {
         return error.statusCode;
@@ -16,7 +16,7 @@ function getAuthenticatedUserId(req) {
     return userId ? String(userId) : null;
 }
 export class TaxProfileController {
-    static async create(req, res, next) {
+    static async create(req, res) {
         try {
             const adminId = getAuthenticatedUserId(req);
             if (!adminId) {
@@ -49,7 +49,7 @@ export class TaxProfileController {
             });
         }
     }
-    static async list(req, res, next) {
+    static async list(req, res) {
         try {
             const filters = {};
             if (typeof req.query.search === "string") {
@@ -64,15 +64,11 @@ export class TaxProfileController {
             else if (req.query.isActive === "false") {
                 filters.isActive = false;
             }
-            const page = typeof req.query.page === "number"
-                ? req.query.page
-                : Number(req.query.page);
+            const page = typeof req.query.page === "number" ? req.query.page : Number(req.query.page);
             if (Number.isInteger(page) && page > 0) {
                 filters.page = page;
             }
-            const limit = typeof req.query.limit === "number"
-                ? req.query.limit
-                : Number(req.query.limit);
+            const limit = typeof req.query.limit === "number" ? req.query.limit : Number(req.query.limit);
             if (Number.isInteger(limit) && limit > 0) {
                 filters.limit = Math.min(limit, 100);
             }
@@ -90,7 +86,7 @@ export class TaxProfileController {
             });
         }
     }
-    static async listActive(_req, res, next) {
+    static async listActive(_req, res) {
         try {
             const taxProfiles = await TaxProfileService.getActiveTaxProfiles();
             return res.status(200).json({
@@ -106,7 +102,7 @@ export class TaxProfileController {
             });
         }
     }
-    static async getById(req, res, next) {
+    static async getById(req, res) {
         try {
             const taxProfile = await TaxProfileService.getTaxProfileById(req.params.taxProfileId);
             return res.status(200).json({
@@ -121,7 +117,7 @@ export class TaxProfileController {
             });
         }
     }
-    static async update(req, res, next) {
+    static async update(req, res) {
         try {
             const adminId = getAuthenticatedUserId(req);
             if (!adminId) {
@@ -130,9 +126,7 @@ export class TaxProfileController {
                     message: "Unauthorized",
                 });
             }
-            const payload = {
-                updatedBy: adminId,
-            };
+            const payload = { updatedBy: adminId };
             if (Object.prototype.hasOwnProperty.call(req.body, "name")) {
                 payload.name = req.body.name;
             }
@@ -159,7 +153,7 @@ export class TaxProfileController {
             });
         }
     }
-    static async updateStatus(req, res, next) {
+    static async updateStatus(req, res) {
         try {
             const adminId = getAuthenticatedUserId(req);
             if (!adminId) {
@@ -171,9 +165,7 @@ export class TaxProfileController {
             const taxProfile = await TaxProfileService.updateTaxProfileStatus(req.params.taxProfileId, req.body.isActive, adminId);
             return res.status(200).json({
                 success: true,
-                message: req.body.isActive
-                    ? "Tax profile activated successfully"
-                    : "Tax profile deactivated successfully",
+                message: req.body.isActive ? "Tax profile activated successfully" : "Tax profile deactivated successfully",
                 data: taxProfile,
             });
         }
@@ -184,21 +176,20 @@ export class TaxProfileController {
             });
         }
     }
-    static async exportCsv(req, res, next) {
+    static async exportCsv(req, res) {
         try {
-            const { taxProfileIds, } = req.body;
+            const { taxProfileIds } = req.body;
             const result = await TaxProfileService.exportTaxProfilesToCsv(taxProfileIds);
-            const timestamp = new Date()
-                .toISOString()
-                .replace(/[:.]/g, "-");
+            const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
             res.setHeader("Content-Type", "text/csv; charset=utf-8");
             res.setHeader("Content-Disposition", `attachment; filename="tax-profiles-${timestamp}.csv"`);
-            return res
-                .status(200)
-                .send(result.csv);
+            return res.status(200).send(result.csv);
         }
         catch (error) {
-            return next(error);
+            return res.status(getStatusCode(error)).json({
+                success: false,
+                message: error.message || "Failed to export tax profile",
+            });
         }
     }
 }

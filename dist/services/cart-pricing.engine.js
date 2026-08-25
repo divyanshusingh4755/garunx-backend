@@ -9,9 +9,7 @@ import { TaxContextService } from "./tax-context.service.js";
 import { taxConfig } from "../config/tax.config.js";
 import { TaxPriceMode, TaxSource, TaxTreatment, } from "../types/tax.types.js";
 export class CartPricingEngine {
-    static round(value) {
-        return Math.round((value + Number.EPSILON) * 100) / 100;
-    }
+    static round(value) { return Math.round((value + Number.EPSILON) * 100) / 100; }
     static validateObjectId(value, fieldName) {
         if (!Types.ObjectId.isValid(value.toString())) {
             throw new Error(`Invalid ${fieldName}`);
@@ -55,9 +53,7 @@ export class CartPricingEngine {
     }
     static async loadTaxProfiles(taxProfileIds) {
         const uniqueIds = [
-            ...new Set(taxProfileIds
-                .filter((id) => id !== null && id !== undefined)
-                .map((id) => {
+            ...new Set(taxProfileIds.filter((id) => id !== null && id !== undefined).map((id) => {
                 const stringId = id.toString();
                 if (!Types.ObjectId.isValid(stringId)) {
                     throw new Error(`Invalid taxProfileId: ${stringId}`);
@@ -68,24 +64,11 @@ export class CartPricingEngine {
         if (uniqueIds.length === 0) {
             return new Map();
         }
-        const profiles = await TaxProfile.find({
-            _id: {
-                $in: uniqueIds.map((id) => new Types.ObjectId(id)),
-            },
-            isActive: true,
-        })
-            .select("name code treatment totalRate")
-            .lean();
+        const profiles = await TaxProfile.find({ _id: { $in: uniqueIds.map((id) => new Types.ObjectId(id)), }, isActive: true, }).select("name code treatment totalRate").lean();
         return new Map(profiles.map((profile) => [profile._id.toString(), profile]));
     }
     static emptyTaxSummary() {
-        return {
-            taxableAmount: 0,
-            cgstAmount: 0,
-            sgstAmount: 0,
-            igstAmount: 0,
-            totalTax: 0,
-        };
+        return { taxableAmount: 0, cgstAmount: 0, sgstAmount: 0, igstAmount: 0, totalTax: 0, };
     }
     static addLineTaxToSummary(summary, tax) {
         summary.taxableAmount = this.round(summary.taxableAmount + tax.taxableAmount);
@@ -104,13 +87,7 @@ export class CartPricingEngine {
         const taxProfileId = pricing.taxProfileId ?? null;
         const taxPriceMode = this.validateTaxPriceMode(pricing.taxPriceMode);
         if (!taxConfig.enabled || !taxProfileId) {
-            return {
-                amount: normalizedAmount,
-                discountAmount,
-                finalAmount: this.round(normalizedAmount - discountAmount),
-                taxProfileId,
-                taxPriceMode,
-            };
+            return { amount: normalizedAmount, discountAmount, finalAmount: this.round(normalizedAmount - discountAmount), taxProfileId, taxPriceMode, };
         }
         if (!supplierStateCode || !placeOfSupplyStateCode) {
             throw new Error("Tax context is required for taxable pricing");
@@ -128,21 +105,8 @@ export class CartPricingEngine {
             priceMode: taxPriceMode,
             source,
         };
-        const tax = TaxCalculatorService.calculateLineTax({
-            amount: normalizedAmount,
-            discountAmount,
-            profile: profileSnapshot,
-            supplierStateCode,
-            placeOfSupplyStateCode,
-        });
-        return {
-            amount: normalizedAmount,
-            discountAmount,
-            finalAmount: tax.finalAmount,
-            taxProfileId,
-            taxPriceMode,
-            tax,
-        };
+        const tax = TaxCalculatorService.calculateLineTax({ amount: normalizedAmount, discountAmount, profile: profileSnapshot, supplierStateCode, placeOfSupplyStateCode, });
+        return { amount: normalizedAmount, discountAmount, finalAmount: tax.finalAmount, taxProfileId, taxPriceMode, tax, };
     }
     static async calculateServiceCart(cart) {
         if (!cart.serviceId) {
@@ -154,10 +118,8 @@ export class CartPricingEngine {
         this.validateObjectId(cart.serviceId, "serviceId");
         this.validateObjectId(cart.tierId, "tierId");
         this.validateObjectId(cart.locationId, "locationId");
-        const selectedComponents = (cart.selectedComponents ??
-            []);
-        const addonComponents = (cart.addonComponents ??
-            []);
+        const selectedComponents = (cart.selectedComponents ?? []);
+        const addonComponents = (cart.addonComponents ?? []);
         this.ensureUniqueIds(selectedComponents, (item) => item.componentId, "selected component");
         this.ensureUniqueIds(addonComponents, (item) => item.componentId, "addon component");
         const selectedIds = new Set(selectedComponents.map((item) => item.componentId.toString()));
@@ -168,15 +130,8 @@ export class CartPricingEngine {
             }
         }
         const [serviceComponents, pricingRows] = await Promise.all([
-            ServiceComponent.find({
-                serviceId: cart.serviceId,
-                tierId: cart.tierId,
-            }).lean(),
-            ServicePricing.find({
-                serviceId: cart.serviceId,
-                tierId: cart.tierId,
-                locationId: cart.locationId,
-            }).lean(),
+            ServiceComponent.find({ serviceId: cart.serviceId, tierId: cart.tierId, }).lean(),
+            ServicePricing.find({ serviceId: cart.serviceId, tierId: cart.tierId, locationId: cart.locationId, }).lean(),
         ]);
         const pricingMap = this.createUniqueMap(pricingRows, (pricing) => pricing.componentId.toString(), "service pricing row for component");
         const serviceComponentMap = this.createUniqueMap(serviceComponents, (component) => component.componentId.toString(), "service component");
@@ -196,10 +151,7 @@ export class CartPricingEngine {
             throw new Error(`Duplicate required service component: ${duplicateRequiredIds[0]}`);
         }
         const requiredComponentIdSet = new Set(requiredComponentIds);
-        const selectedComponentMap = new Map(selectedComponents.map((component) => [
-            component.componentId.toString(),
-            component,
-        ]));
+        const selectedComponentMap = new Map(selectedComponents.map((component) => [component.componentId.toString(), component,]));
         const componentLines = new Map();
         const componentItems = [];
         const taxSummary = this.emptyTaxSummary();
@@ -219,9 +171,7 @@ export class CartPricingEngine {
                 pricing,
                 taxProfileMap,
                 ...(supplierStateCode !== undefined ? { supplierStateCode } : {}),
-                ...(placeOfSupplyStateCode !== undefined
-                    ? { placeOfSupplyStateCode }
-                    : {}),
+                ...(placeOfSupplyStateCode !== undefined ? { placeOfSupplyStateCode } : {}),
                 source: TaxSource.SERVICE_PRICING,
             });
             basePrice = this.round(basePrice + line.amount);
@@ -235,8 +185,7 @@ export class CartPricingEngine {
             componentItems.push({
                 componentId: new Types.ObjectId(componentId),
                 name: componentConfig?.name ??
-                    componentConfig?.componentName ??
-                    "",
+                    componentConfig?.componentName ?? "",
                 priceBeforeDiscount: line.amount,
                 discountAmount: line.discountAmount,
                 price: line.finalAmount,
@@ -258,9 +207,7 @@ export class CartPricingEngine {
                 pricing,
                 taxProfileMap,
                 ...(supplierStateCode !== undefined ? { supplierStateCode } : {}),
-                ...(placeOfSupplyStateCode !== undefined
-                    ? { placeOfSupplyStateCode }
-                    : {}),
+                ...(placeOfSupplyStateCode !== undefined ? { placeOfSupplyStateCode } : {}),
                 source: TaxSource.SERVICE_PRICING,
             });
             basePrice = this.round(basePrice + line.amount);
@@ -274,8 +221,7 @@ export class CartPricingEngine {
             componentItems.push({
                 componentId: component.componentId,
                 name: componentConfig?.name ??
-                    componentConfig?.componentName ??
-                    "",
+                    componentConfig?.componentName ?? "",
                 priceBeforeDiscount: line.amount,
                 discountAmount: line.discountAmount,
                 price: line.finalAmount,
@@ -294,9 +240,7 @@ export class CartPricingEngine {
                 pricing,
                 taxProfileMap,
                 ...(supplierStateCode !== undefined ? { supplierStateCode } : {}),
-                ...(placeOfSupplyStateCode !== undefined
-                    ? { placeOfSupplyStateCode }
-                    : {}),
+                ...(placeOfSupplyStateCode !== undefined ? { placeOfSupplyStateCode } : {}),
                 source: TaxSource.SERVICE_PRICING,
             });
             addonPrice = this.round(addonPrice + line.amount);
@@ -314,9 +258,7 @@ export class CartPricingEngine {
             subtotal,
             discountAmount,
             totalAmount,
-            taxSummary: {
-                ...taxSummary,
-            },
+            taxSummary: { ...taxSummary, },
             componentLines,
             serviceLines: new Map(),
             componentItems,
@@ -340,8 +282,7 @@ export class CartPricingEngine {
         this.validateObjectId(cart.packageId, "packageId");
         this.validateObjectId(cart.tierId, "tierId");
         this.validateObjectId(cart.locationId, "locationId");
-        const selectedServices = (cart.selectedServices ??
-            []);
+        const selectedServices = (cart.selectedServices ?? []);
         const addonServices = (cart.addonServices ?? []);
         this.ensureUniqueIds(selectedServices, (item) => item.serviceId, "selected service");
         this.ensureUniqueIds(addonServices, (item) => item.serviceId, "addon service");
@@ -353,15 +294,8 @@ export class CartPricingEngine {
             }
         }
         const [packageTierMap, pricingRows] = await Promise.all([
-            PackageTierMap.findOne({
-                packageId: cart.packageId,
-                tierId: cart.tierId,
-            }).lean(),
-            PackageTierPricing.find({
-                packageId: cart.packageId,
-                tierId: cart.tierId,
-                locationId: cart.locationId,
-            }).lean(),
+            PackageTierMap.findOne({ packageId: cart.packageId, tierId: cart.tierId, }).lean(),
+            PackageTierPricing.find({ packageId: cart.packageId, tierId: cart.tierId, locationId: cart.locationId, }).lean(),
         ]);
         if (!packageTierMap) {
             throw new Error("Package tier mapping not found");
@@ -377,10 +311,7 @@ export class CartPricingEngine {
             supplierStateCode = taxContext.supplierStateCode;
             placeOfSupplyStateCode = taxContext.placeOfSupplyStateCode;
         }
-        const selectedServiceMap = new Map(selectedServices.map((service) => [
-            service.serviceId.toString(),
-            service,
-        ]));
+        const selectedServiceMap = new Map(selectedServices.map((service) => [service.serviceId.toString(), service,]));
         const addonServiceMap = new Map(addonServices.map((service) => [service.serviceId.toString(), service]));
         const mappedServiceIds = new Set(packageServices.map((service) => service.serviceId.toString()));
         for (const selectedService of selectedServices) {
@@ -420,15 +351,7 @@ export class CartPricingEngine {
                 throw new Error(`Pricing not found for selected package service: ${serviceId}`);
             }
             if (selectedService && !service.isRelated) {
-                const line = this.calculatePricingLine({
-                    amount: pricing.finalPrice,
-                    discountAmount: selectedService.discountAmount ?? 0,
-                    pricing,
-                    taxProfileMap,
-                    supplierStateCode,
-                    placeOfSupplyStateCode,
-                    source: TaxSource.PACKAGE_PRICING,
-                });
+                const line = this.calculatePricingLine({ amount: pricing.finalPrice, discountAmount: selectedService.discountAmount ?? 0, pricing, taxProfileMap, supplierStateCode, placeOfSupplyStateCode, source: TaxSource.PACKAGE_PRICING, });
                 basePrice = this.round(basePrice + line.amount);
                 discountAmount = this.round(discountAmount + line.discountAmount);
                 totalAmount = this.round(totalAmount + line.finalAmount);
@@ -438,9 +361,7 @@ export class CartPricingEngine {
                 serviceLines.set(serviceId, line);
                 serviceItems.push({
                     serviceId: service.serviceId,
-                    name: service.name ??
-                        service.serviceName ??
-                        "",
+                    name: service.name ?? service.serviceName ?? "",
                     priceBeforeDiscount: line.amount,
                     discountAmount: line.discountAmount,
                     price: line.finalAmount,
@@ -448,15 +369,7 @@ export class CartPricingEngine {
                 });
             }
             if (addonService && service.isRelated) {
-                const line = this.calculatePricingLine({
-                    amount: pricing.finalPrice,
-                    discountAmount: addonService.discountAmount ?? 0,
-                    pricing,
-                    taxProfileMap,
-                    supplierStateCode,
-                    placeOfSupplyStateCode,
-                    source: TaxSource.PACKAGE_PRICING,
-                });
+                const line = this.calculatePricingLine({ amount: pricing.finalPrice, discountAmount: addonService.discountAmount ?? 0, pricing, taxProfileMap, supplierStateCode, placeOfSupplyStateCode, source: TaxSource.PACKAGE_PRICING, });
                 addonPrice = this.round(addonPrice + line.amount);
                 discountAmount = this.round(discountAmount + line.discountAmount);
                 totalAmount = this.round(totalAmount + line.finalAmount);
@@ -467,20 +380,7 @@ export class CartPricingEngine {
             }
         }
         const subtotal = this.round(basePrice + addonPrice);
-        const result = {
-            basePrice,
-            addonPrice,
-            subtotal,
-            discountAmount,
-            totalAmount,
-            taxSummary: {
-                ...taxSummary,
-            },
-            componentLines: new Map(),
-            serviceLines,
-            componentItems: [],
-            serviceItems,
-        };
+        const result = { basePrice, addonPrice, subtotal, discountAmount, totalAmount, taxSummary: { ...taxSummary, }, componentLines: new Map(), serviceLines, componentItems: [], serviceItems, };
         if (supplierStateCode) {
             result.taxSummary.supplierStateCode = supplierStateCode;
         }
@@ -493,13 +393,9 @@ export class CartPricingEngine {
         const hasService = Boolean(cart.serviceId);
         const hasPackage = Boolean(cart.packageId);
         if (hasService === hasPackage) {
-            throw new Error(hasService
-                ? "Cart cannot contain both serviceId and packageId"
-                : "Cart must contain either serviceId or packageId");
+            throw new Error(hasService ? "Cart cannot contain both serviceId and packageId" : "Cart must contain either serviceId or packageId");
         }
-        return hasService
-            ? this.calculateServiceCart(cart)
-            : this.calculatePackageCart(cart);
+        return hasService ? this.calculateServiceCart(cart) : this.calculatePackageCart(cart);
     }
 }
 //# sourceMappingURL=cart-pricing.engine.js.map

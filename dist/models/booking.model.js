@@ -41,14 +41,7 @@ const assignmentRequestSchema = new Schema({
     },
     status: {
         type: String,
-        enum: [
-            "PENDING",
-            "ACCEPTED",
-            "REJECTED",
-            "EXPIRED",
-            "SUPERSEDED",
-            "CANCELLED",
-        ],
+        enum: ["PENDING", "ACCEPTED", "REJECTED", "EXPIRED", "SUPERSEDED", "CANCELLED"],
         default: "PENDING",
         required: true,
     },
@@ -60,14 +53,7 @@ const assignmentRequestSchema = new Schema({
     },
     closureReason: {
         type: String,
-        enum: [
-            "ANOTHER_COORDINATOR_ACCEPTED",
-            "REASSIGNMENT_STARTED",
-            "REASSIGNMENT_COMPLETED",
-            "RESCHEDULE_COORDINATOR_CHANGE",
-            "USER_CANCELLED",
-            "SYSTEM_CANCELLED",
-        ],
+        enum: ["ANOTHER_COORDINATOR_ACCEPTED", "REASSIGNMENT_STARTED", "REASSIGNMENT_COMPLETED", "RESCHEDULE_COORDINATOR_CHANGE", "USER_CANCELLED", "SYSTEM_CANCELLED"],
     },
     assignmentType: {
         type: String,
@@ -109,13 +95,7 @@ const serviceExecutionSchema = new Schema({
     },
     status: {
         type: String,
-        enum: [
-            "PENDING",
-            "IN_PROGRESS",
-            "COMPLETED",
-            "SKIPPED",
-            "CANCELLED",
-        ],
+        enum: ["PENDING", "IN_PROGRESS", "COMPLETED", "SKIPPED", "CANCELLED"],
         default: "PENDING",
     },
     startedAt: Date,
@@ -428,17 +408,7 @@ const bookingEntrySchema = new Schema({
 const bookingMilestoneSchema = new Schema({
     code: {
         type: String,
-        enum: [
-            "COORDINATOR_ARRIVED",
-            "OTP_VERIFIED",
-            "SERVICE_STARTED",
-            "CUSTOMER_DETAILS_VERIFIED",
-            "DOCUMENTS_COLLECTED",
-            "FAMILY_TREE_STARTED",
-            "FAMILY_TREE_COMPLETED",
-            "ALL_SERVICES_COMPLETED",
-            "FINAL_REPORT_GENERATED",
-        ],
+        enum: ["COORDINATOR_ARRIVED", "OTP_VERIFIED", "SERVICE_STARTED", "CUSTOMER_DETAILS_VERIFIED", "DOCUMENTS_COLLECTED", "FAMILY_TREE_STARTED", "FAMILY_TREE_COMPLETED", "ALL_SERVICES_COMPLETED", "FINAL_REPORT_GENERATED"],
         required: true,
     },
     completedAt: Date,
@@ -552,20 +522,12 @@ const reassignmentSchema = new Schema({
     },
     mode: {
         type: String,
-        enum: [
-            "AUTO",
-            "NOMINATED",
-        ],
+        enum: ["AUTO", "NOMINATED"],
         required: true,
     },
     status: {
         type: String,
-        enum: [
-            "PENDING_REPLACEMENT",
-            "REPLACEMENT_REQUESTED",
-            "COMPLETED",
-            "FAILED",
-        ],
+        enum: ["PENDING_REPLACEMENT", "REPLACEMENT_REQUESTED", "COMPLETED", "FAILED"],
         required: true,
     },
     completedAt: {
@@ -695,14 +657,7 @@ const bookingSchema = new Schema({
     payment: {
         status: {
             type: String,
-            enum: [
-                "PENDING",
-                "PROCESSING",
-                "PAID",
-                "FAILED",
-                "PARTIAL_REFUND",
-                "REFUNDED",
-            ],
+            enum: ["PENDING", "PROCESSING", "PAID", "FAILED", "PARTIAL_REFUND", "REFUNDED"],
             default: "PENDING",
         },
         providerOrderId: String,
@@ -742,16 +697,7 @@ const bookingSchema = new Schema({
     },
     status: {
         type: String,
-        enum: [
-            "PENDING_PAYMENT",
-            "CONFIRMED",
-            "ASSIGNMENT_PENDING",
-            "ASSIGNED",
-            "IN_PROGRESS",
-            "COMPLETED",
-            "CANCELLED",
-            "EXPIRED",
-        ],
+        enum: ["PENDING_PAYMENT", "CONFIRMED", "ASSIGNMENT_PENDING", "ASSIGNED", "IN_PROGRESS", "COMPLETED", "CANCELLED", "EXPIRED"],
         default: "PENDING_PAYMENT",
         index: true,
     },
@@ -769,14 +715,7 @@ const bookingSchema = new Schema({
     assignment: {
         status: {
             type: String,
-            enum: [
-                "NOT_STARTED",
-                "PENDING_SELECTION",
-                "PENDING_RESPONSE",
-                "ACCEPTED",
-                "REJECTED",
-                "REASSIGNMENT_REQUESTED",
-            ],
+            enum: ["NOT_STARTED", "PENDING_SELECTION", "PENDING_RESPONSE", "ACCEPTED", "REJECTED", "REASSIGNMENT_REQUESTED"],
             default: "NOT_STARTED",
         },
         assignedCoordinatorId: {
@@ -818,14 +757,7 @@ const bookingSchema = new Schema({
     execution: {
         stage: {
             type: String,
-            enum: [
-                "NOT_STARTED",
-                "COORDINATOR_ARRIVED",
-                "CUSTOMER_VERIFICATION_PENDING",
-                "SERVICE_EXECUTION",
-                "FINALIZATION",
-                "FINISHED",
-            ],
+            enum: ["NOT_STARTED", "COORDINATOR_ARRIVED", "CUSTOMER_VERIFICATION_PENDING", "SERVICE_EXECUTION", "FINALIZATION", "FINISHED"],
             default: "NOT_STARTED",
         },
         startedAt: Date,
@@ -940,70 +872,23 @@ bookingSchema.index({ createdAt: -1 });
 bookingSchema.index({ scheduledAt: 1, status: 1 });
 bookingSchema.index({ "payment.status": 1 });
 bookingSchema.index({ userId: 1, scheduledAt: 1 });
-bookingSchema.index({
-    status: 1,
-    paymentExpiresAt: 1,
-});
-bookingSchema.index({ cartId: 1 }, {
-    unique: true,
-    partialFilterExpression: {
-        isDeleted: false,
-    },
-});
-bookingSchema.index({
-    "payment.refunds.refundId": 1,
-}, {
-    unique: true,
-    sparse: true,
-});
+bookingSchema.index({ status: 1, paymentExpiresAt: 1, });
+bookingSchema.index({ cartId: 1 }, { unique: true, partialFilterExpression: { isDeleted: false, } });
+bookingSchema.index({ "payment.refunds.refundId": 1, }, { unique: true, sparse: true });
 // Index for searching by main customer details email
 bookingSchema.index({ userId: 1, isDeleted: 1, "customerDetails.email": 1 });
 // Index for searching by main customer details phone
 bookingSchema.index({ userId: 1, isDeleted: 1, "customerDetails.phone": 1 });
 // Index for searching by snapshot email
-bookingSchema.index({
-    userId: 1,
-    isDeleted: 1,
-    "cartSnapshot.customerDetails.email": 1,
-});
+bookingSchema.index({ userId: 1, isDeleted: 1, "cartSnapshot.customerDetails.email": 1 });
 // Index for searching by snapshot phone
-bookingSchema.index({
-    userId: 1,
-    isDeleted: 1,
-    "cartSnapshot.customerDetails.phone": 1,
-});
-bookingSchema.index({
-    bookingReference: "text",
-    "customerDetails.name": "text",
-    "customerDetails.email": "text",
-    "customerDetails.phone": "text",
-}, {
-    name: "BookingTextSearchIndex",
-});
-bookingSchema.index({
-    "assignment.status": 1,
-    "assignment.responseDeadlineAt": 1,
-});
-bookingSchema.index({
-    "assignment.assignedCoordinatorId": 1,
-    status: 1,
-    scheduledAt: 1,
-});
-bookingSchema.index({
-    "assignment.status": 1,
-    "assignment.assignmentExpiresAt": 1,
-});
-bookingSchema.index({
-    beneficiaryUserId: 1,
-    status: 1,
-});
-bookingSchema.index({
-    bookingFor: 1,
-    "customerDetails.email": 1,
-});
-bookingSchema.index({
-    bookingFor: 1,
-    "customerDetails.phone": 1,
-});
+bookingSchema.index({ userId: 1, isDeleted: 1, "cartSnapshot.customerDetails.phone": 1 });
+bookingSchema.index({ bookingReference: "text", "customerDetails.name": "text", "customerDetails.email": "text", "customerDetails.phone": "text" }, { name: "BookingTextSearchIndex" });
+bookingSchema.index({ "assignment.status": 1, "assignment.responseDeadlineAt": 1 });
+bookingSchema.index({ "assignment.assignedCoordinatorId": 1, status: 1, scheduledAt: 1 });
+bookingSchema.index({ "assignment.status": 1, "assignment.assignmentExpiresAt": 1 });
+bookingSchema.index({ beneficiaryUserId: 1, status: 1 });
+bookingSchema.index({ bookingFor: 1, "customerDetails.email": 1 });
+bookingSchema.index({ bookingFor: 1, "customerDetails.phone": 1 });
 export const Booking = model("Booking", bookingSchema);
 //# sourceMappingURL=booking.model.js.map

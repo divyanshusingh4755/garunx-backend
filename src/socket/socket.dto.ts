@@ -68,24 +68,13 @@ export const getMessageDeliveryStatus = (
   }): "SENT" | "DELIVERED" | "READ" => {
 
   const isAtOrBefore = (target: IChatMessage): boolean => {
-    if (message.createdAt < target.createdAt) {
-      return true;
-    }
-
-    if (message.createdAt > target.createdAt) {
-      return false;
-    }
-
+    if (message.createdAt < target.createdAt) { return true; }
+    if (message.createdAt > target.createdAt) { return false; }
     return (message._id.toString() <= target._id.toString())
   }
 
-  if (state?.lastReadMessage && isAtOrBefore(state.lastReadMessage)) {
-    return "READ"
-  }
-
-  if (state?.lastDeliveredMessage && isAtOrBefore(state.lastDeliveredMessage)) {
-    return "DELIVERED"
-  }
+  if (state?.lastReadMessage && isAtOrBefore(state.lastReadMessage)) { return "READ" }
+  if (state?.lastDeliveredMessage && isAtOrBefore(state.lastDeliveredMessage)) { return "DELIVERED" }
 
   return "SENT"
 }

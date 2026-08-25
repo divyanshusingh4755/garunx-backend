@@ -201,9 +201,7 @@ export const updateCartNotes = async (req, res) => {
 export const recalculateCart = async (req, res) => {
     try {
         const owner = getCartOwner(req);
-        const result = await CartService.recalculateCart(owner, req.params.cartId, {
-            persist: true,
-        });
+        const result = await CartService.recalculateCart(owner, req.params.cartId, { persist: true });
         res.status(200).json({
             success: true,
             message: "Cart recalculated successfully",
@@ -245,7 +243,10 @@ export const checkoutCart = async (req, res) => {
     try {
         const userId = req.user?.userId;
         if (!userId) {
-            return res.status(401).json({ success: false, message: "Unauthorized" });
+            return res.status(401).json({
+                success: false,
+                message: "Unauthorized"
+            });
         }
         const checkout = await CartService.checkoutCart(userId, req.params.cartId);
         res.status(200).json({
@@ -280,13 +281,13 @@ export const deleteCart = async (req, res) => {
 export const mergeGuestCartToUser = async (req, res) => {
     try {
         const userId = req.user?.userId;
+        const guestId = req.headers["x-guest-id"];
         if (!userId) {
             return res.status(401).json({
                 success: false,
                 message: "Unauthorized",
             });
         }
-        const guestId = req.headers["x-guest-id"];
         if (!guestId) {
             return res.status(400).json({
                 success: false,
@@ -366,25 +367,17 @@ export const reopenCart = async (req, res) => {
 };
 export const exportCartsCsv = async (req, res) => {
     try {
-        const { cartIds, } = req.body;
+        const { cartIds } = req.body;
         const result = await CartService.exportCartsToCsv(cartIds);
-        const timestamp = new Date()
-            .toISOString()
-            .replace(/[:.]/g, "-");
+        const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
         res.setHeader("Content-Type", "text/csv; charset=utf-8");
         res.setHeader("Content-Disposition", `attachment; filename="carts-${timestamp}.csv"`);
         res.setHeader("X-Export-Count", String(result.total));
-        /*
-         * BOM helps Excel correctly
-         * recognize UTF-8 content.
-         */
-        return res
-            .status(200)
-            .send(`\uFEFF${result.csv}`);
+        // BOM helps Excel correctly recognize UTF-8 content
+        return res.status(200).send(`\uFEFF${result.csv}`);
     }
     catch (error) {
-        if (error.message ===
-            "No carts found for export") {
+        if (error.message === "No carts found for export") {
             return res.status(404).json({
                 success: false,
                 message: error.message,
@@ -392,8 +385,7 @@ export const exportCartsCsv = async (req, res) => {
         }
         return res.status(400).json({
             success: false,
-            message: error.message ||
-                "Failed to export carts",
+            message: error.message || "Failed to export carts"
         });
     }
 };

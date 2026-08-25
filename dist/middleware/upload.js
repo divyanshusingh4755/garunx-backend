@@ -18,8 +18,6 @@ export const upload = multer({
             callback(null, `uploads/${fileName}${extension}`);
         },
     }),
-    limits: {
-        fileSize: 5 * 1024 * 1024,
-    },
+    limits: { fileSize: 5 * 1024 * 1024 },
 });
 //# sourceMappingURL=upload.js.map

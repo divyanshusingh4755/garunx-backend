@@ -7,667 +7,195 @@ import { CacheKeys } from "../cache/cache-keys.js";
 import { CACHE_TTL_SECONDS } from "../cache/constants.js";
 
 type CityUpdate = Partial<
-  Pick<
-    ICity,
-    "name" | "country" | "image" | "description" | "location"
-  > & {
-    stateId?: string;
-  }
+  Pick<ICity, "name" | "country" | "image" | "description" | "location"> & { stateId?: string; }
 >;
 
 const createHttpError = (message: string, statusCode: number) => {
-  const error = new Error(message) as Error & {
-    statusCode: number;
-  };
-
+  const error = new Error(message) as Error & { statusCode: number; };
   error.statusCode = statusCode;
   return error;
 };
 
 export class CityService {
-  private static async invalidateCityCache(
-    cityId?: string,
-  ): Promise<void> {
+  private static async invalidateCityCache(cityId?: string): Promise<void> {
     const operations: Promise<unknown>[] = [
-      RedisCacheService.deleteByPattern(
-        CacheKeys.cityListPattern(),
-      ),
-
-      RedisCacheService.deleteByPattern(
-        CacheKeys.locationListPattern(),
-      ),
-
-      RedisCacheService.deleteByPattern(
-        CacheKeys.locationDetailPattern(),
-      ),
-
-      RedisCacheService.deleteByPattern(
-        CacheKeys.locationIdsPattern(),
-      ),
+      RedisCacheService.deleteByPattern(CacheKeys.cityListPattern()),
+      RedisCacheService.deleteByPattern(CacheKeys.locationListPattern()),
+      RedisCacheService.deleteByPattern(CacheKeys.locationDetailPattern()),
+      RedisCacheService.deleteByPattern(CacheKeys.locationIdsPattern()),
     ];
 
     if (cityId) {
-      operations.push(
-        RedisCacheService.delete(
-          CacheKeys.cityDetail(
-            cityId,
-          ),
-        ),
-      );
+      operations.push(RedisCacheService.delete(CacheKeys.cityDetail(cityId)));
     }
 
     await Promise.all(operations);
   }
 
-  private static applyStringFilter(
-    filterValue?: string,
-  ): { $in: string[] } | undefined {
+  private static applyStringFilter(filterValue?: string): { $in: string[] } | undefined {
     if (!filterValue?.trim()) return undefined;
 
-    const values = filterValue
-      .split(",")
-      .map((value) => value.trim())
-      .filter(Boolean);
-
+    const values = filterValue.split(",").map((value) => value.trim()).filter(Boolean);
     return values.length > 0 ? { $in: values } : undefined;
   }
 
-  private static applyObjectIdFilter(
-    filterValue?: string,
-  ): { $in: Types.ObjectId[] } | undefined {
+  private static applyObjectIdFilter(filterValue?: string): { $in: Types.ObjectId[] } | undefined {
     if (!filterValue?.trim()) return undefined;
 
-    const values = filterValue
-      .split(",")
-      .map((value) => value.trim())
-      .filter((value) => Types.ObjectId.isValid(value))
-      .map((value) => new Types.ObjectId(value));
-
+    const values = filterValue.split(",").map((value) => value.trim()).filter((value) => Types.ObjectId.isValid(value)).map((value) => new Types.ObjectId(value));
     return values.length > 0 ? { $in: values } : undefined;
   }
 
-  static async createCity(params: {
-    name: string;
-    country: string;
-    stateId: string;
-    image?: string;
-    description?: string;
-    location?: IGeoPoint;
-  }) {
+  static async createCity(params: { name: string; country: string; stateId: string; image?: string; description?: string; location?: IGeoPoint; }) {
     const { name, country, stateId, image, description, location } = params;
 
-    const validState = await State.exists({
-      _id: stateId,
+    const validState = await State.exists({ _id: stateId, country });
+    if (!validState) { throw createHttpError("State does not belong to country", 400); }
+
+    const city = await City.create({
+      name,
       country,
+      stateId,
+      ...(image !== undefined && { image }),
+      ...(description !== undefined && { description }),
+      ...(location !== undefined && { location }),
     });
 
-    if (!validState) {
-      throw createHttpError("State does not belong to country", 400);
-    }
-
-    const city =
-      await City.create({
-        name,
-        country,
-        stateId,
-
-        ...(image !== undefined && {
-          image,
-        }),
-
-        ...(description !== undefined && {
-          description,
-        }),
-
-        ...(location !== undefined && {
-          location,
-        }),
-      });
-
     await this.invalidateCityCache();
-
     return city;
   }
 
-  static async findCity(
-    params: {
-      searchTerm?: string;
-      cityFilter?: string;
-      stateIdFilter?: string;
-      countryFilter?: string;
-      limit?: number;
-      page?: number;
-      isActive?: boolean;
-      sortBy?: string;
-      sortOrder?:
-      "asc" | "desc";
-    },
-  ) {
-    const {
-      searchTerm,
-      cityFilter,
-      stateIdFilter,
-      countryFilter,
-      limit = 40,
-      page = 1,
-      isActive,
-      sortBy = "createdAt",
-      sortOrder = "desc",
-    } = params;
+  static async findCity(params: { searchTerm?: string; cityFilter?: string; stateIdFilter?: string; countryFilter?: string; limit?: number; page?: number; isActive?: boolean; sortBy?: string; sortOrder?: "asc" | "desc"; }) {
+    const { searchTerm, cityFilter, stateIdFilter, countryFilter, limit = 40, page = 1, isActive, sortBy = "createdAt", sortOrder = "desc" } = params;
 
-    const safeLimit =
-      Math.min(
-        Math.max(
-          limit,
-          1,
-        ),
-        100,
-      );
+    const safeLimit = Math.min(Math.max(limit, 1), 100);
+    const safePage = Math.max(page, 1);
+    const term = searchTerm?.trim();
+    const isTextSearch = Boolean(term && term.length > 4);
+    const allowedSortFields = new Set(["name", "country", "createdAt", "updatedAt",]);
+    const safeSortBy = isTextSearch && sortBy === "relevance" ? "relevance" : allowedSortFields.has(sortBy) ? sortBy : "createdAt";
 
-    const safePage =
-      Math.max(
-        page,
-        1,
-      );
-
-    const term =
-      searchTerm?.trim();
-
-    const isTextSearch =
-      Boolean(
-        term &&
-        term.length >
-        4,
-      );
-
-    const allowedSortFields =
-      new Set([
-        "name",
-        "country",
-        "createdAt",
-        "updatedAt",
-      ]);
-
-    const safeSortBy =
-      isTextSearch &&
-        sortBy ===
-        "relevance"
-        ? "relevance"
-        : allowedSortFields.has(
-          sortBy,
-        )
-          ? sortBy
-          : "createdAt";
-
-    const cacheKey =
-      CacheKeys.cityList({
-        searchTerm,
-        cityFilter,
-        stateIdFilter,
-        countryFilter,
-        limit:
-          safeLimit,
-        page:
-          safePage,
-        isActive,
-        sortBy:
-          safeSortBy,
-        sortOrder,
-      });
+    const cacheKey = CacheKeys.cityList({ searchTerm, cityFilter, stateIdFilter, countryFilter, limit: safeLimit, page: safePage, isActive, sortBy: safeSortBy, sortOrder });
 
     return RedisCacheService.getOrSet({
-      key:
-        cacheKey,
+      key: cacheKey,
+      ttlSeconds: CACHE_TTL_SECONDS.CITY_LIST,
+      loader: async () => {
+        const skip = (safePage - 1) * safeLimit;
+        const query: QueryFilter<ICity> = {};
 
-      ttlSeconds:
-        CACHE_TTL_SECONDS
-          .CITY_LIST,
+        if (typeof isActive === "boolean") { query.isActive = isActive; }
 
-      loader:
-        async () => {
-          const skip =
-            (safePage - 1) *
-            safeLimit;
+        const cityQuery = this.applyStringFilter(cityFilter);
+        const stateQuery = this.applyObjectIdFilter(stateIdFilter);
+        const countryQuery = this.applyStringFilter(countryFilter);
 
-          const query:
-            QueryFilter<ICity> =
-            {};
+        if (countryQuery) { query.country = countryQuery; }
+        if (stateQuery) { query.stateId = stateQuery; }
 
-          if (
-            typeof isActive ===
-            "boolean"
-          ) {
-            query.isActive =
-              isActive;
-          }
+        if (term && !isTextSearch) {
+          const nameSearch = { $regex: `^${escapeRegex(term)}`, $options: "i" };
 
-          const cityQuery =
-            this.applyStringFilter(
-              cityFilter,
-            );
+          if (cityQuery) { query.$and = [{ name: cityQuery }, { name: nameSearch },]; }
+          else { query.name = nameSearch; }
+        } else {
+          if (cityQuery) { query.name = cityQuery; }
+          if (term && isTextSearch) { query.$text = { $search: term }; }
+        }
 
-          const stateQuery =
-            this.applyObjectIdFilter(
-              stateIdFilter,
-            );
+        let projection: Record<string, unknown> | undefined;
+        let sortCriteria: Record<string, SortOrder | { $meta: "textScore"; }>;
 
-          const countryQuery =
-            this.applyStringFilter(
-              countryFilter,
-            );
+        if (isTextSearch && safeSortBy === "relevance") {
+          projection = { score: { $meta: "textScore" } };
+          sortCriteria = { score: { $meta: "textScore" } };
+        } else {
+          sortCriteria = { [safeSortBy]: sortOrder === "asc" ? 1 : -1 };
+          if (safeSortBy !== "createdAt") { sortCriteria.createdAt = -1; }
+        }
 
-          if (countryQuery) {
-            query.country = countryQuery;
-          }
+        const [data, total,] = await Promise.all([
+          City.find(query, projection).populate("stateId", "name").sort(sortCriteria).skip(skip).limit(safeLimit).lean(),
+          City.countDocuments(query),
+        ]);
 
-          if (stateQuery) {
-            query.stateId = stateQuery;
-          }
-
-          if (term && !isTextSearch) {
-            const nameSearch = {
-              $regex: `^${escapeRegex(term)}`,
-              $options: "i",
-            };
-
-            if (cityQuery) {
-              query.$and = [
-                {
-                  name: cityQuery,
-                },
-                {
-                  name: nameSearch,
-                },
-              ];
-            } else {
-              query.name = nameSearch;
-            }
-          } else {
-            if (cityQuery) {
-              query.name = cityQuery;
-            }
-
-            if (term && isTextSearch) {
-              query.$text = {
-                $search: term,
-              };
-            }
-          }
-
-          let projection:
-            Record<
-              string,
-              unknown
-            > |
-            undefined;
-
-          let sortCriteria:
-            Record<
-              string,
-              SortOrder | {
-                $meta:
-                "textScore";
-              }
-            >;
-
-          if (
-            isTextSearch &&
-            safeSortBy ===
-            "relevance"
-          ) {
-            projection = {
-              score: {
-                $meta:
-                  "textScore",
-              },
-            };
-
-            sortCriteria = {
-              score: {
-                $meta:
-                  "textScore",
-              },
-            };
-          } else {
-            sortCriteria = {
-              [safeSortBy]:
-                sortOrder ===
-                  "asc"
-                  ? 1
-                  : -1,
-            };
-
-            if (
-              safeSortBy !==
-              "createdAt"
-            ) {
-              sortCriteria.createdAt =
-                -1;
-            }
-          }
-
-          const [
-            data,
-            total,
-          ] =
-            await Promise.all([
-              City.find(
-                query,
-                projection,
-              )
-                .populate(
-                  "stateId",
-                  "name",
-                )
-                .sort(
-                  sortCriteria,
-                )
-                .skip(
-                  skip,
-                )
-                .limit(
-                  safeLimit,
-                )
-                .lean(),
-
-              City.countDocuments(
-                query,
-              ),
-            ]);
-
-          return {
-            data,
-            total,
-
-            page:
-              safePage,
-
-            totalPages:
-              Math.ceil(
-                total /
-                safeLimit,
-              ),
-          };
-        },
+        return {
+          data, total, page: safePage, totalPages: Math.ceil(total / safeLimit),
+        };
+      },
     });
   }
 
   static async updateCity(cityId: string, updateData: CityUpdate) {
-    const existingCity = await City.findById(cityId)
-      .select("country stateId")
-      .lean();
-
-    if (!existingCity) {
-      throw createHttpError("City not found", 404);
-    }
+    const existingCity = await City.findById(cityId).select("country stateId").lean();
+    if (!existingCity) { throw createHttpError("City not found", 404); }
 
     const country = updateData.country ?? existingCity.country;
-
     const stateId = updateData.stateId ?? existingCity.stateId.toString();
 
     if (updateData.country !== undefined || updateData.stateId !== undefined) {
-      const validState = await State.exists({
-        _id: stateId,
-        country,
-      });
-
-      if (!validState) {
-        throw createHttpError("State does not belong to country", 400);
-      }
+      const validState = await State.exists({ _id: stateId, country });
+      if (!validState) { throw createHttpError("State does not belong to country", 400); }
     }
 
-    const updatedCity = await City.findByIdAndUpdate(
-      cityId,
-      {
-        $set: updateData,
-      },
-      {
-        new: true,
-        runValidators: true,
-      },
-    )
-      .populate("stateId", "name")
-      .lean();
+    const updatedCity = await City.findByIdAndUpdate(cityId, { $set: updateData }, { new: true, runValidators: true }).populate("stateId", "name").lean();
+    if (!updatedCity) { throw createHttpError("City not found", 404); }
 
-    if (!updatedCity) {
-      throw createHttpError("City not found", 404);
-    }
-
-    await this.invalidateCityCache(
-      cityId,
-    );
-
+    await this.invalidateCityCache(cityId);
     return updatedCity;
   }
 
   static async softDeleteCity(cityId: string, status: boolean) {
-    const updatedCity = await City.findByIdAndUpdate(
-      cityId,
-      {
-        $set: {
-          isActive: status,
-        },
-      },
-      {
-        new: true,
-        runValidators: true,
-      },
-    ).lean();
+    const updatedCity = await City.findByIdAndUpdate(cityId, { $set: { isActive: status } }, { new: true, runValidators: true }).lean();
+    if (!updatedCity) { throw createHttpError("City not found", 404); }
 
-    if (!updatedCity) {
-      throw createHttpError("City not found", 404);
-    }
-
-    await this.invalidateCityCache(
-      cityId,
-    );
-
+    await this.invalidateCityCache(cityId);
     return updatedCity;
   }
 
-  static async getCityById(
-    cityId:
-      string,
-  ) {
+  static async getCityById(cityId: string) {
     return RedisCacheService.getOrSet({
-      key:
-        CacheKeys.cityDetail(
-          cityId,
-        ),
+      key: CacheKeys.cityDetail(cityId),
+      ttlSeconds: CACHE_TTL_SECONDS.CITY_DETAIL,
 
-      ttlSeconds:
-        CACHE_TTL_SECONDS
-          .CITY_DETAIL,
-
-      loader:
-        async () => {
-          const city =
-            await City.findById(
-              cityId,
-            )
-              .populate(
-                "stateId",
-                "name",
-              )
-              .lean();
-
-          if (
-            !city
-          ) {
-            throw createHttpError(
-              "City not found",
-              404,
-            );
-          }
-
-          return city;
-        },
+      loader: async () => {
+        const city = await City.findById(cityId).populate("stateId", "name").lean();
+        if (!city) { throw createHttpError("City not found", 404); }
+        return city;
+      },
     });
   }
 
-  static async exportCitiesToCsv(
-    cityIds?: string[],
-  ) {
-    const query:
-      QueryFilter<ICity> = {};
+  static async exportCitiesToCsv(cityIds?: string[]) {
+    const query: QueryFilter<ICity> = {};
 
-    /*
-     * cityIds omitted:
-     * export ALL cities.
-     *
-     * cityIds supplied:
-     * export only selected cities.
-     */
+    // cityIds omitted: export ALL cities. cityIds supplied: export only selected cities.
     if (cityIds !== undefined) {
-      const uniqueCityIds = [
-        ...new Set(cityIds),
-      ];
-
-      query._id = {
-        $in: uniqueCityIds,
-      };
+      const uniqueCityIds = [...new Set(cityIds),];
+      query._id = { $in: uniqueCityIds };
     }
 
-    const cities =
-      await City.find(query)
-        .select(
-          [
-            "_id",
-            "name",
-            "country",
-            "stateId",
-            "image",
-            "description",
-            "isActive",
-            "location",
-            "createdAt",
-            "updatedAt",
-          ].join(" "),
-        )
-        .sort({
-          name: 1,
-          createdAt: -1,
-        })
-        .lean();
+    const cities = await City.find(query).select(["_id", "name", "country", "stateId", "image", "description", "isActive", "location", "createdAt", "updatedAt",].join(" ")).sort({ name: 1, createdAt: -1 }).lean();
+    if (cities.length === 0) { throw createHttpError("No cities found for export", 404); }
 
-    if (cities.length === 0) {
-      throw createHttpError(
-        "No cities found for export",
-        404,
-      );
-    }
+    const escapeCsv = (value: unknown): string => {
+      if (value === null || value === undefined) { return ""; }
 
-    const escapeCsv = (
-      value: unknown,
-    ): string => {
-      if (
-        value === null ||
-        value === undefined
-      ) {
-        return "";
-      }
+      let stringValue = String(value);
 
-      let stringValue =
-        String(value);
-
-      /*
-       * Prevent spreadsheet applications
-       * from interpreting exported values
-       * as formulas.
-       */
-      if (
-        /^[=+\-@]/.test(
-          stringValue,
-        )
-      ) {
-        stringValue =
-          `'${stringValue}`;
-      }
-
-      if (
-        stringValue.includes(",") ||
-        stringValue.includes('"') ||
-        stringValue.includes("\n") ||
-        stringValue.includes("\r")
-      ) {
-        return `"${stringValue.replace(
-          /"/g,
-          '""',
-        )}"`;
-      }
-
+      // Prevent spreadsheet applications from interpreting exported values as formulas.
+      if (/^[=+\-@]/.test(stringValue)) { stringValue = `'${stringValue}`; }
+      if (stringValue.includes(",") || stringValue.includes('"') || stringValue.includes("\n") || stringValue.includes("\r")) { return `"${stringValue.replace(/"/g, '""')}"`; }
       return stringValue;
     };
 
-    const headers = [
-      "City ID",
-      "City Name",
-      "Country",
-      "State ID",
-      "Active",
-      "Longitude",
-      "Latitude",
-      "Image",
-      "Description",
-      "Created At",
-      "Updated At",
-    ];
+    const headers = ["City ID", "City Name", "Country", "State ID", "Active", "Longitude", "Latitude", "Image", "Description", "Created At", "Updated At",];
 
-    const rows =
-      cities.map(
-        (city) => [
-          city._id.toString(),
+    const rows = cities.map((city) => [city._id.toString(), city.name, city.country, city.stateId.toString(), city.isActive, city.location?.coordinates?.[0] ?? "", city.location?.coordinates?.[1] ?? "", city.image ?? "", city.description ?? "", city.createdAt ? new Date(city.createdAt).toISOString() : "", city.updatedAt ? new Date(city.updatedAt).toISOString() : "",],
+    );
 
-          city.name,
+    const csv = [headers.map(escapeCsv).join(","), ...rows.map((row) => row.map(escapeCsv).join(",")),].join("\n");
 
-          city.country,
-
-          city.stateId.toString(),
-
-          city.isActive,
-
-          city.location
-            ?.coordinates?.[0] ??
-          "",
-
-          city.location
-            ?.coordinates?.[1] ??
-          "",
-
-          city.image ?? "",
-
-          city.description ?? "",
-
-          city.createdAt
-            ? new Date(
-              city.createdAt,
-            ).toISOString()
-            : "",
-
-          city.updatedAt
-            ? new Date(
-              city.updatedAt,
-            ).toISOString()
-            : "",
-        ],
-      );
-
-    const csv = [
-      headers
-        .map(escapeCsv)
-        .join(","),
-
-      ...rows.map(
-        (row) =>
-          row
-            .map(escapeCsv)
-            .join(","),
-      ),
-    ].join("\n");
-
-    return {
-      csv,
-      total: cities.length,
-    };
+    return { csv, total: cities.length };
   }
 }

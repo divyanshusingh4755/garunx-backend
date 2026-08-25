@@ -19,9 +19,6 @@ const tierSchema = new Schema({
 }, {
     timestamps: true,
 });
-tierSchema.index({
-    name: "text",
-    tierReference: "text",
-});
+tierSchema.index({ name: "text", tierReference: "text" });
 export const Tier = model("Tier", tierSchema);
 //# sourceMappingURL=tier.model.js.map

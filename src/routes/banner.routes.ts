@@ -1,109 +1,29 @@
-import {
-  type Request,
-  type Response,
-  type NextFunction,
-  Router,
-} from "express";
+import { type Request, type Response, type NextFunction, Router } from "express";
 import { body, param, query, validationResult } from "express-validator";
-
 import { authenticate } from "../middleware/authenticate.js";
-
-import {
-  getAllBanners,
-  getBannerById,
-  createBanner,
-  updateBanner,
-  toggleBannerStatus,
-  deleteBanner,
-  getPublicBanners,
-  exportBannersCsv,
-} from "../controllers/banner.controllers.js";
+import { getAllBanners, getBannerById, createBanner, updateBanner, toggleBannerStatus, deleteBanner, getPublicBanners, exportBannersCsv } from "../controllers/banner.controllers.js";
 import { authorizeRoles } from "../middleware/authorizeRoles.js";
 import { Role } from "../types/rbac.js";
 import { requirePermission } from "../middleware/rbac.js";
+import { validate } from "../utils/validate.js";
 
-const PLACEMENTS = [
-  "HOME_TOP",
-  "HOME_MIDDLE",
-  "HOME_BOTTOM",
-  "CATEGORY",
-  "PRODUCT",
-] as const;
-
+const PLACEMENTS = ["HOME_TOP", "HOME_MIDDLE", "HOME_BOTTOM", "CATEGORY", "PRODUCT"] as const;
 const FORMATS = ["WEB", "MOBILE", "BOTH"] as const;
-
-const REDIRECT_TYPES = [
-  "NONE",
-  "SERVICE",
-  "PACKAGE",
-  "CATEGORY",
-  "PRODUCT",
-  "URL",
-] as const;
-
-const validateRequest = (req: Request, res: Response, next: NextFunction) => {
-  const errors = validationResult(req);
-
-  if (!errors.isEmpty()) {
-    const firstError = errors.array()[0];
-
-    return res.status(400).json({
-      success: false,
-      message: firstError?.msg,
-      error: firstError,
-    });
-  }
-
-  next();
-};
+const REDIRECT_TYPES = ["NONE", "SERVICE", "PACKAGE", "CATEGORY", "PRODUCT", "URL"] as const;
 
 const bannerIdValidation = [
   param("id").isMongoId().withMessage("Invalid banner ID"),
-
-  validateRequest,
+  validate,
 ];
 
 const redirectValidation = [
-  body("redirect")
-    .optional()
-    .isObject()
-    .withMessage("redirect must be an object"),
-
-  body("redirect.type")
-    .optional()
-    .isIn(REDIRECT_TYPES)
-    .withMessage("Invalid redirect type"),
-
-  body("redirect.refId")
-    .optional({
-      nullable: true,
-      checkFalsy: true,
-    })
-    .isMongoId()
-    .withMessage("redirect.refId must be a valid MongoDB ObjectId"),
-
-  body("redirect.url")
-    .optional({
-      nullable: true,
-      checkFalsy: true,
-    })
-    .isURL({
-      protocols: ["http", "https"],
-      require_protocol: true,
-    })
-    .withMessage("redirect.url must be a valid HTTP or HTTPS URL"),
-
+  body("redirect").optional().isObject().withMessage("redirect must be an object"),
+  body("redirect.type").optional().isIn(REDIRECT_TYPES).withMessage("Invalid redirect type"),
+  body("redirect.refId").optional({ nullable: true, checkFalsy: true, }).isMongoId().withMessage("redirect.refId must be a valid MongoDB ObjectId"),
+  body("redirect.url").optional({ nullable: true, checkFalsy: true, }).isURL({ protocols: ["http", "https"], require_protocol: true, }).withMessage("redirect.url must be a valid HTTP or HTTPS URL"),
   body("redirect").custom((redirect) => {
-    if (!redirect) {
-      return true;
-    }
-
-    const type = redirect.type ?? "NONE";
-
-    if (
-      ["SERVICE", "PACKAGE", "CATEGORY", "PRODUCT"].includes(type) &&
-      !redirect.refId
-    ) {
+    if (!redirect) { return true; } const type = redirect.type ?? "NONE";
+    if (["SERVICE", "PACKAGE", "CATEGORY", "PRODUCT"].includes(type) && !redirect.refId) {
       throw new Error("redirect.refId is required for this redirect type");
     }
 
@@ -113,393 +33,110 @@ const redirectValidation = [
 
     return true;
   }),
+  validate
 ];
 
 const createBannerValidation = [
-  body("name")
-    .isString()
-    .withMessage("Name must be a string")
-    .trim()
-    .notEmpty()
-    .withMessage("Name is required")
-    .isLength({ max: 120 })
-    .withMessage("Name cannot exceed 120 characters"),
-
-  body("placement")
-    .notEmpty()
-    .withMessage("Placement is required")
-    .isIn(PLACEMENTS)
-    .withMessage("Invalid placement"),
-
-  body("format")
-    .notEmpty()
-    .withMessage("Format is required")
-    .isIn(FORMATS)
-    .withMessage("Invalid format"),
-
-  body("image")
-    .isString()
-    .withMessage("Image must be a string")
-    .trim()
-    .notEmpty()
-    .withMessage("Image is required")
-    .isURL({
-      protocols: ["http", "https"],
-      require_protocol: true,
-    })
-    .withMessage("Image must be a valid HTTP or HTTPS URL"),
-
-  body("description")
-    .isString()
-    .withMessage("Description must be a string")
-    .trim()
-    .notEmpty()
-    .withMessage("Description is required")
-    .isLength({ max: 1000 })
-    .withMessage("Description cannot exceed 1000 characters"),
-
-  body("buttonText")
-    .optional()
-    .isString()
-    .withMessage("buttonText must be a string")
-    .trim()
-    .isLength({ max: 80 })
-    .withMessage("buttonText cannot exceed 80 characters"),
-
-  body("isActive")
-    .optional()
-    .isBoolean()
-    .withMessage("isActive must be a boolean")
-    .toBoolean(),
-
-  body("displayOrder")
-    .optional()
-    .isInt({ min: 0 })
-    .withMessage("Display order must be a non-negative integer")
-    .toInt(),
-
+  body("name").isString().withMessage("Name must be a string").trim().notEmpty().withMessage("Name is required").isLength({ max: 120 }).withMessage("Name cannot exceed 120 characters"),
+  body("placement").notEmpty().withMessage("Placement is required").isIn(PLACEMENTS).withMessage("Invalid placement"),
+  body("format").notEmpty().withMessage("Format is required").isIn(FORMATS).withMessage("Invalid format"),
+  body("image").isString().withMessage("Image must be a string").trim().notEmpty().withMessage("Image is required").isURL({ protocols: ["http", "https"], require_protocol: true, }).withMessage("Image must be a valid HTTP or HTTPS URL"),
+  body("description").isString().withMessage("Description must be a string").trim().notEmpty().withMessage("Description is required").isLength({ max: 1000 }).withMessage("Description cannot exceed 1000 characters"),
+  body("buttonText").optional().isString().withMessage("buttonText must be a string").trim().isLength({ max: 80 }).withMessage("buttonText cannot exceed 80 characters"),
+  body("isActive").optional().isBoolean().withMessage("isActive must be a boolean").toBoolean(),
+  body("displayOrder").optional().isInt({ min: 0 }).withMessage("Display order must be a non-negative integer").toInt(),
   ...redirectValidation,
-
-  validateRequest,
+  validate,
 ];
 
 const updateBannerValidation = [
   param("id").isMongoId().withMessage("Invalid banner ID"),
-
   body().custom((value) => {
-    if (
-      !value ||
-      typeof value !== "object" ||
-      Array.isArray(value)
-    ) {
-      throw new Error(
-        "Request body must be an object",
-      );
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+      throw new Error("Request body must be an object");
     }
 
-    const allowedFields = [
-      "name",
-      "placement",
-      "format",
-      "image",
-      "description",
-      "buttonText",
-      "isActive",
-      "displayOrder",
-      "redirect",
-    ];
-
-    const suppliedFields =
-      Object.keys(value);
+    const allowedFields = ["name", "placement", "format", "image", "description", "buttonText", "isActive", "displayOrder", "redirect"];
+    const suppliedFields = Object.keys(value);
 
     if (suppliedFields.length === 0) {
-      throw new Error(
-        "At least one field is required for update",
-      );
+      throw new Error("At least one field is required for update");
     }
 
-    const invalidFields =
-      suppliedFields.filter(
-        (field) =>
-          !allowedFields.includes(field),
-      );
-
+    const invalidFields = suppliedFields.filter((field) => !allowedFields.includes(field));
     if (invalidFields.length > 0) {
-      throw new Error(
-        `Invalid update fields: ${invalidFields.join(", ")}`,
-      );
+      throw new Error(`Invalid update fields: ${invalidFields.join(", ")}`);
     }
 
     return true;
   }),
 
-  body("name")
-    .optional()
-    .isString()
-    .withMessage("Name must be a string")
-    .trim()
-    .notEmpty()
-    .withMessage("Name cannot be empty")
-    .isLength({ max: 120 })
-    .withMessage("Name cannot exceed 120 characters"),
-
-  body("placement")
-    .optional()
-    .isIn(PLACEMENTS)
-    .withMessage("Invalid placement"),
-
+  body("name").optional().isString().withMessage("Name must be a string").trim().notEmpty().withMessage("Name cannot be empty").isLength({ max: 120 }).withMessage("Name cannot exceed 120 characters"),
+  body("placement").optional().isIn(PLACEMENTS).withMessage("Invalid placement"),
   body("format").optional().isIn(FORMATS).withMessage("Invalid format"),
-
-  body("image")
-    .optional()
-    .isString()
-    .withMessage("Image must be a string")
-    .trim()
-    .notEmpty()
-    .withMessage("Image cannot be empty")
-    .isURL({
-      protocols: ["http", "https"],
-      require_protocol: true,
-    })
-    .withMessage("Image must be a valid HTTP or HTTPS URL"),
-
-  body("description")
-    .optional()
-    .isString()
-    .withMessage("Description must be a string")
-    .trim()
-    .notEmpty()
-    .withMessage("Description cannot be empty")
-    .isLength({ max: 1000 })
-    .withMessage("Description cannot exceed 1000 characters"),
-
-  body("buttonText")
-    .optional()
-    .isString()
-    .withMessage("buttonText must be a string")
-    .trim()
-    .isLength({ max: 80 })
-    .withMessage("buttonText cannot exceed 80 characters"),
-
-  body("isActive")
-    .optional()
-    .isBoolean()
-    .withMessage("isActive must be a boolean")
-    .toBoolean(),
-
-  body("displayOrder")
-    .optional()
-    .isInt({ min: 0 })
-    .withMessage("Display order must be a non-negative integer")
-    .toInt(),
-
+  body("image").optional().isString().withMessage("Image must be a string").trim().notEmpty().withMessage("Image cannot be empty").isURL({ protocols: ["http", "https"], require_protocol: true, }).withMessage("Image must be a valid HTTP or HTTPS URL"),
+  body("description").optional().isString().withMessage("Description must be a string").trim().notEmpty().withMessage("Description cannot be empty").isLength({ max: 1000 }).withMessage("Description cannot exceed 1000 characters"),
+  body("buttonText").optional().isString().withMessage("buttonText must be a string").trim().isLength({ max: 80 }).withMessage("buttonText cannot exceed 80 characters"),
+  body("isActive").optional().isBoolean().withMessage("isActive must be a boolean").toBoolean(),
+  body("displayOrder").optional().isInt({ min: 0 }).withMessage("Display order must be a non-negative integer").toInt(),
   ...redirectValidation,
-
-  validateRequest,
+  validate,
 ];
 
 const listBannerValidation = [
-  query("placement")
-    .optional()
-    .isIn(PLACEMENTS)
-    .withMessage("Invalid placement"),
-
+  query("placement").optional().isIn(PLACEMENTS).withMessage("Invalid placement"),
   query("format").optional().isIn(FORMATS).withMessage("Invalid format"),
-
-  query("redirectType")
-    .optional()
-    .isIn(REDIRECT_TYPES)
-    .withMessage("Invalid redirect type"),
-
-  query("isActive")
-    .optional()
-    .isBoolean()
-    .withMessage("isActive must be true or false"),
-
-  query("page")
-    .optional()
-    .isInt({ min: 1 })
-    .withMessage("page must be a positive integer")
-    .toInt(),
-
-  query("limit")
-    .optional()
-    .isInt({ min: 1, max: 100 })
-    .withMessage("limit must be between 1 and 100")
-    .toInt(),
-
-  query("sortOrder")
-    .optional()
-    .isIn(["asc", "desc"])
-    .withMessage("sortOrder must be asc or desc"),
-
-  validateRequest,
+  query("redirectType").optional().isIn(REDIRECT_TYPES).withMessage("Invalid redirect type"),
+  query("isActive").optional().isBoolean().withMessage("isActive must be true or false"),
+  query("page").optional().isInt({ min: 1 }).withMessage("page must be a positive integer").toInt(),
+  query("limit").optional().isInt({ min: 1, max: 100 }).withMessage("limit must be between 1 and 100").toInt(),
+  query("sortOrder").optional().isIn(["asc", "desc"]).withMessage("sortOrder must be asc or desc"),
+  validate,
 ];
 
 const listPublicBannerValidation = [
-  query("placement")
-    .optional()
-    .isIn(PLACEMENTS)
-    .withMessage("Invalid placement"),
-
-  query("format")
-    .optional()
-    .isIn(FORMATS)
-    .withMessage("Invalid format"),
-
-  query("redirectType")
-    .optional()
-    .isIn(REDIRECT_TYPES)
-    .withMessage("Invalid redirect type"),
-
-  query("page")
-    .optional()
-    .isInt({ min: 1 })
-    .withMessage("page must be a positive integer")
-    .toInt(),
-
-  query("limit")
-    .optional()
-    .isInt({ min: 1, max: 100 })
-    .withMessage("limit must be between 1 and 100")
-    .toInt(),
-
-  query("sortOrder")
-    .optional()
-    .isIn(["asc", "desc"])
-    .withMessage("sortOrder must be asc or desc"),
-
-  validateRequest,
+  query("placement").optional().isIn(PLACEMENTS).withMessage("Invalid placement"),
+  query("format").optional().isIn(FORMATS).withMessage("Invalid format"),
+  query("redirectType").optional().isIn(REDIRECT_TYPES).withMessage("Invalid redirect type"),
+  query("page").optional().isInt({ min: 1 }).withMessage("page must be a positive integer").toInt(),
+  query("limit").optional().isInt({ min: 1, max: 100 }).withMessage("limit must be between 1 and 100").toInt(),
+  query("sortOrder").optional().isIn(["asc", "desc"]).withMessage("sortOrder must be asc or desc"),
+  validate,
 ];
 
 const exportBannersValidation = [
-  body("bannerIds")
-    .isArray({
-      min: 1,
-      max: 1000,
-    })
-    .withMessage(
-      "bannerIds must contain between 1 and 1000 banner IDs",
-    ),
-
-  body("bannerIds.*")
-    .isMongoId()
-    .withMessage(
-      "Each bannerId must be a valid MongoDB ID",
-    ),
-
+  body("bannerIds").isArray({ min: 1, max: 1000 }).withMessage("bannerIds must contain between 1 and 1000 banner IDs"),
+  body("bannerIds.*").isMongoId().withMessage("Each bannerId must be a valid MongoDB ID"),
   body("bannerIds").custom((bannerIds) => {
-    if (!Array.isArray(bannerIds)) {
-      return true;
+    if (!Array.isArray(bannerIds)) { return true; }
+
+    const uniqueIds = new Set(bannerIds);
+    if (uniqueIds.size !== bannerIds.length) {
+      throw new Error("Duplicate banner IDs are not allowed");
     }
-
-    const uniqueIds =
-      new Set(bannerIds);
-
-    if (
-      uniqueIds.size !==
-      bannerIds.length
-    ) {
-      throw new Error(
-        "Duplicate banner IDs are not allowed",
-      );
-    }
-
     return true;
   }),
 
-  validateRequest,
+  validate,
 ];
 
 const router = Router();
 
-// =========================================================
 // PUBLIC
-// =========================================================
+router.get("/", listPublicBannerValidation, getPublicBanners);
 
-router.get(
-  "/",
-  listPublicBannerValidation,
-  getPublicBanners,
-);
-
-
-// =========================================================
 // ADMIN - STATIC ROUTES
-// =========================================================
+router.get("/admin", authenticate, authorizeRoles(Role.ADMIN), requirePermission("banner.read"), listBannerValidation, getAllBanners);
+router.post("/export", authenticate, authorizeRoles(Role.ADMIN), requirePermission("banner.read"), exportBannersValidation, exportBannersCsv);
+router.post("/", authenticate, authorizeRoles(Role.ADMIN), requirePermission("banner.create"), createBannerValidation, createBanner);
 
-router.get(
-  "/admin",
-  authenticate,
-  authorizeRoles(Role.ADMIN),
-  requirePermission("banner.read"),
-  listBannerValidation,
-  getAllBanners,
-);
-
-router.post(
-  "/export",
-  authenticate,
-  authorizeRoles(Role.ADMIN),
-  requirePermission("banner.read"),
-  exportBannersValidation,
-  exportBannersCsv,
-);
-
-router.post(
-  "/",
-  authenticate,
-  authorizeRoles(Role.ADMIN),
-  requirePermission("banner.create"),
-  createBannerValidation,
-  createBanner,
-);
-
-
-// =========================================================
 // ADMIN - SPECIFIC ID ACTIONS
-// =========================================================
+router.patch("/:id/status", authenticate, authorizeRoles(Role.ADMIN), requirePermission("banner.status"), bannerIdValidation, toggleBannerStatus);
 
-router.patch(
-  "/:id/status",
-  authenticate,
-  authorizeRoles(Role.ADMIN),
-  requirePermission("banner.status"),
-  bannerIdValidation,
-  toggleBannerStatus,
-);
-
-
-// =========================================================
 // ADMIN - GENERIC ID ROUTES
-// =========================================================
-
-router.get(
-  "/:id",
-  authenticate,
-  authorizeRoles(Role.ADMIN),
-  requirePermission("banner.read"),
-  bannerIdValidation,
-  getBannerById,
-);
-
-router.put(
-  "/:id",
-  authenticate,
-  authorizeRoles(Role.ADMIN),
-  requirePermission("banner.update"),
-  updateBannerValidation,
-  updateBanner,
-);
-
-router.delete(
-  "/:id",
-  authenticate,
-  authorizeRoles(Role.ADMIN),
-  requirePermission("banner.delete"),
-  bannerIdValidation,
-  deleteBanner,
-);
+router.get("/:id", authenticate, authorizeRoles(Role.ADMIN), requirePermission("banner.read"), bannerIdValidation, getBannerById);
+router.put("/:id", authenticate, authorizeRoles(Role.ADMIN), requirePermission("banner.update"), updateBannerValidation, updateBanner);
+router.delete("/:id", authenticate, authorizeRoles(Role.ADMIN), requirePermission("banner.delete"), bannerIdValidation, deleteBanner);
 
 
 export default router;

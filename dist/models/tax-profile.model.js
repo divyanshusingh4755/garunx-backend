@@ -67,15 +67,7 @@ taxProfileSchema.pre("validate", function () {
         throw new Error("Non-taxable tax profiles must have a rate equal to zero");
     }
 });
-taxProfileSchema.index({
-    treatment: 1,
-    totalRate: 1,
-});
-taxProfileSchema.index({
-    name: "text",
-    code: "text",
-}, {
-    name: "TaxProfileTextSearchIndex",
-});
+taxProfileSchema.index({ treatment: 1, totalRate: 1 });
+taxProfileSchema.index({ name: "text", code: "text" }, { name: "TaxProfileTextSearchIndex" });
 export const TaxProfile = model("TaxProfile", taxProfileSchema);
 //# sourceMappingURL=tax-profile.model.js.map

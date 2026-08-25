@@ -7,11 +7,7 @@ const bucket = process.env.AWS_S3_BUCKET;
 if (!bucket) {
     throw new Error("AWS_S3_BUCKET is not configured");
 }
-const ALLOWED_CHAT_IMAGE_TYPES = new Set([
-    "image/jpeg",
-    "image/png",
-    "image/webp"
-]);
+const ALLOWED_CHAT_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 export const chatImageUpload = multer({
     storage: multerS3({
         s3,
@@ -29,10 +25,7 @@ export const chatImageUpload = multer({
             callback(null, `chat/${conversationId}/${fileName}${extension}`);
         }
     }),
-    limits: {
-        fileSize: 5 * 1024 * 1024,
-        files: 5
-    },
+    limits: { fileSize: 5 * 1024 * 1024, files: 5 },
     fileFilter: (_req, file, callback) => {
         if (!ALLOWED_CHAT_IMAGE_TYPES.has(file.mimetype)) {
             callback(new HttpError(400, "Only JPEG, PNG and WebP images are allowed"));

@@ -70,11 +70,7 @@ export const markAsRead = async (req, res) => {
                 message: "Valid conversation ID is required",
             });
         }
-        const conversation = await ChatConversationService.markAsRead({
-            conversationId,
-            userId,
-            messageId
-        });
+        const conversation = await ChatConversationService.markAsRead({ conversationId, userId, messageId });
         return res.status(200).json({
             success: true,
             message: "Conversation marked as read",

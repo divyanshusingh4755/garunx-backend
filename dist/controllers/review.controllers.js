@@ -10,8 +10,7 @@ const getErrorStatus = (error) => {
     if (error.message.includes("not authorized")) {
         return 403;
     }
-    if (error.message.includes("already reviewed") ||
-        error.message.includes("already exists")) {
+    if (error.message.includes("already reviewed") || error.message.includes("already exists")) {
         return 409;
     }
     return 400;
@@ -25,7 +24,7 @@ const parsePositiveInteger = (value, fallback, maximum) => {
 };
 export const getAllReviews = async (req, res) => {
     try {
-        const { searchTerm, direction, visibility, moderationStatus, isDeleted, rating, reviewerId, revieweeId, bookingId, limit, page, sortBy, sortOrder, } = req.query;
+        const { searchTerm, direction, visibility, moderationStatus, isDeleted, rating, reviewerId, revieweeId, bookingId, limit, page, sortBy, sortOrder } = req.query;
         const params = {
             limit: parsePositiveInteger(limit, 40, 100),
             page: parsePositiveInteger(page, 1),
@@ -276,23 +275,17 @@ export const getCoordinatorReviews = async (req, res) => {
 };
 export const exportReviewsCsv = async (req, res) => {
     try {
-        const { reviewIds, } = req.body;
+        const { reviewIds } = req.body;
         const result = await ReviewService.exportReviewsToCsv(reviewIds);
-        const timestamp = new Date()
-            .toISOString()
-            .replace(/[:.]/g, "-");
+        const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
         res.setHeader("Content-Type", "text/csv; charset=utf-8");
         res.setHeader("Content-Disposition", `attachment; filename="reviews-${timestamp}.csv"`);
-        return res
-            .status(200)
-            .send(result.csv);
+        return res.status(200).send(result.csv);
     }
     catch (error) {
-        return res
-            .status(getErrorStatus(error))
-            .json({
+        return res.status(getErrorStatus(error)).json({
             success: false,
-            message: getErrorMessage(error, "Failed to export reviews"),
+            message: getErrorMessage(error, "Failed to export reviews")
         });
     }
 };

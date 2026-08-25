@@ -81,33 +81,12 @@ const citySchema = new Schema<ICity>(
       },
     },
   },
-  {
-    timestamps: true,
-  },
+  { timestamps: true },
 );
 
-citySchema.index({
-  location: "2dsphere",
-});
-
-citySchema.index({
-  country: 1,
-  stateId: 1,
-  name: 1,
-});
-
-citySchema.index({
-  isActive: 1,
-  createdAt: -1,
-});
-
-citySchema.index(
-  {
-    name: "text",
-  },
-  {
-    name: "CityTextSearchIndex",
-  },
-);
+citySchema.index({ location: "2dsphere" });
+citySchema.index({ country: 1, stateId: 1, name: 1 });
+citySchema.index({ isActive: 1, createdAt: -1 });
+citySchema.index({ name: "text" }, { name: "CityTextSearchIndex" });
 
 export const City = model<ICity>("City", citySchema);

@@ -1,27 +1,8 @@
-import { model, Schema, Types, Document, Model, } from "mongoose";
+import { model, Schema, Types, Document, Model } from "mongoose";
 import { Role } from "../types/rbac.js";
-export const PUSH_DELIVERY_STATUSES = [
-    "NOT_REQUESTED",
-    "PENDING",
-    "RETRYING",
-    "SENT",
-    "PARTIAL",
-    "FAILED",
-];
-export const EMAIL_DELIVERY_STATUSES = [
-    "NOT_REQUESTED",
-    "PENDING",
-    "RETRYING",
-    "SENT",
-    "FAILED",
-];
-export const NOTIFICATION_TYPES = [
-    "BOOKING",
-    "PAYMENT",
-    "QUERY",
-    "REVIEW",
-    "SYSTEM",
-];
+export const PUSH_DELIVERY_STATUSES = ["NOT_REQUESTED", "PENDING", "RETRYING", "SENT", "PARTIAL", "FAILED"];
+export const EMAIL_DELIVERY_STATUSES = ["NOT_REQUESTED", "PENDING", "RETRYING", "SENT", "FAILED"];
+export const NOTIFICATION_TYPES = ["BOOKING", "PAYMENT", "QUERY", "REVIEW", "SYSTEM"];
 const notificationSchema = new Schema({
     recipientId: {
         type: Schema.Types.ObjectId,
@@ -140,25 +121,9 @@ const notificationSchema = new Schema({
 }, {
     timestamps: true,
 });
-notificationSchema.index({
-    recipientId: 1,
-    isDeleted: 1,
-    createdAt: -1,
-});
-notificationSchema.index({
-    recipientId: 1,
-    isRead: 1,
-    isDeleted: 1,
-});
-notificationSchema.index({
-    type: 1,
-    referenceId: 1,
-});
-notificationSchema.index({
-    dedupeKey: 1,
-}, {
-    unique: true,
-    sparse: true,
-});
+notificationSchema.index({ recipientId: 1, isDeleted: 1, createdAt: -1 });
+notificationSchema.index({ recipientId: 1, isRead: 1, isDeleted: 1 });
+notificationSchema.index({ type: 1, referenceId: 1 });
+notificationSchema.index({ dedupeKey: 1 }, { unique: true, sparse: true });
 export const Notification = model("Notification", notificationSchema);
 //# sourceMappingURL=notification.model.js.map

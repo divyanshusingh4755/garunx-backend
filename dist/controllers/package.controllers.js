@@ -11,10 +11,7 @@ const parseIdList = (value) => {
     if (typeof value !== "string") {
         return undefined;
     }
-    const ids = value
-        .split(",")
-        .map((id) => id.trim())
-        .filter(Boolean);
+    const ids = value.split(",").map((id) => id.trim()).filter(Boolean);
     return ids.length ? ids : undefined;
 };
 export const createPackage = async (req, res) => {
@@ -92,10 +89,10 @@ export const getPackageById = async (req, res) => {
 };
 export const getAllPackages = async (req, res) => {
     try {
-        const { searchTerm, categoryId, locationId, tierId, limit, page, sortBy, sortOrder, } = req.query;
+        const { searchTerm, categoryId, locationId, tierId, limit, page, sortBy, sortOrder } = req.query;
         const parsedLimit = parsePositiveInteger(limit, 20, 100);
         const parsedPage = parsePositiveInteger(page, 1);
-        const { data, total, page: currentPage, totalPages, } = await PackageService.findPackages(searchTerm, categoryId, locationId, tierId, parsedLimit, parsedPage, true, // isActive
+        const { data, total, page: currentPage, totalPages } = await PackageService.findPackages(searchTerm, categoryId, locationId, tierId, parsedLimit, parsedPage, true, // isActive
         true, // isComplete
         sortBy || "name", sortOrder || "asc");
         return res.status(200).json({
@@ -115,20 +112,12 @@ export const getAllPackages = async (req, res) => {
 };
 export const getAllPackagesAdmin = async (req, res) => {
     try {
-        const { searchTerm, categoryId, locationId, tierId, limit, page, isActive, isComplete, sortBy, sortOrder, } = req.query;
-        const activeBool = isActive === "true"
-            ? true
-            : isActive === "false"
-                ? false
-                : undefined;
-        const completeBool = isComplete === "true"
-            ? true
-            : isComplete === "false"
-                ? false
-                : undefined;
+        const { searchTerm, categoryId, locationId, tierId, limit, page, isActive, isComplete, sortBy, sortOrder } = req.query;
+        const activeBool = isActive === "true" ? true : isActive === "false" ? false : undefined;
+        const completeBool = isComplete === "true" ? true : isComplete === "false" ? false : undefined;
         const parsedLimit = parsePositiveInteger(limit, 20, 100);
         const parsedPage = parsePositiveInteger(page, 1);
-        const { data, total, page: currentPage, totalPages, } = await PackageService.findPackages(searchTerm, categoryId, locationId, tierId, parsedLimit, parsedPage, activeBool, completeBool, sortBy || "name", sortOrder || "asc");
+        const { data, total, page: currentPage, totalPages } = await PackageService.findPackages(searchTerm, categoryId, locationId, tierId, parsedLimit, parsedPage, activeBool, completeBool, sortBy || "name", sortOrder || "asc");
         return res.status(200).json({
             success: true,
             data,
@@ -241,27 +230,16 @@ export const getFullPackage = async (req, res) => {
 };
 export const getFullPackageAdmin = async (req, res) => {
     try {
-        const data = await PackageService
-            .getFullPackageAdmin(req.params
-            .packageId);
-        return res
-            .status(200)
-            .json({
+        const data = await PackageService.getFullPackageAdmin(req.params.packageId);
+        return res.status(200).json({
             success: true,
             data,
         });
     }
     catch (error) {
-        return res
-            .status(typeof error
-            ?.statusCode ===
-            "number"
-            ? error.statusCode
-            : 500)
-            .json({
+        return res.status(typeof error?.statusCode === "number" ? error.statusCode : 500).json({
             success: false,
-            message: error.message ||
-                "Failed to fetch package",
+            message: error.message || "Failed to fetch package",
         });
     }
 };
@@ -321,24 +299,15 @@ export const getFullPackageByCities = async (req, res) => {
 };
 export const getPackagesByLocation = async (req, res) => {
     try {
-        const { cityIds, categoryIds, limit, page, sortBy, sortOrder, } = req.query;
+        const { cityIds, categoryIds, limit, page, sortBy, sortOrder } = req.query;
         const cityIdArray = parseIdList(cityIds);
         const categoryIdArray = parseIdList(categoryIds);
         const parsedLimit = parsePositiveInteger(limit, 20, 100);
         const parsedPage = parsePositiveInteger(page, 1);
-        const { data, total, page: currentPage, totalPages, } = await PackageService
-            .getPackagesByLocation(cityIdArray, categoryIdArray, parsedLimit, parsedPage, 
-        /*
-         * USER endpoint:
-         * never allow caller to request
-         * hidden packages.
-         */
-        true, true, sortBy ||
-            "name", sortOrder ||
-            "asc");
-        return res
-            .status(200)
-            .json({
+        const { data, total, page: currentPage, totalPages } = await PackageService.getPackagesByLocation(cityIdArray, categoryIdArray, parsedLimit, parsedPage, 
+        // USER endpoint: never allow caller to request hidden packages.
+        true, true, sortBy || "name", sortOrder || "asc");
+        return res.status(200).json({
             success: true,
             data,
             total,
@@ -347,13 +316,7 @@ export const getPackagesByLocation = async (req, res) => {
         });
     }
     catch (error) {
-        return res
-            .status(typeof error
-            ?.statusCode ===
-            "number"
-            ? error.statusCode
-            : 400)
-            .json({
+        return res.status(typeof error?.statusCode === "number" ? error.statusCode : 400).json({
             success: false,
             message: error.message,
         });
@@ -362,31 +325,18 @@ export const getPackagesByLocation = async (req, res) => {
 export const exportPackagesToCsv = async (req, res) => {
     try {
         const { packageIds } = req.body;
-        const { csv, total, } = await PackageService
-            .exportPackagesToCsv(packageIds);
-        const fileName = `packages-${new Date()
-            .toISOString()
-            .slice(0, 10)}.csv`;
+        const { csv, total } = await PackageService.exportPackagesToCsv(packageIds);
+        const fileName = `packages-${new Date().toISOString().slice(0, 10)}.csv`;
         res.setHeader("Content-Type", "text/csv; charset=utf-8");
         res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
         res.setHeader("X-Export-Count", String(total));
-        return res
-            .status(200)
-            .send(`\uFEFF${csv}`);
+        return res.status(200).send(`\uFEFF${csv}`);
     }
     catch (error) {
-        const status = typeof error?.statusCode === "number"
-            ? error.statusCode
-            : error?.message ===
-                "No packages found for export"
-                ? 404
-                : 500;
-        return res
-            .status(status)
-            .json({
+        const status = typeof error?.statusCode === "number" ? error.statusCode : error?.message === "No packages found for export" ? 404 : 500;
+        return res.status(status).json({
             success: false,
-            message: error.message ||
-                "Failed to export packages",
+            message: error.message || "Failed to export packages",
         });
     }
 };

@@ -1,23 +1,17 @@
 import type { Request, Response } from "express";
-
 import { ReferralRewardService } from "../services/referralreward.service.js";
 
 type RewardStatus = "PENDING" | "AWARDED" | "FAILED";
 
-const getErrorMessage = (error: unknown, fallback: string): string =>
-  error instanceof Error ? error.message : fallback;
+const getErrorMessage = (error: unknown, fallback: string): string => error instanceof Error ? error.message : fallback;
 
 const getErrorStatus = (error: unknown): number => {
-  if (error instanceof Error && error.message === "User not found") {
-    return 404;
-  }
-
+  if (error instanceof Error && error.message === "User not found") { return 404; }
   return 400;
 };
 
 const getAuthenticatedUserId = (req: Request): string | null => {
   const userId = req.user?.userId;
-
   return userId ? String(userId) : null;
 };
 
@@ -82,15 +76,8 @@ export const getReferralHistory = async (req: Request, res: Response) => {
       });
     }
 
-    const page =
-      typeof req.query.page === "number"
-        ? req.query.page
-        : Number(req.query.page);
-
-    const limit =
-      typeof req.query.limit === "number"
-        ? req.query.limit
-        : Number(req.query.limit);
+    const page = typeof req.query.page === "number" ? req.query.page : Number(req.query.page);
+    const limit = typeof req.query.limit === "number" ? req.query.limit : Number(req.query.limit);
 
     const result = await ReferralRewardService.getReferralHistory(
       userId,
@@ -110,42 +97,19 @@ export const getReferralHistory = async (req: Request, res: Response) => {
   }
 };
 
-export const getReferralRewards = async (
-  req: Request,
-  res: Response,
-) => {
+export const getReferralRewards = async (req: Request, res: Response,) => {
   try {
-    const page =
-      typeof req.query.page === "number"
-        ? req.query.page
-        : Number(req.query.page);
+    const page = typeof req.query.page === "number" ? req.query.page : Number(req.query.page);
+    const limit = typeof req.query.limit === "number" ? req.query.limit : Number(req.query.limit);
+    const status = typeof req.query.status === "string" ? (req.query.status as RewardStatus) : undefined;
+    const userId = typeof req.query.userId === "string" ? req.query.userId : undefined;
 
-    const limit =
-      typeof req.query.limit === "number"
-        ? req.query.limit
-        : Number(req.query.limit);
-
-    const status =
-      typeof req.query.status === "string"
-        ? (req.query.status as RewardStatus)
-        : undefined;
-
-    const userId =
-      typeof req.query.userId === "string"
-        ? req.query.userId
-        : undefined;
-
-    const result =
-      await ReferralRewardService.getReferralRewards(
-        userId,
-        Number.isInteger(page) && page > 0
-          ? page
-          : 1,
-        Number.isInteger(limit) && limit > 0
-          ? Math.min(limit, 100)
-          : 20,
-        status,
-      );
+    const result = await ReferralRewardService.getReferralRewards(
+      userId,
+      Number.isInteger(page) && page > 0 ? page : 1,
+      Number.isInteger(limit) && limit > 0 ? Math.min(limit, 100) : 20,
+      status,
+    );
 
     return res.status(200).json({
       success: true,
@@ -154,60 +118,25 @@ export const getReferralRewards = async (
   } catch (error: unknown) {
     return res.status(400).json({
       success: false,
-      message: getErrorMessage(
-        error,
-        "Failed to fetch referral rewards",
-      ),
+      message: getErrorMessage(error, "Failed to fetch referral rewards"),
     });
   }
 };
 
-export const exportReferralRewardsCsv = async (
-  req: Request,
-  res: Response,
-) => {
+export const exportReferralRewardsCsv = async (req: Request, res: Response) => {
   try {
-    const {
-      rewardIds,
-    }: {
-      rewardIds: string[];
-    } = req.body;
+    const { rewardIds }: { rewardIds: string[] } = req.body;
+    const result = await ReferralRewardService.exportReferralRewardsToCsv(rewardIds);
+    const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
 
-    const result =
-      await ReferralRewardService
-        .exportReferralRewardsToCsv(
-          rewardIds,
-        );
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="referral-rewards-${timestamp}.csv"`);
 
-    const timestamp =
-      new Date()
-        .toISOString()
-        .replace(/[:.]/g, "-");
-
-    res.setHeader(
-      "Content-Type",
-      "text/csv; charset=utf-8",
-    );
-
-    res.setHeader(
-      "Content-Disposition",
-      `attachment; filename="referral-rewards-${timestamp}.csv"`,
-    );
-
-    return res
-      .status(200)
-      .send(result.csv);
+    return res.status(200).send(result.csv);
   } catch (error: unknown) {
-    const message =
-      getErrorMessage(
-        error,
-        "Failed to export referral rewards",
-      );
+    const message = getErrorMessage(error, "Failed to export referral rewards");
 
-    if (
-      message ===
-      "No referral rewards found for export"
-    ) {
+    if (message === "No referral rewards found for export") {
       return res.status(404).json({
         success: false,
         message,

@@ -34,9 +34,6 @@ const tierSchema = new Schema<ITier>(
   },
 );
 
-tierSchema.index({
-  name: "text",
-  tierReference: "text",
-});
+tierSchema.index({ name: "text", tierReference: "text" });
 
 export const Tier = model<ITier>("Tier", tierSchema);

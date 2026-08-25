@@ -1,19 +1,7 @@
-import { model, Schema, } from "mongoose";
-import { NOTIFICATION_TYPES, } from "./notification.model.js";
-export const NOTIFICATION_CATEGORIES = [
-    "BOOKING",
-    "PAYMENT",
-    "QUERY",
-    "REVIEW",
-    "PROMOTIONAL",
-    "APP_UPDATE",
-    "NEW_FEATURE",
-    "SYSTEM",
-];
-export const NOTIFICATION_PREFERENCE_MODES = [
-    "REQUIRED",
-    "OPTIONAL",
-];
+import { model, Schema } from "mongoose";
+import { NOTIFICATION_TYPES } from "./notification.model.js";
+export const NOTIFICATION_CATEGORIES = ["BOOKING", "PAYMENT", "QUERY", "REVIEW", "PROMOTIONAL", "APP_UPDATE", "NEW_FEATURE", "SYSTEM"];
+export const NOTIFICATION_PREFERENCE_MODES = ["REQUIRED", "OPTIONAL"];
 const notificationTemplateSchema = new Schema({
     code: {
         type: String,

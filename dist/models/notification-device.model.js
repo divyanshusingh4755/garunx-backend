@@ -1,9 +1,5 @@
-import { model, Schema, Types, } from "mongoose";
-export const DEVICE_PLATFORMS = [
-    "WEB",
-    "ANDROID",
-    "IOS",
-];
+import { model, Schema, Types } from "mongoose";
+export const DEVICE_PLATFORMS = ["WEB", "ANDROID", "IOS"];
 const notificationDeviceSchema = new Schema({
     userId: {
         type: Schema.Types.ObjectId,
@@ -37,14 +33,7 @@ const notificationDeviceSchema = new Schema({
 }, {
     timestamps: true,
 });
-notificationDeviceSchema.index({
-    token: 1,
-}, {
-    unique: true,
-});
-notificationDeviceSchema.index({
-    userId: 1,
-    isActive: 1,
-});
+notificationDeviceSchema.index({ token: 1 }, { unique: true });
+notificationDeviceSchema.index({ userId: 1, isActive: 1 });
 export const NotificationDevice = model("NotificationDevice", notificationDeviceSchema);
 //# sourceMappingURL=notification-device.model.js.map

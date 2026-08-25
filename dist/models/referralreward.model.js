@@ -50,24 +50,12 @@ referralRewardSchema.pre("validate", function () {
     if (this.referrerUserId.toString() === this.referredUserId.toString()) {
         throw new Error("Referrer and referred user cannot be the same");
     }
-    if (this.status === "AWARDED" &&
-        (!this.referrerCouponId || !this.referredCouponId)) {
+    if (this.status === "AWARDED" && (!this.referrerCouponId || !this.referredCouponId)) {
         throw new Error("Awarded referral rewards require both coupon IDs");
     }
 });
-referralRewardSchema.index({
-    referredUserId: 1,
-}, {
-    unique: true,
-    name: "UniqueReferralRewardPerReferredUser",
-});
-referralRewardSchema.index({
-    referrerUserId: 1,
-    createdAt: -1,
-});
-referralRewardSchema.index({
-    referredUserId: 1,
-    createdAt: -1,
-});
+referralRewardSchema.index({ referredUserId: 1 }, { unique: true, name: "UniqueReferralRewardPerReferredUser" });
+referralRewardSchema.index({ referrerUserId: 1, createdAt: -1 });
+referralRewardSchema.index({ referredUserId: 1, createdAt: -1 });
 export const ReferralReward = model("ReferralReward", referralRewardSchema);
 //# sourceMappingURL=referralreward.model.js.map

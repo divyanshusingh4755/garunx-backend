@@ -87,31 +87,11 @@ const packageSchema = new Schema({
         virtuals: true,
     },
 });
-packageSchema.virtual("tierMappings", {
-    ref: "PackageTierMap",
-    localField: "_id",
-    foreignField: "packageId",
-});
-packageSchema.virtual("tierPricing", {
-    ref: "PackageTierPricing",
-    localField: "_id",
-    foreignField: "packageId",
-});
-packageSchema.index({
-    categoryId: 1,
-    isActive: 1,
-    isComplete: 1,
-});
+packageSchema.virtual("tierMappings", { ref: "PackageTierMap", localField: "_id", foreignField: "packageId" });
+packageSchema.virtual("tierPricing", { ref: "PackageTierPricing", localField: "_id", foreignField: "packageId" });
+packageSchema.index({ categoryId: 1, isActive: 1, isComplete: 1 });
 packageSchema.index({ name: 1 });
-packageSchema.index({
-    name: "text",
-    shortDescription: "text",
-}, {
-    name: "PackageTextSearchIndex",
-});
-packageSchema.index({
-    isActive: 1,
-    categoryId: 1,
-});
+packageSchema.index({ name: "text", shortDescription: "text" }, { name: "PackageTextSearchIndex" });
+packageSchema.index({ isActive: 1, categoryId: 1 });
 export const Package = model("Package", packageSchema);
 //# sourceMappingURL=package.model.js.map

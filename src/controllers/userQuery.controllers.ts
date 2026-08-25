@@ -1,55 +1,22 @@
 import type { Request, Response } from "express";
-
 import { UserQueryService } from "../services/userQuery.services.js";
+import type { UserQueryStatus, UserQueryCategory, UserQueryPriority, UserQueryRequesterType } from "../models/userQuery.model.js";
 
-import type {
-  UserQueryStatus,
-  UserQueryCategory,
-  UserQueryPriority,
-  UserQueryRequesterType,
-} from "../models/userQuery.model.js";
-
-const getErrorMessage = (error: unknown, fallback: string): string =>
-  error instanceof Error ? error.message : fallback;
+const getErrorMessage = (error: unknown, fallback: string): string => error instanceof Error ? error.message : fallback;
 
 const getErrorStatus = (error: unknown): number => {
-  if (!(error instanceof Error)) {
-    return 400;
-  }
-
-  if (error.message.includes("not found")) {
-    return 404;
-  }
-
-  if (
-    error.message.includes("not authorized") ||
-    error.message.includes("Only customers and coordinators") ||
-    error.message.includes("not an admin")
-  ) {
-    return 403;
-  }
-
-  if (error.message.includes("already")) {
-    return 409;
-  }
-
+  if (!(error instanceof Error)) { return 400; }
+  if (error.message.includes("not found")) { return 404; }
+  if (error.message.includes("not authorized") || error.message.includes("Only customers and coordinators") || error.message.includes("not an admin")) { return 403; }
+  if (error.message.includes("already")) { return 409; }
   return 400;
 };
 
-const getUserId = (req: Request): string | null =>
-  req.user?.userId ? String(req.user.userId) : null;
+const getUserId = (req: Request): string | null => req.user?.userId ? String(req.user.userId) : null;
 
-const parsePositiveInteger = (
-  value: unknown,
-  fallback: number,
-  max?: number,
-): number => {
+const parsePositiveInteger = (value: unknown, fallback: number, max?: number): number => {
   const parsed = typeof value === "number" ? value : Number(value);
-
-  if (!Number.isInteger(parsed) || parsed < 1) {
-    return fallback;
-  }
-
+  if (!Number.isInteger(parsed) || parsed < 1) { return fallback; }
   return max ? Math.min(parsed, max) : parsed;
 };
 
@@ -64,20 +31,10 @@ export const createUserQuery = async (req: Request, res: Response) => {
       });
     }
 
-    const input: Parameters<typeof UserQueryService.createUserQueryService>[0] =
-    {
-      requesterId,
-      subject: req.body.subject,
-      category: req.body.category,
-    };
+    const input: Parameters<typeof UserQueryService.createUserQueryService>[0] = { requesterId, subject: req.body.subject, category: req.body.category };
 
-    if (Object.prototype.hasOwnProperty.call(req.body, "message")) {
-      input.message = req.body.message;
-    }
-
-    if (Object.prototype.hasOwnProperty.call(req.body, "imageUrls")) {
-      input.imageUrls = req.body.imageUrls;
-    }
+    if (Object.prototype.hasOwnProperty.call(req.body, "message")) { input.message = req.body.message; }
+    if (Object.prototype.hasOwnProperty.call(req.body, "imageUrls")) { input.imageUrls = req.body.imageUrls; }
 
     const result = await UserQueryService.createUserQueryService(input);
 
@@ -109,8 +66,7 @@ export const getMyQueries = async (req: Request, res: Response) => {
       requesterId,
       limit: parsePositiveInteger(req.query.limit, 20, 100),
       page: parsePositiveInteger(req.query.page, 1),
-      sortBy:
-        typeof req.query.sortBy === "string" ? req.query.sortBy : "createdAt",
+      sortBy: typeof req.query.sortBy === "string" ? req.query.sortBy : "createdAt",
       sortOrder: req.query.sortOrder === "asc" ? "asc" : "desc",
     };
 
@@ -118,9 +74,7 @@ export const getMyQueries = async (req: Request, res: Response) => {
       params.status = req.query.status as UserQueryStatus;
     }
 
-    if (typeof req.query.category === "string") {
-      params.category = req.query.category as UserQueryCategory;
-    }
+    if (typeof req.query.category === "string") { params.category = req.query.category as UserQueryCategory; }
 
     const result = await UserQueryService.getMyQueries(params);
 
@@ -151,10 +105,7 @@ export const getUserQueryById = async (req: Request, res: Response) => {
       });
     }
 
-    const result = await UserQueryService.getUserQueryById({
-      queryId: req.params.queryId as string,
-      requesterId,
-    });
+    const result = await UserQueryService.getUserQueryById({ queryId: req.params.queryId as string, requesterId });
 
     return res.status(200).json({
       success: true,
@@ -179,18 +130,10 @@ export const sendUserQueryMessage = async (req: Request, res: Response) => {
       });
     }
 
-    const input: Parameters<typeof UserQueryService.sendUserQueryMessage>[0] = {
-      queryId: req.params.queryId as string,
-      requesterId,
-    };
+    const input: Parameters<typeof UserQueryService.sendUserQueryMessage>[0] = { queryId: req.params.queryId as string, requesterId };
 
-    if (Object.prototype.hasOwnProperty.call(req.body, "message")) {
-      input.message = req.body.message;
-    }
-
-    if (Object.prototype.hasOwnProperty.call(req.body, "imageUrls")) {
-      input.imageUrls = req.body.imageUrls;
-    }
+    if (Object.prototype.hasOwnProperty.call(req.body, "message")) { input.message = req.body.message; }
+    if (Object.prototype.hasOwnProperty.call(req.body, "imageUrls")) { input.imageUrls = req.body.imageUrls; }
 
     const result = await UserQueryService.sendUserQueryMessage(input);
 
@@ -218,10 +161,7 @@ export const markUserQueryAsRead = async (req: Request, res: Response) => {
       });
     }
 
-    const result = await UserQueryService.markUserQueryAsRead({
-      queryId: req.params.queryId as string,
-      actorId,
-    });
+    const result = await UserQueryService.markUserQueryAsRead({ queryId: req.params.queryId as string, actorId });
 
     return res.status(200).json({
       success: true,
@@ -241,44 +181,19 @@ export const getAllUserQueries = async (req: Request, res: Response) => {
     const params: Parameters<typeof UserQueryService.getAllUserQueries>[0] = {
       limit: parsePositiveInteger(req.query.limit, 40, 100),
       page: parsePositiveInteger(req.query.page, 1),
-      sortBy:
-        typeof req.query.sortBy === "string" ? req.query.sortBy : "createdAt",
+      sortBy: typeof req.query.sortBy === "string" ? req.query.sortBy : "createdAt",
       sortOrder: req.query.sortOrder === "asc" ? "asc" : "desc",
     };
 
-    if (typeof req.query.searchTerm === "string") {
-      params.searchTerm = req.query.searchTerm;
-    }
-
-    if (typeof req.query.status === "string") {
-      params.status = req.query.status as UserQueryStatus;
-    }
-
-    if (typeof req.query.category === "string") {
-      params.category = req.query.category as UserQueryCategory;
-    }
-
-    if (typeof req.query.priority === "string") {
-      params.priority = req.query.priority as UserQueryPriority;
-    }
-
-    if (typeof req.query.requesterType === "string") {
-      params.requesterType = req.query.requesterType as UserQueryRequesterType;
-    }
-
-    if (typeof req.query.assignedAdminId === "string") {
-      params.assignedAdminId = req.query.assignedAdminId;
-    }
-
-    if (typeof req.query.requesterId === "string") {
-      params.requesterId = req.query.requesterId;
-    }
-
-    if (req.query.isDeleted === "true") {
-      params.isDeleted = true;
-    } else if (req.query.isDeleted === "false") {
-      params.isDeleted = false;
-    }
+    if (typeof req.query.searchTerm === "string") { params.searchTerm = req.query.searchTerm; }
+    if (typeof req.query.status === "string") { params.status = req.query.status as UserQueryStatus; }
+    if (typeof req.query.category === "string") { params.category = req.query.category as UserQueryCategory; }
+    if (typeof req.query.priority === "string") { params.priority = req.query.priority as UserQueryPriority; }
+    if (typeof req.query.requesterType === "string") { params.requesterType = req.query.requesterType as UserQueryRequesterType; }
+    if (typeof req.query.assignedAdminId === "string") { params.assignedAdminId = req.query.assignedAdminId; }
+    if (typeof req.query.requesterId === "string") { params.requesterId = req.query.requesterId; }
+    if (req.query.isDeleted === "true") { params.isDeleted = true; }
+    else if (req.query.isDeleted === "false") { params.isDeleted = false; }
 
     const result = await UserQueryService.getAllUserQueries(params);
 
@@ -309,10 +224,7 @@ export const getAdminUserQueryById = async (req: Request, res: Response) => {
       });
     }
 
-    const result = await UserQueryService.getAdminUserQueryById({
-      queryId: req.params.queryId as string,
-      adminId,
-    });
+    const result = await UserQueryService.getAdminUserQueryById({ queryId: req.params.queryId as string, adminId });
 
     return res.status(200).json({
       success: true,
@@ -337,18 +249,10 @@ export const sendAdminQueryReply = async (req: Request, res: Response) => {
       });
     }
 
-    const input: Parameters<typeof UserQueryService.sendAdminQueryReply>[0] = {
-      queryId: req.params.queryId as string,
-      adminId,
-    };
+    const input: Parameters<typeof UserQueryService.sendAdminQueryReply>[0] = { queryId: req.params.queryId as string, adminId };
 
-    if (Object.prototype.hasOwnProperty.call(req.body, "message")) {
-      input.message = req.body.message;
-    }
-
-    if (Object.prototype.hasOwnProperty.call(req.body, "imageUrls")) {
-      input.imageUrls = req.body.imageUrls;
-    }
+    if (Object.prototype.hasOwnProperty.call(req.body, "message")) { input.message = req.body.message; }
+    if (Object.prototype.hasOwnProperty.call(req.body, "imageUrls")) { input.imageUrls = req.body.imageUrls; }
 
     const result = await UserQueryService.sendAdminQueryReply(input);
 
@@ -376,16 +280,9 @@ export const updateUserQueryStatus = async (req: Request, res: Response) => {
       });
     }
 
-    const input: Parameters<typeof UserQueryService.updateUserQueryStatus>[0] =
-    {
-      queryId: req.params.queryId as string,
-      adminId,
-      status: req.body.status as UserQueryStatus,
-    };
+    const input: Parameters<typeof UserQueryService.updateUserQueryStatus>[0] = { queryId: req.params.queryId as string, adminId, status: req.body.status as UserQueryStatus };
 
-    if (Object.prototype.hasOwnProperty.call(req.body, "reason")) {
-      input.reason = req.body.reason;
-    }
+    if (Object.prototype.hasOwnProperty.call(req.body, "reason")) { input.reason = req.body.reason; }
 
     const result = await UserQueryService.updateUserQueryStatus(input);
 
@@ -413,13 +310,7 @@ export const updateUserQueryPriority = async (req: Request, res: Response) => {
       });
     }
 
-    const input: Parameters<
-      typeof UserQueryService.updateUserQueryPriority
-    >[0] = {
-      queryId: req.params.queryId as string,
-      adminId,
-      priority: req.body.priority as UserQueryPriority,
-    };
+    const input: Parameters<typeof UserQueryService.updateUserQueryPriority>[0] = { queryId: req.params.queryId as string, adminId, priority: req.body.priority as UserQueryPriority };
 
     if (Object.prototype.hasOwnProperty.call(req.body, "reason")) {
       input.reason = req.body.reason;
@@ -451,17 +342,9 @@ export const updateUserQueryCategory = async (req: Request, res: Response) => {
       });
     }
 
-    const input: Parameters<
-      typeof UserQueryService.updateUserQueryCategory
-    >[0] = {
-      queryId: req.params.queryId as string,
-      adminId,
-      category: req.body.category as UserQueryCategory,
-    };
+    const input: Parameters<typeof UserQueryService.updateUserQueryCategory>[0] = { queryId: req.params.queryId as string, adminId, category: req.body.category as UserQueryCategory };
 
-    if (Object.prototype.hasOwnProperty.call(req.body, "reason")) {
-      input.reason = req.body.reason;
-    }
+    if (Object.prototype.hasOwnProperty.call(req.body, "reason")) { input.reason = req.body.reason; }
 
     const result = await UserQueryService.updateUserQueryCategory(input);
 
@@ -489,11 +372,7 @@ export const assignUserQuery = async (req: Request, res: Response) => {
       });
     }
 
-    const result = await UserQueryService.assignUserQuery({
-      queryId: req.params.queryId as string,
-      adminId: req.body.adminId,
-      performedBy,
-    });
+    const result = await UserQueryService.assignUserQuery({ queryId: req.params.queryId as string, adminId: req.body.adminId, performedBy });
 
     return res.status(200).json({
       success: true,
@@ -519,11 +398,7 @@ export const deleteUserQuery = async (req: Request, res: Response) => {
       });
     }
 
-    const result = await UserQueryService.deleteUserQuery({
-      queryId: req.params.queryId as string,
-      adminId,
-      reason: req.body.reason,
-    });
+    const result = await UserQueryService.deleteUserQuery({ queryId: req.params.queryId as string, adminId, reason: req.body.reason });
 
     return res.status(200).json({
       success: true,
@@ -538,67 +413,25 @@ export const deleteUserQuery = async (req: Request, res: Response) => {
   }
 };
 
-export const exportUserQueriesCsv = async (
-  req: Request,
-  res: Response,
-) => {
+export const exportUserQueriesCsv = async (req: Request, res: Response) => {
   try {
-    const {
-      queryIds,
-    }: {
-      queryIds: string[];
-    } = req.body;
+    const { queryIds }: { queryIds: string[] } = req.body;
 
-    const result =
-      await UserQueryService.exportUserQueriesToCsv(
-        queryIds,
-      );
+    const result = await UserQueryService.exportUserQueriesToCsv(queryIds);
 
-    const timestamp =
-      new Date()
-        .toISOString()
-        .replace(
-          /[:.]/g,
-          "-",
-        );
+    const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
 
-    res.setHeader(
-      "Content-Type",
-      "text/csv; charset=utf-8",
-    );
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="user-queries-${timestamp}.csv"`);
 
-    res.setHeader(
-      "Content-Disposition",
-      `attachment; filename="user-queries-${timestamp}.csv"`,
-    );
+    return res.status(200).send(result.csv);
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Failed to export user queries";
+    const status = message.includes("not found") ? 404 : 400;
 
-    return res
-      .status(200)
-      .send(
-        result.csv,
-      );
-  } catch (
-  error: unknown
-  ) {
-    const message =
-      error instanceof Error
-        ? error.message
-        : "Failed to export user queries";
-
-    const status =
-      message.includes(
-        "not found",
-      )
-        ? 404
-        : 400;
-
-    return res
-      .status(
-        status,
-      )
-      .json({
-        success: false,
-        message,
-      });
+    return res.status(status,).json({
+      success: false,
+      message,
+    });
   }
 };

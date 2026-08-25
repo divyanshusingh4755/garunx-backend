@@ -27,75 +27,39 @@ export class StateService {
     static applyFilter(filterValue) {
         if (!filterValue?.trim())
             return undefined;
-        const values = filterValue
-            .split(",")
-            .map((value) => value.trim())
-            .filter(Boolean);
+        const values = filterValue.split(",").map((value) => value.trim()).filter(Boolean);
         return values.length > 0 ? { $in: values } : undefined;
     }
     static async createState(params) {
-        const { name, country, gstCode, image, description, location, } = params;
+        const { name, country, gstCode, image, description, location } = params;
         const state = await State.create({
             name: name.trim(),
             country: country.trim(),
             gstCode: gstCode.trim(),
-            ...(image !== undefined && {
-                image,
-            }),
-            ...(description !== undefined && {
-                description,
-            }),
-            ...(location !== undefined && {
-                location,
-            }),
+            ...(image !== undefined && { image }),
+            ...(description !== undefined && { description }),
+            ...(location !== undefined && { location }),
         });
         await this.invalidateStateCache();
         return state;
     }
     static async findState(params) {
-        const { searchTerm, countryFilter, stateFilter, limit = 40, page = 1, isActive, sortBy = "createdAt", sortOrder = "desc", } = params;
+        const { searchTerm, countryFilter, stateFilter, limit = 40, page = 1, isActive, sortBy = "createdAt", sortOrder = "desc" } = params;
         const safeLimit = Math.min(Math.max(limit, 1), 100);
         const safePage = Math.max(page, 1);
         const term = searchTerm?.trim();
-        const isTextSearch = Boolean(term &&
-            term.length >
-                4);
-        const allowedSortFields = new Set([
-            "name",
-            "country",
-            "gstCode",
-            "createdAt",
-            "updatedAt",
-        ]);
-        const safeSortBy = isTextSearch &&
-            sortBy ===
-                "relevance"
-            ? "relevance"
-            : allowedSortFields.has(sortBy)
-                ? sortBy
-                : "createdAt";
-        const cacheKey = CacheKeys.stateList({
-            searchTerm,
-            countryFilter,
-            stateFilter,
-            limit: safeLimit,
-            page: safePage,
-            isActive,
-            sortBy: safeSortBy,
-            sortOrder,
-        });
+        const isTextSearch = Boolean(term && term.length > 4);
+        const allowedSortFields = new Set(["name", "country", "gstCode", "createdAt", "updatedAt"]);
+        const safeSortBy = isTextSearch && sortBy === "relevance" ? "relevance" : allowedSortFields.has(sortBy) ? sortBy : "createdAt";
+        const cacheKey = CacheKeys.stateList({ searchTerm, countryFilter, stateFilter, limit: safeLimit, page: safePage, isActive, sortBy: safeSortBy, sortOrder });
         return RedisCacheService.getOrSet({
             key: cacheKey,
-            ttlSeconds: CACHE_TTL_SECONDS
-                .STATE_LIST,
+            ttlSeconds: CACHE_TTL_SECONDS.STATE_LIST,
             loader: async () => {
-                const skip = safeLimit *
-                    (safePage - 1);
+                const skip = safeLimit * (safePage - 1);
                 const query = {};
-                if (typeof isActive ===
-                    "boolean") {
-                    query.isActive =
-                        isActive;
+                if (typeof isActive === "boolean") {
+                    query.isActive = isActive;
                 }
                 const countryQuery = this.applyFilter(countryFilter);
                 const stateQuery = this.applyFilter(stateFilter);
@@ -103,19 +67,9 @@ export class StateService {
                     query.country = countryQuery;
                 }
                 if (term && !isTextSearch) {
-                    const nameSearch = {
-                        $regex: `^${escapeRegex(term)}`,
-                        $options: "i",
-                    };
+                    const nameSearch = { $regex: `^${escapeRegex(term)}`, $options: "i" };
                     if (stateQuery) {
-                        query.$and = [
-                            {
-                                name: stateQuery,
-                            },
-                            {
-                                name: nameSearch,
-                            },
-                        ];
+                        query.$and = [{ name: stateQuery }, { name: nameSearch }];
                     }
                     else {
                         query.name = nameSearch;
@@ -126,65 +80,33 @@ export class StateService {
                         query.name = stateQuery;
                     }
                     if (term && isTextSearch) {
-                        query.$text = {
-                            $search: term,
-                        };
+                        query.$text = { $search: term };
                     }
                 }
                 let projection;
                 let sortCriteria;
-                if (isTextSearch &&
-                    safeSortBy ===
-                        "relevance") {
-                    projection = {
-                        score: {
-                            $meta: "textScore",
-                        },
-                    };
-                    sortCriteria = {
-                        score: {
-                            $meta: "textScore",
-                        },
-                    };
+                if (isTextSearch && safeSortBy === "relevance") {
+                    projection = { score: { $meta: "textScore" } };
+                    sortCriteria = { score: { $meta: "textScore" } };
                 }
                 else {
-                    sortCriteria = {
-                        [safeSortBy]: sortOrder ===
-                            "asc"
-                            ? 1
-                            : -1,
-                    };
-                    if (safeSortBy !==
-                        "createdAt") {
-                        sortCriteria.createdAt =
-                            -1;
+                    sortCriteria = { [safeSortBy]: sortOrder === "asc" ? 1 : -1 };
+                    if (safeSortBy !== "createdAt") {
+                        sortCriteria.createdAt = -1;
                     }
                 }
-                const [data, total,] = await Promise.all([
-                    State.find(query, projection)
-                        .sort(sortCriteria)
-                        .skip(skip)
-                        .limit(safeLimit)
-                        .lean(),
+                const [data, total] = await Promise.all([
+                    State.find(query, projection).sort(sortCriteria).skip(skip).limit(safeLimit).lean(),
                     State.countDocuments(query),
                 ]);
                 return {
-                    data,
-                    total,
-                    page: safePage,
-                    totalPages: Math.ceil(total /
-                        safeLimit),
+                    data, total, page: safePage, totalPages: Math.ceil(total / safeLimit),
                 };
             },
         });
     }
     static async updateState(stateId, updateData) {
-        const updatedState = await State.findByIdAndUpdate(stateId, {
-            $set: updateData,
-        }, {
-            new: true,
-            runValidators: true,
-        }).lean();
+        const updatedState = await State.findByIdAndUpdate(stateId, { $set: updateData }, { new: true, runValidators: true }).lean();
         if (!updatedState) {
             throw createHttpError("State not found", 404);
         }
@@ -192,14 +114,7 @@ export class StateService {
         return updatedState;
     }
     static async softDeleteState(stateId, status) {
-        const updatedState = await State.findByIdAndUpdate(stateId, {
-            $set: {
-                isActive: status,
-            },
-        }, {
-            new: true,
-            runValidators: true,
-        }).lean();
+        const updatedState = await State.findByIdAndUpdate(stateId, { $set: { isActive: status } }, { new: true, runValidators: true }).lean();
         if (!updatedState) {
             throw createHttpError("State not found", 404);
         }
@@ -214,88 +129,41 @@ export class StateService {
         return state;
     }
     static async exportStatesToCsv(params) {
-        const { exportAll = false, stateIds, } = params;
+        const { exportAll = false, stateIds } = params;
         let query = {};
         if (!exportAll) {
-            const uniqueStateIds = [
-                ...new Set(stateIds ?? []),
-            ];
+            const uniqueStateIds = [...new Set(stateIds ?? [])];
             if (uniqueStateIds.length === 0) {
                 throw createHttpError("At least one state ID is required", 400);
             }
-            query = {
-                _id: {
-                    $in: uniqueStateIds,
-                },
-            };
+            query = { _id: { $in: uniqueStateIds } };
         }
-        const states = await State.find(query)
-            .select([
-            "country",
-            "name",
-            "gstCode",
-            "description",
-            "image",
-            "isActive",
-            "location",
-            "createdAt",
-            "updatedAt",
-        ].join(" "))
-            .sort({
-            country: 1,
-            name: 1,
-        })
-            .lean();
+        const states = await State.find(query).select(["country", "name", "gstCode", "description", "image", "isActive", "location", "createdAt", "updatedAt"].join(" ")).sort({ country: 1, name: 1 }).lean();
         if (states.length === 0) {
             throw createHttpError("No states found for export", 404);
         }
-        /*
-         * If selected IDs were supplied,
-         * make sure every requested state exists.
-         */
-        if (!exportAll &&
-            stateIds) {
+        // If selected IDs were supplied, make sure every requested state exists.
+        if (!exportAll && stateIds) {
             const requestedCount = new Set(stateIds).size;
-            if (states.length !==
-                requestedCount) {
+            if (states.length !== requestedCount) {
                 throw createHttpError("One or more selected states were not found", 404);
             }
         }
         const escapeCsv = (value) => {
-            if (value === null ||
-                value === undefined) {
+            if (value === null || value === undefined) {
                 return "";
             }
             let stringValue = String(value);
-            /*
-             * Protect CSV files opened in Excel
-             * from formula injection.
-             */
+            // Protect CSV files opened in Excel from formula injection.
             if (/^[=+\-@]/.test(stringValue)) {
-                stringValue =
-                    `'${stringValue}`;
+                stringValue = `'${stringValue}`;
             }
-            if (stringValue.includes(",") ||
-                stringValue.includes('"') ||
-                stringValue.includes("\n") ||
-                stringValue.includes("\r")) {
+            if (stringValue.includes(",") || stringValue.includes('"') || stringValue.includes("\n") || stringValue.includes("\r")) {
                 return `"${stringValue.replace(/"/g, '""')}"`;
             }
             return stringValue;
         };
-        const headers = [
-            "State ID",
-            "Country",
-            "State Name",
-            "GST Code",
-            "Description",
-            "Image",
-            "Status",
-            "Longitude",
-            "Latitude",
-            "Created At",
-            "Updated At",
-        ];
+        const headers = ["State ID", "Country", "State Name", "GST Code", "Description", "Image", "Status", "Longitude", "Latitude", "Created At", "Updated At"];
         const rows = states.map((state) => [
             state._id.toString(),
             state.country,
@@ -303,34 +171,14 @@ export class StateService {
             state.gstCode,
             state.description ?? "",
             state.image ?? "",
-            state.isActive
-                ? "Active"
-                : "Inactive",
-            state.location
-                ?.coordinates?.[0] ??
-                "",
-            state.location
-                ?.coordinates?.[1] ??
-                "",
-            state.createdAt
-                ? new Date(state.createdAt).toISOString()
-                : "",
-            state.updatedAt
-                ? new Date(state.updatedAt).toISOString()
-                : "",
+            state.isActive ? "Active" : "Inactive",
+            state.location?.coordinates?.[0] ?? "",
+            state.location?.coordinates?.[1] ?? "",
+            state.createdAt ? new Date(state.createdAt).toISOString() : "",
+            state.updatedAt ? new Date(state.updatedAt).toISOString() : "",
         ]);
-        const csv = [
-            headers
-                .map(escapeCsv)
-                .join(","),
-            ...rows.map((row) => row
-                .map(escapeCsv)
-                .join(",")),
-        ].join("\n");
-        return {
-            csv,
-            total: states.length,
-        };
+        const csv = [headers.map(escapeCsv).join(","), ...rows.map((row) => row.map(escapeCsv).join(","))].join("\n");
+        return { csv, total: states.length };
     }
 }
 //# sourceMappingURL=state.service.js.map

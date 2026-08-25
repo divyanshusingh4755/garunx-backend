@@ -9,10 +9,6 @@ export const startCartCronJobs = () => {
         catch (error) {
             console.error("[CRON] Cart cron failed:", error);
         }
-    }, {
-        name: "cart-processing",
-        timezone: "UTC",
-        noOverlap: true,
-    });
+    }, { name: "cart-processing", timezone: "UTC", noOverlap: true });
 };
 //# sourceMappingURL=cart.cron.js.map

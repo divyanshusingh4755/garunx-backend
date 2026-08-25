@@ -4,9 +4,7 @@ export const toNotificationSocketDto = (notification) => {
         title: notification.title,
         message: notification.message,
         type: notification.type,
-        ...(notification.referenceId && {
-            referenceId: notification.referenceId.toString(),
-        }),
+        ...(notification.referenceId && { referenceId: notification.referenceId.toString() }),
         isRead: notification.isRead,
         createdAt: notification.createdAt.toISOString(),
     };

@@ -1,11 +1,5 @@
-import type {
-    NotificationCategory,
-    NotificationPreferenceMode,
-} from "../models/notification-template.model.js";
-
-import type {
-    NotificationType,
-} from "../models/notification.model.js";
+import type { NotificationCategory, NotificationPreferenceMode } from "../models/notification-template.model.js";
+import type { NotificationType } from "../models/notification.model.js";
 
 interface QueryNotificationTemplateSeed {
     code: string;
@@ -29,16 +23,11 @@ export const QUERY_NOTIFICATION_TEMPLATES:
             category: "QUERY",
             preferenceMode: "REQUIRED",
             title: "Support replied",
-            message:
-                "You have a new reply on query {{queryReference}} — {{subject}}.",
-            emailSubject:
-                "New reply on {{queryReference}}",
-            emailBody:
-                "Support has replied to your query {{queryReference}} — {{subject}}. Open the app to view the response.",
-            pushTitle:
-                "Support replied",
-            pushMessage:
-                "You have a new reply on {{queryReference}}.",
+            message: "You have a new reply on query {{queryReference}} — {{subject}}.",
+            emailSubject: "New reply on {{queryReference}}",
+            emailBody: "Support has replied to your query {{queryReference}} — {{subject}}. Open the app to view the response.",
+            pushTitle: "Support replied",
+            pushMessage: "You have a new reply on {{queryReference}}.",
             isActive: true,
         },
 
@@ -48,12 +37,9 @@ export const QUERY_NOTIFICATION_TEMPLATES:
             category: "QUERY",
             preferenceMode: "REQUIRED",
             title: "New query reply",
-            message:
-                "A requester replied to {{queryReference}} — {{subject}}.",
-            pushTitle:
-                "New query reply",
-            pushMessage:
-                "New reply received on {{queryReference}}.",
+            message: "A requester replied to {{queryReference}} — {{subject}}.",
+            pushTitle: "New query reply",
+            pushMessage: "New reply received on {{queryReference}}.",
             isActive: true,
         },
 
@@ -63,12 +49,9 @@ export const QUERY_NOTIFICATION_TEMPLATES:
             category: "QUERY",
             preferenceMode: "REQUIRED",
             title: "Query assigned",
-            message:
-                "Query {{queryReference}} — {{subject}} has been assigned to you.",
-            pushTitle:
-                "Query assigned",
-            pushMessage:
-                "{{queryReference}} has been assigned to you.",
+            message: "Query {{queryReference}} — {{subject}} has been assigned to you.",
+            pushTitle: "Query assigned",
+            pushMessage: "{{queryReference}} has been assigned to you.",
             isActive: true,
         },
 
@@ -78,16 +61,11 @@ export const QUERY_NOTIFICATION_TEMPLATES:
             category: "QUERY",
             preferenceMode: "REQUIRED",
             title: "Query resolved",
-            message:
-                "Your query {{queryReference}} — {{subject}} has been marked as resolved.",
-            emailSubject:
-                "Query {{queryReference}} resolved",
-            emailBody:
-                "Your support query {{queryReference}} — {{subject}} has been marked as resolved.",
-            pushTitle:
-                "Query resolved",
-            pushMessage:
-                "{{queryReference}} has been resolved.",
+            message: "Your query {{queryReference}} — {{subject}} has been marked as resolved.",
+            emailSubject: "Query {{queryReference}} resolved",
+            emailBody: "Your support query {{queryReference}} — {{subject}} has been marked as resolved.",
+            pushTitle: "Query resolved",
+            pushMessage: "{{queryReference}} has been resolved.",
             isActive: true,
         },
 
@@ -97,16 +75,11 @@ export const QUERY_NOTIFICATION_TEMPLATES:
             category: "QUERY",
             preferenceMode: "REQUIRED",
             title: "Query rejected",
-            message:
-                "Your query {{queryReference}} — {{subject}} was rejected. Reason: {{reason}}.",
-            emailSubject:
-                "Query {{queryReference}} rejected",
-            emailBody:
-                "Your support query {{queryReference}} — {{subject}} was rejected. Reason: {{reason}}.",
-            pushTitle:
-                "Query rejected",
-            pushMessage:
-                "{{queryReference}} was rejected.",
+            message: "Your query {{queryReference}} — {{subject}} was rejected. Reason: {{reason}}.",
+            emailSubject: "Query {{queryReference}} rejected",
+            emailBody: "Your support query {{queryReference}} — {{subject}} was rejected. Reason: {{reason}}.",
+            pushTitle: "Query rejected",
+            pushMessage: "{{queryReference}} was rejected.",
             isActive: true,
         },
 
@@ -116,16 +89,11 @@ export const QUERY_NOTIFICATION_TEMPLATES:
             category: "QUERY",
             preferenceMode: "REQUIRED",
             title: "Query reopened",
-            message:
-                "Your query {{queryReference}} — {{subject}} has been reopened and is being reviewed again.",
-            emailSubject:
-                "Query {{queryReference}} reopened",
-            emailBody:
-                "Your support query {{queryReference}} — {{subject}} has been reopened and is being reviewed again.",
-            pushTitle:
-                "Query reopened",
-            pushMessage:
-                "{{queryReference}} has been reopened.",
+            message: "Your query {{queryReference}} — {{subject}} has been reopened and is being reviewed again.",
+            emailSubject: "Query {{queryReference}} reopened",
+            emailBody: "Your support query {{queryReference}} — {{subject}} has been reopened and is being reviewed again.",
+            pushTitle: "Query reopened",
+            pushMessage: "{{queryReference}} has been reopened.",
             isActive: true,
         },
 
@@ -135,16 +103,11 @@ export const QUERY_NOTIFICATION_TEMPLATES:
             category: "QUERY",
             preferenceMode: "REQUIRED",
             title: "Query removed",
-            message:
-                "Your query {{queryReference}} — {{subject}} was removed by support. Reason: {{reason}}.",
-            emailSubject:
-                "Query {{queryReference}} removed",
-            emailBody:
-                "Your support query {{queryReference}} — {{subject}} was removed. Reason: {{reason}}.",
-            pushTitle:
-                "Query removed",
-            pushMessage:
-                "{{queryReference}} was removed by support.",
+            message: "Your query {{queryReference}} — {{subject}} was removed by support. Reason: {{reason}}.",
+            emailSubject: "Query {{queryReference}} removed",
+            emailBody: "Your support query {{queryReference}} — {{subject}} was removed. Reason: {{reason}}.",
+            pushTitle: "Query removed",
+            pushMessage: "{{queryReference}} was removed by support.",
             isActive: true,
         },
     ];

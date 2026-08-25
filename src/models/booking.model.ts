@@ -1,99 +1,22 @@
 import { model, Schema, Types, Document, Model } from "mongoose";
 import { Counter } from "./counter.model.js";
 import type { ICart } from "./cart.model.js";
-
 import type { ILineTax, ITaxSummary } from "../types/tax.types.js";
-
 import { lineTaxSchema } from "./tax.schema.js";
 
 export type RescheduledByRole = "USER" | "ADMIN" | "SUBADMIN";
-
-export type ReassignmentStatus =
-  | "PENDING_REPLACEMENT"
-  | "REPLACEMENT_REQUESTED"
-  | "COMPLETED"
-  | "FAILED";
-
-export type ReassignmentMode =
-  | "AUTO"
-  | "NOMINATED";
-
-export type BookingStatus =
-  | "PENDING_PAYMENT"
-  | "CONFIRMED"
-  | "ASSIGNMENT_PENDING"
-  | "ASSIGNED"
-  | "IN_PROGRESS"
-  | "COMPLETED"
-  | "CANCELLED"
-  | "EXPIRED";
-
+export type ReassignmentStatus = "PENDING_REPLACEMENT" | "REPLACEMENT_REQUESTED" | "COMPLETED" | "FAILED";
+export type ReassignmentMode = "AUTO" | "NOMINATED";
+export type BookingStatus = "PENDING_PAYMENT" | "CONFIRMED" | "ASSIGNMENT_PENDING" | "ASSIGNED" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED" | "EXPIRED";
 export type BookingFor = "MYSELF" | "OTHER";
-
-export type PaymentStatus =
-  | "PENDING"
-  | "PROCESSING"
-  | "PAID"
-  | "FAILED"
-  | "PARTIAL_REFUND"
-  | "REFUNDED";
-
-export type AssignmentStatus =
-  | "NOT_STARTED"
-  | "PENDING_SELECTION"
-  | "PENDING_RESPONSE"
-  | "ACCEPTED"
-  | "REJECTED"
-  | "REASSIGNMENT_REQUESTED";
-
-export type BookingCategory =
-  | "UPCOMING"
-  | "ONGOING"
-  | "COMPLETED"
-  | "CANCELLED"
-  | "PAYMENT_PENDING"
-  | "EXPIRED";
-
-export type BookingExecutionStage =
-  | "NOT_STARTED"
-  | "COORDINATOR_ARRIVED"
-  | "CUSTOMER_VERIFICATION_PENDING"
-  | "SERVICE_EXECUTION"
-  | "FINALIZATION"
-  | "FINISHED";
-
-export type BookingMilestone =
-  | "COORDINATOR_ARRIVED"
-  | "OTP_VERIFIED"
-  | "SERVICE_STARTED"
-  | "CUSTOMER_DETAILS_VERIFIED"
-  | "DOCUMENTS_COLLECTED"
-  | "FAMILY_TREE_STARTED"
-  | "FAMILY_TREE_COMPLETED"
-  | "ALL_SERVICES_COMPLETED"
-  | "FINAL_REPORT_GENERATED";
-
-export type AssignmentRequestStatus =
-  | "PENDING"
-  | "ACCEPTED"
-  | "REJECTED"
-  | "EXPIRED"
-  | "SUPERSEDED"
-  | "CANCELLED";
-
-export type AssignmentRequestClosureReason =
-  | "ANOTHER_COORDINATOR_ACCEPTED"
-  | "REASSIGNMENT_STARTED"
-  | "REASSIGNMENT_COMPLETED"
-  | "RESCHEDULE_COORDINATOR_CHANGE"
-  | "USER_CANCELLED"
-  | "SYSTEM_CANCELLED";
-
-export type ReassignmentRequestedByRole =
-  | "USER"
-  | "ADMIN"
-  | "COORDINATOR"
-  | "SYSTEM";
+export type PaymentStatus = "PENDING" | "PROCESSING" | "PAID" | "FAILED" | "PARTIAL_REFUND" | "REFUNDED";
+export type AssignmentStatus = "NOT_STARTED" | "PENDING_SELECTION" | "PENDING_RESPONSE" | "ACCEPTED" | "REJECTED" | "REASSIGNMENT_REQUESTED";
+export type BookingCategory = "UPCOMING" | "ONGOING" | "COMPLETED" | "CANCELLED" | "PAYMENT_PENDING" | "EXPIRED";
+export type BookingExecutionStage = "NOT_STARTED" | "COORDINATOR_ARRIVED" | "CUSTOMER_VERIFICATION_PENDING" | "SERVICE_EXECUTION" | "FINALIZATION" | "FINISHED";
+export type BookingMilestone = "COORDINATOR_ARRIVED" | "OTP_VERIFIED" | "SERVICE_STARTED" | "CUSTOMER_DETAILS_VERIFIED" | "DOCUMENTS_COLLECTED" | "FAMILY_TREE_STARTED" | "FAMILY_TREE_COMPLETED" | "ALL_SERVICES_COMPLETED" | "FINAL_REPORT_GENERATED";
+export type AssignmentRequestStatus = "PENDING" | "ACCEPTED" | "REJECTED" | "EXPIRED" | "SUPERSEDED" | "CANCELLED";
+export type AssignmentRequestClosureReason = "ANOTHER_COORDINATOR_ACCEPTED" | "REASSIGNMENT_STARTED" | "REASSIGNMENT_COMPLETED" | "RESCHEDULE_COORDINATOR_CHANGE" | "USER_CANCELLED" | "SYSTEM_CANCELLED";
+export type ReassignmentRequestedByRole = "USER" | "ADMIN" | "COORDINATOR" | "SYSTEM";
 
 export interface IAssignmentRequest {
   _id?: Types.ObjectId;
@@ -101,15 +24,11 @@ export interface IAssignmentRequest {
   status: AssignmentRequestStatus;
   assignmentRound: number;
   closureReason?: AssignmentRequestClosureReason;
-
   assignmentType: "MANUAL" | "AUTO";
-
   requestedBy?: Types.ObjectId;
   requestedAt: Date;
   responseDeadlineAt: Date;
-
   scheduledAt: Date;
-
   respondedAt?: Date;
   rejectionReason?: string;
 }
@@ -167,12 +86,7 @@ export interface IBookingRefund {
   refundedBy?: Types.ObjectId;
 }
 
-export type ServiceExecutionStatus =
-  | "PENDING"
-  | "IN_PROGRESS"
-  | "COMPLETED"
-  | "SKIPPED"
-  | "CANCELLED";
+export type ServiceExecutionStatus = "PENDING" | "IN_PROGRESS" | "COMPLETED" | "SKIPPED" | "CANCELLED";
 
 export interface IServiceExecution {
   executionId: string;
@@ -256,14 +170,7 @@ const assignmentRequestSchema = new Schema<IAssignmentRequest>(
 
     status: {
       type: String,
-      enum: [
-        "PENDING",
-        "ACCEPTED",
-        "REJECTED",
-        "EXPIRED",
-        "SUPERSEDED",
-        "CANCELLED",
-      ] satisfies AssignmentRequestStatus[],
+      enum: ["PENDING", "ACCEPTED", "REJECTED", "EXPIRED", "SUPERSEDED", "CANCELLED"] satisfies AssignmentRequestStatus[],
       default: "PENDING",
       required: true,
     },
@@ -277,14 +184,7 @@ const assignmentRequestSchema = new Schema<IAssignmentRequest>(
 
     closureReason: {
       type: String,
-      enum: [
-        "ANOTHER_COORDINATOR_ACCEPTED",
-        "REASSIGNMENT_STARTED",
-        "REASSIGNMENT_COMPLETED",
-        "RESCHEDULE_COORDINATOR_CHANGE",
-        "USER_CANCELLED",
-        "SYSTEM_CANCELLED",
-      ],
+      enum: ["ANOTHER_COORDINATOR_ACCEPTED", "REASSIGNMENT_STARTED", "REASSIGNMENT_COMPLETED", "RESCHEDULE_COORDINATOR_CHANGE", "USER_CANCELLED", "SYSTEM_CANCELLED"],
     },
 
     assignmentType: {
@@ -339,13 +239,7 @@ const serviceExecutionSchema = new Schema<IServiceExecution>(
 
     status: {
       type: String,
-      enum: [
-        "PENDING",
-        "IN_PROGRESS",
-        "COMPLETED",
-        "SKIPPED",
-        "CANCELLED",
-      ] satisfies ServiceExecutionStatus[],
+      enum: ["PENDING", "IN_PROGRESS", "COMPLETED", "SKIPPED", "CANCELLED"] satisfies ServiceExecutionStatus[],
       default: "PENDING",
     },
 
@@ -383,18 +277,14 @@ export interface IBookingComponent {
   componentType: ComponentType;
   componentId: Types.ObjectId;
   serviceComponentId?: Types.ObjectId;
-
   name: string;
   description?: string;
   imageUrl?: string;
-
   isRequired: boolean;
   isRemovable: boolean;
   isBundled: boolean;
   selected: boolean;
-
   selectedItems: IBookingSelectedItem[];
-
   pricing: {
     priceBeforeDiscount: number;
     discountAmount: number;
@@ -593,143 +483,131 @@ const bookingSubServiceSchema =
 
 export interface IBookingServiceConfiguration {
   serviceId: Types.ObjectId;
-
   serviceSnapshot: {
     name: string;
     shortDescription?: string;
     thumbnailImage?: string;
     serviceReference?: string;
   };
-
   serviceRole: ServiceRole;
-
   subServices: IBookingSubService[];
-
   tier: {
     tierId: Types.ObjectId;
     name: string;
   };
-
   location: {
     locationId: Types.ObjectId;
     name: string;
   };
-
   components: IBookingComponent[];
-
   pricing: {
     priceBeforeDiscount: number;
     discountAmount: number;
     finalAmount: number;
-
     tax?: ILineTax;
     taxSummary: IBookingTaxSummary;
   };
 }
 
-const bookingServiceConfigurationSchema =
-  new Schema<IBookingServiceConfiguration>(
-    {
-      serviceId: {
+const bookingServiceConfigurationSchema = new Schema<IBookingServiceConfiguration>(
+  {
+    serviceId: {
+      type: Schema.Types.ObjectId,
+      ref: "Service",
+      required: true,
+    },
+
+    serviceSnapshot: {
+      name: { type: String, required: true },
+      shortDescription: String,
+      thumbnailImage: String,
+      serviceReference: String,
+    },
+
+    serviceRole: {
+      type: String,
+      enum: ["PRIMARY", "INCLUDED", "ADDON"],
+      default: "PRIMARY",
+    },
+
+    subServices: {
+      type: [bookingSubServiceSchema],
+      default: [],
+    },
+
+    tier: {
+      tierId: {
         type: Schema.Types.ObjectId,
-        ref: "Service",
+        ref: "Tier",
         required: true,
       },
+      name: { type: String, required: true },
+    },
 
-      serviceSnapshot: {
-        name: { type: String, required: true },
-        shortDescription: String,
-        thumbnailImage: String,
-        serviceReference: String,
+    location: {
+      locationId: {
+        type: Schema.Types.ObjectId,
+        ref: "Location",
+        required: true,
+      },
+      name: { type: String, required: true },
+    },
+
+    components: {
+      type: [bookingComponentSchema],
+      default: [],
+    },
+
+    pricing: {
+      priceBeforeDiscount: {
+        type: Number,
+        default: 0,
+        min: 0,
       },
 
-      serviceRole: {
-        type: String,
-        enum: ["PRIMARY", "INCLUDED", "ADDON"],
-        default: "PRIMARY",
+      discountAmount: {
+        type: Number,
+        default: 0,
+        min: 0,
       },
 
-      subServices: {
-        type: [bookingSubServiceSchema],
-        default: [],
+      finalAmount: {
+        type: Number,
+        default: 0,
+        min: 0,
       },
 
-      tier: {
-        tierId: {
-          type: Schema.Types.ObjectId,
-          ref: "Tier",
-          required: true,
-        },
-        name: { type: String, required: true },
+      tax: {
+        type: lineTaxSchema,
+        default: undefined,
       },
 
-      location: {
-        locationId: {
-          type: Schema.Types.ObjectId,
-          ref: "Location",
-          required: true,
-        },
-        name: { type: String, required: true },
-      },
-
-      components: {
-        type: [bookingComponentSchema],
-        default: [],
-      },
-
-      pricing: {
-        priceBeforeDiscount: {
-          type: Number,
-          default: 0,
-          min: 0,
-        },
-
-        discountAmount: {
-          type: Number,
-          default: 0,
-          min: 0,
-        },
-
-        finalAmount: {
-          type: Number,
-          default: 0,
-          min: 0,
-        },
-
-        tax: {
-          type: lineTaxSchema,
-          default: undefined,
-        },
-
-        taxSummary: {
-          type: bookingTaxSummarySchema,
-          default: () => ({
-            taxableAmount: 0,
-            cgstAmount: 0,
-            sgstAmount: 0,
-            igstAmount: 0,
-            cessAmount: 0,
-            totalTax: 0,
-          }),
-        },
+      taxSummary: {
+        type: bookingTaxSummarySchema,
+        default: () => ({
+          taxableAmount: 0,
+          cgstAmount: 0,
+          sgstAmount: 0,
+          igstAmount: 0,
+          cessAmount: 0,
+          totalTax: 0,
+        }),
       },
     },
-    { _id: false },
-  );
+  },
+  { _id: false },
+);
 
 export interface IBookingPackageConfiguration {
   packageId: Types.ObjectId;
-
   packageSnapshot: {
     name: string;
     shortDescription?: string;
     thumbnailImage?: string;
     packageReference?: string;
   };
-
   selectedServices: IBookingServiceConfiguration[];
   addonServices: IBookingServiceConfiguration[];
-
   pricing: {
     baseAmount: number;
     addonAmount: number;
@@ -742,105 +620,89 @@ export interface IBookingPackageConfiguration {
 
 export interface IReassignment {
   requestedBy: Types.ObjectId;
-
   requestedByRole: ReassignmentRequestedByRole;
-
   reason: string;
-
   requestedAt: Date;
-
   previousCoordinatorId: Types.ObjectId;
-
   replacementCoordinatorId?: Types.ObjectId;
-
   assignmentRound: number;
-
   mode: "AUTO" | "NOMINATED";
-
-  status:
-  | "PENDING_REPLACEMENT"
-  | "REPLACEMENT_REQUESTED"
-  | "COMPLETED"
-  | "FAILED";
-
+  status: "PENDING_REPLACEMENT" | "REPLACEMENT_REQUESTED" | "COMPLETED" | "FAILED";
   completedAt?: Date;
-
   failedAt?: Date;
-
   failureReason?: string;
 }
 
-const bookingPackageConfigurationSchema =
-  new Schema<IBookingPackageConfiguration>(
-    {
-      packageId: {
-        type: Schema.Types.ObjectId,
-        ref: "Package",
-        required: true,
+const bookingPackageConfigurationSchema = new Schema<IBookingPackageConfiguration>(
+  {
+    packageId: {
+      type: Schema.Types.ObjectId,
+      ref: "Package",
+      required: true,
+    },
+
+    packageSnapshot: {
+      name: String,
+      shortDescription: String,
+      thumbnailImage: String,
+      packageReference: String,
+    },
+
+    selectedServices: {
+      type: [bookingServiceConfigurationSchema],
+      default: [],
+    },
+
+    addonServices: {
+      type: [bookingServiceConfigurationSchema],
+      default: [],
+    },
+
+    pricing: {
+      baseAmount: {
+        type: Number,
+        default: 0,
+        min: 0,
       },
 
-      packageSnapshot: {
-        name: String,
-        shortDescription: String,
-        thumbnailImage: String,
-        packageReference: String,
+      addonAmount: {
+        type: Number,
+        default: 0,
+        min: 0,
       },
 
-      selectedServices: {
-        type: [bookingServiceConfigurationSchema],
-        default: [],
+      subtotal: {
+        type: Number,
+        default: 0,
+        min: 0,
       },
 
-      addonServices: {
-        type: [bookingServiceConfigurationSchema],
-        default: [],
+      discountAmount: {
+        type: Number,
+        default: 0,
+        min: 0,
       },
 
-      pricing: {
-        baseAmount: {
-          type: Number,
-          default: 0,
-          min: 0,
-        },
+      taxSummary: {
+        type: bookingTaxSummarySchema,
+        default: () => ({
+          taxableAmount: 0,
+          cgstAmount: 0,
+          sgstAmount: 0,
+          igstAmount: 0,
+          totalTax: 0,
+        }),
+      },
 
-        addonAmount: {
-          type: Number,
-          default: 0,
-          min: 0,
-        },
-
-        subtotal: {
-          type: Number,
-          default: 0,
-          min: 0,
-        },
-
-        discountAmount: {
-          type: Number,
-          default: 0,
-          min: 0,
-        },
-
-        taxSummary: {
-          type: bookingTaxSummarySchema,
-          default: () => ({
-            taxableAmount: 0,
-            cgstAmount: 0,
-            sgstAmount: 0,
-            igstAmount: 0,
-            totalTax: 0,
-          }),
-        },
-
-        grandTotal: {
-          type: Number,
-          default: 0,
-          min: 0,
-        },
+      grandTotal: {
+        type: Number,
+        default: 0,
+        min: 0,
       },
     },
-    { _id: false },
-  );
+  },
+  { _id: false },
+);
 
 export interface IBookingEntry {
   entryType: EntryType;
@@ -866,17 +728,7 @@ const bookingMilestoneSchema = new Schema<IBookingMilestone>(
   {
     code: {
       type: String,
-      enum: [
-        "COORDINATOR_ARRIVED",
-        "OTP_VERIFIED",
-        "SERVICE_STARTED",
-        "CUSTOMER_DETAILS_VERIFIED",
-        "DOCUMENTS_COLLECTED",
-        "FAMILY_TREE_STARTED",
-        "FAMILY_TREE_COMPLETED",
-        "ALL_SERVICES_COMPLETED",
-        "FINAL_REPORT_GENERATED",
-      ],
+      enum: ["COORDINATOR_ARRIVED", "OTP_VERIFIED", "SERVICE_STARTED", "CUSTOMER_DETAILS_VERIFIED", "DOCUMENTS_COLLECTED", "FAMILY_TREE_STARTED", "FAMILY_TREE_COMPLETED", "ALL_SERVICES_COMPLETED", "FINAL_REPORT_GENERATED"],
       required: true,
     },
 
@@ -934,45 +786,43 @@ const bookingRescheduleSchema = new Schema<IBookingReschedule>(
   },
 );
 
-const bookingTierSnapshotSchema =
-  new Schema<IBookingTierSnapshot>(
-    {
-      tierId: {
-        type: Schema.Types.ObjectId,
-        ref: "Tier",
-        required: true,
-      },
+const bookingTierSnapshotSchema = new Schema<IBookingTierSnapshot>(
+  {
+    tierId: {
+      type: Schema.Types.ObjectId,
+      ref: "Tier",
+      required: true,
+    },
 
-      name: {
-        type: String,
-        required: true,
-        trim: true,
-      },
+    name: {
+      type: String,
+      required: true,
+      trim: true,
     },
-    {
-      _id: false,
-    },
-  );
+  },
+  {
+    _id: false,
+  },
+);
 
-const bookingLocationSnapshotSchema =
-  new Schema<IBookingLocationSnapshot>(
-    {
-      locationId: {
-        type: Schema.Types.ObjectId,
-        ref: "Location",
-        required: true,
-      },
+const bookingLocationSnapshotSchema = new Schema<IBookingLocationSnapshot>(
+  {
+    locationId: {
+      type: Schema.Types.ObjectId,
+      ref: "Location",
+      required: true,
+    },
 
-      name: {
-        type: String,
-        required: true,
-        trim: true,
-      },
+    name: {
+      type: String,
+      required: true,
+      trim: true,
     },
-    {
-      _id: false,
-    },
-  );
+  },
+  {
+    _id: false,
+  },
+);
 
 const reassignmentSchema = new Schema<IReassignment>(
   {
@@ -1025,21 +875,13 @@ const reassignmentSchema = new Schema<IReassignment>(
 
     mode: {
       type: String,
-      enum: [
-        "AUTO",
-        "NOMINATED",
-      ],
+      enum: ["AUTO", "NOMINATED"],
       required: true,
     },
 
     status: {
       type: String,
-      enum: [
-        "PENDING_REPLACEMENT",
-        "REPLACEMENT_REQUESTED",
-        "COMPLETED",
-        "FAILED",
-      ],
+      enum: ["PENDING_REPLACEMENT", "REPLACEMENT_REQUESTED", "COMPLETED", "FAILED"],
       required: true,
     },
 
@@ -1070,17 +912,14 @@ export interface IBooking extends Document {
   bookedBy: BookedBy;
   entries: IBookingEntry[];
   bookingFor: BookingFor;
-
   tierSnapshot: IBookingTierSnapshot;
   locationSnapshot: IBookingLocationSnapshot;
-
   beneficiaryUserId?: Types.ObjectId;
   beneficiaryAccess?: {
     tokenHash: string;
     expiresAt: Date;
     createdAt: Date;
   };
-
   customerDetails: {
     name?: string;
     email?: string;
@@ -1089,19 +928,14 @@ export interface IBooking extends Document {
     caste?: string;
     gotra?: string;
   };
-
   pricing: {
     baseAmount: number;
     addonAmount: number;
     subtotal: number;
-
     couponId?: Types.ObjectId;
     couponCode?: string;
-
     discountAmount: number;
-
     taxSummary: IBookingTaxSummary;
-
     grandTotal: number;
     earnings?: number;
   };
@@ -1110,28 +944,22 @@ export interface IBooking extends Document {
     stage: BookingExecutionStage;
     startedAt?: Date;
     finishedAt?: Date;
-
     otpVerification?: {
       status: "PENDING" | "VERIFIED" | "FAILED" | "EXPIRED";
-
       otpHash?: string;
       expiresAt?: Date;
       generatedAt?: Date;
-
       verifiedAt?: Date;
       verifiedBy?: Types.ObjectId;
-
       attempts?: number;
       resendCount?: number;
       lastSentAt?: Date;
     };
-
     serviceExecutions: IServiceExecution[];
     milestones: IBookingMilestone[];
     progressPercentage?: number;
     completion?: IBookingCompletion;
   };
-
   payment: {
     status: PaymentStatus;
     paymentMethod?: string;
@@ -1150,7 +978,6 @@ export interface IBooking extends Document {
     failureReason?: string;
     refunds?: IBookingRefund[];
   };
-
   status: BookingStatus;
   cancellation?: {
     reason?: string;
@@ -1160,7 +987,6 @@ export interface IBooking extends Document {
     refundPercentage?: number;
     refundAmount?: number;
   };
-
   assignment?: {
     status: AssignmentStatus;
     assignedCoordinatorId?: Types.ObjectId;
@@ -1182,11 +1008,8 @@ export interface IBooking extends Document {
     };
     reassignment?: IReassignment;
   };
-
   scheduledAt?: Date;
-
   rescheduleHistory?: IBookingReschedule[];
-
   completedAt?: Date;
   notes?: string;
   cartSnapshot?: Partial<ICart>;
@@ -1331,14 +1154,7 @@ const bookingSchema = new Schema<IBooking>(
     payment: {
       status: {
         type: String,
-        enum: [
-          "PENDING",
-          "PROCESSING",
-          "PAID",
-          "FAILED",
-          "PARTIAL_REFUND",
-          "REFUNDED",
-        ] satisfies PaymentStatus[],
+        enum: ["PENDING", "PROCESSING", "PAID", "FAILED", "PARTIAL_REFUND", "REFUNDED"] satisfies PaymentStatus[],
         default: "PENDING",
       },
       providerOrderId: String,
@@ -1379,16 +1195,7 @@ const bookingSchema = new Schema<IBooking>(
 
     status: {
       type: String,
-      enum: [
-        "PENDING_PAYMENT",
-        "CONFIRMED",
-        "ASSIGNMENT_PENDING",
-        "ASSIGNED",
-        "IN_PROGRESS",
-        "COMPLETED",
-        "CANCELLED",
-        "EXPIRED",
-      ] satisfies BookingStatus[],
+      enum: ["PENDING_PAYMENT", "CONFIRMED", "ASSIGNMENT_PENDING", "ASSIGNED", "IN_PROGRESS", "COMPLETED", "CANCELLED", "EXPIRED"] satisfies BookingStatus[],
       default: "PENDING_PAYMENT",
       index: true,
     },
@@ -1408,14 +1215,7 @@ const bookingSchema = new Schema<IBooking>(
     assignment: {
       status: {
         type: String,
-        enum: [
-          "NOT_STARTED",
-          "PENDING_SELECTION",
-          "PENDING_RESPONSE",
-          "ACCEPTED",
-          "REJECTED",
-          "REASSIGNMENT_REQUESTED",
-        ] satisfies AssignmentStatus[],
+        enum: ["NOT_STARTED", "PENDING_SELECTION", "PENDING_RESPONSE", "ACCEPTED", "REJECTED", "REASSIGNMENT_REQUESTED"] satisfies AssignmentStatus[],
         default: "NOT_STARTED",
       },
 
@@ -1469,14 +1269,7 @@ const bookingSchema = new Schema<IBooking>(
     execution: {
       stage: {
         type: String,
-        enum: [
-          "NOT_STARTED",
-          "COORDINATOR_ARRIVED",
-          "CUSTOMER_VERIFICATION_PENDING",
-          "SERVICE_EXECUTION",
-          "FINALIZATION",
-          "FINISHED",
-        ],
+        enum: ["NOT_STARTED", "COORDINATOR_ARRIVED", "CUSTOMER_VERIFICATION_PENDING", "SERVICE_EXECUTION", "FINALIZATION", "FINISHED"],
         default: "NOT_STARTED",
       },
 
@@ -1585,28 +1378,21 @@ bookingSchema.pre("save", async function () {
     { new: true, upsert: true },
   );
 
-  if (!counter) {
-    throw new Error("Failed to generate booking reference");
-  }
+  if (!counter) { throw new Error("Failed to generate booking reference"); }
 
   this.bookingReference = `BK-${counter.seq.toString().padStart(6, "0")}`;
 });
 
 bookingEntrySchema.pre("validate", function () {
   const hasServiceConfiguration = Boolean(this.serviceConfiguration);
-
   const hasPackageConfiguration = Boolean(this.packageConfiguration);
 
   if (this.entryType === "SERVICE") {
-    if (!hasServiceConfiguration || hasPackageConfiguration) {
-      throw new Error("SERVICE entry must contain only serviceConfiguration");
-    }
+    if (!hasServiceConfiguration || hasPackageConfiguration) { throw new Error("SERVICE entry must contain only serviceConfiguration"); }
   }
 
   if (this.entryType === "PACKAGE") {
-    if (!hasPackageConfiguration || hasServiceConfiguration) {
-      throw new Error("PACKAGE entry must contain only packageConfiguration");
-    }
+    if (!hasPackageConfiguration || hasServiceConfiguration) { throw new Error("PACKAGE entry must contain only packageConfiguration"); }
   }
 });
 
@@ -1615,9 +1401,7 @@ bookingSchema.pre("validate", function () {
   const hasCouponCode = !!this.pricing?.couponCode;
 
   if (hasCouponId !== hasCouponCode) {
-    throw new Error(
-      "pricing.couponId and pricing.couponCode must be provided together",
-    );
+    throw new Error("pricing.couponId and pricing.couponCode must be provided together");
   }
 });
 
@@ -1627,30 +1411,9 @@ bookingSchema.index({ createdAt: -1 });
 bookingSchema.index({ scheduledAt: 1, status: 1 });
 bookingSchema.index({ "payment.status": 1 });
 bookingSchema.index({ userId: 1, scheduledAt: 1 });
-bookingSchema.index({
-  status: 1,
-  paymentExpiresAt: 1,
-});
-
-bookingSchema.index(
-  { cartId: 1 },
-  {
-    unique: true,
-    partialFilterExpression: {
-      isDeleted: false,
-    },
-  },
-);
-
-bookingSchema.index(
-  {
-    "payment.refunds.refundId": 1,
-  },
-  {
-    unique: true,
-    sparse: true,
-  },
-);
+bookingSchema.index({ status: 1, paymentExpiresAt: 1, });
+bookingSchema.index({ cartId: 1 }, { unique: true, partialFilterExpression: { isDeleted: false, } });
+bookingSchema.index({ "payment.refunds.refundId": 1, }, { unique: true, sparse: true });
 
 // Index for searching by main customer details email
 bookingSchema.index({ userId: 1, isDeleted: 1, "customerDetails.email": 1 });
@@ -1659,63 +1422,18 @@ bookingSchema.index({ userId: 1, isDeleted: 1, "customerDetails.email": 1 });
 bookingSchema.index({ userId: 1, isDeleted: 1, "customerDetails.phone": 1 });
 
 // Index for searching by snapshot email
-bookingSchema.index({
-  userId: 1,
-  isDeleted: 1,
-  "cartSnapshot.customerDetails.email": 1,
-});
+bookingSchema.index({ userId: 1, isDeleted: 1, "cartSnapshot.customerDetails.email": 1 });
 
 // Index for searching by snapshot phone
-bookingSchema.index({
-  userId: 1,
-  isDeleted: 1,
-  "cartSnapshot.customerDetails.phone": 1,
-});
+bookingSchema.index({ userId: 1, isDeleted: 1, "cartSnapshot.customerDetails.phone": 1 });
 
-bookingSchema.index(
-  {
-    bookingReference: "text",
-    "customerDetails.name": "text",
-    "customerDetails.email": "text",
-    "customerDetails.phone": "text",
-  },
-  {
-    name: "BookingTextSearchIndex",
-  },
-);
+bookingSchema.index({ bookingReference: "text", "customerDetails.name": "text", "customerDetails.email": "text", "customerDetails.phone": "text" }, { name: "BookingTextSearchIndex" });
 
-bookingSchema.index({
-  "assignment.status": 1,
-  "assignment.responseDeadlineAt": 1,
-});
+bookingSchema.index({ "assignment.status": 1, "assignment.responseDeadlineAt": 1 });
+bookingSchema.index({ "assignment.assignedCoordinatorId": 1, status: 1, scheduledAt: 1 });
+bookingSchema.index({ "assignment.status": 1, "assignment.assignmentExpiresAt": 1 });
+bookingSchema.index({ beneficiaryUserId: 1, status: 1 });
+bookingSchema.index({ bookingFor: 1, "customerDetails.email": 1 });
+bookingSchema.index({ bookingFor: 1, "customerDetails.phone": 1 });
 
-bookingSchema.index({
-  "assignment.assignedCoordinatorId": 1,
-  status: 1,
-  scheduledAt: 1,
-});
-
-bookingSchema.index({
-  "assignment.status": 1,
-  "assignment.assignmentExpiresAt": 1,
-});
-
-bookingSchema.index({
-  beneficiaryUserId: 1,
-  status: 1,
-});
-
-bookingSchema.index({
-  bookingFor: 1,
-  "customerDetails.email": 1,
-});
-
-bookingSchema.index({
-  bookingFor: 1,
-  "customerDetails.phone": 1,
-});
-
-export const Booking: Model<IBooking> = model<IBooking>(
-  "Booking",
-  bookingSchema,
-);
+export const Booking: Model<IBooking> = model<IBooking>("Booking", bookingSchema,);

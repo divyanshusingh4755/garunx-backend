@@ -8,7 +8,7 @@ import { Counter } from "../models/counter.model.js";
 import crypto from "crypto";
 import nodemailer from "nodemailer";
 import { generateUniqueCode } from "../utils/generateUniqueCode.js";
-import { ApprovalStatus, AvailabilityStatus, VerificationStatus, } from "../types/enums.js";
+import { ApprovalStatus, AvailabilityStatus, VerificationStatus } from "../types/enums.js";
 import { escapeRegex } from "../utils/escapeRegex.js";
 import { BookingService } from "./booking.service.js";
 import { NotificationService } from "./notification.service.js";
@@ -25,36 +25,16 @@ class AuthService {
             RedisCacheService.deleteByPattern(CacheKeys.coordinatorListPattern()),
         ]);
     }
-    static async invalidateUserListCache() {
-        await Promise.all([
-            RedisCacheService.deleteByPattern(CacheKeys.userListPattern()),
-            RedisCacheService.deleteByPattern(CacheKeys.coordinatorListPattern()),
-        ]);
-    }
-    /**
-     * Auth/security notifications must never break the primary auth action.
-     *
-     * Example:
-     * - password was already changed successfully
-     * - admin already approved/rejected verification
-     *
-     * If Redis / BullMQ / Firebase / template configuration has a problem,
-     * we log it and keep the successful business action successful.
-     */
+    // Auth/security notifications must never break the primary auth action. Example: - password was already changed successfully - admin already approved/rejected verification If Redis / BullMQ / Firebase / template configuration has a problem, we log it and keep the successful business action successful.
     static async sendAuthNotificationSafely(params) {
         try {
             await NotificationService.createFromTemplate({
                 recipientId: params.recipientId,
                 recipientRole: params.recipientRole,
                 templateCode: params.templateCode,
-                ...(params.variables && {
-                    variables: params.variables,
-                }),
+                ...(params.variables && { variables: params.variables }),
                 dedupeKey: params.dedupeKey,
-                channels: {
-                    email: params.email ?? false,
-                    push: params.push ?? true,
-                },
+                channels: { email: params.email ?? false, push: params.push ?? true },
             });
         }
         catch (error) {
@@ -63,31 +43,10 @@ class AuthService {
     }
     static async generateUserSession(user, userAgent, ip, mongoSession) {
         const familyId = crypto.randomUUID();
-        const accessToken = jwt.sign({
-            userId: user._id,
-            role: user.role,
-        }, process.env.JWT_ACCESS_SECRET, {
-            expiresIn: "15m",
-        });
-        const refreshToken = jwt.sign({
-            userId: user._id,
-            familyId,
-        }, process.env.JWT_REFRESH_SECRET, {
-            expiresIn: "30d",
-        });
+        const accessToken = jwt.sign({ userId: user._id, role: user.role }, process.env.JWT_ACCESS_SECRET, { expiresIn: "15m" });
+        const refreshToken = jwt.sign({ userId: user._id, familyId }, process.env.JWT_REFRESH_SECRET, { expiresIn: "30d" });
         const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
-        const query = Session.findOneAndUpdate({
-            userId: user._id,
-            deviceInfo: userAgent || "unknown",
-        }, {
-            refreshToken,
-            familyId,
-            expiresAt,
-            ...(ip && { ipAddress: ip }),
-        }, {
-            upsert: true,
-            new: true,
-        });
+        const query = Session.findOneAndUpdate({ userId: user._id, deviceInfo: userAgent || "unknown" }, { refreshToken, familyId, expiresAt, ...(ip && { ipAddress: ip }) }, { upsert: true, new: true });
         if (mongoSession) {
             query.session(mongoSession);
         }
@@ -233,9 +192,7 @@ class AuthService {
             const user = await User.findOne({
                 email: email.toLowerCase(),
                 resetPasswordToken: hashedToken,
-                resetPasswordExpires: {
-                    $gt: new Date(),
-                },
+                resetPasswordExpires: { $gt: new Date() },
             });
             if (!user) {
                 throw new Error("OTP is invalid or has expired");
@@ -470,11 +427,7 @@ class AuthService {
         }
     }
     static async resetPassword(userId, newPassword) {
-        const user = await User.findOne({
-            _id: userId,
-            isResetVerified: true,
-            resetPasswordExpires: { $gt: new Date() },
-        });
+        const user = await User.findOne({ _id: userId, isResetVerified: true, resetPasswordExpires: { $gt: new Date() } });
         if (!user) {
             throw new Error("Action unauthorized or session expired. Please verify your OTP again.");
         }
@@ -490,9 +443,7 @@ class AuthService {
             recipientId: user._id.toString(),
             recipientRole: user.role,
             templateCode: "AUTH_PASSWORD_UPDATED",
-            variables: {
-                action: "reset",
-            },
+            variables: { action: "reset" },
             dedupeKey: `AUTH:PASSWORD_RESET:${user._id}:${user.updatedAt.getTime()}`,
             email: Boolean(user.email),
             push: true,
@@ -523,9 +474,7 @@ class AuthService {
             recipientId: user._id.toString(),
             recipientRole: user.role,
             templateCode: "AUTH_PASSWORD_UPDATED",
-            variables: {
-                action: "changed",
-            },
+            variables: { action: "changed" },
             dedupeKey: `AUTH:PASSWORD_CHANGED:${user._id}:${user.updatedAt.getTime()}`,
             email: Boolean(user.email),
             push: true,
@@ -533,121 +482,54 @@ class AuthService {
         return { success: true, message: "Password updated sucessfully" };
     }
     static async GetAllUsers(page = 1, limit = 40, role, isComplete, isActive, search, sortBy = "createdAt", sortOrder = "desc") {
-        const cacheKey = CacheKeys.userList({
-            page,
-            limit,
-            role,
-            isComplete,
-            isActive,
-            search,
-            sortBy,
-            sortOrder,
-        });
+        const cacheKey = CacheKeys.userList({ page, limit, role, isComplete, isActive, search, sortBy, sortOrder });
         return RedisCacheService.getOrSet({
             key: cacheKey,
-            ttlSeconds: CACHE_TTL_SECONDS
-                .USER_LIST,
+            ttlSeconds: CACHE_TTL_SECONDS.USER_LIST,
             loader: async () => {
                 try {
-                    const skip = (page - 1) *
-                        limit;
+                    const skip = (page - 1) * limit;
                     const filter = {};
                     if (role) {
-                        filter.role =
-                            role;
+                        filter.role = role;
                     }
-                    if (typeof isComplete ===
-                        "boolean") {
-                        filter.isComplete =
-                            isComplete;
+                    if (typeof isComplete === "boolean") {
+                        filter.isComplete = isComplete;
                     }
-                    if (typeof isActive ===
-                        "boolean") {
-                        filter.isActive =
-                            isActive;
+                    if (typeof isActive === "boolean") {
+                        filter.isActive = isActive;
                     }
-                    const isTextSearch = !!search?.trim() &&
-                        search.trim().length >
-                            4;
+                    const isTextSearch = !!search?.trim() && search.trim().length > 4;
                     if (search?.trim()) {
                         const term = search.trim();
                         if (isTextSearch) {
-                            filter.$text = {
-                                $search: term,
-                            };
+                            filter.$text = { $search: term };
                         }
                         else {
                             filter.$or = [
-                                {
-                                    fullName: {
-                                        $regex: `^${escapeRegex(term)}`,
-                                        $options: "i",
-                                    },
-                                },
-                                {
-                                    email: {
-                                        $regex: `^${escapeRegex(term)}`,
-                                        $options: "i",
-                                    },
-                                },
-                                {
-                                    phoneNumber: {
-                                        $regex: `^${escapeRegex(term)}`,
-                                        $options: "i",
-                                    },
-                                },
-                                {
-                                    userReference: {
-                                        $regex: `^${escapeRegex(term)}`,
-                                        $options: "i",
-                                    },
-                                },
+                                { fullName: { $regex: `^${escapeRegex(term)}`, $options: "i" } },
+                                { email: { $regex: `^${escapeRegex(term)}`, $options: "i" } },
+                                { phoneNumber: { $regex: `^${escapeRegex(term)}`, $options: "i" } },
+                                { userReference: { $regex: `^${escapeRegex(term)}`, $options: "i" } },
                             ];
                         }
                     }
                     let sortCriteria = {};
-                    if (isTextSearch &&
-                        sortBy ===
-                            "relevance") {
-                        sortCriteria = {
-                            score: {
-                                $meta: "textScore",
-                            },
-                        };
+                    if (isTextSearch && sortBy === "relevance") {
+                        sortCriteria = { score: { $meta: "textScore" } };
                     }
                     else {
-                        sortCriteria[sortBy] =
-                            sortOrder ===
-                                "desc"
-                                ? -1
-                                : 1;
-                        sortCriteria.createdAt =
-                            -1;
+                        sortCriteria[sortBy] = sortOrder === "desc" ? -1 : 1;
+                        sortCriteria.createdAt = -1;
                     }
-                    const [users, total,] = await Promise.all([
-                        User.find(filter)
-                            .select("-password -otp -otpExpiresAt " +
-                            "-resetPasswordToken -resetPasswordExpires")
-                            .sort(sortCriteria)
-                            .skip(skip)
-                            .limit(limit)
-                            .lean(),
+                    const [users, total] = await Promise.all([
+                        User.find(filter).select("-password -otp -otpExpiresAt " + "-resetPasswordToken -resetPasswordExpires").sort(sortCriteria).skip(skip).limit(limit).lean(),
                         User.countDocuments(filter),
                     ]);
-                    return {
-                        users,
-                        pagination: {
-                            total,
-                            page,
-                            limit,
-                            pages: Math.ceil(total /
-                                limit),
-                        },
-                    };
+                    return { users, pagination: { total, page, limit, pages: Math.ceil(total / limit) } };
                 }
                 catch (error) {
-                    throw new Error(error.message ||
-                        "Failed to fetch users");
+                    throw new Error(error.message || "Failed to fetch users");
                 }
             },
         });
@@ -656,22 +538,17 @@ class AuthService {
         const cacheKey = CacheKeys.userDetail(userId);
         return RedisCacheService.getOrSet({
             key: cacheKey,
-            ttlSeconds: CACHE_TTL_SECONDS
-                .USER_DETAIL,
+            ttlSeconds: CACHE_TTL_SECONDS.USER_DETAIL,
             loader: async () => {
                 try {
-                    const user = await User.findById(userId)
-                        .select("-password -otp -otpExpiresAt " +
-                        "-resetPasswordToken -resetPasswordExpires")
-                        .lean();
+                    const user = await User.findById(userId).select("-password -otp -otpExpiresAt " + "-resetPasswordToken -resetPasswordExpires").lean();
                     if (!user) {
                         throw new Error("User not found with the provided ID");
                     }
                     return user;
                 }
                 catch (error) {
-                    if (error.name ===
-                        "CastError") {
+                    if (error.name === "CastError") {
                         throw new Error("Invalid User ID format");
                     }
                     throw error;
@@ -686,9 +563,7 @@ class AuthService {
                     { email: identifier.toLowerCase(), role },
                     { phoneNumber: identifier, role },
                 ],
-            })
-                .select("-password -otp -resetPasswordToken -resetPasswordExpires")
-                .lean();
+            }).select("-password -otp -resetPasswordToken -resetPasswordExpires").lean();
             if (!user) {
                 throw new Error(`No ${role} account found with these credentials.`);
             }
@@ -702,15 +577,7 @@ class AuthService {
         const session = await mongoose.startSession();
         session.startTransaction();
         try {
-            const user = await User.findByIdAndUpdate(userId, {
-                $set: {
-                    isActive: status,
-                },
-            }, {
-                session,
-                new: true,
-                runValidators: true,
-            });
+            const user = await User.findByIdAndUpdate(userId, { $set: { isActive: status } }, { session, new: true, runValidators: true });
             if (!user) {
                 throw new Error("User not found");
             }
@@ -723,9 +590,7 @@ class AuthService {
                 recipientId: user._id.toString(),
                 recipientRole: user.role,
                 templateCode: "AUTH_ACCOUNT_STATUS_CHANGED",
-                variables: {
-                    accountStatus: status ? "activated" : "deactivated",
-                },
+                variables: { accountStatus: status ? "activated" : "deactivated" },
                 dedupeKey: `AUTH:ACCOUNT_STATUS:${user._id}:${status}:${user.updatedAt.getTime()}`,
                 email: Boolean(user.email),
                 push: true,
@@ -841,11 +706,7 @@ class AuthService {
                 // Log the error for debugging, but don't stop the return flow
                 console.error("Failed to link beneficiary bookings during profile completion:", bookingError);
             }
-            return {
-                user: userWithoutPassword,
-                accessToken,
-                refreshToken,
-            };
+            return { user: userWithoutPassword, accessToken, refreshToken };
         }
         catch (error) {
             await session.abortTransaction();
@@ -871,12 +732,7 @@ class AuthService {
         }
     }
     static async updateProfile(userId, updateData) {
-        const updatedUser = await User.findByIdAndUpdate(userId, { $set: updateData }, {
-            new: true,
-            runValidators: true,
-        })
-            .select("-password -otp -otpExpiresAt -resetPasswordToken -resetPasswordExpires")
-            .populate("coordinatorProfile.serviceableLocations.locationId");
+        const updatedUser = await User.findByIdAndUpdate(userId, { $set: updateData }, { new: true, runValidators: true }).select("-password -otp -otpExpiresAt -resetPasswordToken -resetPasswordExpires").populate("coordinatorProfile.serviceableLocations.locationId");
         if (!updatedUser) {
             throw new Error("User not found");
         }
@@ -891,11 +747,7 @@ class AuthService {
         const updatePayload = {};
         const isIdentityDocumentSubmitted = docs.aadharCard !== undefined || docs.panCard !== undefined;
         const isBankDocumentSubmitted = docs.bankPassbook !== undefined;
-        /*
-         * IDENTITY DOCUMENTS
-         *
-         * Every new Aadhaar or PAN submission must be verified again.
-         */
+        // IDENTITY DOCUMENTS Every new Aadhaar or PAN submission must be verified again.
         if (isIdentityDocumentSubmitted) {
             updatePayload["documentVerification.status"] = VerificationStatus.PENDING;
             updatePayload["documentVerification.rejectionReason"] = null;
@@ -906,33 +758,20 @@ class AuthService {
             if (docs.panCard !== undefined) {
                 updatePayload["documentVerification.panCard"] = docs.panCard;
             }
-            /*
-             * Coordinator approval was based on the previous identity
-             * documents, so identity re-submission requires coordinator
-             * approval again.
-             */
+            // Coordinator approval was based on the previous identity documents, so identity re-submission requires coordinator approval again.
             if (user.role === Role.COORDINATOR && user.coordinatorProfile) {
-                updatePayload["coordinatorProfile.approvalStatus"] =
-                    ApprovalStatus.PENDING;
+                updatePayload["coordinatorProfile.approvalStatus"] = ApprovalStatus.PENDING;
                 updatePayload["coordinatorProfile.approvalRejectionReason"] = null;
                 updatePayload["coordinatorProfile.autoAssignmentEnabled"] = false;
             }
         }
-        /*
-         * BANK DOCUMENTS
-         *
-         * New bank details must be verified again, but the coordinator's
-         * working approval is not removed.
-         */
+        // BANK DOCUMENTS New bank details must be verified again, but the coordinator's working approval is not removed.
         if (isBankDocumentSubmitted) {
-            updatePayload["bankDocumentVerification.status"] =
-                VerificationStatus.PENDING;
+            updatePayload["bankDocumentVerification.status"] = VerificationStatus.PENDING;
             updatePayload["bankDocumentVerification.rejectionReason"] = null;
             updatePayload.isBankDocumentVerified = false;
-            updatePayload["bankDocumentVerification.bankPassbook"] =
-                docs.bankPassbook;
-            updatePayload["bankDocumentVerification.accountNumber"] =
-                docs.accountNumber;
+            updatePayload["bankDocumentVerification.bankPassbook"] = docs.bankPassbook;
+            updatePayload["bankDocumentVerification.accountNumber"] = docs.accountNumber;
             updatePayload["bankDocumentVerification.accountName"] = docs.accountName;
             updatePayload["bankDocumentVerification.bankName"] = docs.bankName;
             updatePayload["bankDocumentVerification.ifscCode"] = docs.ifscCode;
@@ -940,13 +779,7 @@ class AuthService {
         if (Object.keys(updatePayload).length === 0) {
             throw new Error("No valid verification documents provided");
         }
-        const updatedUser = await User.findByIdAndUpdate(userId, {
-            $set: updatePayload,
-        }, {
-            new: true,
-            runValidators: true,
-        }).select("-password -otp -otpExpiresAt " +
-            "-resetPasswordToken -resetPasswordExpires");
+        const updatedUser = await User.findByIdAndUpdate(userId, { $set: updatePayload }, { new: true, runValidators: true }).select("-password -otp -otpExpiresAt " + "-resetPasswordToken -resetPasswordExpires");
         if (!updatedUser) {
             throw new Error("User not found");
         }
@@ -962,23 +795,15 @@ class AuthService {
             throw new Error("Rejection reason is required when rejecting verification");
         }
         if (type === "document") {
-            const hasIdentityDocument = Boolean(user.documentVerification?.aadharCard) ||
-                Boolean(user.documentVerification?.panCard);
+            const hasIdentityDocument = Boolean(user.documentVerification?.aadharCard) || Boolean(user.documentVerification?.panCard);
             if (status === VerificationStatus.APPROVED && !hasIdentityDocument) {
                 throw new Error("Identity verification cannot be approved because no Aadhaar or PAN document has been submitted");
             }
             user.documentVerification.status = status;
-            user.documentVerification.rejectionReason =
-                status === VerificationStatus.REJECTED ? rejectionReason.trim() : null;
+            user.documentVerification.rejectionReason = status === VerificationStatus.REJECTED ? rejectionReason.trim() : null;
             user.isDocumentVerified = status === VerificationStatus.APPROVED;
-            /*
-             * Verifying identity documents does not automatically approve
-             * the coordinator. Coordinator approval remains a separate
-             * admin action.
-             */
-            if (status === VerificationStatus.REJECTED &&
-                user.role === Role.COORDINATOR &&
-                user.coordinatorProfile) {
+            // Verifying identity documents does not automatically approve the coordinator. Coordinator approval remains a separate admin action.
+            if (status === VerificationStatus.REJECTED && user.role === Role.COORDINATOR && user.coordinatorProfile) {
                 user.coordinatorProfile.approvalStatus = ApprovalStatus.PENDING;
                 user.coordinatorProfile.autoAssignmentEnabled = false;
             }
@@ -993,52 +818,31 @@ class AuthService {
                 throw new Error("Bank verification cannot be approved because complete bank details have not been submitted");
             }
             user.bankDocumentVerification.status = status;
-            user.bankDocumentVerification.rejectionReason =
-                status === VerificationStatus.REJECTED ? rejectionReason.trim() : null;
+            user.bankDocumentVerification.rejectionReason = status === VerificationStatus.REJECTED ? rejectionReason.trim() : null;
             user.isBankDocumentVerified = status === VerificationStatus.APPROVED;
-            /*
-             * Do not change coordinator approval here.
-             * Bank verification controls payouts, not the coordinator's
-             * permission to work.
-             */
+            // Do not change coordinator approval here. Bank verification controls payouts, not the coordinator's permission to work.
         }
         await this.invalidateUserCache(userId);
         await user.save();
-        const verificationLabel = type === "document"
-            ? "identity document"
-            : "bank";
-        const verificationDetails = status === VerificationStatus.REJECTED
-            ? `Reason: ${rejectionReason.trim()}`
-            : `Your ${verificationLabel} verification has been approved.`;
+        const verificationLabel = type === "document" ? "identity document" : "bank";
+        const verificationDetails = status === VerificationStatus.REJECTED ? `Reason: ${rejectionReason.trim()}` : `Your ${verificationLabel} verification has been approved.`;
         await this.sendAuthNotificationSafely({
             recipientId: user._id.toString(),
             recipientRole: user.role,
             templateCode: "AUTH_VERIFICATION_STATUS_CHANGED",
-            variables: {
-                verificationType: verificationLabel,
-                status: status.toLowerCase(),
-                details: verificationDetails,
-            },
+            variables: { verificationType: verificationLabel, status: status.toLowerCase(), details: verificationDetails },
             dedupeKey: `AUTH:VERIFICATION:${user._id}:${type}:${status}:${user.updatedAt.getTime()}`,
             email: Boolean(user.email),
             push: true,
         });
-        return User.findById(userId)
-            .select("-password -otp -otpExpiresAt " +
-            "-resetPasswordToken -resetPasswordExpires")
-            .lean();
+        return User.findById(userId).select("-password -otp -otpExpiresAt " + "-resetPasswordToken -resetPasswordExpires").lean();
     }
     static async getCurrentUser(userId) {
         return RedisCacheService.getOrSet({
             key: CacheKeys.currentUser(userId),
-            ttlSeconds: CACHE_TTL_SECONDS
-                .CURRENT_USER,
+            ttlSeconds: CACHE_TTL_SECONDS.CURRENT_USER,
             loader: async () => {
-                const user = await User.findById(userId)
-                    .select("-password -otp -otpExpiresAt " +
-                    "-resetPasswordToken -resetPasswordExpires")
-                    .populate("coordinatorProfile.serviceableLocations.locationId")
-                    .lean();
+                const user = await User.findById(userId).select("-password -otp -otpExpiresAt " + "-resetPasswordToken -resetPasswordExpires").populate("coordinatorProfile.serviceableLocations.locationId").lean();
                 if (!user) {
                     throw new Error("User not found");
                 }
@@ -1047,10 +851,7 @@ class AuthService {
         });
     }
     static async updateCoordinatorApproval(coordinatorId, status, rejectionReason) {
-        const coordinator = await User.findOne({
-            _id: coordinatorId,
-            role: Role.COORDINATOR,
-        });
+        const coordinator = await User.findOne({ _id: coordinatorId, role: Role.COORDINATOR });
         if (!coordinator) {
             throw new Error("Coordinator not found");
         }
@@ -1060,10 +861,7 @@ class AuthService {
         if (status === ApprovalStatus.REJECTED && !rejectionReason?.trim()) {
             throw new Error("Rejection reason is required when rejecting a coordinator");
         }
-        /*
-         * Identity verification is mandatory.
-         * Bank verification is not required to approve the coordinator.
-         */
+        // Identity verification is mandatory. Bank verification is not required to approve the coordinator.
         if (status === ApprovalStatus.APPROVED) {
             if (!coordinator.isOtpVerified) {
                 throw new Error("Coordinator account must be OTP verified before approval");
@@ -1079,49 +877,29 @@ class AuthService {
             }
         }
         coordinator.coordinatorProfile.approvalStatus = status;
-        coordinator.coordinatorProfile.approvalRejectionReason =
-            status === ApprovalStatus.REJECTED ? rejectionReason.trim() : null;
-        /*
-    * Only approved coordinators are eligible
-    * for automatic assignment.
-    */
-        coordinator.coordinatorProfile.autoAssignmentEnabled =
-            status === ApprovalStatus.APPROVED;
-        /*
-         * Pending or rejected coordinators cannot receive automatic
-         * assignments.
-         */
+        coordinator.coordinatorProfile.approvalRejectionReason = status === ApprovalStatus.REJECTED ? rejectionReason.trim() : null;
+        // Only approved coordinators are eligible for automatic assignment.
+        coordinator.coordinatorProfile.autoAssignmentEnabled = status === ApprovalStatus.APPROVED;
+        // Pending or rejected coordinators cannot receive automatic assignments.
         if (status !== ApprovalStatus.APPROVED) {
             coordinator.coordinatorProfile.autoAssignmentEnabled = false;
         }
         await coordinator.save();
         await this.invalidateUserCache(coordinatorId);
-        const approvalDetails = status === ApprovalStatus.REJECTED
-            ? `Reason: ${rejectionReason.trim()}`
-            : "Your coordinator account is approved and eligible for assignments.";
+        const approvalDetails = status === ApprovalStatus.REJECTED ? `Reason: ${rejectionReason.trim()}` : "Your coordinator account is approved and eligible for assignments.";
         await this.sendAuthNotificationSafely({
             recipientId: coordinator._id.toString(),
             recipientRole: Role.COORDINATOR,
             templateCode: "AUTH_COORDINATOR_APPROVAL_CHANGED",
-            variables: {
-                status: status.toLowerCase(),
-                details: approvalDetails,
-            },
+            variables: { status: status.toLowerCase(), details: approvalDetails },
             dedupeKey: `AUTH:COORDINATOR_APPROVAL:${coordinator._id}:${status}:${coordinator.updatedAt.getTime()}`,
             email: Boolean(coordinator.email),
             push: true,
         });
-        return User.findById(coordinatorId)
-            .select("-password -otp -otpExpiresAt " +
-            "-resetPasswordToken -resetPasswordExpires")
-            .populate("coordinatorProfile.serviceableLocations.locationId")
-            .lean();
+        return User.findById(coordinatorId).select("-password -otp -otpExpiresAt " + "-resetPasswordToken -resetPasswordExpires").populate("coordinatorProfile.serviceableLocations.locationId").lean();
     }
     static async updateCoordinatorAvailability(coordinatorId, availabilityStatus) {
-        const coordinator = await User.findOne({
-            _id: coordinatorId,
-            role: Role.COORDINATOR,
-        });
+        const coordinator = await User.findOne({ _id: coordinatorId, role: Role.COORDINATOR });
         if (!coordinator) {
             throw new Error("Coordinator not found");
         }
@@ -1141,10 +919,7 @@ class AuthService {
         };
     }
     static async updateCoordinatorSettings(coordinatorId, settings) {
-        const coordinator = await User.findOne({
-            _id: coordinatorId,
-            role: Role.COORDINATOR,
-        });
+        const coordinator = await User.findOne({ _id: coordinatorId, role: Role.COORDINATOR });
         if (!coordinator) {
             throw new Error("Coordinator not found");
         }
@@ -1152,12 +927,10 @@ class AuthService {
             throw new Error("Coordinator profile has not been created");
         }
         if (settings.maxDailyBookings !== undefined) {
-            coordinator.coordinatorProfile.maxDailyBookings =
-                settings.maxDailyBookings;
+            coordinator.coordinatorProfile.maxDailyBookings = settings.maxDailyBookings;
         }
         if (settings.autoAssignmentEnabled) {
-            if (coordinator.coordinatorProfile.approvalStatus !==
-                ApprovalStatus.APPROVED) {
+            if (coordinator.coordinatorProfile.approvalStatus !== ApprovalStatus.APPROVED) {
                 throw new Error("Auto-assignment cannot be enabled until the coordinator is approved");
             }
             if (!coordinator.isDocumentVerified) {
@@ -1169,50 +942,28 @@ class AuthService {
         }
         await coordinator.save();
         await this.invalidateUserCache(coordinatorId);
-        return {
-            maxDailyBookings: coordinator.coordinatorProfile.maxDailyBookings,
-            autoAssignmentEnabled: coordinator.coordinatorProfile.autoAssignmentEnabled,
-        };
+        return { maxDailyBookings: coordinator.coordinatorProfile.maxDailyBookings, autoAssignmentEnabled: coordinator.coordinatorProfile.autoAssignmentEnabled };
     }
     static async updateCoordinatorServiceableLocations(coordinatorId, serviceableLocations) {
-        const coordinator = await User.findOne({
-            _id: coordinatorId,
-            role: Role.COORDINATOR,
-        });
+        const coordinator = await User.findOne({ _id: coordinatorId, role: Role.COORDINATOR });
         if (!coordinator) {
             throw new Error("Coordinator not found");
         }
         if (!coordinator.coordinatorProfile) {
             throw new Error("Coordinator profile has not been created");
         }
-        coordinator.coordinatorProfile.serviceableLocations =
-            serviceableLocations.map((location) => ({
-                locationId: new mongoose.Types.ObjectId(location.locationId),
-                caste: location.caste ?? [],
-                gotra: location.gotra ?? [],
-            }));
+        coordinator.coordinatorProfile.serviceableLocations = serviceableLocations.map((location) => ({ locationId: new mongoose.Types.ObjectId(location.locationId), caste: location.caste ?? [], gotra: location.gotra ?? [] }));
         await coordinator.save();
         await this.invalidateUserCache(coordinatorId);
-        const updatedCoordinator = await User.findById(coordinatorId)
-            .select("-password -otp -otpExpiresAt -resetPasswordToken -resetPasswordExpires")
-            .populate("coordinatorProfile.serviceableLocations.locationId")
-            .lean();
+        const updatedCoordinator = await User.findById(coordinatorId).select("-password -otp -otpExpiresAt -resetPasswordToken -resetPasswordExpires").populate("coordinatorProfile.serviceableLocations.locationId").lean();
         return updatedCoordinator;
     }
     static async getCoordinatorById(coordinatorId) {
         return RedisCacheService.getOrSet({
             key: CacheKeys.coordinatorDetail(coordinatorId),
-            ttlSeconds: CACHE_TTL_SECONDS
-                .COORDINATOR_DETAIL,
+            ttlSeconds: CACHE_TTL_SECONDS.COORDINATOR_DETAIL,
             loader: async () => {
-                const coordinator = await User.findOne({
-                    _id: coordinatorId,
-                    role: Role.COORDINATOR,
-                })
-                    .select("-password -otp -otpExpiresAt " +
-                    "-resetPasswordToken -resetPasswordExpires")
-                    .populate("coordinatorProfile.serviceableLocations.locationId")
-                    .lean();
+                const coordinator = await User.findOne({ _id: coordinatorId, role: Role.COORDINATOR }).select("-password -otp -otpExpiresAt " + "-resetPasswordToken -resetPasswordExpires").populate("coordinatorProfile.serviceableLocations.locationId").lean();
                 if (!coordinator) {
                     throw new Error("Coordinator not found");
                 }
@@ -1221,30 +972,14 @@ class AuthService {
         });
     }
     static async getCoordinators(filters) {
-        const { page = 1, limit = 20, approvalStatus, availabilityStatus, locationId, caste, gotra, autoAssignmentEnabled, minimumRating, search, sortBy = "createdAt", sortOrder = "desc", } = filters;
-        const cacheKey = CacheKeys.coordinatorList({
-            page,
-            limit,
-            approvalStatus,
-            availabilityStatus,
-            locationId,
-            caste,
-            gotra,
-            autoAssignmentEnabled,
-            minimumRating,
-            search,
-            sortBy,
-            sortOrder,
-        });
+        const { page = 1, limit = 20, approvalStatus, availabilityStatus, locationId, caste, gotra, autoAssignmentEnabled, minimumRating, search, sortBy = "createdAt", sortOrder = "desc" } = filters;
+        const cacheKey = CacheKeys.coordinatorList({ page, limit, approvalStatus, availabilityStatus, locationId, caste, gotra, autoAssignmentEnabled, minimumRating, search, sortBy, sortOrder });
         return RedisCacheService.getOrSet({
             key: cacheKey,
-            ttlSeconds: CACHE_TTL_SECONDS
-                .COORDINATOR_LIST,
+            ttlSeconds: CACHE_TTL_SECONDS.COORDINATOR_LIST,
             loader: async () => {
                 const skip = (page - 1) * limit;
-                const query = {
-                    role: Role.COORDINATOR,
-                };
+                const query = { role: Role.COORDINATOR };
                 if (approvalStatus) {
                     query["coordinatorProfile.approvalStatus"] = approvalStatus;
                 }
@@ -1262,45 +997,21 @@ class AuthService {
                     if (gotra) {
                         locationMatch.gotra = gotra;
                     }
-                    query["coordinatorProfile.serviceableLocations"] = {
-                        $elemMatch: locationMatch,
-                    };
+                    query["coordinatorProfile.serviceableLocations"] = { $elemMatch: locationMatch };
                 }
                 if (typeof autoAssignmentEnabled === "boolean") {
                     query["coordinatorProfile.autoAssignmentEnabled"] = autoAssignmentEnabled;
                 }
                 if (minimumRating !== undefined) {
-                    query["coordinatorProfile.averageRating"] = {
-                        $gte: minimumRating,
-                    };
+                    query["coordinatorProfile.averageRating"] = { $gte: minimumRating };
                 }
                 if (search?.trim()) {
                     const escapedSearch = escapeRegex(search.trim());
                     query.$or = [
-                        {
-                            fullName: {
-                                $regex: escapedSearch,
-                                $options: "i",
-                            },
-                        },
-                        {
-                            email: {
-                                $regex: escapedSearch,
-                                $options: "i",
-                            },
-                        },
-                        {
-                            phoneNumber: {
-                                $regex: escapedSearch,
-                                $options: "i",
-                            },
-                        },
-                        {
-                            userReference: {
-                                $regex: escapedSearch,
-                                $options: "i",
-                            },
-                        },
+                        { fullName: { $regex: escapedSearch, $options: "i" } },
+                        { email: { $regex: escapedSearch, $options: "i" } },
+                        { phoneNumber: { $regex: escapedSearch, $options: "i" } },
+                        { userReference: { $regex: escapedSearch, $options: "i" } },
                     ];
                 }
                 const sortFieldMap = {
@@ -1311,20 +1022,12 @@ class AuthService {
                     acceptanceRate: "coordinatorProfile.acceptanceRate",
                 };
                 const selectedSortField = sortFieldMap[sortBy] ?? "createdAt";
-                const sort = {
-                    [selectedSortField]: sortOrder === "asc" ? 1 : -1,
-                };
+                const sort = { [selectedSortField]: sortOrder === "asc" ? 1 : -1 };
                 if (selectedSortField !== "createdAt") {
                     sort.createdAt = -1;
                 }
                 const [coordinators, total] = await Promise.all([
-                    User.find(query)
-                        .select("-password -otp -otpExpiresAt -resetPasswordToken -resetPasswordExpires")
-                        .populate("coordinatorProfile.serviceableLocations.locationId")
-                        .sort(sort)
-                        .skip(skip)
-                        .limit(limit)
-                        .lean(),
+                    User.find(query).select("-password -otp -otpExpiresAt -resetPasswordToken -resetPasswordExpires").populate("coordinatorProfile.serviceableLocations.locationId").sort(sort).skip(skip).limit(limit).lean(),
                     User.countDocuments(query),
                 ]);
                 return {
@@ -1342,43 +1045,28 @@ class AuthService {
         });
     }
     static async createAdmin(params) {
-        const { fullName, email, password, phoneNumber, } = params;
+        const { fullName, email, password, phoneNumber } = params;
         const normalizedEmail = email.trim().toLowerCase();
         const existingAdmin = await User.findOne({
             role: Role.ADMIN,
             $or: [
                 { email: normalizedEmail },
-                ...(phoneNumber
-                    ? [{ phoneNumber }]
-                    : []),
+                ...(phoneNumber ? [{ phoneNumber }] : [])
             ],
         }).lean();
         if (existingAdmin) {
             throw new Error("Admin account with this email or phone number already exists");
         }
         const hashedPassword = await bcrypt.hash(password, 10);
-        const counter = await Counter.findOneAndUpdate({
-            id: "userId",
-        }, {
-            $inc: {
-                seq: 1,
-            },
-        }, {
-            new: true,
-            upsert: true,
-        });
+        const counter = await Counter.findOneAndUpdate({ id: "userId" }, { $inc: { seq: 1 } }, { new: true, upsert: true });
         if (!counter) {
             throw new Error("Unable to generate user reference");
         }
-        const userReference = `GX-${counter.seq
-            .toString()
-            .padStart(4, "0")}`;
+        const userReference = `GX-${counter.seq.toString().padStart(4, "0")}`;
         const admin = await User.create({
             fullName: fullName.trim(),
             email: normalizedEmail,
-            ...(phoneNumber && {
-                phoneNumber,
-            }),
+            ...(phoneNumber && { phoneNumber }),
             password: hashedPassword,
             role: Role.ADMIN,
             // No access until RBAC roles are assigned
@@ -1397,14 +1085,8 @@ class AuthService {
         return adminObject;
     }
     static async exportUsersToCsv(userIds) {
-        const uniqueUserIds = [
-            ...new Set(userIds),
-        ];
-        const users = await User.find({
-            _id: {
-                $in: uniqueUserIds,
-            },
-        })
+        const uniqueUserIds = [...new Set(userIds)];
+        const users = await User.find({ _id: { $in: uniqueUserIds } })
             .select([
             "userReference",
             "fullName",
@@ -1423,76 +1105,24 @@ class AuthService {
             "coordinatorProfile.averageRating",
             "coordinatorProfile.totalCompletedBookings",
             "createdAt",
-        ].join(" "))
-            .lean();
+        ].join(" ")).lean();
         if (users.length === 0) {
             throw new Error("No users found for export");
         }
         const escapeCsv = (value) => {
-            if (value === null ||
-                value === undefined) {
+            if (value === null || value === undefined) {
                 return "";
             }
             const stringValue = String(value);
-            if (stringValue.includes(",") ||
-                stringValue.includes('"') ||
-                stringValue.includes("\n")) {
+            if (stringValue.includes(",") || stringValue.includes('"') || stringValue.includes("\n")) {
                 return `"${stringValue.replace(/"/g, '""')}"`;
             }
             return stringValue;
         };
-        const headers = [
-            "User Reference",
-            "Full Name",
-            "Email",
-            "Phone Number",
-            "Role",
-            "Active",
-            "Profile Complete",
-            "OTP Verified",
-            "Document Verified",
-            "Bank Verified",
-            "Document Status",
-            "Bank Status",
-            "Coordinator Approval",
-            "Coordinator Availability",
-            "Average Rating",
-            "Completed Bookings",
-            "Created At",
-        ];
-        const rows = users.map((user) => [
-            user.userReference,
-            user.fullName,
-            user.email,
-            user.phoneNumber,
-            user.role,
-            user.isActive,
-            user.isComplete,
-            user.isOtpVerified,
-            user.isDocumentVerified,
-            user.isBankDocumentVerified,
-            user.documentVerification?.status,
-            user.bankDocumentVerification?.status,
-            user.coordinatorProfile
-                ?.approvalStatus,
-            user.coordinatorProfile
-                ?.availabilityStatus,
-            user.coordinatorProfile
-                ?.averageRating,
-            user.coordinatorProfile
-                ?.totalCompletedBookings,
-            user.createdAt
-                ? new Date(user.createdAt).toISOString()
-                : "",
-        ]);
-        const csv = [
-            headers.map(escapeCsv).join(","),
-            ...rows.map((row) => row.map(escapeCsv).join(",")),
-        ].join("\n");
-        return {
-            csv,
-            total: users.length,
-        };
+        const headers = ["User Reference", "Full Name", "Email", "Phone Number", "Role", "Active", "Profile Complete", "OTP Verified", "Document Verified", "Bank Verified", "Document Status", "Bank Status", "Coordinator Approval", "Coordinator Availability", "Average Rating", "Completed Bookings", "Created At"];
+        const rows = users.map((user) => [user.userReference, user.fullName, user.email, user.phoneNumber, user.role, user.isActive, user.isComplete, user.isOtpVerified, user.isDocumentVerified, user.isBankDocumentVerified, user.documentVerification?.status, user.bankDocumentVerification?.status, user.coordinatorProfile?.approvalStatus, user.coordinatorProfile?.availabilityStatus, user.coordinatorProfile?.averageRating, user.coordinatorProfile?.totalCompletedBookings, user.createdAt ? new Date(user.createdAt).toISOString() : ""]);
+        const csv = [headers.map(escapeCsv).join(","), ...rows.map((row) => row.map(escapeCsv).join(","))].join("\n");
+        return { csv, total: users.length };
     }
 }
 export default AuthService;

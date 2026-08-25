@@ -43,33 +43,9 @@ contentSchema.pre("validate", function () {
         this.publishedAt = new Date();
     }
 });
-contentSchema.index({
-    type: 1,
-    userType: 1,
-    version: 1,
-}, {
-    unique: true,
-    name: "UniquePolicyVersionPerAudience",
-});
-contentSchema.index({
-    type: 1,
-    userType: 1,
-    isActive: 1,
-}, {
-    unique: true,
-    partialFilterExpression: {
-        isActive: true,
-    },
-    name: "UniqueActivePolicyPerAudience",
-});
-contentSchema.index({
-    type: 1,
-    userType: 1,
-});
-contentSchema.index({
-    type: 1,
-    userType: 1,
-    publishedAt: -1,
-});
+contentSchema.index({ type: 1, userType: 1, version: 1 }, { unique: true, name: "UniquePolicyVersionPerAudience" });
+contentSchema.index({ type: 1, userType: 1, isActive: 1 }, { unique: true, partialFilterExpression: { isActive: true }, name: "UniqueActivePolicyPerAudience" });
+contentSchema.index({ type: 1, userType: 1 });
+contentSchema.index({ type: 1, userType: 1, publishedAt: -1 });
 export const Content = model("Content", contentSchema);
 //# sourceMappingURL=policy.model.js.map

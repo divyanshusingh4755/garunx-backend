@@ -24,11 +24,7 @@ export const registerReadHandlers = (io, socket) => {
             if (!socket.rooms.has(room)) {
                 throw new Error("Join the conversation before marking it as read");
             }
-            const result = await ChatConversationService.markAsRead({
-                conversationId,
-                userId,
-                messageId
-            });
+            const result = await ChatConversationService.markAsRead({ conversationId, userId, messageId });
             const readEvent = {
                 conversationId: result.conversationId,
                 userId: result.userId,
@@ -36,15 +32,9 @@ export const registerReadHandlers = (io, socket) => {
                 readAt: result.readAt.toISOString()
             };
             // ACK caller
-            callback({
-                success: true,
-                data: readEvent
-            });
+            callback({ success: true, data: readEvent });
             // Tell other sockets in the room that this user has read the chat
-            const conversation = await ChatConversationService.getById({
-                conversationId,
-                requestedBy: userId,
-            });
+            const conversation = await ChatConversationService.getById({ conversationId, requestedBy: userId });
             const otherParticipant = conversation.participants.find((participant) => participant.userId.toString() !== userId);
             if (otherParticipant) {
                 io.to(getUserRoom(otherParticipant.userId.toString())).emit("conversation:read", readEvent);
@@ -53,10 +43,7 @@ export const registerReadHandlers = (io, socket) => {
         }
         catch (error) {
             const message = error instanceof Error ? error.message : "Failed to mark conversation as read";
-            callback({
-                success: false,
-                message
-            });
+            callback({ success: false, message });
         }
     });
 };
@@ -94,25 +81,14 @@ export const registerMessageHandlers = (io, socket) => {
             });
             let replyMessage = null;
             if (message.replyToMessageId) {
-                replyMessage = await ChatMessage.findOne({
-                    _id: message.replyToMessageId,
-                    conversationId: message.conversationId,
-                });
+                replyMessage = await ChatMessage.findOne({ _id: message.replyToMessageId, conversationId: message.conversationId, });
             }
-            const messageDto = {
-                ...toChatMessageSocketDto(message, {
-                    replyMessage
-                }),
-                deliveryStatus: "SENT",
-            };
+            const messageDto = { ...toChatMessageSocketDto(message, { replyMessage }), deliveryStatus: "SENT" };
             // Ack the originating ChatSocket
             callback({ success: true, data: messageDto });
             // Broadcast to everyone else currently inside this conversation room.
             if (created) {
-                const conversation = await ChatConversationService.getById({
-                    conversationId,
-                    requestedBy: senderId
-                });
+                const conversation = await ChatConversationService.getById({ conversationId, requestedBy: senderId });
                 // Send the created message to every participant's
                 for (const participant of conversation.participants) {
                     const participantId = participant.userId.toString();
@@ -135,10 +111,7 @@ export const registerConversationHandlers = (_io, socket) => {
             }
             // UserId came from JWT authentication
             const userId = socket.data.userId;
-            await ChatConversationService.assertParticipant({
-                conversationId,
-                userId
-            });
+            await ChatConversationService.assertParticipant({ conversationId, userId });
             const room = getConversationRoom(conversationId);
             await socket.join(room);
             socket.emit("conversation:joined", { conversationId });
@@ -146,10 +119,7 @@ export const registerConversationHandlers = (_io, socket) => {
         }
         catch (error) {
             const message = error instanceof Error ? error.message : "Failed to join conversation";
-            socket.emit("socket:error", {
-                event: "conversation:join",
-                message
-            });
+            socket.emit("socket:error", { event: "conversation:join", message });
         }
     });
     // Leaver conversation
@@ -165,10 +135,7 @@ export const registerConversationHandlers = (_io, socket) => {
         }
         catch (error) {
             const message = error instanceof Error ? error.message : "Failed to leave conversation";
-            socket.emit("socket:error", {
-                event: "conversation:leave",
-                message
-            });
+            socket.emit("socket:error", { event: "conversation:leave", message });
         }
     });
 };
@@ -183,10 +150,7 @@ export const registerPresenceHandlers = (_io, socket) => {
                 throw new Error("Invalid conversation ID");
             }
             const currentUserId = socket.data.userId;
-            const conversation = await ChatConversationService.assertParticipant({
-                conversationId,
-                userId: currentUserId
-            });
+            const conversation = await ChatConversationService.assertParticipant({ conversationId, userId: currentUserId });
             const otherParticipant = conversation.participants.find((participant) => participant.userId.toString() !== currentUserId);
             if (!otherParticipant) {
                 throw new Error("Other chat participant not found");
@@ -200,10 +164,7 @@ export const registerPresenceHandlers = (_io, socket) => {
         }
         catch (error) {
             const message = error instanceof Error ? error.message : "Failed to get presence";
-            socket.emit("socket:error", {
-                event: "presence:get",
-                message
-            });
+            socket.emit("socket:error", { event: "presence:get", message });
         }
     });
 };
@@ -221,25 +182,15 @@ export const registerDeliveryHandlers = (io, socket) => {
                 throw new Error("Invalid message ID");
             }
             const userId = socket.data.userId;
-            const result = await ChatConversationService.markAsDelivered({
-                conversationId,
-                userId,
-                messageId
-            });
+            const result = await ChatConversationService.markAsDelivered({ conversationId, userId, messageId });
             const deliveredEvent = {
                 conversationId: result.conversationId,
                 userId: result.userId,
                 messageId: result.messageId,
                 deliveredAt: result.deliveredAt.toISOString()
             };
-            callback({
-                success: true,
-                data: deliveredEvent
-            });
-            const conversation = await ChatConversationService.getById({
-                conversationId,
-                requestedBy: userId,
-            });
+            callback({ success: true, data: deliveredEvent });
+            const conversation = await ChatConversationService.getById({ conversationId, requestedBy: userId });
             const senderParticipant = conversation.participants.find((participant) => participant.userId.toString() !== userId);
             if (!senderParticipant) {
                 return;
@@ -249,10 +200,7 @@ export const registerDeliveryHandlers = (io, socket) => {
         }
         catch (error) {
             const message = error instanceof Error ? error.message : "Failed to mark as delivered";
-            callback({
-                success: false,
-                message
-            });
+            callback({ success: false, message });
         }
     });
 };
@@ -271,11 +219,7 @@ export const registerTypingHandlers = (_io, socket) => {
             if (!socket.rooms.has(room)) {
                 throw new Error("Join the conversation before typing");
             }
-            await ChatConversationService.assertParticipant({
-                conversationId,
-                userId,
-                requireActive: true,
-            });
+            await ChatConversationService.assertParticipant({ conversationId, userId, requireActive: true });
             socket.to(room).emit("typing:changed", {
                 conversationId,
                 userId,
@@ -284,10 +228,7 @@ export const registerTypingHandlers = (_io, socket) => {
         }
         catch (error) {
             const message = error instanceof Error ? error.message : "Failed to start typing";
-            socket.emit("socket:error", {
-                event: "typing:start",
-                message,
-            });
+            socket.emit("socket:error", { event: "typing:start", message });
         }
     });
     socket.on("typing:stop", async (payload) => {
@@ -304,11 +245,7 @@ export const registerTypingHandlers = (_io, socket) => {
             if (!socket.rooms.has(room)) {
                 return;
             }
-            await ChatConversationService.assertParticipant({
-                conversationId,
-                userId,
-                requireActive: true,
-            });
+            await ChatConversationService.assertParticipant({ conversationId, userId, requireActive: true });
             socket.to(room).emit("typing:changed", {
                 conversationId,
                 userId,
@@ -317,10 +254,7 @@ export const registerTypingHandlers = (_io, socket) => {
         }
         catch (error) {
             const message = error instanceof Error ? error.message : "Failed to stop typing";
-            socket.emit("socket:error", {
-                event: "typing:stop",
-                message
-            });
+            socket.emit("socket:error", { event: "typing:stop", message });
         }
     });
 };

@@ -1,21 +1,8 @@
 import { model, Schema, type Document, Types } from "mongoose";
 
-export type BannerPlacement =
-  | "HOME_TOP"
-  | "HOME_MIDDLE"
-  | "HOME_BOTTOM"
-  | "CATEGORY"
-  | "PRODUCT";
-
+export type BannerPlacement = "HOME_TOP" | "HOME_MIDDLE" | "HOME_BOTTOM" | "CATEGORY" | "PRODUCT";
 export type BannerFormat = "WEB" | "MOBILE" | "BOTH";
-
-export type BannerRedirectType =
-  | "NONE"
-  | "SERVICE"
-  | "PACKAGE"
-  | "CATEGORY"
-  | "PRODUCT"
-  | "URL";
+export type BannerRedirectType = "NONE" | "SERVICE" | "PACKAGE" | "CATEGORY" | "PRODUCT" | "URL";
 
 export interface IBanner extends Document {
   version: number;
@@ -27,13 +14,11 @@ export interface IBanner extends Document {
   isActive: boolean;
   image: string;
   displayOrder: number;
-
   redirect: {
     type: BannerRedirectType;
     refId?: Types.ObjectId;
     url?: string;
   };
-
   createdAt: Date;
   updatedAt: Date;
 }
@@ -123,23 +108,17 @@ const bannerSchema = new Schema<IBanner>(
 bannerSchema.pre("validate", function () {
   const redirectType = this.redirect?.type ?? "NONE";
 
-  this.redirect ??= {
-    type: "NONE",
-  };
+  this.redirect ??= { type: "NONE" };
 
   if (["SERVICE", "PACKAGE", "CATEGORY", "PRODUCT"].includes(redirectType)) {
-    if (!this.redirect.refId) {
-      throw new Error("refId is required for this redirect type");
-    }
+    if (!this.redirect.refId) { throw new Error("refId is required for this redirect type"); }
 
     delete this.redirect.url;
     return;
   }
 
   if (redirectType === "URL") {
-    if (!this.redirect.url?.trim()) {
-      throw new Error("url is required when redirect type is URL");
-    }
+    if (!this.redirect.url?.trim()) { throw new Error("url is required when redirect type is URL"); }
 
     delete this.redirect.refId;
     return;
@@ -149,30 +128,9 @@ bannerSchema.pre("validate", function () {
   delete this.redirect.url;
 });
 
-bannerSchema.index({
-  name: 1,
-});
-
-bannerSchema.index({
-  placement: 1,
-  format: 1,
-  isActive: 1,
-  displayOrder: 1,
-});
-
-bannerSchema.index({
-  "redirect.type": 1,
-  "redirect.refId": 1,
-});
-
-bannerSchema.index(
-  {
-    name: "text",
-    description: "text",
-  },
-  {
-    name: "BannerTextSearchIndex",
-  },
-);
+bannerSchema.index({ name: 1 });
+bannerSchema.index({ placement: 1, format: 1, isActive: 1, displayOrder: 1 });
+bannerSchema.index({ "redirect.type": 1, "redirect.refId": 1 });
+bannerSchema.index({ name: "text", description: "text" }, { name: "BannerTextSearchIndex" });
 
 export const Banner = model<IBanner>("Banner", bannerSchema);

@@ -64,7 +64,7 @@ export declare class CouponService {
     }> & {
         __v: number;
     }>;
-    static validateCoupon({ couponCode, serviceId, packageId, orderAmount, userId, }: ValidateCouponInput): Promise<{
+    static validateCoupon({ couponCode, serviceId, packageId, orderAmount, userId }: ValidateCouponInput): Promise<{
         couponId: Types.ObjectId;
         couponCode: string;
         applicableOn: import("../models/coupon.model.js").CouponApplicableOn;
@@ -73,7 +73,7 @@ export declare class CouponService {
         discountAmount: number;
         finalAmount: number;
     }>;
-    static getAvailableCoupons({ userId, serviceId, packageId, orderAmount, }: GetAvailableCouponsInput): Promise<(ICoupon & Required<{
+    static getAvailableCoupons({ userId, serviceId, packageId, orderAmount }: GetAvailableCouponsInput): Promise<(ICoupon & Required<{
         _id: Types.ObjectId;
     }> & {
         __v: number;

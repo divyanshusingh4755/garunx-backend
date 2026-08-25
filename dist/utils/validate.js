@@ -2,20 +2,11 @@ import { validationResult } from "express-validator";
 export const validate = (req, res, next) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-        const firstError = errors.array({
-            onlyFirstError: true,
-        })[0];
-        const message = typeof firstError?.msg === "string"
-            ? firstError.msg
-            : "Validation failed";
+        const firstError = errors.array({ onlyFirstError: true })[0];
+        const message = typeof firstError?.msg === "string" ? firstError.msg : "Validation failed";
         res.status(400).json({
             success: false,
-            message,
-            ...(firstError
-                ? {
-                    error: firstError,
-                }
-                : {}),
+            message, ...(firstError ? { error: firstError } : {}),
         });
         return;
     }

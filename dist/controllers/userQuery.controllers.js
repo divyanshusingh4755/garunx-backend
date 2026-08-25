@@ -7,9 +7,7 @@ const getErrorStatus = (error) => {
     if (error.message.includes("not found")) {
         return 404;
     }
-    if (error.message.includes("not authorized") ||
-        error.message.includes("Only customers and coordinators") ||
-        error.message.includes("not an admin")) {
+    if (error.message.includes("not authorized") || error.message.includes("Only customers and coordinators") || error.message.includes("not an admin")) {
         return 403;
     }
     if (error.message.includes("already")) {
@@ -34,11 +32,7 @@ export const createUserQuery = async (req, res) => {
                 message: "Unauthorized",
             });
         }
-        const input = {
-            requesterId,
-            subject: req.body.subject,
-            category: req.body.category,
-        };
+        const input = { requesterId, subject: req.body.subject, category: req.body.category };
         if (Object.prototype.hasOwnProperty.call(req.body, "message")) {
             input.message = req.body.message;
         }
@@ -107,10 +101,7 @@ export const getUserQueryById = async (req, res) => {
                 message: "Unauthorized",
             });
         }
-        const result = await UserQueryService.getUserQueryById({
-            queryId: req.params.queryId,
-            requesterId,
-        });
+        const result = await UserQueryService.getUserQueryById({ queryId: req.params.queryId, requesterId });
         return res.status(200).json({
             success: true,
             data: result,
@@ -132,10 +123,7 @@ export const sendUserQueryMessage = async (req, res) => {
                 message: "Unauthorized",
             });
         }
-        const input = {
-            queryId: req.params.queryId,
-            requesterId,
-        };
+        const input = { queryId: req.params.queryId, requesterId };
         if (Object.prototype.hasOwnProperty.call(req.body, "message")) {
             input.message = req.body.message;
         }
@@ -165,10 +153,7 @@ export const markUserQueryAsRead = async (req, res) => {
                 message: "Unauthorized",
             });
         }
-        const result = await UserQueryService.markUserQueryAsRead({
-            queryId: req.params.queryId,
-            actorId,
-        });
+        const result = await UserQueryService.markUserQueryAsRead({ queryId: req.params.queryId, actorId });
         return res.status(200).json({
             success: true,
             message: "Query marked as read",
@@ -243,10 +228,7 @@ export const getAdminUserQueryById = async (req, res) => {
                 message: "Unauthorized",
             });
         }
-        const result = await UserQueryService.getAdminUserQueryById({
-            queryId: req.params.queryId,
-            adminId,
-        });
+        const result = await UserQueryService.getAdminUserQueryById({ queryId: req.params.queryId, adminId });
         return res.status(200).json({
             success: true,
             data: result,
@@ -268,10 +250,7 @@ export const sendAdminQueryReply = async (req, res) => {
                 message: "Unauthorized",
             });
         }
-        const input = {
-            queryId: req.params.queryId,
-            adminId,
-        };
+        const input = { queryId: req.params.queryId, adminId };
         if (Object.prototype.hasOwnProperty.call(req.body, "message")) {
             input.message = req.body.message;
         }
@@ -301,11 +280,7 @@ export const updateUserQueryStatus = async (req, res) => {
                 message: "Unauthorized",
             });
         }
-        const input = {
-            queryId: req.params.queryId,
-            adminId,
-            status: req.body.status,
-        };
+        const input = { queryId: req.params.queryId, adminId, status: req.body.status };
         if (Object.prototype.hasOwnProperty.call(req.body, "reason")) {
             input.reason = req.body.reason;
         }
@@ -332,11 +307,7 @@ export const updateUserQueryPriority = async (req, res) => {
                 message: "Unauthorized",
             });
         }
-        const input = {
-            queryId: req.params.queryId,
-            adminId,
-            priority: req.body.priority,
-        };
+        const input = { queryId: req.params.queryId, adminId, priority: req.body.priority };
         if (Object.prototype.hasOwnProperty.call(req.body, "reason")) {
             input.reason = req.body.reason;
         }
@@ -363,11 +334,7 @@ export const updateUserQueryCategory = async (req, res) => {
                 message: "Unauthorized",
             });
         }
-        const input = {
-            queryId: req.params.queryId,
-            adminId,
-            category: req.body.category,
-        };
+        const input = { queryId: req.params.queryId, adminId, category: req.body.category };
         if (Object.prototype.hasOwnProperty.call(req.body, "reason")) {
             input.reason = req.body.reason;
         }
@@ -394,11 +361,7 @@ export const assignUserQuery = async (req, res) => {
                 message: "Unauthorized",
             });
         }
-        const result = await UserQueryService.assignUserQuery({
-            queryId: req.params.queryId,
-            adminId: req.body.adminId,
-            performedBy,
-        });
+        const result = await UserQueryService.assignUserQuery({ queryId: req.params.queryId, adminId: req.body.adminId, performedBy });
         return res.status(200).json({
             success: true,
             message: "Query assigned successfully",
@@ -421,11 +384,7 @@ export const deleteUserQuery = async (req, res) => {
                 message: "Unauthorized",
             });
         }
-        const result = await UserQueryService.deleteUserQuery({
-            queryId: req.params.queryId,
-            adminId,
-            reason: req.body.reason,
-        });
+        const result = await UserQueryService.deleteUserQuery({ queryId: req.params.queryId, adminId, reason: req.body.reason });
         return res.status(200).json({
             success: true,
             message: "Query deleted successfully",
@@ -441,27 +400,17 @@ export const deleteUserQuery = async (req, res) => {
 };
 export const exportUserQueriesCsv = async (req, res) => {
     try {
-        const { queryIds, } = req.body;
+        const { queryIds } = req.body;
         const result = await UserQueryService.exportUserQueriesToCsv(queryIds);
-        const timestamp = new Date()
-            .toISOString()
-            .replace(/[:.]/g, "-");
+        const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
         res.setHeader("Content-Type", "text/csv; charset=utf-8");
         res.setHeader("Content-Disposition", `attachment; filename="user-queries-${timestamp}.csv"`);
-        return res
-            .status(200)
-            .send(result.csv);
+        return res.status(200).send(result.csv);
     }
     catch (error) {
-        const message = error instanceof Error
-            ? error.message
-            : "Failed to export user queries";
-        const status = message.includes("not found")
-            ? 404
-            : 400;
-        return res
-            .status(status)
-            .json({
+        const message = error instanceof Error ? error.message : "Failed to export user queries";
+        const status = message.includes("not found") ? 404 : 400;
+        return res.status(status).json({
             success: false,
             message,
         });

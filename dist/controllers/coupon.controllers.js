@@ -11,7 +11,7 @@ const getErrorStatus = (error) => {
 };
 export const createCoupon = async (req, res) => {
     try {
-        const { name, couponCode, applicableOn, services, packages, assignedUserId, discount, discountType, usageLimit, validFrom, validTill, minOrderAmount, maxDiscountAmount, isFirstOrderOnly, } = req.body;
+        const { name, couponCode, applicableOn, services, packages, assignedUserId, discount, discountType, usageLimit, validFrom, validTill, minOrderAmount, maxDiscountAmount, isFirstOrderOnly } = req.body;
         const couponData = {
             name,
             couponCode,
@@ -54,25 +54,10 @@ export const updateCoupon = async (req, res) => {
     try {
         const { id } = req.params;
         const updateData = {};
-        const directFields = [
-            "name",
-            "couponCode",
-            "applicableOn",
-            "services",
-            "packages",
-            "assignedUserId",
-            "discount",
-            "discountType",
-            "usageLimit",
-            "minOrderAmount",
-            "maxDiscountAmount",
-            "isFirstOrderOnly",
-        ];
+        const directFields = ["name", "couponCode", "applicableOn", "services", "packages", "assignedUserId", "discount", "discountType", "usageLimit", "minOrderAmount", "maxDiscountAmount", "isFirstOrderOnly"];
         for (const field of directFields) {
             if (Object.prototype.hasOwnProperty.call(req.body, field)) {
-                Object.assign(updateData, {
-                    [field]: req.body[field],
-                });
+                Object.assign(updateData, { [field]: req.body[field] });
             }
         }
         if (Object.prototype.hasOwnProperty.call(req.body, "validFrom")) {
@@ -104,17 +89,13 @@ export const validateCoupon = async (req, res) => {
                 message: "Unauthorized access",
             });
         }
-        const { couponCode, serviceId, packageId, amount, } = req.body;
+        const { couponCode, serviceId, packageId, amount } = req.body;
         const input = {
             couponCode,
             orderAmount: amount,
             userId,
-            ...(serviceId !== undefined && {
-                serviceId,
-            }),
-            ...(packageId !== undefined && {
-                packageId,
-            }),
+            ...(serviceId !== undefined && { serviceId }),
+            ...(packageId !== undefined && { packageId }),
         };
         const result = await CouponService.validateCoupon(input);
         return res.status(200).json({
@@ -177,14 +158,10 @@ export const toggleCouponStatus = async (req, res) => {
 };
 export const getAllCoupons = async (req, res) => {
     try {
-        const { searchTerm, isActive, assignedUserId, applicableOn, limit, page, sortBy, sortOrder, } = req.query;
+        const { searchTerm, isActive, assignedUserId, applicableOn, limit, page, sortBy, sortOrder } = req.query;
         const parsedLimit = typeof limit === "number" ? limit : Number(limit);
         const parsedPage = typeof page === "number" ? page : Number(page);
-        const result = await CouponService.findCoupons(typeof searchTerm === "string" ? searchTerm : undefined, Number.isInteger(parsedLimit) && parsedLimit > 0
-            ? Math.min(parsedLimit, 100)
-            : 20, Number.isInteger(parsedPage) && parsedPage > 0 ? parsedPage : 1, isActive === "true" ? true : isActive === "false" ? false : undefined, typeof assignedUserId === "string" ? assignedUserId : undefined, typeof applicableOn === "string" || Array.isArray(applicableOn)
-            ? applicableOn
-            : undefined, typeof sortBy === "string" ? sortBy : "createdAt", sortOrder === "asc" ? "asc" : "desc");
+        const result = await CouponService.findCoupons(typeof searchTerm === "string" ? searchTerm : undefined, Number.isInteger(parsedLimit) && parsedLimit > 0 ? Math.min(parsedLimit, 100) : 20, Number.isInteger(parsedPage) && parsedPage > 0 ? parsedPage : 1, isActive === "true" ? true : isActive === "false" ? false : undefined, typeof assignedUserId === "string" ? assignedUserId : undefined, typeof applicableOn === "string" || Array.isArray(applicableOn) ? applicableOn : undefined, typeof sortBy === "string" ? sortBy : "createdAt", sortOrder === "asc" ? "asc" : "desc");
         return res.status(200).json({
             success: true,
             ...result,
@@ -206,18 +183,12 @@ export const getAvailableCoupons = async (req, res) => {
                 message: "Unauthorized access",
             });
         }
-        const { serviceId, packageId, amount, } = req.query;
+        const { serviceId, packageId, amount } = req.query;
         const coupons = await CouponService.getAvailableCoupons({
             userId,
-            ...(typeof serviceId === "string" && {
-                serviceId,
-            }),
-            ...(typeof packageId === "string" && {
-                packageId,
-            }),
-            ...(amount !== undefined && {
-                orderAmount: Number(amount),
-            }),
+            ...(typeof serviceId === "string" && { serviceId }),
+            ...(typeof packageId === "string" && { packageId }),
+            ...(amount !== undefined && { orderAmount: Number(amount) }),
         });
         return res.status(200).json({
             success: true,
@@ -234,19 +205,16 @@ export const getAvailableCoupons = async (req, res) => {
 };
 export const exportCouponsCsv = async (req, res) => {
     try {
-        const { couponIds, } = req.body;
+        const { couponIds } = req.body;
         const result = await CouponService.exportCouponsToCsv(couponIds);
-        const timestamp = new Date()
-            .toISOString()
-            .replace(/[:.]/g, "-");
+        const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
         res.setHeader("Content-Type", "text/csv; charset=utf-8");
         res.setHeader("Content-Disposition", `attachment; filename="coupons-${timestamp}.csv"`);
         return res.status(200).send(result.csv);
     }
     catch (error) {
         const message = getErrorMessage(error, "Failed to export coupons");
-        if (message ===
-            "No coupons found for export") {
+        if (message === "No coupons found for export") {
             return res.status(404).json({
                 success: false,
                 message,

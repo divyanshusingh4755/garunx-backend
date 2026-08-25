@@ -1,18 +1,7 @@
 import { Schema, model, Types, type Document } from "mongoose";
 
-export type FamilyTreeActivityAction =
-  | "MEMBER_ADDED"
-  | "MEMBER_UPDATED"
-  | "MEMBER_DELETED"
-  | "MEMBER_RESTORED"
-  | "RELATIONSHIP_LINKED"
-  | "RELATIONSHIP_UNLINKED";
-
-export type FamilyTreeActivitySource =
-  | "CUSTOMER_SELF"
-  | "COORDINATOR_BOOKING"
-  | "ADMIN_MANUAL"
-  | "SYSTEM_IMPORT";
+export type FamilyTreeActivityAction = "MEMBER_ADDED" | "MEMBER_UPDATED" | "MEMBER_DELETED" | "MEMBER_RESTORED" | "RELATIONSHIP_LINKED" | "RELATIONSHIP_UNLINKED";
+export type FamilyTreeActivitySource = "CUSTOMER_SELF" | "COORDINATOR_BOOKING" | "ADMIN_MANUAL" | "SYSTEM_IMPORT";
 
 export interface IFamilyTreeChange {
   field: string;
@@ -23,25 +12,15 @@ export interface IFamilyTreeChange {
 export interface IFamilyTreeActivity extends Document {
   ownerId: Types.ObjectId;
   familyMemberId: Types.ObjectId;
-
   action: FamilyTreeActivityAction;
-
   performedBy: Types.ObjectId;
-
   performedByRole: string;
-
   source: FamilyTreeActivitySource;
-
   bookingId?: Types.ObjectId;
-
   bookingReference?: string;
-
   changes: IFamilyTreeChange[];
-
   reason?: string;
-
   metadata?: Record<string, unknown>;
-
   createdAt: Date;
 }
 
@@ -84,14 +63,7 @@ const familyTreeActivitySchema = new Schema<IFamilyTreeActivity>(
 
     action: {
       type: String,
-      enum: [
-        "MEMBER_ADDED",
-        "MEMBER_UPDATED",
-        "MEMBER_DELETED",
-        "MEMBER_RESTORED",
-        "RELATIONSHIP_LINKED",
-        "RELATIONSHIP_UNLINKED",
-      ] satisfies FamilyTreeActivityAction[],
+      enum: ["MEMBER_ADDED", "MEMBER_UPDATED", "MEMBER_DELETED", "MEMBER_RESTORED", "RELATIONSHIP_LINKED", "RELATIONSHIP_UNLINKED"] satisfies FamilyTreeActivityAction[],
       required: true,
       index: true,
     },
@@ -110,12 +82,7 @@ const familyTreeActivitySchema = new Schema<IFamilyTreeActivity>(
 
     source: {
       type: String,
-      enum: [
-        "CUSTOMER_SELF",
-        "COORDINATOR_BOOKING",
-        "ADMIN_MANUAL",
-        "SYSTEM_IMPORT",
-      ] satisfies FamilyTreeActivitySource[],
+      enum: ["CUSTOMER_SELF", "COORDINATOR_BOOKING", "ADMIN_MANUAL", "SYSTEM_IMPORT"] satisfies FamilyTreeActivitySource[],
       required: true,
     },
 
@@ -158,39 +125,16 @@ familyTreeActivitySchema.pre("validate", function (): void {
   }
 
   if (this.source !== "COORDINATOR_BOOKING" && this.bookingId) {
-    throw new Error(
-      "bookingId can only be provided for coordinator booking activity",
-    );
+    throw new Error("bookingId can only be provided for coordinator booking activity");
   }
 
-  if (
-    (this.action === "MEMBER_UPDATED" ||
-      this.action === "RELATIONSHIP_LINKED" ||
-      this.action === "RELATIONSHIP_UNLINKED") &&
-    this.changes.length === 0
-  ) {
-    throw new Error(
-      "Changes are required for update and relationship activities",
-    );
+  if ((this.action === "MEMBER_UPDATED" || this.action === "RELATIONSHIP_LINKED" || this.action === "RELATIONSHIP_UNLINKED") && this.changes.length === 0) {
+    throw new Error("Changes are required for update and relationship activities");
   }
 });
 
-familyTreeActivitySchema.index({
-  ownerId: 1,
-  createdAt: -1,
-});
+familyTreeActivitySchema.index({ ownerId: 1, createdAt: -1 });
+familyTreeActivitySchema.index({ familyMemberId: 1, createdAt: -1 });
+familyTreeActivitySchema.index({ bookingId: 1, createdAt: -1 });
 
-familyTreeActivitySchema.index({
-  familyMemberId: 1,
-  createdAt: -1,
-});
-
-familyTreeActivitySchema.index({
-  bookingId: 1,
-  createdAt: -1,
-});
-
-export const FamilyTreeActivity = model<IFamilyTreeActivity>(
-  "FamilyTreeActivity",
-  familyTreeActivitySchema,
-);
+export const FamilyTreeActivity = model<IFamilyTreeActivity>("FamilyTreeActivity", familyTreeActivitySchema);

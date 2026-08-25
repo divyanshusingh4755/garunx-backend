@@ -23,212 +23,94 @@ export interface IChatMessage extends Document {
   updatedAt: Date;
 }
 
-const isHttpUrl = (
-  value: string,
-): boolean => {
+const isHttpUrl = (value: string): boolean => {
   try {
-    const parsed =
-      new URL(value);
-
-    return (
-      parsed.protocol === "http:" ||
-      parsed.protocol === "https:"
-    );
-  } catch {
-    return false;
-  }
+    const parsed = new URL(value);
+    return (parsed.protocol === "http:" || parsed.protocol === "https:");
+  } catch { return false; }
 };
 
-const chatMessageSchema =
-  new Schema<IChatMessage>(
-    {
-      conversationId: {
-        type:
-          Schema.Types.ObjectId,
-        ref:
-          "ChatConversation",
-        required:
-          true,
-        index:
-          true,
-      },
+const chatMessageSchema = new Schema<IChatMessage>(
+  {
+    conversationId: {
+      type: Schema.Types.ObjectId,
+      ref: "ChatConversation",
+      required: true,
+      index: true,
+    },
 
-      senderId: {
-        type:
-          Schema.Types.ObjectId,
-        ref:
-          "User",
-        required:
-          true,
-        index:
-          true,
-      },
+    senderId: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+      index: true,
+    },
 
-      type: {
-        type:
-          String,
-        enum:
-          Object.values(
-            ChatMessageType,
-          ),
-        required:
-          true,
-      },
+    type: {
+      type: String,
+      enum: Object.values(ChatMessageType),
+      required: true,
+    },
 
-      text: {
-        type:
-          String,
-        trim:
-          true,
-        maxlength:
-          5000,
-      },
+    text: {
+      type: String,
+      trim: true,
+      maxlength: 5000,
+    },
 
-      images: {
-        type: [
-          {
-            type:
-              String,
-            trim:
-              true,
-            maxlength:
-              2000,
-            validate: {
-              validator:
-                isHttpUrl,
-
-              message:
-                "Each image must be a valid HTTP or HTTPS URL",
-            },
+    images: {
+      type: [
+        {
+          type: String,
+          trim: true,
+          maxlength: 2000,
+          validate: {
+            validator: isHttpUrl,
+            message: "Each image must be a valid HTTP or HTTPS URL",
           },
-        ],
-
-        default:
-          [],
-
-        validate: {
-          validator:
-            (
-              value:
-                string[],
-            ): boolean =>
-              Array.isArray(
-                value,
-              ) &&
-              value.length <=
-              5,
-
-          message:
-            "Maximum 5 images are allowed per message",
         },
-      },
+      ],
 
-      clientMessageId: {
-        type:
-          String,
-        required:
-          true,
-        trim:
-          true,
-        maxlength:
-          128,
-      },
+      default: [],
 
-      replyToMessageId: {
-        type:
-          Schema.Types.ObjectId,
-        ref:
-          "ChatMessage",
+      validate: {
+        validator: (value: string[]): boolean => Array.isArray(value) && value.length <= 5,
+        message: "Maximum 5 images are allowed per message",
       },
     },
-    {
-      timestamps:
-        true,
+
+    clientMessageId: {
+      type: String,
+      required: true,
+      trim: true,
+      maxlength: 128,
     },
-  );
 
-chatMessageSchema.pre(
-  "validate",
-  function () {
-    const normalizedText =
-      this.text?.trim();
-
-    const images =
-      this.images ?? [];
-
-    if (
-      this.type ===
-      ChatMessageType.TEXT
-    ) {
-      if (
-        !normalizedText
-      ) {
-        throw new Error(
-          "Text is required for TEXT message",
-        );
-      }
-
-      if (
-        images.length >
-        0
-      ) {
-        throw new Error(
-          "Text message cannot contain images",
-        );
-      }
-    }
-
-    if (
-      this.type ===
-      ChatMessageType.IMAGE &&
-      images.length ===
-      0
-    ) {
-      throw new Error(
-        "At least one image is required for IMAGE message",
-      );
-    }
-
-    if (
-      !this.clientMessageId?.trim()
-    ) {
-      throw new Error(
-        "Client message ID is required",
-      );
-    }
+    replyToMessageId: {
+      type: Schema.Types.ObjectId,
+      ref: "ChatMessage",
+    },
+  },
+  {
+    timestamps: true,
   },
 );
 
-chatMessageSchema.index({
-  conversationId:
-    1,
+chatMessageSchema.pre("validate", function () {
+  const normalizedText = this.text?.trim();
+  const images = this.images ?? [];
 
-  createdAt:
-    -1,
+  if (this.type === ChatMessageType.TEXT) {
+    if (!normalizedText) { throw new Error("Text is required for TEXT message"); }
+    if (images.length > 0) { throw new Error("Text message cannot contain images"); }
+  }
 
-  _id:
-    -1,
-});
-
-chatMessageSchema.index(
-  {
-    conversationId:
-      1,
-
-    senderId:
-      1,
-
-    clientMessageId:
-      1,
-  },
-  {
-    unique:
-      true,
-  },
+  if (this.type === ChatMessageType.IMAGE && images.length === 0) { throw new Error("At least one image is required for IMAGE message"); }
+  if (!this.clientMessageId?.trim()) { throw new Error("Client message ID is required"); }
+},
 );
 
-export const ChatMessage =
-  model<IChatMessage>(
-    "ChatMessage",
-    chatMessageSchema,
-  );
+chatMessageSchema.index({ conversationId: 1, createdAt: -1, _id: -1 });
+chatMessageSchema.index({ conversationId: 1, senderId: 1, clientMessageId: 1 }, { unique: true, });
+
+export const ChatMessage = model<IChatMessage>("ChatMessage", chatMessageSchema);

@@ -2,18 +2,9 @@ import type { Request, Response } from "express";
 import { StateService } from "../services/state.service.js";
 
 const getStatusCode = (error: any): number => {
-  if (typeof error?.statusCode === "number") {
-    return error.statusCode;
-  }
-
-  if (error?.name === "ValidationError") {
-    return 400;
-  }
-
-  if (error?.code === 11000) {
-    return 409;
-  }
-
+  if (typeof error?.statusCode === "number") { return error.statusCode; }
+  if (error?.name === "ValidationError") { return 400; }
+  if (error?.code === 11000) { return 409; }
   return 500;
 };
 
@@ -45,10 +36,7 @@ export const createState = async (req: Request, res: Response) => {
 
 export const updateState = async (req: Request, res: Response) => {
   try {
-    const result = await StateService.updateState(
-      req.params.id as string,
-      req.body,
-    );
+    const result = await StateService.updateState(req.params.id as string, req.body);
 
     return res.status(200).json({
       success: true,
@@ -64,15 +52,7 @@ export const updateState = async (req: Request, res: Response) => {
 
 export const getAllState = async (req: Request, res: Response) => {
   try {
-    const {
-      searchTerm,
-      stateFilter,
-      countryFilter,
-      limit,
-      page,
-      sortBy,
-      sortOrder,
-    } = req.query;
+    const { searchTerm, stateFilter, countryFilter, limit, page, sortBy, sortOrder } = req.query;
 
     const result = await StateService.findState({
       limit: limit ? Number(limit) : 40,
@@ -80,28 +60,11 @@ export const getAllState = async (req: Request, res: Response) => {
 
       isActive: true,
 
-      sortBy:
-        typeof sortBy === "string"
-          ? sortBy
-          : "createdAt",
-
-      sortOrder:
-        sortOrder === "asc" ||
-          sortOrder === "desc"
-          ? sortOrder
-          : "desc",
-
-      ...(typeof searchTerm === "string" && {
-        searchTerm,
-      }),
-
-      ...(typeof countryFilter === "string" && {
-        countryFilter,
-      }),
-
-      ...(typeof stateFilter === "string" && {
-        stateFilter,
-      }),
+      sortBy: typeof sortBy === "string" ? sortBy : "createdAt",
+      sortOrder: sortOrder === "asc" || sortOrder === "desc" ? sortOrder : "desc",
+      ...(typeof searchTerm === "string" && { searchTerm }),
+      ...(typeof countryFilter === "string" && { countryFilter }),
+      ...(typeof stateFilter === "string" && { stateFilter }),
     });
 
     return res.status(200).json({
@@ -119,59 +82,21 @@ export const getAllState = async (req: Request, res: Response) => {
   }
 };
 
-export const getAllStatesAdmin = async (
-  req: Request,
-  res: Response,
-) => {
+export const getAllStatesAdmin = async (req: Request, res: Response) => {
   try {
-    const {
-      searchTerm,
-      stateFilter,
-      countryFilter,
-      limit,
-      page,
-      isActive,
-      sortBy,
-      sortOrder,
-    } = req.query;
+    const { searchTerm, stateFilter, countryFilter, limit, page, isActive, sortBy, sortOrder } = req.query;
 
-    const activeStatus =
-      isActive === "true"
-        ? true
-        : isActive === "false"
-          ? false
-          : undefined;
+    const activeStatus = isActive === "true" ? true : isActive === "false" ? false : undefined;
 
     const result = await StateService.findState({
       limit: limit ? Number(limit) : 40,
       page: page ? Number(page) : 1,
-
-      sortBy:
-        typeof sortBy === "string"
-          ? sortBy
-          : "createdAt",
-
-      sortOrder:
-        sortOrder === "asc" ||
-          sortOrder === "desc"
-          ? sortOrder
-          : "desc",
-
-      ...(typeof searchTerm === "string" && {
-        searchTerm,
-      }),
-
-      ...(typeof countryFilter === "string" && {
-        countryFilter,
-      }),
-
-      ...(typeof stateFilter === "string" && {
-        stateFilter,
-      }),
-
-      ...(typeof activeStatus === "boolean" && {
-        isActive: activeStatus,
-      }),
+      sortBy: typeof sortBy === "string" ? sortBy : "createdAt",
+      sortOrder: sortOrder === "asc" || sortOrder === "desc" ? sortOrder : "desc",
+      ...(typeof searchTerm === "string" && { searchTerm }),
+      ...(typeof countryFilter === "string" && { countryFilter }),
+      ...(typeof stateFilter === "string" && { stateFilter }),
+      ...(typeof activeStatus === "boolean" && { isActive: activeStatus }),
     });
 
     return res.status(200).json({
@@ -184,9 +109,7 @@ export const getAllStatesAdmin = async (
   } catch (error: any) {
     return res.status(getStatusCode(error)).json({
       success: false,
-      message:
-        error.message ||
-        "Failed to fetch states",
+      message: error.message || "Failed to fetch states",
     });
   }
 };
@@ -211,10 +134,7 @@ export const deleteState = async (req: Request, res: Response) => {
   try {
     const { status } = req.body;
 
-    const state = await StateService.softDeleteState(
-      req.params.id as string,
-      status,
-    );
+    const state = await StateService.softDeleteState(req.params.id as string, status);
 
     return res.status(200).json({
       success: true,
@@ -229,53 +149,26 @@ export const deleteState = async (req: Request, res: Response) => {
   }
 };
 
-export const exportStatesCsv = async (
-  req: Request,
-  res: Response,
-) => {
+export const exportStatesCsv = async (req: Request, res: Response) => {
   try {
-    const {
-      stateIds,
-      exportAll = false,
-    }: {
-      stateIds?: string[];
-      exportAll?: boolean;
-    } = req.body;
+    const { stateIds, exportAll = false }: { stateIds?: string[]; exportAll?: boolean; } = req.body;
 
-    const result =
-      await StateService.exportStatesToCsv({
-        exportAll,
-        ...(stateIds !== undefined && {
-          stateIds,
-        }),
-      });
+    const result = await StateService.exportStatesToCsv({
+      exportAll,
+      ...(stateIds !== undefined && { stateIds, }),
+    });
 
-    const timestamp =
-      new Date()
-        .toISOString()
-        .replace(/[:.]/g, "-");
+    const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
 
-    res.setHeader(
-      "Content-Type",
-      "text/csv; charset=utf-8",
-    );
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="states-${timestamp}.csv"`);
 
-    res.setHeader(
-      "Content-Disposition",
-      `attachment; filename="states-${timestamp}.csv"`,
-    );
-
-    return res
-      .status(200)
-      .send(result.csv);
+    return res.status(200).send(result.csv);
   } catch (error: any) {
     return res
-      .status(getStatusCode(error))
-      .json({
+      .status(getStatusCode(error)).json({
         success: false,
-        message:
-          error.message ||
-          "Failed to export states",
+        message: error.message || "Failed to export states",
       });
   }
 };

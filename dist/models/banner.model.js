@@ -68,9 +68,7 @@ const bannerSchema = new Schema({
 });
 bannerSchema.pre("validate", function () {
     const redirectType = this.redirect?.type ?? "NONE";
-    this.redirect ??= {
-        type: "NONE",
-    };
+    this.redirect ??= { type: "NONE" };
     if (["SERVICE", "PACKAGE", "CATEGORY", "PRODUCT"].includes(redirectType)) {
         if (!this.redirect.refId) {
             throw new Error("refId is required for this redirect type");
@@ -88,24 +86,9 @@ bannerSchema.pre("validate", function () {
     delete this.redirect.refId;
     delete this.redirect.url;
 });
-bannerSchema.index({
-    name: 1,
-});
-bannerSchema.index({
-    placement: 1,
-    format: 1,
-    isActive: 1,
-    displayOrder: 1,
-});
-bannerSchema.index({
-    "redirect.type": 1,
-    "redirect.refId": 1,
-});
-bannerSchema.index({
-    name: "text",
-    description: "text",
-}, {
-    name: "BannerTextSearchIndex",
-});
+bannerSchema.index({ name: 1 });
+bannerSchema.index({ placement: 1, format: 1, isActive: 1, displayOrder: 1 });
+bannerSchema.index({ "redirect.type": 1, "redirect.refId": 1 });
+bannerSchema.index({ name: "text", description: "text" }, { name: "BannerTextSearchIndex" });
 export const Banner = model("Banner", bannerSchema);
 //# sourceMappingURL=banner.model.js.map

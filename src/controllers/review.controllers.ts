@@ -1,78 +1,28 @@
 import type { Request, Response } from "express";
-
 import { ReviewService } from "../services/review.services.js";
+import type { ReviewDirection, ReviewModerationStatus, ReviewVisibility, } from "../models/review.model.js";
 
-import type {
-  ReviewDirection,
-  ReviewModerationStatus,
-  ReviewVisibility,
-} from "../models/review.model.js";
+type ModerationAction = "HIDE" | "UNPUBLISH" | "PUBLISH" | "FLAG" | "UNFLAG" | "DELETE";
 
-type ModerationAction =
-  | "HIDE"
-  | "UNPUBLISH"
-  | "PUBLISH"
-  | "FLAG"
-  | "UNFLAG"
-  | "DELETE";
-
-const getErrorMessage = (error: unknown, fallback: string): string =>
-  error instanceof Error ? error.message : fallback;
+const getErrorMessage = (error: unknown, fallback: string): string => error instanceof Error ? error.message : fallback;
 
 const getErrorStatus = (error: unknown): number => {
-  if (!(error instanceof Error)) {
-    return 400;
-  }
-
-  if (error.message.includes("not found")) {
-    return 404;
-  }
-
-  if (error.message.includes("not authorized")) {
-    return 403;
-  }
-
-  if (
-    error.message.includes("already reviewed") ||
-    error.message.includes("already exists")
-  ) {
-    return 409;
-  }
-
+  if (!(error instanceof Error)) { return 400; }
+  if (error.message.includes("not found")) { return 404; }
+  if (error.message.includes("not authorized")) { return 403; }
+  if (error.message.includes("already reviewed") || error.message.includes("already exists")) { return 409; }
   return 400;
 };
 
-const parsePositiveInteger = (
-  value: unknown,
-  fallback: number,
-  maximum?: number,
-): number => {
+const parsePositiveInteger = (value: unknown, fallback: number, maximum?: number,): number => {
   const parsed = typeof value === "number" ? value : Number(value);
-
-  if (!Number.isInteger(parsed) || parsed < 1) {
-    return fallback;
-  }
-
+  if (!Number.isInteger(parsed) || parsed < 1) { return fallback; }
   return maximum ? Math.min(parsed, maximum) : parsed;
 };
 
 export const getAllReviews = async (req: Request, res: Response) => {
   try {
-    const {
-      searchTerm,
-      direction,
-      visibility,
-      moderationStatus,
-      isDeleted,
-      rating,
-      reviewerId,
-      revieweeId,
-      bookingId,
-      limit,
-      page,
-      sortBy,
-      sortOrder,
-    } = req.query;
+    const { searchTerm, direction, visibility, moderationStatus, isDeleted, rating, reviewerId, revieweeId, bookingId, limit, page, sortBy, sortOrder } = req.query;
 
     const params: Parameters<typeof ReviewService.getAllReviews>[0] = {
       limit: parsePositiveInteger(limit, 40, 100),
@@ -81,43 +31,15 @@ export const getAllReviews = async (req: Request, res: Response) => {
       sortOrder: sortOrder === "asc" ? "asc" : "desc",
     };
 
-    if (typeof searchTerm === "string") {
-      params.searchTerm = searchTerm;
-    }
-
-    if (typeof direction === "string") {
-      params.direction = direction as ReviewDirection;
-    }
-
-    if (typeof visibility === "string") {
-      params.visibility = visibility as ReviewVisibility;
-    }
-
-    if (typeof moderationStatus === "string") {
-      params.moderationStatus = moderationStatus as ReviewModerationStatus;
-    }
-
-    if (isDeleted === "true") {
-      params.isDeleted = true;
-    } else if (isDeleted === "false") {
-      params.isDeleted = false;
-    }
-
-    if (rating !== undefined) {
-      params.rating = Number(rating);
-    }
-
-    if (typeof reviewerId === "string") {
-      params.reviewerId = reviewerId;
-    }
-
-    if (typeof revieweeId === "string") {
-      params.revieweeId = revieweeId;
-    }
-
-    if (typeof bookingId === "string") {
-      params.bookingId = bookingId;
-    }
+    if (typeof searchTerm === "string") { params.searchTerm = searchTerm; }
+    if (typeof direction === "string") { params.direction = direction as ReviewDirection; }
+    if (typeof visibility === "string") { params.visibility = visibility as ReviewVisibility; }
+    if (typeof moderationStatus === "string") { params.moderationStatus = moderationStatus as ReviewModerationStatus; }
+    if (isDeleted === "true") { params.isDeleted = true; } else if (isDeleted === "false") { params.isDeleted = false; }
+    if (rating !== undefined) { params.rating = Number(rating); }
+    if (typeof reviewerId === "string") { params.reviewerId = reviewerId; }
+    if (typeof revieweeId === "string") { params.revieweeId = revieweeId; }
+    if (typeof bookingId === "string") { params.bookingId = bookingId; }
 
     const result = await ReviewService.getAllReviews(params);
 
@@ -154,13 +76,8 @@ export const createReview = async (req: Request, res: Response) => {
       rating: req.body.rating,
     };
 
-    if (Object.prototype.hasOwnProperty.call(req.body, "review")) {
-      input.review = req.body.review;
-    }
-
-    if (Object.prototype.hasOwnProperty.call(req.body, "imageUrl")) {
-      input.imageUrl = req.body.imageUrl;
-    }
+    if (Object.prototype.hasOwnProperty.call(req.body, "review")) { input.review = req.body.review; }
+    if (Object.prototype.hasOwnProperty.call(req.body, "imageUrl")) { input.imageUrl = req.body.imageUrl; }
 
     const createdReview = await ReviewService.createReviewService(input);
 
@@ -193,17 +110,9 @@ export const editReview = async (req: Request, res: Response) => {
       reviewerId: reviewerId.toString(),
     };
 
-    if (Object.prototype.hasOwnProperty.call(req.body, "rating")) {
-      input.rating = req.body.rating;
-    }
-
-    if (Object.prototype.hasOwnProperty.call(req.body, "review")) {
-      input.review = req.body.review;
-    }
-
-    if (Object.prototype.hasOwnProperty.call(req.body, "imageUrl")) {
-      input.imageUrl = req.body.imageUrl;
-    }
+    if (Object.prototype.hasOwnProperty.call(req.body, "rating")) { input.rating = req.body.rating; }
+    if (Object.prototype.hasOwnProperty.call(req.body, "review")) { input.review = req.body.review; }
+    if (Object.prototype.hasOwnProperty.call(req.body, "imageUrl")) { input.imageUrl = req.body.imageUrl; }
 
     const updatedReview = await ReviewService.editReviewService(input);
 
@@ -237,9 +146,7 @@ export const moderateReview = async (req: Request, res: Response) => {
       action: req.body.action as ModerationAction,
     };
 
-    if (Object.prototype.hasOwnProperty.call(req.body, "reason")) {
-      input.reason = req.body.reason;
-    }
+    if (Object.prototype.hasOwnProperty.call(req.body, "reason")) { input.reason = req.body.reason; }
 
     const moderatedReview = await ReviewService.moderateReviewService(input);
 
@@ -299,18 +206,12 @@ export const getMyReviews = async (req: Request, res: Response) => {
       userId: userId.toString(),
       limit: parsePositiveInteger(req.query.limit, 20, 100),
       page: parsePositiveInteger(req.query.page, 1),
-      sortBy:
-        typeof req.query.sortBy === "string" ? req.query.sortBy : "createdAt",
+      sortBy: typeof req.query.sortBy === "string" ? req.query.sortBy : "createdAt",
       sortOrder: req.query.sortOrder === "asc" ? "asc" : "desc",
     };
 
-    if (req.query.rating !== undefined) {
-      params.rating = Number(req.query.rating);
-    }
-
-    if (typeof req.query.direction === "string") {
-      params.direction = req.query.direction as ReviewDirection;
-    }
+    if (req.query.rating !== undefined) { params.rating = Number(req.query.rating); }
+    if (typeof req.query.direction === "string") { params.direction = req.query.direction as ReviewDirection; }
 
     const result = await ReviewService.getMyReviews(params);
 
@@ -336,14 +237,11 @@ export const getCoordinatorReviews = async (req: Request, res: Response) => {
       coordinatorId: req.params.coordinatorId as string,
       limit: parsePositiveInteger(req.query.limit, 20, 100),
       page: parsePositiveInteger(req.query.page, 1),
-      sortBy:
-        typeof req.query.sortBy === "string" ? req.query.sortBy : "createdAt",
+      sortBy: typeof req.query.sortBy === "string" ? req.query.sortBy : "createdAt",
       sortOrder: req.query.sortOrder === "asc" ? "asc" : "desc",
     };
 
-    if (req.query.rating !== undefined) {
-      params.rating = Number(req.query.rating);
-    }
+    if (req.query.rating !== undefined) { params.rating = Number(req.query.rating); }
 
     const result = await ReviewService.getCoordinatorReviews(params);
 
@@ -364,62 +262,20 @@ export const getCoordinatorReviews = async (req: Request, res: Response) => {
   }
 };
 
-export const exportReviewsCsv = async (
-  req: Request,
-  res: Response,
-) => {
+export const exportReviewsCsv = async (req: Request, res: Response) => {
   try {
-    const {
-      reviewIds,
-    }: {
-      reviewIds: string[];
-    } = req.body;
+    const { reviewIds }: { reviewIds: string[] } = req.body;
+    const result = await ReviewService.exportReviewsToCsv(reviewIds);
+    const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
 
-    const result =
-      await ReviewService.exportReviewsToCsv(
-        reviewIds,
-      );
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="reviews-${timestamp}.csv"`);
 
-    const timestamp =
-      new Date()
-        .toISOString()
-        .replace(
-          /[:.]/g,
-          "-",
-        );
-
-    res.setHeader(
-      "Content-Type",
-      "text/csv; charset=utf-8",
-    );
-
-    res.setHeader(
-      "Content-Disposition",
-      `attachment; filename="reviews-${timestamp}.csv"`,
-    );
-
-    return res
-      .status(200)
-      .send(
-        result.csv,
-      );
-  } catch (
-  error: unknown
-  ) {
-    return res
-      .status(
-        getErrorStatus(
-          error,
-        ),
-      )
-      .json({
-        success: false,
-
-        message:
-          getErrorMessage(
-            error,
-            "Failed to export reviews",
-          ),
-      });
+    return res.status(200).send(result.csv);
+  } catch (error: unknown) {
+    return res.status(getErrorStatus(error)).json({
+      success: false,
+      message: getErrorMessage(error, "Failed to export reviews")
+    });
   }
 };

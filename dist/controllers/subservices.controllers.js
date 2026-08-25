@@ -18,12 +18,8 @@ export const createSubServiceComponent = async (req, res) => {
             name,
             description,
             serviceId,
-            ...(image !== undefined && {
-                image,
-            }),
-            ...(isActive !== undefined && {
-                isActive,
-            }),
+            ...(image !== undefined && { image }),
+            ...(isActive !== undefined && { isActive }),
         });
         return res.status(201).json({
             success: true,
@@ -55,24 +51,15 @@ export const updateSubServiceComponent = async (req, res) => {
 };
 export const getAllSubServiceComponents = async (req, res) => {
     try {
-        const { searchTerm, serviceId, limit, page, sortBy, sortOrder, } = req.query;
+        const { searchTerm, serviceId, limit, page, sortBy, sortOrder } = req.query;
         const result = await SubServiceComponentService.findSubServiceComponents({
             limit: limit ? Number(limit) : 40,
             page: page ? Number(page) : 1,
             isActive: true,
-            sortBy: typeof sortBy === "string"
-                ? sortBy
-                : "name",
-            sortOrder: sortOrder === "asc" ||
-                sortOrder === "desc"
-                ? sortOrder
-                : "asc",
-            ...(typeof searchTerm === "string" && {
-                searchTerm,
-            }),
-            ...(typeof serviceId === "string" && {
-                serviceId,
-            }),
+            sortBy: typeof sortBy === "string" ? sortBy : "name",
+            sortOrder: sortOrder === "asc" || sortOrder === "desc" ? sortOrder : "asc",
+            ...(typeof searchTerm === "string" && { searchTerm }),
+            ...(typeof serviceId === "string" && { serviceId }),
         });
         return res.status(200).json({
             success: true,
@@ -85,38 +72,22 @@ export const getAllSubServiceComponents = async (req, res) => {
     catch (error) {
         return res.status(getStatusCode(error)).json({
             success: false,
-            message: error.message ||
-                "Failed to fetch Sub Service Components",
+            message: error.message || "Failed to fetch Sub Service Components",
         });
     }
 };
 export const getAllSubServiceComponentsAdmin = async (req, res) => {
     try {
-        const { searchTerm, serviceId, limit, page, isActive, sortBy, sortOrder, } = req.query;
-        const activeStatus = isActive === "true"
-            ? true
-            : isActive === "false"
-                ? false
-                : undefined;
+        const { searchTerm, serviceId, limit, page, isActive, sortBy, sortOrder } = req.query;
+        const activeStatus = isActive === "true" ? true : isActive === "false" ? false : undefined;
         const result = await SubServiceComponentService.findSubServiceComponents({
             limit: limit ? Number(limit) : 40,
             page: page ? Number(page) : 1,
-            sortBy: typeof sortBy === "string"
-                ? sortBy
-                : "name",
-            sortOrder: sortOrder === "asc" ||
-                sortOrder === "desc"
-                ? sortOrder
-                : "asc",
-            ...(typeof searchTerm === "string" && {
-                searchTerm,
-            }),
-            ...(typeof serviceId === "string" && {
-                serviceId,
-            }),
-            ...(typeof activeStatus === "boolean" && {
-                isActive: activeStatus,
-            }),
+            sortBy: typeof sortBy === "string" ? sortBy : "name",
+            sortOrder: sortOrder === "asc" || sortOrder === "desc" ? sortOrder : "asc",
+            ...(typeof searchTerm === "string" && { searchTerm }),
+            ...(typeof serviceId === "string" && { serviceId }),
+            ...(typeof activeStatus === "boolean" && { isActive: activeStatus }),
         });
         return res.status(200).json({
             success: true,
@@ -127,12 +98,9 @@ export const getAllSubServiceComponentsAdmin = async (req, res) => {
         });
     }
     catch (error) {
-        return res
-            .status(getStatusCode(error))
-            .json({
+        return res.status(getStatusCode(error)).json({
             success: false,
-            message: error.message ||
-                "Failed to fetch Sub Service Components",
+            message: error.message || "Failed to fetch Sub Service Components",
         });
     }
 };

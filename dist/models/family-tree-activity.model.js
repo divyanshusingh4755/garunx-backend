@@ -29,14 +29,7 @@ const familyTreeActivitySchema = new Schema({
     },
     action: {
         type: String,
-        enum: [
-            "MEMBER_ADDED",
-            "MEMBER_UPDATED",
-            "MEMBER_DELETED",
-            "MEMBER_RESTORED",
-            "RELATIONSHIP_LINKED",
-            "RELATIONSHIP_UNLINKED",
-        ],
+        enum: ["MEMBER_ADDED", "MEMBER_UPDATED", "MEMBER_DELETED", "MEMBER_RESTORED", "RELATIONSHIP_LINKED", "RELATIONSHIP_UNLINKED"],
         required: true,
         index: true,
     },
@@ -52,12 +45,7 @@ const familyTreeActivitySchema = new Schema({
     },
     source: {
         type: String,
-        enum: [
-            "CUSTOMER_SELF",
-            "COORDINATOR_BOOKING",
-            "ADMIN_MANUAL",
-            "SYSTEM_IMPORT",
-        ],
+        enum: ["CUSTOMER_SELF", "COORDINATOR_BOOKING", "ADMIN_MANUAL", "SYSTEM_IMPORT"],
         required: true,
     },
     bookingId: {
@@ -93,24 +81,12 @@ familyTreeActivitySchema.pre("validate", function () {
     if (this.source !== "COORDINATOR_BOOKING" && this.bookingId) {
         throw new Error("bookingId can only be provided for coordinator booking activity");
     }
-    if ((this.action === "MEMBER_UPDATED" ||
-        this.action === "RELATIONSHIP_LINKED" ||
-        this.action === "RELATIONSHIP_UNLINKED") &&
-        this.changes.length === 0) {
+    if ((this.action === "MEMBER_UPDATED" || this.action === "RELATIONSHIP_LINKED" || this.action === "RELATIONSHIP_UNLINKED") && this.changes.length === 0) {
         throw new Error("Changes are required for update and relationship activities");
     }
 });
-familyTreeActivitySchema.index({
-    ownerId: 1,
-    createdAt: -1,
-});
-familyTreeActivitySchema.index({
-    familyMemberId: 1,
-    createdAt: -1,
-});
-familyTreeActivitySchema.index({
-    bookingId: 1,
-    createdAt: -1,
-});
+familyTreeActivitySchema.index({ ownerId: 1, createdAt: -1 });
+familyTreeActivitySchema.index({ familyMemberId: 1, createdAt: -1 });
+familyTreeActivitySchema.index({ bookingId: 1, createdAt: -1 });
 export const FamilyTreeActivity = model("FamilyTreeActivity", familyTreeActivitySchema);
 //# sourceMappingURL=family-tree-activity.model.js.map

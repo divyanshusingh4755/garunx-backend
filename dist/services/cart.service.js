@@ -1,5 +1,5 @@
 import mongoose, { Types } from "mongoose";
-import { Cart, } from "../models/cart.model.js";
+import { Cart } from "../models/cart.model.js";
 import { Service } from "../models/service.model.js";
 import { Package } from "../models/package.model.js";
 import { ServiceComponent } from "../models/servicecomponent.model.js";
@@ -14,7 +14,6 @@ import { PackageTierMap } from "../models/packagetiermap.model.js";
 import { CashfreeService } from "./cashfree.service.js";
 import { buildCartOwnerQuery } from "../utils/getCartOwner.js";
 import { CouponService } from "./coupon.service.js";
-import { Coupon } from "../models/coupon.model.js";
 import { SubServiceComponent } from "../models/subservices.model.js";
 class CartService {
     static applyLineTax(target, tax) {
@@ -29,42 +28,12 @@ class CartService {
         if (serviceIds.length === 0) {
             return new Map();
         }
-        /**
-         * Remove duplicate service IDs before querying.
-         */
-        const uniqueServiceIds = [
-            ...new Map(serviceIds.map((serviceId) => [
-                serviceId.toString(),
-                serviceId,
-            ])).values(),
-        ];
-        /**
-         * One query for ALL services.
-         *
-         * Avoids N+1 queries when a package
-         * contains many services.
-         */
-        const subServices = await SubServiceComponent.find({
-            serviceId: {
-                $in: uniqueServiceIds,
-            },
-            isActive: true,
-        })
-            .sort({
-            createdAt: 1,
-        })
-            .lean();
+        // Remove duplicate service IDs before querying.
+        const uniqueServiceIds = [...new Map(serviceIds.map((serviceId) => [serviceId.toString(), serviceId])).values()];
+        // One query for ALL services. Avoids N+1 queries when a package contains many services.
+        const subServices = await SubServiceComponent.find({ serviceId: { $in: uniqueServiceIds }, isActive: true }).sort({ createdAt: 1 }).lean();
         const subServiceMap = new Map();
-        /**
-         * Always initialize every requested service
-         * with an empty array.
-         *
-         * This guarantees:
-         *
-         * subServices: []
-         *
-         * instead of undefined.
-         */
+        // Always initialize every requested service with an empty array. This guarantees: subServices: [] instead of undefined.
         for (const serviceId of uniqueServiceIds) {
             subServiceMap.set(serviceId.toString(), []);
         }
@@ -75,20 +44,14 @@ class CartService {
                 subServiceId: subService._id,
                 name: subService.name,
                 description: subService.description,
-                ...(subService.image
-                    ? {
-                        image: subService.image,
-                    }
-                    : {}),
+                ...(subService.image ? { image: subService.image } : {}),
             };
             list.push(snapshot);
             subServiceMap.set(key, list);
         }
         return subServiceMap;
     }
-    static round(value) {
-        return Math.round((value + Number.EPSILON) * 100) / 100;
-    }
+    static round(value) { return Math.round((value + Number.EPSILON) * 100) / 100; }
     static ensureUniqueIds(values, fieldName) {
         const normalized = values.map((value) => String(value?.itemId ?? value?.componentId ?? value?.serviceId ?? value));
         if (new Set(normalized).size !== normalized.length) {
@@ -109,20 +72,6 @@ class CartService {
             service.discountAmount = 0;
         }
     }
-    static calculateCouponDiscount(subtotal, coupon) {
-        let discountAmount = 0;
-        if (coupon.discountType === "PERCENTAGE") {
-            discountAmount = (subtotal * coupon.discount) / 100;
-            if (coupon.maxDiscountAmount &&
-                discountAmount > coupon.maxDiscountAmount) {
-                discountAmount = coupon.maxDiscountAmount;
-            }
-        }
-        else {
-            discountAmount = coupon.discount;
-        }
-        return this.round(Math.min(Math.max(discountAmount, 0), subtotal));
-    }
     static allocateDiscountToCartLines(cart, totals, totalDiscount) {
         this.clearLineDiscounts(cart);
         if (totalDiscount <= 0 || totals.subtotal <= 0) {
@@ -135,12 +84,7 @@ class CartService {
             if (!pricingLine) {
                 continue;
             }
-            lines.push({
-                amount: pricingLine.amount,
-                applyDiscount: (discount) => {
-                    component.discountAmount = discount;
-                },
-            });
+            lines.push({ amount: pricingLine.amount, applyDiscount: (discount) => { component.discountAmount = discount; } });
         }
         for (const component of cart.addonComponents ?? []) {
             const componentId = component.componentId.toString();
@@ -148,12 +92,7 @@ class CartService {
             if (!pricingLine) {
                 continue;
             }
-            lines.push({
-                amount: pricingLine.amount,
-                applyDiscount: (discount) => {
-                    component.discountAmount = discount;
-                },
-            });
+            lines.push({ amount: pricingLine.amount, applyDiscount: (discount) => { component.discountAmount = discount; } });
         }
         for (const service of cart.selectedServices ?? []) {
             const serviceId = service.serviceId.toString();
@@ -161,12 +100,7 @@ class CartService {
             if (!pricingLine) {
                 continue;
             }
-            lines.push({
-                amount: pricingLine.amount,
-                applyDiscount: (discount) => {
-                    service.discountAmount = discount;
-                },
-            });
+            lines.push({ amount: pricingLine.amount, applyDiscount: (discount) => { service.discountAmount = discount; } });
         }
         for (const service of cart.addonServices ?? []) {
             const serviceId = service.serviceId.toString();
@@ -174,12 +108,7 @@ class CartService {
             if (!pricingLine) {
                 continue;
             }
-            lines.push({
-                amount: pricingLine.amount,
-                applyDiscount: (discount) => {
-                    service.discountAmount = discount;
-                },
-            });
+            lines.push({ amount: pricingLine.amount, applyDiscount: (discount) => { service.discountAmount = discount; } });
         }
         if (lines.length === 0) {
             return;
@@ -187,10 +116,7 @@ class CartService {
         let allocatedDiscount = 0;
         lines.forEach((line, index) => {
             let lineDiscount;
-            /*
-             * Give the final line the remaining amount.
-             * This avoids rounding differences.
-             */
+            // Give the final line the remaining amount. This avoids rounding differences.
             if (index === lines.length - 1) {
                 lineDiscount = this.round(totalDiscount - allocatedDiscount);
             }
@@ -214,16 +140,8 @@ class CartService {
             sgstAmount: totals.taxSummary.sgstAmount,
             igstAmount: totals.taxSummary.igstAmount,
             totalTax: totals.taxSummary.totalTax,
-            ...(totals.taxSummary.supplierStateCode
-                ? {
-                    supplierStateCode: totals.taxSummary.supplierStateCode,
-                }
-                : {}),
-            ...(totals.taxSummary.placeOfSupplyStateCode
-                ? {
-                    placeOfSupplyStateCode: totals.taxSummary.placeOfSupplyStateCode,
-                }
-                : {}),
+            ...(totals.taxSummary.supplierStateCode ? { supplierStateCode: totals.taxSummary.supplierStateCode } : {}),
+            ...(totals.taxSummary.placeOfSupplyStateCode ? { placeOfSupplyStateCode: totals.taxSummary.placeOfSupplyStateCode } : {}),
         };
         for (const component of cart.selectedComponents ?? []) {
             const line = totals.componentLines.get(component.componentId.toString());
@@ -277,9 +195,7 @@ class CartService {
         }
     }
     static formatCartResponse(cart, totals) {
-        const cartType = cart.packageId
-            ? "PACKAGE"
-            : "SERVICE";
+        const cartType = cart.packageId ? "PACKAGE" : "SERVICE";
         return {
             _id: cart._id,
             cartType,
@@ -292,12 +208,8 @@ class CartService {
             tierName: cart.tierName,
             locationId: cart.locationId,
             locationName: cart.locationName,
-            /**
-             * Keep your existing common pricing items.
-             */
-            items: cartType === "SERVICE"
-                ? totals.componentItems
-                : totals.serviceItems,
+            // Keep your existing common pricing items.
+            items: cartType === "SERVICE" ? totals.componentItems : totals.serviceItems,
             /**
              * Now always return service structure too.
              *
@@ -334,25 +246,19 @@ class CartService {
         };
     }
     static async createServiceCart(owner, payload) {
-        const { serviceId, tierId, locationId, } = payload;
-        if (!Types.ObjectId.isValid(serviceId) ||
-            !Types.ObjectId.isValid(tierId) ||
-            !Types.ObjectId.isValid(locationId)) {
+        const { serviceId, tierId, locationId } = payload;
+        if (!Types.ObjectId.isValid(serviceId) || !Types.ObjectId.isValid(tierId) || !Types.ObjectId.isValid(locationId)) {
             throw new Error("Invalid serviceId, tierId, or locationId");
         }
         const service = await Service.findById(serviceId);
-        if (!service ||
-            !service.isActive ||
-            !service.isComplete) {
+        if (!service || !service.isActive || !service.isComplete) {
             throw new Error("Service is not available");
         }
-        const tier = service.tiers.find((item) => item.tierId.toString() ===
-            tierId);
+        const tier = service.tiers.find((item) => item.tierId.toString() === tierId);
         if (!tier) {
             throw new Error("Invalid tier");
         }
-        const location = service.locations.find((item) => item.locationId.toString() ===
-            locationId);
+        const location = service.locations.find((item) => item.locationId.toString() === locationId);
         if (!location) {
             throw new Error("Invalid location");
         }
@@ -365,50 +271,19 @@ class CartService {
             serviceId,
             tierId,
             locationId,
-            status: {
-                $in: [
-                    "ACTIVE",
-                    "SCHEDULED",
-                ],
-            },
+            status: { $in: ["ACTIVE", "SCHEDULED"] },
         });
         if (existingCart) {
             throw new Error("Same service already exists in cart");
         }
-        /**
-         * Fetch all active sub-service steps
-         * for the main service.
-         */
-        const subServiceMap = await this.getSubServiceSnapshotsByServiceIds([
-            service._id,
-        ]);
+        // Fetch all active sub-service steps for the main service.
+        const subServiceMap = await this.getSubServiceSnapshotsByServiceIds([service._id]);
         const serviceSubServices = subServiceMap.get(service._id.toString()) ?? [];
-        /**
-         * Main service is also represented
-         * inside selectedServices for consistent
-         * frontend response structure.
-         *
-         * IMPORTANT:
-         * These prices are initially 0 because
-         * SERVICE cart pricing comes from
-         * selectedComponents, not selectedServices.
-         */
-        const selectedServices = [
-            {
-                serviceId: service._id,
-                name: service.name,
-                subServices: serviceSubServices,
-                priceBeforeDiscount: 0,
-                discountAmount: 0,
-                price: 0,
-            },
-        ];
+        // Main service is also represented inside selectedServices for consistent frontend response structure. IMPORTANT: These prices are initially 0 because SERVICE cart pricing comes from selectedComponents, not selectedServices.
+        const selectedServices = [{ serviceId: service._id, name: service.name, subServices: serviceSubServices, priceBeforeDiscount: 0, discountAmount: 0, price: 0 }];
         const cart = await Cart.create({
             ...ownerQuery,
-            /**
-             * Root serviceId remains the source
-             * of truth for SERVICE cart type.
-             */
+            // Root serviceId remains the source of truth for SERVICE cart type.
             serviceId: service._id,
             name: service.name,
             thumbnailImage: service.thumbnailImage ?? "",
@@ -417,57 +292,37 @@ class CartService {
             tierName: tier.name,
             locationId,
             locationName: location.name,
-            /**
-             * Main service + all its sub-service steps.
-             */
+            // Main service + all its sub-service steps.
             selectedServices,
-            /**
-             * Actual selectable/priceable service
-             * components remain here.
-             */
+            // Actual selectable/priceable service components remain here.
             selectedComponents: [],
             addonComponents: [],
-            /**
-             * Package/service addons remain separate.
-             */
+            // Package/service addons remain separate.
             addonServices: [],
             basePrice: 0,
             addonPrice: 0,
             subtotal: 0,
             discountAmount: 0,
             totalAmount: 0,
-            taxSummary: {
-                taxableAmount: 0,
-                cgstAmount: 0,
-                sgstAmount: 0,
-                igstAmount: 0,
-                totalTax: 0,
-            },
+            taxSummary: { taxableAmount: 0, cgstAmount: 0, sgstAmount: 0, igstAmount: 0, totalTax: 0 },
             status: "ACTIVE",
         });
-        const totals = await CartPricingEngine
-            .calculateCartTotals(cart);
+        const totals = await CartPricingEngine.calculateCartTotals(cart);
         this.applyPricingResults(cart, totals);
         await cart.save();
         return this.formatCartResponse(cart, totals);
     }
     static async createPackageCart(owner, payload) {
-        const { packageId, tierId, locationId, } = payload;
-        if (!Types.ObjectId.isValid(packageId) ||
-            !Types.ObjectId.isValid(tierId) ||
-            !Types.ObjectId.isValid(locationId)) {
+        const { packageId, tierId, locationId } = payload;
+        if (!Types.ObjectId.isValid(packageId) || !Types.ObjectId.isValid(tierId) || !Types.ObjectId.isValid(locationId)) {
             throw new Error("Invalid packageId, tierId, or locationId");
         }
         const pkg = await Package.findById(packageId);
-        if (!pkg ||
-            !pkg.isActive ||
-            !pkg.isComplete) {
+        if (!pkg || !pkg.isActive || !pkg.isComplete) {
             throw new Error("Package is not available");
         }
-        const tier = pkg.tiers.find((item) => item.tierId.toString() ===
-            tierId);
-        const location = pkg.locations.find((item) => item.locationId.toString() ===
-            locationId);
+        const tier = pkg.tiers.find((item) => item.tierId.toString() === tierId);
+        const location = pkg.locations.find((item) => item.locationId.toString() === locationId);
         if (!tier) {
             throw new Error("Invalid tier");
         }
@@ -477,63 +332,29 @@ class CartService {
         if (!location.isActive) {
             throw new Error("Location is inactive for this package");
         }
-        const packageTierMap = await PackageTierMap.findOne({
-            packageId,
-            tierId,
-        }).lean();
+        const packageTierMap = await PackageTierMap.findOne({ packageId, tierId }).lean();
         if (!packageTierMap) {
             throw new Error("Package tier mapping not found");
         }
-        /**
-         * Required services are automatically
-         * part of the package.
-         *
-         * Related services remain addons.
-         */
-        const requiredServices = (packageTierMap.services ?? []).filter((service) => service.isRequired &&
-            !service.isRelated);
+        // Required services are automatically part of the package. Related services remain addons.
+        const requiredServices = (packageTierMap.services ?? []).filter((service) => service.isRequired && !service.isRelated);
         if (requiredServices.length === 0) {
             throw new Error("Package has no required services configured");
         }
         const requiredServiceIds = requiredServices.map((service) => service.serviceId);
-        /**
-         * Fetch pricing.
-         */
-        const pricingRows = await PackageTierPricing.find({
-            packageId,
-            tierId,
-            locationId,
-            serviceId: {
-                $in: requiredServiceIds,
-            },
-        }).lean();
-        const pricingMap = new Map(pricingRows.map((pricing) => [
-            pricing.serviceId.toString(),
-            pricing,
-        ]));
-        /**
-         * Validate pricing for every required service.
-         */
+        // Fetch pricing.
+        const pricingRows = await PackageTierPricing.find({ packageId, tierId, locationId, serviceId: { $in: requiredServiceIds } }).lean();
+        const pricingMap = new Map(pricingRows.map((pricing) => [pricing.serviceId.toString(), pricing]));
+        // Validate pricing for every required service.
         for (const service of requiredServices) {
             const serviceId = service.serviceId.toString();
             if (!pricingMap.has(serviceId)) {
                 throw new Error(`Pricing not found for required service: ${service.name}`);
             }
         }
-        /**
-         * Fetch ALL active sub-service steps
-         * for ALL required package services.
-         *
-         * Only one MongoDB query is performed.
-         */
+        // Fetch ALL active sub-service steps for ALL required package services. Only one MongoDB query is performed.
         const subServiceMap = await this.getSubServiceSnapshotsByServiceIds(requiredServiceIds);
-        /**
-         * Build package service snapshots.
-         *
-         * Each service now contains:
-         *
-         * subServices: [...]
-         */
+        // Build package service snapshots. Each service now contains: subServices: [...]
         const selectedServices = requiredServices.map((service) => {
             const serviceId = service.serviceId.toString();
             const pricing = pricingMap.get(serviceId);
@@ -552,12 +373,7 @@ class CartService {
             packageId,
             tierId,
             locationId,
-            status: {
-                $in: [
-                    "ACTIVE",
-                    "SCHEDULED",
-                ],
-            },
+            status: { $in: ["ACTIVE", "SCHEDULED"] },
         });
         if (existingCart) {
             throw new Error("Same package already exists in cart");
@@ -572,10 +388,7 @@ class CartService {
             tierName: tier.name,
             locationId: location.locationId,
             locationName: location.name,
-            /**
-             * Each selected service already has
-             * all SubServiceComponent snapshots.
-             */
+            // Each selected service already has all SubServiceComponent snapshots.
             selectedServices,
             addonServices: [],
             basePrice: 0,
@@ -583,70 +396,40 @@ class CartService {
             subtotal: 0,
             discountAmount: 0,
             totalAmount: 0,
-            taxSummary: {
-                taxableAmount: 0,
-                cgstAmount: 0,
-                sgstAmount: 0,
-                igstAmount: 0,
-                totalTax: 0,
-            },
+            taxSummary: { taxableAmount: 0, cgstAmount: 0, sgstAmount: 0, igstAmount: 0, totalTax: 0 },
             status: "ACTIVE",
         });
-        const totals = await CartPricingEngine
-            .calculateCartTotals(cart);
+        const totals = await CartPricingEngine.calculateCartTotals(cart);
         this.applyPricingResults(cart, totals);
         await cart.save();
         return this.formatCartResponse(cart, totals);
     }
     static async getUserCarts(owner, filters = {}) {
         const ownerQuery = buildCartOwnerQuery(owner);
-        const query = {
-            ...ownerQuery,
-        };
+        const query = { ...ownerQuery };
         if (filters.status) {
             const statuses = filters.status.split(",").map((s) => s.trim());
             query.status = { $in: statuses };
         }
         else {
-            query.status = {
-                $nin: ["EXPIRED", "DELETED"],
-            };
+            query.status = { $nin: ["EXPIRED", "DELETED"] };
         }
         const parsedPage = Number(filters.page);
         const parsedLimit = Number(filters.limit);
         const page = Number.isInteger(parsedPage) && parsedPage > 0 ? parsedPage : 1;
-        const limit = Number.isInteger(parsedLimit) && parsedLimit > 0
-            ? Math.min(parsedLimit, 100)
-            : 10;
+        const limit = Number.isInteger(parsedLimit) && parsedLimit > 0 ? Math.min(parsedLimit, 100) : 10;
         const skip = (page - 1) * limit;
         const [carts, total] = await Promise.all([
-            Cart.find(query)
-                .sort({ updatedAt: -1 })
-                .skip(skip)
-                .limit(limit)
-                .select("serviceId packageId name thumbnailImage tierName locationName status totalAmount updatedAt scheduledDate scheduledTime activeBookingId"),
+            Cart.find(query).sort({ updatedAt: -1 }).skip(skip).limit(limit).select("serviceId packageId name thumbnailImage tierName locationName status totalAmount updatedAt scheduledDate scheduledTime activeBookingId"),
             Cart.countDocuments(query),
         ]);
-        return {
-            carts,
-            pagination: {
-                total,
-                page,
-                limit,
-                totalPages: Math.ceil(total / limit),
-                hasNextPage: page < Math.ceil(total / limit),
-                hasPreviousPage: page > 1,
-            },
-        };
+        return { carts, pagination: { total, page, limit, totalPages: Math.ceil(total / limit), hasNextPage: page < Math.ceil(total / limit), hasPreviousPage: page > 1 } };
     }
     static async getCartById(owner, cartId) {
         if (!mongoose.Types.ObjectId.isValid(cartId)) {
             throw new Error("Invalid cartId");
         }
-        const cart = await Cart.findOne({
-            _id: cartId,
-            ...buildCartOwnerQuery(owner),
-        }).lean();
+        const cart = await Cart.findOne({ _id: cartId, ...buildCartOwnerQuery(owner) }).lean();
         if (!cart) {
             throw new Error("Cart not found");
         }
@@ -657,10 +440,7 @@ class CartService {
                 throw new Error("Service not found");
             }
             // Fetch components for this service and tier
-            const serviceComponents = await ServiceComponent.find({
-                serviceId: service._id,
-                tierId: cart.tierId,
-            }).lean();
+            const serviceComponents = await ServiceComponent.find({ serviceId: service._id, tierId: cart.tierId }).lean();
             const componentIds = serviceComponents.map((c) => c.componentId);
             const componentsMap = new Map((await Component.find({ _id: { $in: componentIds } }).lean()).map((c) => [c._id.toString(), c]));
             const itemIds = serviceComponents.flatMap((c) => c.items?.map((i) => i.itemId) || []);
@@ -682,18 +462,11 @@ class CartService {
                     itemDetails: itemsMap.get(item.itemId.toString()),
                 })),
             }));
-            return {
-                ...cart,
-                service,
-                selectedComponents: hydratedSelectedComponents,
-                addonComponents: hydratedAddonComponents,
-            };
+            return { ...cart, service, selectedComponents: hydratedSelectedComponents, addonComponents: hydratedAddonComponents };
         }
         // Package Cart
         if (cart.packageId) {
-            const pkg = (await Package.findById(cart.packageId)
-                .populate("tierMappings")
-                .lean({ virtuals: true }));
+            const pkg = (await Package.findById(cart.packageId).populate("tierMappings").lean({ virtuals: true }));
             if (!pkg) {
                 throw new Error("Package not found");
             }
@@ -701,22 +474,13 @@ class CartService {
             const packageTierMap = pkg.tierMappings?.find((m) => m.tierId.toString() === cart.tierId.toString());
             const serviceIds = packageTierMap?.services?.map((s) => s.serviceId) || [];
             // Fetch services
-            const services = await Service.find({
-                _id: { $in: serviceIds },
-            }).lean();
+            const services = await Service.find({ _id: { $in: serviceIds } }).lean();
             // Fetch all components for these services in this tier
-            const serviceComponents = await ServiceComponent.find({
-                serviceId: { $in: serviceIds },
-                tierId: cart.tierId,
-            }).lean();
+            const serviceComponents = await ServiceComponent.find({ serviceId: { $in: serviceIds }, tierId: cart.tierId }).lean();
             const componentIds = serviceComponents.map((c) => c.componentId);
-            const componentsMap = new Map((await Component.find({
-                _id: { $in: componentIds },
-            }).lean()).map((c) => [c._id.toString(), c]));
+            const componentsMap = new Map((await Component.find({ _id: { $in: componentIds } }).lean()).map((c) => [c._id.toString(), c]));
             const itemIds = serviceComponents.flatMap((c) => c.items?.map((i) => i.itemId) || []);
-            const itemsMap = new Map((await ComponentItem.find({
-                _id: { $in: itemIds },
-            }).lean()).map((i) => [i._id.toString(), i]));
+            const itemsMap = new Map((await ComponentItem.find({ _id: { $in: itemIds } }).lean()).map((i) => [i._id.toString(), i]));
             // Group service components by serviceId
             const serviceComponentMap = new Map();
             for (const sc of serviceComponents) {
@@ -739,39 +503,18 @@ class CartService {
                         itemDetails: itemsMap.get(item.itemId.toString()),
                     })),
                 }));
-                return {
-                    ...service,
-                    components: hydratedComponents,
-                };
+                return { ...service, components: hydratedComponents };
             });
-            /**
-             * HYDRATE ADDON SERVICES
-             */
+            // HYDRATE ADDON SERVICES
             const addonServiceIds = cart.addonServices?.map((s) => s.serviceId) || [];
-            const addonServicesFromDB = await Service.find({
-                _id: { $in: addonServiceIds },
-            }).lean();
+            const addonServicesFromDB = await Service.find({ _id: { $in: addonServiceIds } }).lean();
             const addonServicesMap = new Map(addonServicesFromDB.map((service) => [service._id.toString(), service]));
-            const hydratedAddonServices = (cart.addonServices || []).map((addon) => ({
-                ...addon,
-                service: addonServicesMap.get(addon.serviceId.toString()),
-            }));
+            const hydratedAddonServices = (cart.addonServices || []).map((addon) => ({ ...addon, service: addonServicesMap.get(addon.serviceId.toString()) }));
             const selectedServiceIds = cart.selectedServices?.map((s) => s.serviceId) || [];
-            const selectedServicesFromDB = await Service.find({
-                _id: { $in: selectedServiceIds },
-            }).lean();
+            const selectedServicesFromDB = await Service.find({ _id: { $in: selectedServiceIds } }).lean();
             const selectedServicesMap = new Map(selectedServicesFromDB.map((s) => [s._id.toString(), s]));
-            const hydratedSelectedServices = (cart.selectedServices || []).map((s) => ({
-                ...s,
-                service: selectedServicesMap.get(String(s.serviceId)),
-            }));
-            return {
-                ...cart,
-                package: pkg,
-                services: hydratedServices,
-                selectedServices: hydratedSelectedServices,
-                addonServices: hydratedAddonServices,
-            };
+            const hydratedSelectedServices = (cart.selectedServices || []).map((s) => ({ ...s, service: selectedServicesMap.get(String(s.serviceId)) }));
+            return { ...cart, package: pkg, services: hydratedServices, selectedServices: hydratedSelectedServices, addonServices: hydratedAddonServices };
         }
         throw new Error("Invalid cart type");
     }
@@ -784,10 +527,7 @@ class CartService {
         if (!mongoose.Types.ObjectId.isValid(cartId)) {
             throw new Error("Invalid cartId");
         }
-        const cart = await Cart.findOne({
-            _id: cartId,
-            ...buildCartOwnerQuery(owner),
-        });
+        const cart = await Cart.findOne({ _id: cartId, ...buildCartOwnerQuery(owner) });
         if (!cart) {
             throw new Error("Cart not found");
         }
@@ -795,20 +535,11 @@ class CartService {
         if (!cart.serviceId) {
             throw new Error("This operation is only allowed for service carts");
         }
-        const serviceComponents = await ServiceComponent.find({
-            serviceId: cart.serviceId,
-            tierId: cart.tierId,
-        }).lean();
+        const serviceComponents = await ServiceComponent.find({ serviceId: cart.serviceId, tierId: cart.tierId }).lean();
         const componentMap = new Map(serviceComponents.map((c) => [c.componentId.toString(), c]));
-        const missingRequired = serviceComponents
-            .filter((c) => c.isRequired)
-            .filter((c) => {
-            return !selectedComponents?.some((sc) => sc.componentId.toString() === c.componentId.toString());
-        });
+        const missingRequired = serviceComponents.filter((c) => c.isRequired).filter((c) => { return !selectedComponents?.some((sc) => sc.componentId.toString() === c.componentId.toString()); });
         if (missingRequired.length > 0) {
-            throw new Error(`Missing required components: ${missingRequired
-                .map((c) => c.name)
-                .join(", ")}`);
+            throw new Error(`Missing required components: ${missingRequired.map((c) => c.name).join(", ")}`);
         }
         const formattedComponents = [];
         for (const sc of selectedComponents || []) {
@@ -816,22 +547,14 @@ class CartService {
             if (!componentConfig) {
                 throw new Error(`Invalid component`);
             }
-            const pricing = await ServicePricing.findOne({
-                serviceId: cart.serviceId,
-                componentId: sc.componentId,
-                tierId: cart.tierId,
-                locationId: cart.locationId,
-                isActive: true,
-            }).lean();
+            const pricing = await ServicePricing.findOne({ serviceId: cart.serviceId, componentId: sc.componentId, tierId: cart.tierId, locationId: cart.locationId, isActive: true }).lean();
             if (!pricing) {
                 throw new Error(`Pricing not found for ${componentConfig.name}`);
             }
             const allowedItems = componentConfig.items || [];
             const formattedItems = [];
             for (const selectedItem of sc.items || []) {
-                const selectedItemId = typeof selectedItem === "string"
-                    ? selectedItem
-                    : selectedItem?.itemId;
+                const selectedItemId = typeof selectedItem === "string" ? selectedItem : selectedItem?.itemId;
                 if (!selectedItemId) {
                     throw new Error(`Invalid item format in ${componentConfig.name}`);
                 }
@@ -839,10 +562,7 @@ class CartService {
                 if (!matchedItem) {
                     throw new Error(`Invalid item in ${componentConfig.name}`);
                 }
-                formattedItems.push({
-                    itemId: matchedItem.itemId,
-                    name: matchedItem.name,
-                });
+                formattedItems.push({ itemId: matchedItem.itemId, name: matchedItem.name });
             }
             formattedComponents.push({
                 componentId: componentConfig.componentId,
@@ -854,14 +574,8 @@ class CartService {
             });
         }
         cart.selectedComponents = formattedComponents;
-        await Cart.updateOne({ _id: cart._id }, {
-            $set: {
-                selectedComponents: formattedComponents,
-            },
-        });
-        const result = await this.recalculateCart(owner, cart._id.toString(), {
-            persist: true,
-        });
+        await Cart.updateOne({ _id: cart._id }, { $set: { selectedComponents: formattedComponents } });
+        const result = await this.recalculateCart(owner, cart._id.toString(), { persist: true });
         return result.cart;
     }
     static async updateAddonComponents(owner, cartId, payload) {
@@ -873,10 +587,7 @@ class CartService {
         if (!mongoose.Types.ObjectId.isValid(cartId)) {
             throw new Error("Invalid cartId");
         }
-        const cart = await Cart.findOne({
-            _id: cartId,
-            ...buildCartOwnerQuery(owner),
-        });
+        const cart = await Cart.findOne({ _id: cartId, ...buildCartOwnerQuery(owner) });
         if (!cart) {
             throw new Error("Cart not found");
         }
@@ -884,10 +595,7 @@ class CartService {
         if (!cart.serviceId) {
             throw new Error("This operation is only allowed for service carts");
         }
-        const serviceComponents = await ServiceComponent.find({
-            serviceId: cart.serviceId,
-            tierId: cart.tierId,
-        }).lean();
+        const serviceComponents = await ServiceComponent.find({ serviceId: cart.serviceId, tierId: cart.tierId }).lean();
         const componentMap = new Map(serviceComponents.map((c) => [c.componentId.toString(), c]));
         const updatedAddonComponents = [];
         for (const ac of addonComponents || []) {
@@ -895,13 +603,7 @@ class CartService {
             if (!component) {
                 throw new Error("Invalid addon component for this service");
             }
-            const pricing = await ServicePricing.findOne({
-                serviceId: cart.serviceId,
-                componentId: ac.componentId,
-                tierId: cart.tierId,
-                locationId: cart.locationId,
-                isActive: true,
-            }).lean();
+            const pricing = await ServicePricing.findOne({ serviceId: cart.serviceId, componentId: ac.componentId, tierId: cart.tierId, locationId: cart.locationId, isActive: true }).lean();
             if (!pricing) {
                 throw new Error(`Pricing not found for ${component.name}`);
             }
@@ -910,9 +612,7 @@ class CartService {
             const requestedItems = ac.items || [];
             this.ensureUniqueIds(requestedItems, "itemIds");
             for (const selectedItem of requestedItems) {
-                const selectedItemId = typeof selectedItem === "string"
-                    ? selectedItem
-                    : selectedItem?.itemId;
+                const selectedItemId = typeof selectedItem === "string" ? selectedItem : selectedItem?.itemId;
                 if (!selectedItemId) {
                     throw new Error(`Invalid item format in ${component.name}`);
                 }
@@ -920,10 +620,7 @@ class CartService {
                 if (!matchedItem) {
                     throw new Error(`Invalid item selected for ${component.name}`);
                 }
-                formattedItems.push({
-                    itemId: matchedItem.itemId,
-                    name: matchedItem.name,
-                });
+                formattedItems.push({ itemId: matchedItem.itemId, name: matchedItem.name });
             }
             updatedAddonComponents.push({
                 componentId: component.componentId,
@@ -935,25 +632,16 @@ class CartService {
             });
         }
         cart.addonComponents = updatedAddonComponents;
-        await Cart.updateOne({ _id: cart._id }, {
-            $set: {
-                addonComponents: updatedAddonComponents,
-            },
-        });
-        const result = await this.recalculateCart(owner, cart._id.toString(), {
-            persist: true,
-        });
+        await Cart.updateOne({ _id: cart._id }, { $set: { addonComponents: updatedAddonComponents } });
+        const result = await this.recalculateCart(owner, cart._id.toString(), { persist: true });
         return result.cart;
     }
     static async updateSelectedServices(owner, cartId, payload) {
-        const { serviceIds, } = payload;
+        const { serviceIds } = payload;
         if (!mongoose.Types.ObjectId.isValid(cartId)) {
             throw new Error("Invalid cartId");
         }
-        const cart = await Cart.findOne({
-            _id: cartId,
-            ...buildCartOwnerQuery(owner),
-        });
+        const cart = await Cart.findOne({ _id: cartId, ...buildCartOwnerQuery(owner) });
         if (!cart) {
             throw new Error("Cart not found");
         }
@@ -965,65 +653,35 @@ class CartService {
             throw new Error("serviceIds must be an array");
         }
         this.ensureUniqueIds(serviceIds, "serviceIds");
-        /**
-         * Validate every supplied ID first.
-         */
+        // Validate every supplied ID first.
         for (const serviceId of serviceIds) {
             if (!Types.ObjectId.isValid(serviceId)) {
                 throw new Error(`Invalid serviceId: ${serviceId}`);
             }
         }
-        const packageTierMap = await PackageTierMap.findOne({
-            packageId: cart.packageId,
-            tierId: cart.tierId,
-        }).lean();
+        const packageTierMap = await PackageTierMap.findOne({ packageId: cart.packageId, tierId: cart.tierId }).lean();
         if (!packageTierMap) {
             throw new Error("Package tier mapping not found");
         }
         const allowedServices = packageTierMap.services ?? [];
-        /**
-         * Required non-related package services
-         * cannot be removed.
-         */
-        const requiredServiceIds = allowedServices
-            .filter((service) => service.isRequired &&
-            !service.isRelated)
-            .map((service) => service.serviceId.toString());
+        // Required non-related package services cannot be removed.
+        const requiredServiceIds = allowedServices.filter((service) => service.isRequired && !service.isRelated).map((service) => service.serviceId.toString());
         const selectedServiceIdSet = new Set(serviceIds.map((serviceId) => serviceId.toString()));
         const missingRequiredServices = requiredServiceIds.filter((serviceId) => !selectedServiceIdSet.has(serviceId));
-        if (missingRequiredServices.length >
-            0) {
+        if (missingRequiredServices.length > 0) {
             throw new Error("All required package services must be selected");
         }
-        /**
-         * Pricing for selected services.
-         */
-        const pricingList = await PackageTierPricing.find({
-            packageId: cart.packageId,
-            tierId: cart.tierId,
-            locationId: cart.locationId,
-            serviceId: {
-                $in: serviceIds,
-            },
-        }).lean();
-        const pricingMap = new Map(pricingList.map((pricing) => [
-            pricing.serviceId.toString(),
-            pricing.finalPrice,
-        ]));
-        /**
-         * Convert IDs to ObjectIds so the
-         * helper gets strongly typed IDs.
-         */
+        // Pricing for selected services.
+        const pricingList = await PackageTierPricing.find({ packageId: cart.packageId, tierId: cart.tierId, locationId: cart.locationId, serviceId: { $in: serviceIds } }).lean();
+        const pricingMap = new Map(pricingList.map((pricing) => [pricing.serviceId.toString(), pricing.finalPrice]));
+        // Convert IDs to ObjectIds so the helper gets strongly typed IDs.
         const requestedServiceObjectIds = serviceIds.map((serviceId) => new Types.ObjectId(serviceId.toString()));
-        /**
-         * Fetch all service steps in ONE query.
-         */
+        // Fetch all service steps in ONE query.
         const subServiceMap = await this.getSubServiceSnapshotsByServiceIds(requestedServiceObjectIds);
         const selectedServices = [];
         for (const serviceId of serviceIds) {
             const serviceIdString = serviceId.toString();
-            const matchedService = allowedServices.find((service) => service.serviceId.toString() ===
-                serviceIdString);
+            const matchedService = allowedServices.find((service) => service.serviceId.toString() === serviceIdString);
             if (!matchedService) {
                 throw new Error("Invalid service selected");
             }
@@ -1037,39 +695,24 @@ class CartService {
             selectedServices.push({
                 serviceId: matchedService.serviceId,
                 name: matchedService.name,
-                /**
-                 * Backend automatically inserts
-                 * every active service step.
-                 */
+                // Backend automatically inserts every active service step.
                 subServices: subServiceMap.get(serviceIdString) ?? [],
                 priceBeforeDiscount: price,
                 discountAmount: 0,
                 price,
             });
         }
-        cart.selectedServices =
-            selectedServices;
-        await Cart.updateOne({
-            _id: cart._id,
-        }, {
-            $set: {
-                selectedServices,
-            },
-        });
-        const result = await this.recalculateCart(owner, cart._id.toString(), {
-            persist: true,
-        });
+        cart.selectedServices = selectedServices;
+        await Cart.updateOne({ _id: cart._id }, { $set: { selectedServices } });
+        const result = await this.recalculateCart(owner, cart._id.toString(), { persist: true });
         return result.cart;
     }
     static async updateAddonServices(owner, cartId, payload) {
-        const { serviceIds, } = payload;
+        const { serviceIds } = payload;
         if (!mongoose.Types.ObjectId.isValid(cartId)) {
             throw new Error("Invalid cartId");
         }
-        const cart = await Cart.findOne({
-            _id: cartId,
-            ...buildCartOwnerQuery(owner),
-        });
+        const cart = await Cart.findOne({ _id: cartId, ...buildCartOwnerQuery(owner) });
         if (!cart) {
             throw new Error("Cart not found");
         }
@@ -1081,57 +724,32 @@ class CartService {
             throw new Error("serviceIds must be an array");
         }
         this.ensureUniqueIds(serviceIds, "serviceIds");
-        /**
-         * Validate IDs before querying.
-         */
+        // Validate IDs before querying.
         for (const serviceId of serviceIds) {
             if (!Types.ObjectId.isValid(serviceId)) {
                 throw new Error(`Invalid serviceId: ${serviceId}`);
             }
         }
-        const packageTierMap = await PackageTierMap.findOne({
-            packageId: cart.packageId,
-            tierId: cart.tierId,
-        }).lean();
+        const packageTierMap = await PackageTierMap.findOne({ packageId: cart.packageId, tierId: cart.tierId }).lean();
         if (!packageTierMap) {
             throw new Error("Package tier mapping not found");
         }
         const allowedServices = packageTierMap.services ?? [];
-        /**
-         * Get pricing for requested addons.
-         */
-        const pricingList = await PackageTierPricing.find({
-            packageId: cart.packageId,
-            tierId: cart.tierId,
-            locationId: cart.locationId,
-            serviceId: {
-                $in: serviceIds,
-            },
-        }).lean();
-        const pricingMap = new Map(pricingList.map((pricing) => [
-            pricing.serviceId.toString(),
-            pricing.finalPrice,
-        ]));
+        // Get pricing for requested addons.
+        const pricingList = await PackageTierPricing.find({ packageId: cart.packageId, tierId: cart.tierId, locationId: cart.locationId, serviceId: { $in: serviceIds } }).lean();
+        const pricingMap = new Map(pricingList.map((pricing) => [pricing.serviceId.toString(), pricing.finalPrice]));
         const requestedServiceObjectIds = serviceIds.map((serviceId) => new Types.ObjectId(serviceId.toString()));
-        /**
-         * Fetch ALL active SubServiceComponents
-         * for all addon services in ONE query.
-         */
+        // Fetch ALL active SubServiceComponents for all addon services in ONE query.
         const subServiceMap = await this.getSubServiceSnapshotsByServiceIds(requestedServiceObjectIds);
         const addonServices = [];
         for (const serviceId of serviceIds) {
             const serviceIdString = serviceId.toString();
-            const matchedService = allowedServices.find((service) => service.serviceId.toString() ===
-                serviceIdString);
+            const matchedService = allowedServices.find((service) => service.serviceId.toString() === serviceIdString);
             if (!matchedService) {
                 throw new Error("Invalid addon service selected");
             }
-            /**
-             * Only related non-required services
-             * can be addons.
-             */
-            if (matchedService.isRequired ||
-                !matchedService.isRelated) {
+            // Only related non-required services can be addons.
+            if (matchedService.isRequired || !matchedService.isRelated) {
                 throw new Error(`${matchedService.name} is not an addon service.`);
             }
             const price = pricingMap.get(serviceIdString);
@@ -1141,27 +759,16 @@ class CartService {
             addonServices.push({
                 serviceId: matchedService.serviceId,
                 name: matchedService.name,
-                /**
-                 * Automatically included.
-                 */
+                // Automatically included.
                 subServices: subServiceMap.get(serviceIdString) ?? [],
                 priceBeforeDiscount: price,
                 discountAmount: 0,
                 price,
             });
         }
-        cart.addonServices =
-            addonServices;
-        await Cart.updateOne({
-            _id: cart._id,
-        }, {
-            $set: {
-                addonServices,
-            },
-        });
-        const result = await this.recalculateCart(owner, cart._id.toString(), {
-            persist: true,
-        });
+        cart.addonServices = addonServices;
+        await Cart.updateOne({ _id: cart._id }, { $set: { addonServices } });
+        const result = await this.recalculateCart(owner, cart._id.toString(), { persist: true });
         return result.cart;
     }
     static async updateSchedule(owner, cartId, payload) {
@@ -1172,25 +779,15 @@ class CartService {
         if (typeof scheduledDate !== "string" || !scheduledDate.trim()) {
             throw new Error("scheduledDate is required");
         }
-        if (typeof scheduledTime !== "string" ||
-            !/^([01]\d|2[0-3]):[0-5]\d$/.test(scheduledTime)) {
+        if (typeof scheduledTime !== "string" || !/^([01]\d|2[0-3]):[0-5]\d$/.test(scheduledTime)) {
             throw new Error("scheduledTime is required in HH:mm format");
         }
-        /*
-         * Supports:
-         * 2026-08-03
-         * 2026-08-03T00:00:00.000Z
-         */
+        // Supports: 2026-08-03 2026-08-03T00:00:00.000Z
         const datePart = scheduledDate.split("T")[0];
         if (!datePart || !/^\d{4}-\d{2}-\d{2}$/.test(datePart)) {
             throw new Error("scheduledDate must be in YYYY-MM-DD format");
         }
-        /*
-         * Interpret the selected date and time as India time.
-         * Example:
-         * 2026-08-03 + 10:30
-         * becomes 2026-08-03T05:00:00.000Z
-         */
+        // Interpret the selected date and time as India time/ Example/ 2026-08-03 + 10:3/ becomes 2026-08-03T05:00:00.000Z
         const scheduledAt = new Date(`${datePart}T${scheduledTime}:00+05:30`);
         if (Number.isNaN(scheduledAt.getTime())) {
             throw new Error("Invalid scheduled date or time");
@@ -1198,10 +795,7 @@ class CartService {
         if (scheduledAt <= new Date()) {
             throw new Error("Scheduled date and time cannot be in the past");
         }
-        const cart = await Cart.findOne({
-            _id: cartId,
-            ...buildCartOwnerQuery(owner),
-        });
+        const cart = await Cart.findOne({ _id: cartId, ...buildCartOwnerQuery(owner) });
         if (!cart) {
             throw new Error("Cart not found");
         }
@@ -1217,10 +811,7 @@ class CartService {
         if (!mongoose.Types.ObjectId.isValid(cartId)) {
             throw new Error("Invalid cartId");
         }
-        const cart = await Cart.findOne({
-            _id: cartId,
-            ...buildCartOwnerQuery(owner),
-        });
+        const cart = await Cart.findOne({ _id: cartId, ...buildCartOwnerQuery(owner) });
         if (!cart) {
             throw new Error("Cart not found");
         }
@@ -1256,10 +847,7 @@ class CartService {
         if (!mongoose.Types.ObjectId.isValid(cartId)) {
             throw new Error("Invalid cartId");
         }
-        const cart = await Cart.findOne({
-            _id: cartId,
-            ...buildCartOwnerQuery(owner),
-        });
+        const cart = await Cart.findOne({ _id: cartId, ...buildCartOwnerQuery(owner) });
         if (!cart) {
             throw new Error("Cart not found");
         }
@@ -1273,10 +861,7 @@ class CartService {
             throw new Error("Invalid cartId");
         }
         const session = options?.session;
-        const cartQuery = Cart.findOne({
-            _id: cartId,
-            ...buildCartOwnerQuery(owner),
-        });
+        const cartQuery = Cart.findOne({ _id: cartId, ...buildCartOwnerQuery(owner) });
         if (session) {
             cartQuery.session(session);
         }
@@ -1296,31 +881,20 @@ class CartService {
             totalTax: cart.taxSummary?.totalTax ?? 0,
         };
         const changes = [];
-        /*
-         * First pass:
-         * calculate original prices without any old coupon allocation.
-         */
+        // First pass: calculate original prices without any old coupon allocation.
         this.clearLineDiscounts(cart);
         const grossTotals = await CartPricingEngine.calculateCartTotals(cart);
         let couponDiscountAmount = 0;
-        if (cart.couponId &&
-            cart.couponCode) {
+        if (cart.couponId && cart.couponCode) {
             try {
                 const validation = await CouponService.validateCoupon({
                     couponCode: cart.couponCode,
-                    ...(cart.serviceId && {
-                        serviceId: cart.serviceId.toString(),
-                    }),
-                    ...(cart.packageId && {
-                        packageId: cart.packageId.toString(),
-                    }),
+                    ...(cart.serviceId && { serviceId: cart.serviceId.toString() }),
+                    ...(cart.packageId && { packageId: cart.packageId.toString() }),
                     orderAmount: grossTotals.subtotal,
-                    ...(cart.userId && {
-                        userId: cart.userId.toString(),
-                    }),
+                    ...(cart.userId && { userId: cart.userId.toString() }),
                 });
-                couponDiscountAmount =
-                    validation.discountAmount;
+                couponDiscountAmount = validation.discountAmount;
             }
             catch {
                 changes.push(`Coupon ${cart.couponCode} was removed because it is no longer valid`);
@@ -1328,14 +902,9 @@ class CartService {
                 cart.set("couponCode", undefined);
             }
         }
-        /*
-         * Allocate coupon discount to individual lines.
-         */
+        // Allocate coupon discount to individual lines.
         this.allocateDiscountToCartLines(cart, grossTotals, couponDiscountAmount);
-        /*
-         * Second pass:
-         * calculate GST using allocated line discounts.
-         */
+        // Second pass: calculate GST using allocated line discounts.
         const finalTotals = await CartPricingEngine.calculateCartTotals(cart);
         this.applyPricingResults(cart, finalTotals);
         if (oldValues.basePrice !== cart.basePrice) {
@@ -1359,19 +928,13 @@ class CartService {
         if (options?.persist) {
             await cart.save(session ? { session } : undefined);
         }
-        return {
-            cart,
-            changes,
-        };
+        return { cart, changes };
     }
     static async validateCart(owner, cartId, persist, session) {
         if (!mongoose.Types.ObjectId.isValid(cartId)) {
             throw new Error("Invalid cartId");
         }
-        const recalculated = await this.recalculateCart(owner, cartId, {
-            persist: persist,
-            ...(session ? { session } : {}),
-        });
+        const recalculated = await this.recalculateCart(owner, cartId, { persist: persist, ...(session ? { session } : {}) });
         const cart = recalculated.cart;
         const changes = recalculated.changes;
         if (["EXPIRED", "CANCELLED"].includes(cart.status)) {
@@ -1379,20 +942,16 @@ class CartService {
         }
         const errors = [];
         if (cart.serviceId) {
-            const service = await Service.findById(cart.serviceId)
-                .session(session || null)
-                .lean();
+            const service = await Service.findById(cart.serviceId).session(session || null).lean();
             if (!service) {
                 errors.push("Service no longer exists");
             }
-            else if (!service.isActive ||
-                !service.isComplete) {
+            else if (!service.isActive || !service.isComplete) {
                 errors.push("Service is no longer available");
             }
             else {
                 const tierExists = service.tiers.some((tier) => tier.tierId.toString() === cart.tierId.toString());
-                const selectedLocation = service.locations.find((location) => location.locationId.toString() ===
-                    cart.locationId.toString());
+                const selectedLocation = service.locations.find((location) => location.locationId.toString() === cart.locationId.toString());
                 const locationExists = Boolean(selectedLocation?.isActive);
                 if (!tierExists) {
                     errors.push("Selected service tier is no longer available");
@@ -1401,12 +960,7 @@ class CartService {
                     errors.push("Selected service location is no longer available");
                 }
             }
-            const serviceComponents = await ServiceComponent.find({
-                serviceId: cart.serviceId,
-                tierId: cart.tierId,
-            })
-                .session(session || null)
-                .lean();
+            const serviceComponents = await ServiceComponent.find({ serviceId: cart.serviceId, tierId: cart.tierId }).session(session || null).lean();
             const requiredComponents = serviceComponents.filter((c) => c.isRequired);
             const selectedMap = new Set((cart.selectedComponents || []).map((c) => c.componentId.toString()));
             for (const comp of requiredComponents) {
@@ -1419,9 +973,7 @@ class CartService {
             }
         }
         if (cart.packageId) {
-            const pkg = await Package.findById(cart.packageId)
-                .session(session || null)
-                .lean();
+            const pkg = await Package.findById(cart.packageId).session(session || null).lean();
             if (!pkg) {
                 errors.push("Package no longer exists");
             }
@@ -1437,30 +989,19 @@ class CartService {
                 if (!locationExists) {
                     errors.push("Selected package location is no longer available");
                 }
-                const packageTierMap = await PackageTierMap.findOne({
-                    packageId: cart.packageId,
-                    tierId: cart.tierId,
-                })
-                    .session(session || null)
-                    .lean();
+                const packageTierMap = await PackageTierMap.findOne({ packageId: cart.packageId, tierId: cart.tierId }).session(session || null).lean();
                 if (!packageTierMap) {
                     errors.push("Package tier mapping no longer exists");
                 }
                 else {
                     const selectedServiceIds = new Set((cart.selectedServices || []).map((service) => service.serviceId.toString()));
                     for (const mappedService of packageTierMap.services || []) {
-                        if (mappedService.isRequired &&
-                            !mappedService.isRelated &&
-                            !selectedServiceIds.has(mappedService.serviceId.toString())) {
+                        if (mappedService.isRequired && !mappedService.isRelated && !selectedServiceIds.has(mappedService.serviceId.toString())) {
                             errors.push(`Missing required service: ${mappedService.name}`);
                         }
                     }
                 }
-                const pricingExists = await PackageTierPricing.exists({
-                    packageId: cart.packageId,
-                    tierId: cart.tierId,
-                    locationId: cart.locationId,
-                }).session(session || null);
+                const pricingExists = await PackageTierPricing.exists({ packageId: cart.packageId, tierId: cart.tierId, locationId: cart.locationId }).session(session || null);
                 if (!pricingExists) {
                     errors.push("Package pricing is no longer available");
                 }
@@ -1472,12 +1013,7 @@ class CartService {
         if (!cart.totalAmount || cart.totalAmount <= 0) {
             errors.push("Invalid total amount");
         }
-        return {
-            isValid: errors.length === 0,
-            errors,
-            changes,
-            cart,
-        };
+        return { isValid: errors.length === 0, errors, changes, cart };
     }
     static async checkoutCart(userId, cartId) {
         const session = await mongoose.startSession();
@@ -1489,44 +1025,20 @@ class CartService {
                 if (!mongoose.Types.ObjectId.isValid(cartId)) {
                     throw new Error("Invalid cartId");
                 }
-                const cart = await Cart.findOne({
-                    _id: cartId,
-                    userId,
-                    status: {
-                        $in: ["ACTIVE", "SCHEDULED", "CHECKOUT_PENDING"],
-                    },
-                }, null, { session });
+                const cart = await Cart.findOne({ _id: cartId, userId, status: { $in: ["ACTIVE", "SCHEDULED", "CHECKOUT_PENDING"] } }, null, { session });
                 if (!cart) {
                     throw new Error("Cart not found");
                 }
-                /**
-                 * Reuse checkout booking.
-                 */
-                if (cart.status === "CHECKOUT_PENDING" &&
-                    cart.activeBookingId &&
-                    cart.checkoutExpiresAt &&
-                    cart.checkoutExpiresAt > new Date()) {
-                    const existingBooking = await Booking.findOne({
-                        _id: cart.activeBookingId,
-                        userId,
-                        cartId: cart._id,
-                        isDeleted: false,
-                    }).session(session);
-                    if (existingBooking &&
-                        existingBooking.payment.status !== "PAID") {
+                // Reuse checkout booking.
+                if (cart.status === "CHECKOUT_PENDING" && cart.activeBookingId && cart.checkoutExpiresAt && cart.checkoutExpiresAt > new Date()) {
+                    const existingBooking = await Booking.findOne({ _id: cart.activeBookingId, userId, cartId: cart._id, isDeleted: false }).session(session);
+                    if (existingBooking && existingBooking.payment.status !== "PAID") {
                         return existingBooking;
                     }
                 }
-                if (cart.status === "CHECKOUT_PENDING" &&
-                    (!cart.checkoutExpiresAt ||
-                        cart.checkoutExpiresAt <= new Date())) {
+                if (cart.status === "CHECKOUT_PENDING" && (!cart.checkoutExpiresAt || cart.checkoutExpiresAt <= new Date())) {
                     cart.status = "ACTIVE";
-                    cart.set({
-                        checkoutExpiresAt: undefined,
-                        activeBookingId: undefined,
-                        checkedOutAt: undefined,
-                        convertedToBookingAt: undefined,
-                    });
+                    cart.set({ checkoutExpiresAt: undefined, activeBookingId: undefined, checkedOutAt: undefined, convertedToBookingAt: undefined });
                     await cart.save({ session });
                 }
                 if (!cart.scheduledAt) {
@@ -1537,21 +1049,7 @@ class CartService {
                     throw new Error(validation.errors.join(", "));
                 }
                 const expiry = new Date(Date.now() + 30 * 60 * 1000);
-                const lockedCart = await Cart.findOneAndUpdate({
-                    _id: cartId,
-                    userId,
-                    status: {
-                        $in: ["ACTIVE", "SCHEDULED"],
-                    },
-                }, {
-                    $set: {
-                        status: "CHECKOUT_PENDING",
-                        checkoutExpiresAt: expiry,
-                    },
-                }, {
-                    new: true,
-                    session,
-                });
+                const lockedCart = await Cart.findOneAndUpdate({ _id: cartId, userId, status: { $in: ["ACTIVE", "SCHEDULED"] } }, { $set: { status: "CHECKOUT_PENDING", checkoutExpiresAt: expiry } }, { new: true, session });
                 if (!lockedCart) {
                     throw new Error("Checkout already initiated");
                 }
@@ -1561,49 +1059,24 @@ class CartService {
                     cartId: lockedCart._id,
                     bookingFor: lockedCart.bookingFor,
                     bookedBy: "USER",
-                    /*
-                     * Booking-level snapshots.
-                     *
-                     * Frontend can access these directly
-                     * without searching inside entries.
-                     */
-                    tierSnapshot: {
-                        tierId: lockedCart.tierId,
-                        name: lockedCart.tierName,
-                    },
-                    locationSnapshot: {
-                        locationId: lockedCart.locationId,
-                        name: lockedCart.locationName,
-                    },
+                    // Booking-level snapshots. Frontend can access these directly without searching inside entries.
+                    tierSnapshot: { tierId: lockedCart.tierId, name: lockedCart.tierName },
+                    locationSnapshot: { locationId: lockedCart.locationId, name: lockedCart.locationName },
                     entries: bookingData.entries,
                     customerDetails: lockedCart.customerDetails,
                     pricing: bookingData.pricing,
-                    payment: {
-                        status: "PENDING",
-                    },
+                    payment: { status: "PENDING" },
                     paymentExpiresAt: expiry,
                     status: "PENDING_PAYMENT",
                     scheduledAt: lockedCart.scheduledAt,
-                    ...(lockedCart.notes
-                        ? {
-                            notes: lockedCart.notes,
-                        }
-                        : {}),
+                    ...(lockedCart.notes ? { notes: lockedCart.notes } : {}),
                     cartSnapshot: lockedCart.toObject(),
                 };
-                const [createdBooking] = await Booking.create([bookingPayload], {
-                    session,
-                });
+                const [createdBooking] = await Booking.create([bookingPayload], { session });
                 if (!createdBooking) {
                     throw new Error("Failed to create booking");
                 }
-                await Cart.updateOne({
-                    _id: lockedCart._id,
-                }, {
-                    $set: {
-                        activeBookingId: createdBooking._id,
-                    },
-                }, { session });
+                await Cart.updateOne({ _id: lockedCart._id }, { $set: { activeBookingId: createdBooking._id } }, { session });
                 return createdBooking;
             });
             const finalBooking = result;
@@ -1615,11 +1088,8 @@ class CartService {
                     paymentCompleted: true,
                 };
             }
-            /**
-             * Existing Cashfree order can be reused.
-             */
-            if (finalBooking.payment.providerOrderId &&
-                finalBooking.payment.paymentSessionId) {
+            // Existing Cashfree order can be reused.
+            if (finalBooking.payment.providerOrderId && finalBooking.payment.paymentSessionId) {
                 return {
                     bookingId: finalBooking._id,
                     bookingReference: finalBooking.bookingReference,
@@ -1629,12 +1099,7 @@ class CartService {
                     reusedPaymentSession: true,
                 };
             }
-            /**
-             * Use a separate provider order ID.
-             *
-             * Do not rely only on bookingReference
-             * when retries are possible.
-             */
+            // Use a separate provider order ID. Do not rely only on bookingReference when retries are possible.
             const providerOrderId = `${finalBooking.bookingReference}-${Date.now()}`;
             const cashfreeOrder = await CashfreeService.createOrder({
                 orderId: providerOrderId,
@@ -1644,21 +1109,14 @@ class CartService {
                 customerPhone: finalBooking.customerDetails?.phone || "",
                 userId,
             });
-            await Booking.updateOne({
-                _id: finalBooking._id,
-                "payment.status": {
-                    $ne: "PAID",
-                },
-            }, {
+            await Booking.updateOne({ _id: finalBooking._id, "payment.status": { $ne: "PAID" } }, {
                 $set: {
                     "payment.providerOrderId": cashfreeOrder.order_id,
                     "payment.paymentSessionId": cashfreeOrder.payment_session_id,
                     "payment.lastAttemptAt": new Date(),
                     "payment.status": "PENDING",
                 },
-                $inc: {
-                    "payment.attempts": 1,
-                },
+                $inc: { "payment.attempts": 1 },
             });
             return {
                 bookingId: finalBooking._id,
@@ -1677,10 +1135,7 @@ class CartService {
         if (!mongoose.Types.ObjectId.isValid(cartId)) {
             throw new Error("Invalid cartId");
         }
-        const cart = await Cart.findOne({
-            _id: cartId,
-            ...buildCartOwnerQuery(owner),
-        });
+        const cart = await Cart.findOne({ _id: cartId, ...buildCartOwnerQuery(owner) });
         if (!cart) {
             throw new Error("Cart not found");
         }
@@ -1691,48 +1146,23 @@ class CartService {
     }
     static async expireCheckoutPendingCarts() {
         const now = new Date();
-        await Cart.updateMany({
-            status: "CHECKOUT_PENDING",
-            checkoutExpiresAt: {
-                $lte: now,
-            },
-        }, {
-            $set: {
-                status: "ACTIVE",
-            },
-            $unset: {
-                checkoutExpiresAt: 1,
-                activeBookingId: 1,
-            },
+        await Cart.updateMany({ status: "CHECKOUT_PENDING", checkoutExpiresAt: { $lte: now } }, {
+            $set: { status: "ACTIVE" },
+            $unset: { checkoutExpiresAt: 1, activeBookingId: 1 },
         });
     }
     static async mergeGuestCartToUser(guestId, userId) {
         const session = await mongoose.startSession();
         try {
             await session.withTransaction(async () => {
-                const guestCarts = await Cart.find({
-                    guestId,
-                    status: {
-                        $in: [
-                            "ACTIVE",
-                            "SCHEDULED",
-                        ],
-                    },
-                })
-                    .select("_id serviceId packageId tierId locationId")
-                    .session(session);
+                const guestCarts = await Cart.find({ guestId, status: { $in: ["ACTIVE", "SCHEDULED"] } }).select("_id serviceId packageId tierId locationId").session(session);
                 const duplicateGuestCartIds = [];
                 for (const cart of guestCarts) {
                     const duplicateQuery = {
                         userId,
                         tierId: cart.tierId,
                         locationId: cart.locationId,
-                        status: {
-                            $in: [
-                                "ACTIVE",
-                                "SCHEDULED",
-                            ],
-                        },
+                        status: { $in: ["ACTIVE", "SCHEDULED"] },
                     };
                     if (cart.serviceId) {
                         duplicateQuery.serviceId = cart.serviceId;
@@ -1746,26 +1176,11 @@ class CartService {
                     }
                 }
                 if (duplicateGuestCartIds.length > 0) {
-                    await Cart.deleteMany({
-                        _id: { $in: duplicateGuestCartIds },
-                    }).session(session);
+                    await Cart.deleteMany({ _id: { $in: duplicateGuestCartIds } }).session(session);
                 }
-                await Cart.updateMany({
-                    guestId,
-                    status: {
-                        $in: [
-                            "ACTIVE",
-                            "SCHEDULED",
-                        ],
-                    },
-                    _id: { $nin: duplicateGuestCartIds },
-                }, {
-                    $set: {
-                        userId,
-                    },
-                    $unset: {
-                        guestId: 1,
-                    },
+                await Cart.updateMany({ guestId, status: { $in: ["ACTIVE", "SCHEDULED"] }, _id: { $nin: duplicateGuestCartIds } }, {
+                    $set: { userId },
+                    $unset: { guestId: 1 },
                 }).session(session);
             });
         }
@@ -1777,10 +1192,7 @@ class CartService {
         if (!mongoose.Types.ObjectId.isValid(cartId)) {
             throw new Error("Invalid cartId");
         }
-        const cart = await Cart.findOne({
-            _id: cartId,
-            ...buildCartOwnerQuery(owner),
-        });
+        const cart = await Cart.findOne({ _id: cartId, ...buildCartOwnerQuery(owner) });
         if (!cart) {
             throw new Error("Cart not found");
         }
@@ -1791,38 +1203,25 @@ class CartService {
         if (typeof cart.subtotal !== "number" || !Number.isFinite(cart.subtotal)) {
             throw new Error("Cart subtotal is not calculated");
         }
-        const bookingCount = cart.userId
-            ? await Booking.countDocuments({ userId: cart.userId })
-            : 0;
+        const bookingCount = cart.userId ? await Booking.countDocuments({ userId: cart.userId }) : 0;
         const validation = await CouponService.validateCoupon({
             couponCode,
-            ...(cart.serviceId && {
-                serviceId: cart.serviceId.toString(),
-            }),
-            ...(cart.packageId && {
-                packageId: cart.packageId.toString(),
-            }),
+            ...(cart.serviceId && { serviceId: cart.serviceId.toString() }),
+            ...(cart.packageId && { packageId: cart.packageId.toString() }),
             orderAmount: cart.subtotal,
-            ...(owner.userId && {
-                userId: owner.userId.toString(),
-            }),
+            ...(owner.userId && { userId: owner.userId.toString() }),
         });
         cart.couponId = validation.couponId;
         cart.couponCode = validation.couponCode;
         await cart.save();
-        const result = await this.recalculateCart(owner, cartId, {
-            persist: true,
-        });
+        const result = await this.recalculateCart(owner, cartId, { persist: true });
         return result.cart;
     }
     static async removeCoupon(owner, cartId) {
         if (!mongoose.Types.ObjectId.isValid(cartId)) {
             throw new Error("Invalid cartId");
         }
-        const cart = await Cart.findOne({
-            _id: cartId,
-            ...buildCartOwnerQuery(owner),
-        });
+        const cart = await Cart.findOne({ _id: cartId, ...buildCartOwnerQuery(owner) });
         if (!cart) {
             throw new Error("Cart not found");
         }
@@ -1830,19 +1229,14 @@ class CartService {
         cart.set("couponId", undefined);
         cart.set("couponCode", undefined);
         await cart.save();
-        const result = await this.recalculateCart(owner, cartId, {
-            persist: true,
-        });
+        const result = await this.recalculateCart(owner, cartId, { persist: true });
         return result.cart;
     }
     static async reopenCart(owner, cartId) {
         if (!mongoose.Types.ObjectId.isValid(cartId)) {
             throw new Error("Invalid cartId");
         }
-        const cart = await Cart.findOne({
-            _id: cartId,
-            ...buildCartOwnerQuery(owner),
-        });
+        const cart = await Cart.findOne({ _id: cartId, ...buildCartOwnerQuery(owner) });
         if (!cart) {
             throw new Error("Cart not found");
         }
@@ -1864,65 +1258,32 @@ class CartService {
     }
     static async expirePendingCheckouts() {
         const now = new Date();
-        const result = await Cart.updateMany({
-            status: "CHECKOUT_PENDING",
-            checkoutExpiresAt: {
-                $lte: now,
-            },
-        }, {
-            $set: {
-                status: "ACTIVE",
-            },
-            $unset: {
-                checkoutExpiresAt: 1,
-                activeBookingId: 1,
-                checkedOutAt: 1,
-                convertedToBookingAt: 1,
-            },
+        const result = await Cart.updateMany({ status: "CHECKOUT_PENDING", checkoutExpiresAt: { $lte: now } }, {
+            $set: { status: "ACTIVE" },
+            $unset: { checkoutExpiresAt: 1, activeBookingId: 1, checkedOutAt: 1, convertedToBookingAt: 1 },
         });
-        return {
-            matched: result.matchedCount,
-            modified: result.modifiedCount,
-        };
+        return { matched: result.matchedCount, modified: result.modifiedCount };
     }
     static async exportCartsToCsv(cartIds) {
-        if (!Array.isArray(cartIds) ||
-            cartIds.length === 0) {
+        if (!Array.isArray(cartIds) || cartIds.length === 0) {
             throw new Error("At least one cart ID is required");
         }
-        /*
-         * Protect the service even if it is
-         * called somewhere other than the route.
-         */
-        const uniqueCartIds = [
-            ...new Set(cartIds.map((id) => id.toString())),
-        ];
+        // Protect the service even if it is called somewhere other than the route.
+        const uniqueCartIds = [...new Set(cartIds.map((id) => id.toString()))];
         const invalidId = uniqueCartIds.some((id) => !mongoose.Types.ObjectId.isValid(id));
         if (invalidId) {
             throw new Error("One or more cart IDs are invalid");
         }
-        const carts = await Cart.find({
-            _id: {
-                $in: uniqueCartIds,
-            },
-        })
-            .sort({
-            createdAt: -1,
-        })
-            .lean();
+        const carts = await Cart.find({ _id: { $in: uniqueCartIds } }).sort({ createdAt: -1 }).lean();
         if (carts.length === 0) {
             throw new Error("No carts found for export");
         }
         const escapeCsv = (value) => {
-            if (value === null ||
-                value === undefined) {
+            if (value === null || value === undefined) {
                 return "";
             }
             const stringValue = String(value);
-            if (stringValue.includes(",") ||
-                stringValue.includes('"') ||
-                stringValue.includes("\n") ||
-                stringValue.includes("\r")) {
+            if (stringValue.includes(",") || stringValue.includes('"') || stringValue.includes("\n") || stringValue.includes("\r")) {
                 return `"${stringValue.replace(/"/g, '""')}"`;
             }
             return stringValue;
@@ -1938,42 +1299,23 @@ class CartService {
             return date.toISOString();
         };
         const formatComponents = (components) => {
-            if (!Array.isArray(components) ||
-                components.length === 0) {
+            if (!Array.isArray(components) || components.length === 0) {
                 return "";
             }
-            return components
-                .map((component) => {
-                const items = component.items
-                    ?.map((item) => item.name ||
-                    item.itemId?.toString() ||
-                    "")
-                    .filter(Boolean)
-                    .join(" | ") ??
-                    "";
-                const componentName = component.name ||
-                    component.componentId?.toString() ||
-                    "";
-                const itemText = items
-                    ? ` [${items}]`
-                    : "";
-                return (`${componentName}${itemText}` +
-                    ` (₹${component.totalPrice ?? 0})`);
-            })
-                .join("; ");
+            return components.map((component) => {
+                const items = component.items?.map((item) => item.name || item.itemId?.toString() || "").filter(Boolean).join(" | ") ?? "";
+                const componentName = component.name || component.componentId?.toString() || "";
+                const itemText = items ? ` [${items}]` : "";
+                return (`${componentName}${itemText}` + ` (₹${component.totalPrice ?? 0})`);
+            }).join("; ");
         };
         const formatServices = (services) => {
-            if (!Array.isArray(services) ||
-                services.length === 0) {
+            if (!Array.isArray(services) || services.length === 0) {
                 return "";
             }
-            return services
-                .map((service) => {
-                const name = service.name ||
-                    service.serviceId?.toString() ||
-                    "";
-                return (`${name}` +
-                    ` (₹${service.price ?? 0})`);
+            return services.map((service) => {
+                const name = service.name || service.serviceId?.toString() || "";
+                return (`${name}` + ` (₹${service.price ?? 0})`);
             })
                 .join("; ");
         };
@@ -2024,92 +1366,51 @@ class CartService {
         ];
         const rows = carts.map((cart) => [
             cart._id?.toString() ?? "",
-            cart.serviceId
-                ? "SERVICE"
-                : cart.packageId
-                    ? "PACKAGE"
-                    : "",
-            cart.userId?.toString() ??
-                "",
-            cart.guestId ??
-                "",
-            cart.serviceId?.toString() ??
-                "",
-            cart.packageId?.toString() ??
-                "",
+            cart.serviceId ? "SERVICE" : cart.packageId ? "PACKAGE" : "",
+            cart.userId?.toString() ?? "",
+            cart.guestId ?? "",
+            cart.serviceId?.toString() ?? "",
+            cart.packageId?.toString() ?? "",
             cart.name,
-            cart.categoryId?.toString() ??
-                "",
-            cart.tierId?.toString() ??
-                "",
+            cart.categoryId?.toString() ?? "",
+            cart.tierId?.toString() ?? "",
             cart.tierName,
-            cart.locationId?.toString() ??
-                "",
+            cart.locationId?.toString() ?? "",
             cart.locationName,
             cart.bookingFor,
-            cart.customerDetails?.name ??
-                "",
-            cart.customerDetails?.email ??
-                "",
-            cart.customerDetails?.phone ??
-                "",
-            cart.customerDetails?.address ??
-                "",
+            cart.customerDetails?.name ?? "",
+            cart.customerDetails?.email ?? "",
+            cart.customerDetails?.phone ?? "",
+            cart.customerDetails?.address ?? "",
             formatComponents(cart.selectedComponents),
             formatComponents(cart.addonComponents),
             formatServices(cart.selectedServices),
             formatServices(cart.addonServices),
-            cart.couponId?.toString() ??
-                "",
-            cart.couponCode ??
-                "",
+            cart.couponId?.toString() ?? "",
+            cart.couponCode ?? "",
             cart.basePrice,
             cart.addonPrice,
             cart.subtotal,
             cart.discountAmount,
-            cart.taxSummary
-                ?.taxableAmount ??
-                0,
-            cart.taxSummary
-                ?.cgstAmount ??
-                0,
-            cart.taxSummary
-                ?.sgstAmount ??
-                0,
-            cart.taxSummary
-                ?.igstAmount ??
-                0,
-            cart.taxSummary
-                ?.totalTax ??
-                0,
+            cart.taxSummary?.taxableAmount ?? 0,
+            cart.taxSummary?.cgstAmount ?? 0,
+            cart.taxSummary?.sgstAmount ?? 0,
+            cart.taxSummary?.igstAmount ?? 0,
+            cart.taxSummary?.totalTax ?? 0,
             cart.totalAmount,
             formatDate(cart.scheduledAt),
-            cart.schedulingTimezone ??
-                "",
+            cart.schedulingTimezone ?? "",
             cart.status,
-            cart.activeBookingId
-                ?.toString() ??
-                "",
-            cart.notes ??
-                "",
+            cart.activeBookingId?.toString() ?? "",
+            cart.notes ?? "",
             formatDate(cart.createdAt),
             formatDate(cart.updatedAt),
             formatDate(cart.checkedOutAt),
             formatDate(cart.checkoutExpiresAt),
             formatDate(cart.convertedToBookingAt),
         ]);
-        const csv = [
-            headers
-                .map(escapeCsv)
-                .join(","),
-            ...rows.map((row) => row
-                .map(escapeCsv)
-                .join(",")),
-        ].join("\n");
-        return {
-            csv,
-            total: carts.length,
-        };
+        const csv = [headers.map(escapeCsv).join(","), ...rows.map((row) => row.map(escapeCsv).join(","))].join("\n");
+        return { csv, total: carts.length };
     }
 }
 export default CartService;

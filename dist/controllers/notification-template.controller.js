@@ -1,16 +1,12 @@
-import { NotificationTemplateService, } from "../services/notification-template.service.js";
+import { NotificationTemplateService } from "../services/notification-template.service.js";
 const getStatusCode = (error) => {
-    if (typeof error === "object" &&
-        error !== null &&
-        "code" in error &&
-        error.code === 11000) {
+    if (typeof error === "object" && error !== null && "code" in error && error.code === 11000) {
         return 409;
     }
     if (!(error instanceof Error)) {
         return 500;
     }
-    if (error.message ===
-        "Notification template not found") {
+    if (error.message === "Notification template not found") {
         return 404;
     }
     if (error.message.includes("already exists")) {
@@ -23,15 +19,11 @@ const getStatusCode = (error) => {
 };
 export const createNotificationTemplate = async (req, res) => {
     try {
-        const template = await NotificationTemplateService
-            .createTemplate({
+        const template = await NotificationTemplateService.createTemplate({
             ...req.body,
             type: req.body.type,
             category: req.body.category,
-            ...(req.body.preferenceMode && {
-                preferenceMode: req.body
-                    .preferenceMode,
-            }),
+            ...(req.body.preferenceMode && { preferenceMode: req.body.preferenceMode }),
         });
         return res.status(201).json({
             success: true,
@@ -40,41 +32,20 @@ export const createNotificationTemplate = async (req, res) => {
         });
     }
     catch (error) {
-        return res
-            .status(getStatusCode(error))
-            .json({
+        return res.status(getStatusCode(error)).json({
             success: false,
-            message: error instanceof Error
-                ? error.message
-                : "Failed to create notification template",
+            message: error instanceof Error ? error.message : "Failed to create notification template",
         });
     }
 };
 export const getNotificationTemplates = async (req, res) => {
     try {
-        const result = await NotificationTemplateService
-            .getTemplates({
-            ...(req.query.page && {
-                page: Number(req.query.page),
-            }),
-            ...(req.query.limit && {
-                limit: Number(req.query.limit),
-            }),
-            ...(typeof req.query.type ===
-                "string" && {
-                type: req.query
-                    .type,
-            }),
-            ...(typeof req.query.category ===
-                "string" && {
-                category: req.query
-                    .category,
-            }),
-            ...(req.query.isActive !==
-                undefined && {
-                isActive: req.query.isActive ===
-                    "true",
-            }),
+        const result = await NotificationTemplateService.getTemplates({
+            ...(req.query.page && { page: Number(req.query.page) }),
+            ...(req.query.limit && { limit: Number(req.query.limit) }),
+            ...(typeof req.query.type === "string" && { type: req.query.type }),
+            ...(typeof req.query.category === "string" && { category: req.query.category }),
+            ...(req.query.isActive !== undefined && { isActive: req.query.isActive === "true" }),
         });
         return res.status(200).json({
             success: true,
@@ -83,13 +54,9 @@ export const getNotificationTemplates = async (req, res) => {
         });
     }
     catch (error) {
-        return res
-            .status(getStatusCode(error))
-            .json({
+        return res.status(getStatusCode(error)).json({
             success: false,
-            message: error instanceof Error
-                ? error.message
-                : "Failed to fetch notification templates",
+            message: error instanceof Error ? error.message : "Failed to fetch notification templates",
         });
     }
 };
@@ -102,8 +69,7 @@ export const getNotificationTemplateById = async (req, res) => {
                 message: "Valid template ID is required",
             });
         }
-        const template = await NotificationTemplateService
-            .getTemplateById(templateId);
+        const template = await NotificationTemplateService.getTemplateById(templateId);
         return res.status(200).json({
             success: true,
             message: "Notification template fetched successfully",
@@ -111,24 +77,16 @@ export const getNotificationTemplateById = async (req, res) => {
         });
     }
     catch (error) {
-        return res
-            .status(getStatusCode(error))
-            .json({
+        return res.status(getStatusCode(error)).json({
             success: false,
-            message: error instanceof Error
-                ? error.message
-                : "Failed to fetch notification template",
+            message: error instanceof Error ? error.message : "Failed to fetch notification template",
         });
     }
 };
 export const updateNotificationTemplate = async (req, res) => {
     try {
         const templateId = req.params.id;
-        const template = await NotificationTemplateService
-            .updateTemplate({
-            templateId,
-            ...req.body,
-        });
+        const template = await NotificationTemplateService.updateTemplate({ templateId, ...req.body });
         return res.status(200).json({
             success: true,
             message: "Notification template updated successfully",
@@ -136,13 +94,9 @@ export const updateNotificationTemplate = async (req, res) => {
         });
     }
     catch (error) {
-        return res
-            .status(getStatusCode(error))
-            .json({
+        return res.status(getStatusCode(error)).json({
             success: false,
-            message: error instanceof Error
-                ? error.message
-                : "Failed to update notification template",
+            message: error instanceof Error ? error.message : "Failed to update notification template",
         });
     }
 };
