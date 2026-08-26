@@ -520,7 +520,7 @@ export const assignUserRoles = async (req, res) => {
             });
             return;
         }
-        if (message === "One or more roles are invalid or inactive") {
+        if (message === "One or more roles are invalid, inactive, or cannot be assigned") {
             res.status(400).json({
                 success: false,
                 message,
