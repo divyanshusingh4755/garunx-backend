@@ -796,4 +796,28 @@ export const exportUsersCsv = async (req, res) => {
         });
     }
 };
+export const coordinatorUnavailableDates = async (req, res) => {
+    try {
+        const coordinatorId = req.user?.userId;
+        const { unavailableDates } = req.body;
+        if (!coordinatorId) {
+            return res.status(401).json({
+                success: false,
+                message: "Unauthorized"
+            });
+        }
+        const data = await AuthService.updateCoordinatorUnavailableDates(coordinatorId, unavailableDates);
+        return res.status(200).json({
+            success: true,
+            message: "Unavailable dates updated successfully"
+        });
+    }
+    catch (error) {
+        const statusCode = error.message.includes("not found") ? 404 : error.message.includes("approved") ? 403 : 400;
+        return res.status(statusCode).json({
+            success: false,
+            message: error.message || "Failed to update coordinator unavailable dates"
+        });
+    }
+};
 //# sourceMappingURL=auth.controllers.js.map

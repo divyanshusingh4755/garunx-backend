@@ -152,6 +152,20 @@ const coordinatorProfileSchema = new Schema({
         default: AvailabilityStatus.AVAILABLE,
         required: true,
     },
+    unavailableDates: {
+        type: [{ type: Date }],
+        default: [],
+        validate: {
+            validator: (dates) => {
+                const normalizedDates = dates.map((date) => {
+                    const d = new Date(date);
+                    return new Date(Date.UTC(d.getFullYear(), d.getUTCMonth(), d.getUTCDate())).getTime();
+                });
+                return new Set(normalizedDates).size === normalizedDates.length;
+            },
+            message: "Duplicate unavailable dates are not allowed"
+        }
+    },
     approvalRejectionReason: {
         type: String,
         trim: true,
@@ -371,5 +385,6 @@ userSchema.index({ role: 1, isActive: 1, isDocumentVerified: 1, isBankDocumentVe
 userSchema.index({ role: 1, "coordinatorProfile.averageRating": -1 });
 userSchema.index({ role: 1, "coordinatorProfile.serviceableLocations.locationId": 1 });
 userSchema.index({ fullName: "text", email: "text", phoneNumber: "text", userReference: "text" }, { weights: { fullName: 10, email: 5, phoneNumber: 2, userReference: 1 }, name: "UserSearchIndex" });
+userSchema.index({ role: 1, "coordinatorProfile.unavailableDates": 1 });
 export const User = model("User", userSchema);
 //# sourceMappingURL=user.model.js.map

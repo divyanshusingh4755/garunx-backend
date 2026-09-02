@@ -206,6 +206,9 @@ declare class AuthService {
         csv: string;
         total: number;
     }>;
+    static updateCoordinatorUnavailableDates(coordinatorId: string, unavailableDates: string[]): Promise<{
+        unavailableDates: Date[];
+    }>;
 }
 export default AuthService;
 //# sourceMappingURL=auth.service.d.ts.map

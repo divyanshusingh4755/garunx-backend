@@ -32,6 +32,8 @@ export declare class BookingService {
     private static validateBookingOtp;
     private static getBookingLocationIds;
     private static getRequestedCoordinatorIds;
+    private static getUnavailableDateRange;
+    private static buildCoordinatorUnavailableDateFilter;
     private static findNextAvailableCoordinator;
     private static assignCoordinatorRequest;
     private static calculateExecutionProgress;

@@ -1124,6 +1124,44 @@ class AuthService {
         const csv = [headers.map(escapeCsv).join(","), ...rows.map((row) => row.map(escapeCsv).join(","))].join("\n");
         return { csv, total: users.length };
     }
+    static async updateCoordinatorUnavailableDates(coordinatorId, unavailableDates) {
+        const coordinator = await User.findOne({
+            _id: coordinatorId,
+            role: Role.COORDINATOR
+        });
+        if (!coordinator) {
+            throw new Error("Coordinator not found");
+        }
+        if (!coordinator.coordinatorProfile) {
+            throw new Error("Coordinator profile has not been created");
+        }
+        if (coordinator.coordinatorProfile.approvalStatus !== ApprovalStatus.APPROVED) {
+            throw new Error("Coordinator must be approved before updating unavailable dates");
+        }
+        if (!Array.isArray(unavailableDates)) {
+            throw new Error("UnavailableDates must be an array");
+        }
+        // Normalize all dates to UTC of day.
+        const normalizeDates = unavailableDates.map((dateString) => {
+            const date = new Date(`${dateString}T00:00:00.000Z`);
+            if (Number.isNaN(date.getTime())) {
+                throw new Error(`Invalid unavailable date: ${dateString}`);
+            }
+            if (date.toISOString().slice(0, 10) !== dateString) {
+                throw new Error(`Invalid unavailable date: ${dateString}`);
+            }
+            return date;
+        });
+        // Extra protection against duplicates
+        const uniquedates = new Map();
+        for (const date of normalizeDates) {
+            uniquedates.set(date.toISOString().slice(0, 10), date);
+        }
+        coordinator.coordinatorProfile.unavailableDates = Array.from(uniquedates.values()).sort((a, b) => a.getTime() - b.getTime());
+        await coordinator.save();
+        await this.invalidateUserCache(coordinatorId);
+        return { unavailableDates: coordinator.coordinatorProfile.unavailableDates };
+    }
 }
 export default AuthService;
 //# sourceMappingURL=auth.service.js.map

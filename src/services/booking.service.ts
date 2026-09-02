@@ -88,9 +88,7 @@ export class BookingService {
     await Promise.all(operations);
   }
 
-  private static async assignReplacementCoordinatorRequest(
-    params: { booking: any; coordinatorId: string | Types.ObjectId; requestedBy: string | Types.ObjectId; assignmentType: "MANUAL" | "AUTO"; session?: ClientSession; },
-  ) {
+  private static async assignReplacementCoordinatorRequest(params: { booking: any; coordinatorId: string | Types.ObjectId; requestedBy: string | Types.ObjectId; assignmentType: "MANUAL" | "AUTO"; session?: ClientSession; }) {
     const { booking, coordinatorId, requestedBy, assignmentType, session: externalSession } = params;
 
     if (!booking.assignment || !booking.assignment.reassignment) { throw new Error("Active reassignment not found"); }
@@ -160,6 +158,7 @@ export class BookingService {
         isDocumentVerified: true,
         "coordinatorProfile.approvalStatus": "APPROVED",
         "coordinatorProfile.availabilityStatus": "AVAILABLE",
+        "coordinatorProfile.unavailableDates": this.buildCoordinatorUnavailableDateFilter(booking.scheduledAt),
         "coordinatorProfile.serviceableLocations.locationId": { $in: locationIds },
       });
 
@@ -504,8 +503,31 @@ export class BookingService {
     return requests.filter((request: any) => (request.assignmentRound ?? 1) === currentRound && request.scheduledAt && request.scheduledAt >= startOfDay && request.scheduledAt <= endOfDay).map((request: any) => request.coordinatorId).filter(Boolean).map((coordinatorId: Types.ObjectId | string) => new Types.ObjectId(coordinatorId.toString()));
   }
 
+  private static getUnavailableDateRange(scheduledAt: Date | string): { startOfDay: Date, endOfDay: Date } {
+    const date = new Date(scheduledAt);
+    if (Number.isNaN(date.getTime())) {
+      throw new Error("Invalid scheduled date");
+    }
+
+    // UnavailableDates are stored as normalized UTC calendar dates: 2026-09-10 => 2026-09-10T00:00:00.000Z. Therefore use UTC boundaries here
+    const startOfDay = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+    const endOfDay = new Date(startOfDay);
+    endOfDay.setUTCDate(endOfDay.getUTCDate() + 1)
+    return { startOfDay, endOfDay }
+  }
+
+  private static buildCoordinatorUnavailableDateFilter(scheduledAt: Date | string) {
+    const { startOfDay, endOfDay } = this.getUnavailableDateRange(scheduledAt);
+    return { $not: { $elemMatch: { $gte: startOfDay, $lt: endOfDay } } }
+  }
+
   private static async findNextAvailableCoordinator(booking: any, excludedCoordinatorIds: Types.ObjectId[] = [], scheduledAt?: Date) {
     const locationIds = this.getBookingLocationIds(booking);
+    const targetScheduledAt = scheduledAt ?? booking.scheduledAt;
+
+    if (!targetScheduledAt) {
+      return null;
+    }
 
     const query: Record<string, any> = {
       role: "COORDINATOR",
@@ -514,6 +536,7 @@ export class BookingService {
       "coordinatorProfile.approvalStatus": "APPROVED",
       "coordinatorProfile.availabilityStatus": "AVAILABLE",
       "coordinatorProfile.autoAssignmentEnabled": true,
+      "coordinatorProfile.unavailableDates": this.buildCoordinatorUnavailableDateFilter(targetScheduledAt),
     };
 
     if (locationIds.length > 0) {
@@ -527,9 +550,6 @@ export class BookingService {
     const candidates = await User.find(query).sort({ "coordinatorProfile.averageRating": -1, "coordinatorProfile.totalAssignedBookings": 1 }).limit(20).lean();
 
     if (!candidates.length) { return null; }
-
-    const targetScheduledAt = scheduledAt ?? booking.scheduledAt;
-    if (!targetScheduledAt) { return candidates[0]; }
 
     const scheduledDate = new Date(targetScheduledAt);
 
@@ -1341,6 +1361,7 @@ export class BookingService {
         userReference: 1,
         "coordinatorProfile.approvalStatus": 1,
         "coordinatorProfile.availabilityStatus": 1,
+        "coordinatorProfile.unavailableDates": 1,
         "coordinatorProfile.averageRating": 1,
         "coordinatorProfile.totalRatings": 1,
         "coordinatorProfile.totalCompletedBookings": 1,
@@ -1349,9 +1370,14 @@ export class BookingService {
 
       if (!coordinator) { throw new Error("Assigned coordinator not found"); }
 
+      const { startOfDay: unavailableStart, endOfDay: unavailableEnd } = this.getUnavailableDateRange(newSchedule);
+      const coordinatorUnavailableOnDate = (coordinator.coordinatorProfile?.unavailableDates ?? []).some((unavailableDate) => {
+        const date = new Date(unavailableDate);
+        return (date >= unavailableStart && date < unavailableEnd);
+      })
 
       // Coordinator must still be eligible to handle bookings.
-      const coordinatorOperationallyAvailable = coordinator.role === "COORDINATOR" && coordinator.isActive === true && coordinator.isDocumentVerified === true && coordinator.coordinatorProfile?.approvalStatus === "APPROVED" && coordinator.coordinatorProfile?.availabilityStatus === "AVAILABLE";
+      const coordinatorOperationallyAvailable = coordinator.role === "COORDINATOR" && coordinator.isActive === true && coordinator.isDocumentVerified === true && coordinator.coordinatorProfile?.approvalStatus === "APPROVED" && coordinator.coordinatorProfile?.availabilityStatus === "AVAILABLE" && !coordinatorUnavailableOnDate;
 
       // Check daily booking capacity on the requested NEW schedule date.
       let hasScheduleCapacity = false;
@@ -2203,6 +2229,11 @@ export class BookingService {
       "coordinatorProfile.availabilityStatus": "AVAILABLE",
     };
 
+    // Date-specific coordinator availability
+    if (targetScheduledAt) {
+      query["coordinatorProfile.unavailableDates"] = this.buildCoordinatorUnavailableDateFilter(targetScheduledAt);
+    }
+
     const normalizedSearchTerm = options.searchTerm?.trim();
     if (normalizedSearchTerm) {
       const escapedSearchTerm = normalizedSearchTerm.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -2490,11 +2521,12 @@ export class BookingService {
       isDocumentVerified: true,
       "coordinatorProfile.approvalStatus": "APPROVED",
       "coordinatorProfile.availabilityStatus": "AVAILABLE",
+      "coordinatorProfile.unavailableDates": this.buildCoordinatorUnavailableDateFilter(targetScheduledAt),
       "coordinatorProfile.serviceableLocations.locationId": { $in: locationIds },
     });
 
     if (!coordinator) {
-      throw new Error("Selected coordinator is not available for this booking");
+      throw new Error("Selected coordinator is not available for the selected booking date");
     }
 
     // CHECK CAPACITY ON TARGET DATE
@@ -2717,6 +2749,79 @@ export class BookingService {
             assignmentRound: currentRound,
             reassignment: booking.assignment.reassignment ?? null,
           };
+          return;
+        }
+
+        // ACCEPT-TIME COORDINATOR AVAILABILITY REVALIDATION. Coordinator availability may have changed after the assignment request was created
+        const requestScheduledAt = currentRequest.scheduledAt ?? booking.assignment?.pendingReschedule?.requestedScheduledAt ?? booking.scheduledAt
+        if (!requestScheduledAt) {
+          throw new Error("Booking schedule is missing")
+        }
+
+        const acceptingCoordinator = await User.findOne({
+          _id: coordinatorId,
+          role: "COORDINATOR",
+          isActive: true,
+          isDocumentVerified: true,
+          "coordinatorProfile.approvalStatus": "APPROVED",
+          "coordinatorProfile.availabilityStatus": "AVAILABLE",
+          "coordinatorProfile.unavailableDates": this.buildCoordinatorUnavailableDateFilter(requestScheduledAt),
+        }).session(session);
+
+        if (!acceptingCoordinator) {
+          currentRequest.status = "CANCELLED";
+          currentRequest.closureReason = "SYSTEM_CANCELLED";
+          currentRequest.respondedAt = now;
+
+          if (isReplacementRequest) {
+            this.handleFailedReassignmentAttempt(booking, "Replacement coordinator became unavailable for the booking date");
+          } else {
+            const hasOtherPending = booking.assignment.requests.some((request: any) => request._id?.toString() !== currentRequest._id?.toString() && request.status === "PENDING" && (request.assignmentRound ?? 1) === currentRound);
+            booking.assignment.status = hasOtherPending ? "PENDING_RESPONSE" : "PENDING_SELECTION";
+            booking.status = "ASSIGNMENT_PENDING";
+          }
+
+          await booking.save({ session });
+          shouldInvalidateCache = true;
+          postCommitError = new Error("You are unavailable for this booking date");
+          return;
+        }
+
+        // ACCEPT TIME DAILY CAPACITY CHECK - Coordinator may have received other bookings after this request was originally created
+        const capacityDate = new Date(requestScheduledAt);
+        const capacityStartOfDay = new Date(capacityDate);
+        capacityStartOfDay.setHours(0, 0, 0, 0);
+
+        const capacityEndOfDay = new Date(capacityDate);
+        capacityEndOfDay.setHours(23, 59, 59, 999);
+
+        const assignedBookingCount = await Booking.countDocuments({
+          _id: { $ne: booking._id },
+          isDeleted: false,
+          "assignment.assignedCoordinatorId": new Types.ObjectId(coordinatorId),
+          scheduledAt: { $gte: capacityStartOfDay, $lte: capacityEndOfDay },
+          status: { $in: ["ASSIGNED", "IN_PROGRESS"] }
+        }).session(session);
+
+        const maxDailyBookings = acceptingCoordinator.coordinatorProfile?.maxDailyBookings ?? 5;
+
+        // Coordinator has reached the limit
+        if (assignedBookingCount >= maxDailyBookings) {
+          currentRequest.status = "CANCELLED";
+          currentRequest.closureReason = "SYSTEM_CANCELLED";
+          currentRequest.respondedAt = now;
+
+          if (isReplacementRequest) {
+            this.handleFailedReassignmentAttempt(booking, "Replacement coordinator reached the maximum booking limit for the selected date")
+          } else {
+            const hasOtherPending = booking.assignment.requests.some((request: any) => request._id?.toString() !== currentRequest._id?.toString() && request.status === "PENDING" && (request.assignmentRound ?? 1) === currentRound);
+            booking.assignment.status = hasOtherPending ? "PENDING_RESPONSE" : "PENDING_SELECTION";
+            booking.status = "ASSIGNMENT_PENDING";
+          }
+
+          await booking.save({ session });
+          shouldInvalidateCache = true;
+          postCommitError = new Error("Maximum booking limit reached for this date");
           return;
         }
 

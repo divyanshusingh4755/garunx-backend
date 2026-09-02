@@ -24,6 +24,7 @@ export interface ICoordinatorProfile {
     maxDailyBookings: number;
     autoAssignmentEnabled: boolean;
     lastAvailabilityChangedAt?: Date;
+    unavailableDates: Date[];
     serviceableLocations: IServiceableLocation[];
 }
 export interface IDocumentVerification {

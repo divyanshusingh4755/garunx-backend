@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { body, param, query } from "express-validator";
 import { Role } from "../types/rbac.js";
-import { login, register, resendOtp, verifyOtp, refreshToken, logout, forgotPassword, resetPassword, getUserById, getAllUsers, deactivateUser, completeProfile, updateProfile, uploadSingle, uploadMutliple, getUserByEmailOrPhone, submitVerificationDocuments, approveOrRejectDocs, changePassword, socialAuth, updateCoordinatorAvailability, getCurrentUser, updateCoordinatorSettings, updateServiceableLocations, getCoordinators, getCoordinatorById, updateCoordinatorApproval, createAdmin, exportUsersCsv } from "../controllers/auth.controllers.js";
+import { login, register, resendOtp, verifyOtp, refreshToken, logout, forgotPassword, resetPassword, getUserById, getAllUsers, deactivateUser, completeProfile, updateProfile, uploadSingle, uploadMutliple, getUserByEmailOrPhone, submitVerificationDocuments, approveOrRejectDocs, changePassword, socialAuth, updateCoordinatorAvailability, getCurrentUser, updateCoordinatorSettings, updateServiceableLocations, getCoordinators, getCoordinatorById, updateCoordinatorApproval, createAdmin, exportUsersCsv, coordinatorUnavailableDates } from "../controllers/auth.controllers.js";
 import { authRateLimiter, otpRateLimiter, passwordResetRateLimiter } from "../utils/rateLimiter.js";
 import { authenticate } from "../middleware/authenticate.js";
 import { upload } from "../middleware/upload.js";
@@ -189,6 +189,31 @@ const exportUsersValidation = [
     body("userIds.*").isMongoId().withMessage("Each userId must be a valid MongoDB ID"),
     validate,
 ];
+const coordinatorUnavailableDatesValidation = [
+    body("unavailableDates").isArray().withMessage("unavailableDates must be an array"),
+    body("unavailableDates.*").isString().withMessage("Each unavailable date must be string").matches(/^\d{4}-\d{2}-\d{2}$/).withMessage("Each unavailable date must be in YYYY-MM-DD format").custom((value) => {
+        const date = new Date(`${value}T00:00:00.000z`);
+        if (Number.isNaN(date.getTime())) {
+            throw new Error(`Invalid unavailable date: ${value}`);
+        }
+        // Prevent invalid calender dates such as 2026-02-31
+        if (date.toISOString().slice(0, 10) !== value) {
+            throw new Error(`Invalid calender date:${value}`);
+        }
+        return true;
+    }),
+    body("unavailableDates").custom((dates) => {
+        if (!Array.isArray(dates)) {
+            return true;
+        }
+        const unqiueDates = new Set(dates);
+        if (unqiueDates.size !== dates.length) {
+            throw new Error("Duplicate unavailable dates are not allowed");
+        }
+        return true;
+    }),
+    validate
+];
 // PUBLIC AUTH
 router.post("/register", registerValidation, register);
 router.post("/verify-otp", otpRateLimiter, verifyOtpValidation, verifyOtp);
@@ -209,6 +234,7 @@ router.post("/change-password", authenticate, changePasswordValidation, changePa
 router.patch("/upload-documents", authenticate, authorizeRoles(Role.USER, Role.COORDINATOR), documentUploadValidation, submitVerificationDocuments);
 // COORDINATOR SELF-MANAGEMENT
 router.patch("/coordinator/availability", authenticate, authorizeRoles(Role.COORDINATOR), coordinatorAvailabilityValidation, updateCoordinatorAvailability);
+router.put("/coordinator/unavailable-dates", authenticate, authorizeRoles(Role.COORDINATOR), coordinatorUnavailableDatesValidation, coordinatorUnavailableDates);
 router.put("/coordinator/serviceable-locations", authenticate, authorizeRoles(Role.COORDINATOR), serviceableLocationsValidation, updateServiceableLocations);
 // ADMIN - STATIC ROUTES
 router.post("/admin", authenticate, authorizeRoles(Role.ADMIN), requirePermission("admin.create"), createAdminValidation, createAdmin);

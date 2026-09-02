@@ -28,6 +28,7 @@ export interface ICoordinatorProfile {
   maxDailyBookings: number;
   autoAssignmentEnabled: boolean;
   lastAvailabilityChangedAt?: Date;
+  unavailableDates: Date[];
   serviceableLocations: IServiceableLocation[];
 }
 
@@ -268,6 +269,21 @@ const coordinatorProfileSchema = new Schema<ICoordinatorProfile>(
       enum: Object.values(AvailabilityStatus),
       default: AvailabilityStatus.AVAILABLE,
       required: true,
+    },
+
+    unavailableDates: {
+      type: [{ type: Date }],
+      default: [],
+      validate: {
+        validator: (dates: Date[]): boolean => {
+          const normalizedDates = dates.map((date) => {
+            const d = new Date(date);
+            return new Date(Date.UTC(d.getFullYear(), d.getUTCMonth(), d.getUTCDate())).getTime()
+          });
+          return new Set(normalizedDates).size === normalizedDates.length;
+        },
+        message: "Duplicate unavailable dates are not allowed"
+      }
     },
 
     approvalRejectionReason: {
@@ -544,5 +560,6 @@ userSchema.index({ role: 1, isActive: 1, isDocumentVerified: 1, isBankDocumentVe
 userSchema.index({ role: 1, "coordinatorProfile.averageRating": -1 });
 userSchema.index({ role: 1, "coordinatorProfile.serviceableLocations.locationId": 1 });
 userSchema.index({ fullName: "text", email: "text", phoneNumber: "text", userReference: "text" }, { weights: { fullName: 10, email: 5, phoneNumber: 2, userReference: 1 }, name: "UserSearchIndex" });
+userSchema.index({ role: 1, "coordinatorProfile.unavailableDates": 1 });
 
 export const User = model<IUser>("User", userSchema);
