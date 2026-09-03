@@ -24,9 +24,32 @@ const ownerSelectionValidation = [
   body("locationId").notEmpty().withMessage("locationId is required").isMongoId().withMessage("Invalid locationId"),
 ];
 
+// Commission is server-owned financial data. Never allow clients to provide or override comission snapshots
+const rejectCommissionFields = body().custom((value) => {
+  const forbiddenRootFields = ["commissionPercentage", "commissionBaseAmount", "commissionAmount"];
+
+  for (const field of forbiddenRootFields) {
+    if (value?.[field] !== undefined) {
+      throw new Error(`${field} is calculated by the server and cannot be supplied`)
+    }
+  }
+
+  const serviceCollections = ["selectedServices", "addonServices"];
+  for (const collection of serviceCollections) {
+    if (!Array.isArray(value?.[collection])) { continue; }
+    for (const service of value[collection]) {
+      if (service?.commissionPercentage !== undefined || service?.commissionAmount !== undefined) {
+        throw new Error("Service commission fields are calculated by the server and cannot be supplied");
+      }
+    }
+  }
+
+  return true;
+})
+
 // CART CREATION
-router.post("/service", optionalAuthenticate, body("serviceId").notEmpty().withMessage("serviceId is required").isMongoId().withMessage("Invalid serviceId"), ...ownerSelectionValidation, validate, createServiceCart);
-router.post("/package", optionalAuthenticate, body("packageId").notEmpty().withMessage("packageId is required").isMongoId().withMessage("Invalid packageId"), ...ownerSelectionValidation, validate, createPackageCart);
+router.post("/service", optionalAuthenticate, rejectCommissionFields, body("serviceId").notEmpty().withMessage("serviceId is required").isMongoId().withMessage("Invalid serviceId"), ...ownerSelectionValidation, validate, createServiceCart);
+router.post("/package", optionalAuthenticate, rejectCommissionFields, body("packageId").notEmpty().withMessage("packageId is required").isMongoId().withMessage("Invalid packageId"), ...ownerSelectionValidation, validate, createPackageCart);
 
 // AUTHENTICATED USER CART ACTIONS
 router.post("/merge", authenticate, authorizeRoles(Role.USER), mergeGuestCartToUser);
@@ -40,6 +63,7 @@ router.get("/", optionalAuthenticate, query("page").optional().isInt({ min: 1 })
 // SHARED VALIDATION
 const serviceSelectionValidation = [
   param("cartId").isMongoId().withMessage("Invalid cartId"),
+  rejectCommissionFields,
   body("serviceIds").isArray().withMessage("serviceIds must be an array"),
   body("serviceIds.*").isMongoId().withMessage("Invalid serviceId"),
   validate,

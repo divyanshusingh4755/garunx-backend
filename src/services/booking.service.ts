@@ -88,6 +88,61 @@ export class BookingService {
     await Promise.all(operations);
   }
 
+  private static buildCustomerPricing(pricing: any) {
+    return {
+      baseAmount: pricing.baseAmount,
+      addonAmount: pricing.addonAmount,
+      subtotal: pricing.subtotal,
+      couponId: pricing.couponId,
+      couponCode: pricing.couponCode,
+      discountAmount: pricing.discountAmount,
+      taxSummary: pricing.taxSummary,
+      grandTotal: pricing.grandTotal,
+    };
+  }
+
+  private static sanitizeBookingEntriesForNonAdmin(entries: any[] = []) {
+    return entries.map((entry) => {
+      // DIRECT SERVICE
+      if (entry.entryType === "SERVICE" && entry.serviceConfiguration) {
+        const serviceConfiguration = entry.serviceConfiguration;
+        const { commissionPercentage: _commissionPercentage, commissionAmount: _commissionAmount, ...safeServicePricing } = serviceConfiguration.pricing ?? {};
+        return {
+          ...entry,
+          serviceConfiguration: {
+            ...serviceConfiguration,
+            pricing: safeServicePricing
+          }
+        }
+      }
+
+      // PACKAGE
+      if (entry.entryType === "PACKAGE" && entry.packageConfiguration) {
+        const packageConfiguration = entry.packageConfiguration;
+        const { commissionPercentage: _packageCommissionPercentage, commissionBaseAmount: _packageCommissionBaseAmount, commissionAmount: _packageCommissionAmount, coordinatorPayableAmount: _packageCoordinatorPayableAmount, ...safePackagePricing } = packageConfiguration.pricing ?? {};
+
+        const sanitizeService = (service: any) => {
+          const { commissionPercentage: _commissionPercentage, commissionAmount: _commissionAmount, ...safePricing } = service.pricing ?? {};
+          return {
+            ...service,
+            pricing: safePricing
+          }
+        }
+
+        return {
+          ...entry,
+          packageConfiguration: {
+            ...packageConfiguration,
+            selectedServices: packageConfiguration.selectedServices?.map(sanitizeService) ?? [],
+            addonServices: packageConfiguration.addonServices?.map(sanitizeService) ?? [],
+            pricing: safePackagePricing
+          }
+        }
+      }
+      return entry;
+    })
+  }
+
   private static async assignReplacementCoordinatorRequest(params: { booking: any; coordinatorId: string | Types.ObjectId; requestedBy: string | Types.ObjectId; assignmentType: "MANUAL" | "AUTO"; session?: ClientSession; }) {
     const { booking, coordinatorId, requestedBy, assignmentType, session: externalSession } = params;
 
@@ -222,6 +277,7 @@ export class BookingService {
           coordinatorId: coordinatorObjectId.toString(),
           scheduledAt: booking.scheduledAt,
           responseDeadlineAt,
+          coordinatorPayableAmount: booking.pricing.coordinatorPayableAmount,
         },
         session,
       });
@@ -661,6 +717,7 @@ export class BookingService {
             coordinatorId: coordinatorObjectId.toString(),
             scheduledAt: targetScheduledAt,
             responseDeadlineAt,
+            coordinatorPayableAmount: booking.pricing.coordinatorPayableAmount,
           },
           session,
         });
@@ -1185,26 +1242,49 @@ export class BookingService {
           bookingReference: booking.bookingReference,
           status: booking.status,
           bookedBy: booking.bookedBy,
+          bookingFor: booking.bookingFor,
           customerDetails: booking.customerDetails,
-          pricing: booking.pricing,
+          pricing: {
+            baseAmount: booking.pricing.baseAmount,
+            addonAmount: booking.pricing.addonAmount,
+            subtotal: booking.pricing.subtotal,
+            couponId: booking.pricing.couponId,
+            couponCode: booking.pricing.couponCode,
+            discountAmount: booking.pricing.discountAmount,
+            commissionPercentage: booking.pricing.commissionPercentage,
+            commissionBaseAmount: booking.pricing.commissionBaseAmount,
+            commissionAmount: booking.pricing.commissionAmount,
+            coordinatorPayableAmount: booking.pricing.coordinatorPayableAmount,
+            taxSummary: booking.pricing.taxSummary,
+            grandTotal: booking.pricing.grandTotal,
+          },
           payment: {
             status: booking.payment.status,
             method: booking.payment.paymentMethod,
             gateway: booking.payment.gateway,
             amountPaid: booking.payment.amountPaid,
+            refundAmount: booking.payment.refundAmount,
+            refundReservedAmount: booking.payment.refundReservedAmount,
             currency: booking.payment.currency,
             providerOrderId: booking.payment.providerOrderId,
             providerPaymentId: booking.payment.providerPaymentId,
             paymentSessionId: booking.payment.paymentSessionId,
             paidAt: booking.payment.paidAt,
+            refundedAt: booking.payment.refundedAt,
             failureReason: booking.payment.failureReason,
+            refunds: booking.payment.refunds,
           },
           entries: booking.entries,
+          coordinatorSettlement: booking.coordinatorSettlement,
+          tierSnapshot: booking.tierSnapshot,
+          locationSnapshot: booking.locationSnapshot,
           scheduledAt: booking.scheduledAt,
+          completedAt: booking.completedAt,
           notes: booking.notes,
           assignment: booking.assignment,
           cancellation: booking.cancellation,
           execution: booking.execution,
+          rescheduleHistory: booking.rescheduleHistory,
           createdAt: booking.createdAt,
           updatedAt: booking.updatedAt,
         };
@@ -1589,6 +1669,21 @@ export class BookingService {
 
         booking.status = "COMPLETED";
         booking.completedAt = now;
+
+        const assignedCoordinatorId = booking.assignment?.assignedCoordinatorId;
+        if (!assignedCoordinatorId) {
+          throw new Error("Assigned coordinator is required before completing booking")
+        }
+
+        if (booking.coordinatorSettlement?.status !== "PAID") {
+          booking.coordinatorSettlement = {
+            status: "PAYABLE",
+            coordinatorId: assignedCoordinatorId,
+            payableAmount: booking.pricing.coordinatorPayableAmount,
+            paidAmount: booking.coordinatorSettlement?.paidAmount ?? 0,
+            payableAt: booking.coordinatorSettlement?.payableAt ?? now,
+          };
+        }
 
         if (!booking.execution) {
           booking.execution = {
@@ -2107,23 +2202,65 @@ export class BookingService {
     },
     );
 
-    const { assignment, ...bookingData } = booking;
+    const customerPricing = this.buildCustomerPricing(booking.pricing);
+
+    // USER only sees customer facing pricing. COORDINATOR additionally sees their potential/final payable amount.
+    const pricing = role === Role.COORDINATOR ? { ...customerPricing, coordinatorPayableAmount: booking.pricing.coordinatorPayableAmount } : customerPricing;
+    const safeEntries = this.sanitizeBookingEntriesForNonAdmin(booking.entries ?? []);
+
+    const assignment = booking.assignment;
+
+    // Coordinator settlement should only be visible to the FINAL assigned coordinator
+    const isCurrentAssignedCoordinator = role === Role.COORDINATOR && assignedCoordinator?._id?.toString() === userId;
+    const coordinatorSettlement = isCurrentAssignedCoordinator && booking.coordinatorSettlement
+      ? {
+        status: booking.coordinatorSettlement.status,
+        payableAmount: booking.coordinatorSettlement.payableAmount,
+        paidAmount: booking.coordinatorSettlement.paidAmount,
+        payableAt: booking.coordinatorSettlement.payableAt,
+        paidAt: booking.coordinatorSettlement.paidAt,
+      }
+      : undefined;
 
     return {
-      ...bookingData,
+      bookingId: booking._id,
+      bookingReference: booking.bookingReference,
+      status: booking.status,
+      bookedBy: booking.bookedBy,
+      bookingFor: booking.bookingFor,
+      customerDetails: booking.customerDetails,
+      pricing,
+      payment: {
+        status: booking.payment.status,
+        method: booking.payment.paymentMethod,
+        gateway: booking.payment.gateway,
+        amountPaid: booking.payment.amountPaid,
+        currency: booking.payment.currency,
+        paidAt: booking.payment.paidAt,
+
+        // I would NOT expose provider IDs here unless your frontend specifically requires them.
+      },
+
+      entries: safeEntries,
+      tierSnapshot: booking.tierSnapshot,
+      locationSnapshot: booking.locationSnapshot,
+      scheduledAt: booking.scheduledAt,
+      completedAt: booking.completedAt,
       notes: booking.notes ?? null,
       assignment: assignment
         ? {
           ...assignment,
-
-          // Return clean coordinator ID rather than populated object in this property.
           assignedCoordinatorId: assignedCoordinator?._id ?? assignedCoordinator ?? null,
           requests: coordinatorRequests,
         }
         : null,
 
-      // Full formatted currently assigned coordinator information.
       coordinator,
+      ...(coordinatorSettlement ? { coordinatorSettlement } : {}),
+      cancellation: booking.cancellation,
+      execution: booking.execution,
+      createdAt: booking.createdAt,
+      updatedAt: booking.updatedAt,
     };
   }
 
@@ -3195,7 +3332,17 @@ export class BookingService {
         entries: 1,
         scheduledAt: 1,
         assignment: 1,
-        pricing: 1,
+
+        "pricing.baseAmount": 1,
+        "pricing.addonAmount": 1,
+        "pricing.subtotal": 1,
+        "pricing.discountAmount": 1,
+        "pricing.taxSummary": 1,
+        "pricing.grandTotal": 1,
+
+        // Coordinator can see what they will receive
+        "pricing.coordinatorPayableAmount": 1,
+
         notes: 1,
         createdAt: 1,
       };
@@ -3218,7 +3365,13 @@ export class BookingService {
         scheduledAt: 1,
         assignment: 1,
         execution: 1,
-        pricing: 1,
+        "pricing.baseAmount": 1,
+        "pricing.addonAmount": 1,
+        "pricing.subtotal": 1,
+        "pricing.discountAmount": 1,
+        "pricing.taxSummary": 1,
+        "pricing.grandTotal": 1,
+        "pricing.coordinatorPayableAmount": 1,
         completedAt: 1,
         notes: 1,
         createdAt: 1,
@@ -3763,6 +3916,15 @@ export class BookingService {
     booking.execution.finishedAt = now;
     booking.execution.progressPercentage = 100;
 
+    // Coordinator earns the payable amount only after successful completion
+    booking.coordinatorSettlement = {
+      status: "PAYABLE",
+      coordinatorId: assignedCoordinatorId,
+      payableAmount: booking.pricing.coordinatorPayableAmount,
+      paidAmount: 0,
+      payableAt: now,
+    }
+
     const session = await mongoose.startSession();
 
     try {
@@ -3890,7 +4052,7 @@ export class BookingService {
     const invoicePaymentStatuses = ["PAID", "PARTIAL_REFUND", "REFUNDED"];
     if (!invoicePaymentStatuses.includes(booking.payment.status)) { throw new Error("Invoice is not available until payment is completed"); }
 
-    // Do NOT expose pricing.earnings. earnings is internal platform/business information and should not appear on the customer invoice.
+    // Do NOT expose admin commission or coordinator settlement. Information on the customer invoice.
 
     const pricing = {
       baseAmount: booking.pricing.baseAmount,
@@ -4353,6 +4515,11 @@ export class BookingService {
       "Coupon Code",
       "Discount Amount",
 
+      "Commission Percentage",
+      "Commission Base Amount",
+      "Admin Commission Amount",
+      "Coordinator Payable Amount",
+
       "Taxable Amount",
       "CGST Amount",
       "SGST Amount",
@@ -4419,6 +4586,10 @@ export class BookingService {
         booking.pricing?.subtotal,
         booking.pricing?.couponCode,
         booking.pricing?.discountAmount,
+        booking.pricing?.commissionPercentage,
+        booking.pricing?.commissionBaseAmount,
+        booking.pricing?.commissionAmount,
+        booking.pricing?.coordinatorPayableAmount,
         taxSummary.taxableAmount,
         taxSummary.cgstAmount,
         taxSummary.sgstAmount,

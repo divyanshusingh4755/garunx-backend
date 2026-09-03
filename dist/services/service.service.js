@@ -204,6 +204,7 @@ export class ServiceService {
                 thumbnailImage: service.thumbnailImage,
                 bannerImage: service.bannerImage,
                 startingPrice: service.startingPrice,
+                ...(!publicView && { commissionPercentage: service.commissionPercentage }),
                 category: serviceCategory ? { id: serviceCategory._id, label: serviceCategory.label, value: serviceCategory.value, image: serviceCategory.image } : null,
                 isActive: service.isActive,
                 isComplete: service.isComplete,
@@ -228,7 +229,7 @@ export class ServiceService {
         const slug = generateSlug(name);
         const sequence = await getNextSequence(`service_${slug}`);
         const serviceReference = `${slug}_${String(sequence).padStart(4, "0")}`;
-        const service = await Service.create({ name, shortDescription, fullDescription, categoryId, thumbnailImage, locations: [], tiers: [], serviceReference, isActive: false, isComplete: false, startingPrice: 0, ...(payload.bannerImage !== undefined && { bannerImage: payload.bannerImage }) });
+        const service = await Service.create({ name, shortDescription, fullDescription, categoryId, thumbnailImage, locations: [], tiers: [], serviceReference, isActive: false, isComplete: false, startingPrice: 0, commissionPercentage: payload.commissionPercentage ?? 0, ...(payload.bannerImage !== undefined && { bannerImage: payload.bannerImage }) });
         await this.invalidateServiceCache();
         return service;
     }
@@ -248,6 +249,9 @@ export class ServiceService {
         }
         if (payload.bannerImage !== undefined) {
             updateData.bannerImage = payload.bannerImage;
+        }
+        if (payload.commissionPercentage !== undefined) {
+            updateData.commissionPercentage = payload.commissionPercentage;
         }
         if (payload.categoryId !== undefined) {
             const categoryExists = await Category.exists({ _id: payload.categoryId });
@@ -780,14 +784,14 @@ export class ServiceService {
             const date = new Date(String(value));
             return Number.isNaN(date.getTime()) ? "" : date.toISOString();
         };
-        const headers = ["Service Reference", "Service Name", "Category", "Short Description", "Starting Price", "Locations", "Location Count", "Tiers", "Tier Count", "Active", "Configuration Complete", "Created At", "Updated At"];
+        const headers = ["Service Reference", "Service Name", "Category", "Short Description", "Starting Price", "Commission Percentage", "Locations", "Location Count", "Tiers", "Tier Count", "Active", "Configuration Complete", "Created At", "Updated At"];
         const rows = orderedServices.map((service) => {
             const category = service.categoryId;
             const locations = service.locations ?? [];
             const tiers = service.tiers ?? [];
             const locationNames = locations.map((location) => location.name).filter(Boolean).join(" | ");
             const tierNames = tiers.map((tier) => tier.name).filter(Boolean).join(" | ");
-            return [service.serviceReference, service.name, category?.label ?? category?.value ?? "", service.shortDescription, service.startingPrice, locationNames, locations.length, tierNames, tiers.length, service.isActive ? "Yes" : "No", service.isComplete ? "Yes" : "No", formatDate(service.createdAt), formatDate(service.updatedAt)];
+            return [service.serviceReference, service.name, category?.label ?? category?.value ?? "", service.shortDescription, service.startingPrice, service.commissionPercentage, locationNames, locations.length, tierNames, tiers.length, service.isActive ? "Yes" : "No", service.isComplete ? "Yes" : "No", formatDate(service.createdAt), formatDate(service.updatedAt)];
         });
         const csv = [headers.map(escapeCsv).join(","), ...rows.map((row) => row.map(escapeCsv).join(","))].join("\r\n");
         return { csv, total: orderedServices.length };

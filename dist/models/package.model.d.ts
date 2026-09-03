@@ -21,6 +21,7 @@ export interface IPackage extends Document {
     tiers: IPackageTier[];
     isComplete: boolean;
     startingPrice: number;
+    commissionPercentage: number;
 }
 export declare const Package: import("mongoose").Model<IPackage, {}, {}, {}, Document<unknown, {}, IPackage, {}, import("mongoose").DefaultSchemaOptions> & IPackage & Required<{
     _id: Types.ObjectId;

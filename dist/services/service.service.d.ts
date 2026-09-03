@@ -7,8 +7,9 @@ type CreateServiceInput = {
     categoryId: string;
     thumbnailImage: string;
     bannerImage?: string;
+    commissionPercentage?: number;
 };
-type UpdateServiceInput = Partial<Pick<IService, "name" | "shortDescription" | "fullDescription" | "thumbnailImage" | "bannerImage">> & {
+type UpdateServiceInput = Partial<Pick<IService, "name" | "shortDescription" | "fullDescription" | "thumbnailImage" | "bannerImage" | "commissionPercentage">> & {
     categoryId?: string;
 };
 export declare class ServiceService {
@@ -185,13 +186,6 @@ export declare class ServiceService {
     }>;
     static getFullService(serviceId: string): Promise<{
         service: {
-            id: any;
-            name: any;
-            shortDescription: any;
-            fullDescription: any;
-            thumbnailImage: any;
-            bannerImage: any;
-            startingPrice: any;
             category: {
                 id: Types.ObjectId;
                 label: string;
@@ -201,6 +195,14 @@ export declare class ServiceService {
             isActive: any;
             isComplete: any;
             serviceReference: any;
+            commissionPercentage?: any;
+            id: any;
+            name: any;
+            shortDescription: any;
+            fullDescription: any;
+            thumbnailImage: any;
+            bannerImage: any;
+            startingPrice: any;
         };
         subServiceComponents: any;
         locations: any;
@@ -212,13 +214,6 @@ export declare class ServiceService {
     }>;
     static getFullServiceAdmin(serviceId: string): Promise<{
         service: {
-            id: any;
-            name: any;
-            shortDescription: any;
-            fullDescription: any;
-            thumbnailImage: any;
-            bannerImage: any;
-            startingPrice: any;
             category: {
                 id: Types.ObjectId;
                 label: string;
@@ -228,6 +223,14 @@ export declare class ServiceService {
             isActive: any;
             isComplete: any;
             serviceReference: any;
+            commissionPercentage?: any;
+            id: any;
+            name: any;
+            shortDescription: any;
+            fullDescription: any;
+            thumbnailImage: any;
+            bannerImage: any;
+            startingPrice: any;
         };
         subServiceComponents: any;
         locations: any;

@@ -139,7 +139,7 @@ export const updateSelectedServices = async (req: Request, res: Response) => {
   } catch (error: any) {
     res.status(error.statusCode || 400).json({
       success: false,
-      message: error.message || "Failed to update addon services",
+      message: error.message || "Failed to update selected services",
     });
   }
 };

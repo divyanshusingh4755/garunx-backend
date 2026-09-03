@@ -24,6 +24,7 @@ export interface IPackage extends Document {
   tiers: IPackageTier[];
   isComplete: boolean;
   startingPrice: number;
+  commissionPercentage: number;
 }
 
 const packageLocationSchema = new Schema<IPackageLocation>(
@@ -127,6 +128,13 @@ const packageSchema = new Schema<IPackage>(
       type: Number,
       default: 0,
       min: 0,
+    },
+    commissionPercentage: {
+      type: Number,
+      required: true,
+      default: 0,
+      min: 0,
+      max: 100,
     },
   },
   {

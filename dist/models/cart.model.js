@@ -130,6 +130,19 @@ const selectedServiceSchema = new Schema({
         required: true,
         min: 0,
     },
+    commissionPercentage: {
+        type: Number,
+        required: true,
+        default: 0,
+        min: 0,
+        max: 100,
+    },
+    commissionAmount: {
+        type: Number,
+        required: true,
+        default: 0,
+        min: 0,
+    },
     tax: {
         type: lineTaxSchema,
         default: undefined,
@@ -268,6 +281,31 @@ const cartSchema = new Schema({
     },
     discountAmount: {
         type: Number,
+        default: 0,
+        min: 0,
+    },
+    commissionPercentage: {
+        type: Number,
+        required: true,
+        default: 0,
+        min: 0,
+        max: 100,
+    },
+    commissionBaseAmount: {
+        type: Number,
+        required: true,
+        default: 0,
+        min: 0,
+    },
+    commissionAmount: {
+        type: Number,
+        required: true,
+        default: 0,
+        min: 0,
+    },
+    coordinatorPayableAmount: {
+        type: Number,
+        required: true,
         default: 0,
         min: 0,
     },

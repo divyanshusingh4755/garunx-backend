@@ -12,6 +12,9 @@ declare class CartService {
     private static applyLineTax;
     private static getSubServiceSnapshotsByServiceIds;
     private static round;
+    private static normalizeCommissionPercentage;
+    private static getCommissionBaseFromLine;
+    private static applyCommissionResults;
     private static ensureUniqueIds;
     private static clearLineDiscounts;
     private static allocateDiscountToCartLines;
@@ -212,6 +215,10 @@ declare class CartService {
         addonPrice: number;
         subtotal: number;
         discountAmount: number;
+        commissionPercentage: number;
+        commissionBaseAmount: number;
+        commissionAmount: number;
+        coordinatorPayableAmount: number;
         totalAmount: number;
         taxSummary: import("../models/cart.model.js").ICartTaxSummary;
         status: import("../models/cart.model.js").CartStatus;
@@ -271,6 +278,7 @@ declare class CartService {
             tiers: import("../models/service.model.js").IServiceTier[];
             isComplete: boolean;
             startingPrice: number;
+            commissionPercentage: number;
             subServiceComponents?: unknown[];
             createdAt: Date;
             updatedAt: Date;
@@ -312,6 +320,10 @@ declare class CartService {
         addonPrice: number;
         subtotal: number;
         discountAmount: number;
+        commissionPercentage: number;
+        commissionBaseAmount: number;
+        commissionAmount: number;
+        coordinatorPayableAmount: number;
         totalAmount: number;
         taxSummary: import("../models/cart.model.js").ICartTaxSummary;
         status: import("../models/cart.model.js").CartStatus;

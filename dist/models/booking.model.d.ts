@@ -32,6 +32,16 @@ export type BookedBy = "USER" | "ADMIN" | "SUBADMIN";
 export type EntryType = "SERVICE" | "PACKAGE";
 export type ComponentType = "DEFAULT" | "ADDON";
 export type ServiceRole = "PRIMARY" | "INCLUDED" | "ADDON";
+export type CoordinatorSettlementStatus = "NOT_PAYABLE" | "PAYABLE" | "PAID" | "REVERSED";
+export interface ICoordinatorSettlement {
+    status: CoordinatorSettlementStatus;
+    coordinatorId?: Types.ObjectId;
+    payableAmount: number;
+    paidAmount: number;
+    payableAt?: Date;
+    paidAt?: Date;
+    paymentReference?: string;
+}
 export interface IBookingTierSnapshot {
     tierId: Types.ObjectId;
     name: string;
@@ -143,6 +153,8 @@ export interface IBookingServiceConfiguration {
         priceBeforeDiscount: number;
         discountAmount: number;
         finalAmount: number;
+        commissionPercentage: number;
+        commissionAmount: number;
         tax?: ILineTax;
         taxSummary: IBookingTaxSummary;
     };
@@ -162,6 +174,10 @@ export interface IBookingPackageConfiguration {
         addonAmount: number;
         subtotal: number;
         discountAmount: number;
+        commissionPercentage: number;
+        commissionBaseAmount: number;
+        commissionAmount: number;
+        coordinatorPayableAmount: number;
         taxSummary: IBookingTaxSummary;
         grandTotal: number;
     };
@@ -215,9 +231,12 @@ export interface IBooking extends Document {
         couponId?: Types.ObjectId;
         couponCode?: string;
         discountAmount: number;
+        commissionPercentage: number;
+        commissionBaseAmount: number;
+        commissionAmount: number;
+        coordinatorPayableAmount: number;
         taxSummary: IBookingTaxSummary;
         grandTotal: number;
-        earnings?: number;
     };
     execution?: {
         stage: BookingExecutionStage;
@@ -296,6 +315,7 @@ export interface IBooking extends Document {
     createdAt: Date;
     updatedAt: Date;
     paymentExpiresAt?: Date;
+    coordinatorSettlement: ICoordinatorSettlement;
 }
 export declare const Booking: Model<IBooking>;
 //# sourceMappingURL=booking.model.d.ts.map

@@ -52,6 +52,120 @@ class CartService {
         return subServiceMap;
     }
     static round(value) { return Math.round((value + Number.EPSILON) * 100) / 100; }
+    static normalizeCommissionPercentage(value) {
+        const percentage = Number(value ?? 0);
+        if (!Number.isFinite(percentage) || percentage < 0 || percentage > 100) {
+            throw new Error("Commission percentage must be between 0 and 100");
+        }
+        return this.round(percentage);
+    }
+    static getCommissionBaseFromLine(line) {
+        // Commission is always calculated after discount and before tax. For tax-inclusive prices, taxableAmount is correct pre-tax base.
+        if (line.tax) {
+            return this.round(line.tax.taxableAmount);
+        }
+        return this.round(Math.max(0, line.amount - line.discountAmount));
+    }
+    static async applyCommissionResults(cart, totals, session) {
+        if (cart.serviceId) {
+            const serviceQuery = Service.findById(cart.serviceId).select("_id commissionPercentage");
+            if (session) {
+                serviceQuery.session(session);
+            }
+            ;
+            const service = await serviceQuery.lean();
+            if (!service)
+                throw new Error("Service not found while calculating commission");
+            const commissionPercentage = this.normalizeCommissionPercentage(service.commissionPercentage);
+            let commissionBaseAmount = 0;
+            for (const component of [...(cart.selectedComponents ?? []), ...(cart.addonComponents ?? [])]) {
+                const line = totals.componentLines.get(component.componentId.toString());
+                if (!line) {
+                    continue;
+                }
+                ;
+                commissionBaseAmount = this.round(commissionBaseAmount + this.getCommissionBaseFromLine(line));
+            }
+            const commissionAmount = this.round((commissionBaseAmount * commissionPercentage) / 100);
+            cart.commissionPercentage = commissionPercentage;
+            cart.commissionBaseAmount = commissionBaseAmount;
+            cart.commissionAmount = commissionAmount;
+            cart.coordinatorPayableAmount = this.round(Math.max(0, cart.totalAmount - cart.commissionAmount));
+            // Service cart pricing is component-based. SelectedServices contains the main servcie snapshot for display/booking structure, so keep the rate there but leave its line commission to 0 to avoid double counting.
+            for (const selectedService of cart.selectedServices ?? []) {
+                selectedService.commissionPercentage = commissionPercentage;
+                selectedService.commissionAmount = 0;
+            }
+            cart.markModified("selectedServices");
+            return;
+        }
+        if (!cart.packageId) {
+            throw new Error("Cart must contain either serviceId or packageId");
+        }
+        const packageQuery = Package.findById(cart.packageId).select("_id commissionPercentage");
+        if (session) {
+            packageQuery.session(session);
+        }
+        const pkg = await packageQuery.lean();
+        if (!pkg) {
+            throw new Error("Package not found while calculating commission");
+        }
+        const packageCommissionPercentage = this.normalizeCommissionPercentage(pkg.commissionPercentage);
+        const addonServiceIds = (cart.addonServices ?? []).map((service) => service.serviceId);
+        const addonCommissionMap = new Map();
+        if (addonServiceIds.length > 0) {
+            const addonQuery = Service.find({ _id: { $in: addonServiceIds } }).select("_id commissionPercentage");
+            if (session) {
+                addonQuery.session(session);
+            }
+            const addonServiceDocs = await addonQuery.lean();
+            for (const service of addonServiceDocs) {
+                addonCommissionMap.set(service._id.toString(), this.normalizeCommissionPercentage(service.commissionPercentage));
+            }
+            if (addonCommissionMap.size !== new Set(addonServiceIds.map((id) => id.toString())).size) {
+                throw new Error("One or more addon services no longer exist");
+            }
+        }
+        let commissionBaseAmount = 0;
+        let commissionAmount = 0;
+        // Main package services use the PACKAGE commission percentage.
+        for (const selectedService of cart.selectedServices ?? []) {
+            const line = totals.serviceLines.get(selectedService.serviceId.toString());
+            if (!line) {
+                continue;
+            }
+            const lineBase = this.getCommissionBaseFromLine(line);
+            const lineCommission = this.round((lineBase * packageCommissionPercentage) / 100);
+            selectedService.commissionPercentage = packageCommissionPercentage;
+            selectedService.commissionAmount = lineCommission;
+            commissionBaseAmount = this.round(commissionBaseAmount + lineBase);
+            commissionAmount = this.round(commissionAmount + lineCommission);
+        }
+        // Related/addon services use their one SERVICE commission percentage
+        for (const addonService of cart.addonServices ?? []) {
+            const serviceId = addonService.serviceId.toString();
+            const line = totals.serviceLines.get(serviceId);
+            if (!line) {
+                continue;
+            }
+            const addonCommissionPercentage = addonCommissionMap.get(serviceId);
+            if (addonCommissionPercentage === undefined) {
+                throw new Error(`Commission configuration not found for addon service: ${serviceId}`);
+            }
+            const lineBase = this.getCommissionBaseFromLine(line);
+            const lineCommission = this.round((lineBase * addonCommissionPercentage) / 100);
+            addonService.commissionPercentage = addonCommissionPercentage;
+            addonService.commissionAmount = lineCommission;
+            commissionBaseAmount = this.round(commissionBaseAmount + lineBase);
+            commissionAmount = this.round(commissionAmount + lineCommission);
+        }
+        cart.commissionPercentage = packageCommissionPercentage;
+        cart.commissionBaseAmount = commissionBaseAmount;
+        cart.commissionAmount = commissionAmount;
+        cart.coordinatorPayableAmount = this.round(Math.max(0, cart.totalAmount - cart.commissionAmount));
+        cart.markModified("selectedServices");
+        cart.markModified("addonServices");
+    }
     static ensureUniqueIds(values, fieldName) {
         const normalized = values.map((value) => String(value?.itemId ?? value?.componentId ?? value?.serviceId ?? value));
         if (new Set(normalized).size !== normalized.length) {
@@ -280,7 +394,7 @@ class CartService {
         const subServiceMap = await this.getSubServiceSnapshotsByServiceIds([service._id]);
         const serviceSubServices = subServiceMap.get(service._id.toString()) ?? [];
         // Main service is also represented inside selectedServices for consistent frontend response structure. IMPORTANT: These prices are initially 0 because SERVICE cart pricing comes from selectedComponents, not selectedServices.
-        const selectedServices = [{ serviceId: service._id, name: service.name, subServices: serviceSubServices, priceBeforeDiscount: 0, discountAmount: 0, price: 0 }];
+        const selectedServices = [{ serviceId: service._id, name: service.name, subServices: serviceSubServices, priceBeforeDiscount: 0, discountAmount: 0, price: 0, commissionPercentage: this.normalizeCommissionPercentage(service.commissionPercentage), commissionAmount: 0 }];
         const cart = await Cart.create({
             ...ownerQuery,
             // Root serviceId remains the source of truth for SERVICE cart type.
@@ -303,6 +417,9 @@ class CartService {
             addonPrice: 0,
             subtotal: 0,
             discountAmount: 0,
+            commissionPercentage: this.normalizeCommissionPercentage(service.commissionPercentage),
+            commissionBaseAmount: 0,
+            commissionAmount: 0,
             totalAmount: 0,
             taxSummary: { taxableAmount: 0, cgstAmount: 0, sgstAmount: 0, igstAmount: 0, totalTax: 0 },
             status: "ACTIVE",
@@ -365,6 +482,8 @@ class CartService {
                 priceBeforeDiscount: pricing.finalPrice,
                 discountAmount: 0,
                 price: pricing.finalPrice,
+                commissionPercentage: this.normalizeCommissionPercentage(pkg.commissionPercentage),
+                commissionAmount: 0,
             };
         });
         const ownerQuery = buildCartOwnerQuery(owner);
@@ -395,6 +514,9 @@ class CartService {
             addonPrice: 0,
             subtotal: 0,
             discountAmount: 0,
+            commissionPercentage: this.normalizeCommissionPercentage(pkg.commissionPercentage),
+            commissionBaseAmount: 0,
+            commissionAmount: 0,
             totalAmount: 0,
             taxSummary: { taxableAmount: 0, cgstAmount: 0, sgstAmount: 0, igstAmount: 0, totalTax: 0 },
             status: "ACTIVE",
@@ -700,6 +822,8 @@ class CartService {
                 priceBeforeDiscount: price,
                 discountAmount: 0,
                 price,
+                commissionPercentage: 0,
+                commissionAmount: 0,
             });
         }
         cart.selectedServices = selectedServices;
@@ -764,6 +888,8 @@ class CartService {
                 priceBeforeDiscount: price,
                 discountAmount: 0,
                 price,
+                commissionPercentage: 0,
+                commissionAmount: 0,
             });
         }
         cart.addonServices = addonServices;
@@ -877,6 +1003,9 @@ class CartService {
             addonPrice: cart.addonPrice,
             subtotal: cart.subtotal,
             discountAmount: cart.discountAmount,
+            commissionPercentage: cart.commissionPercentage,
+            commissionBaseAmount: cart.commissionBaseAmount,
+            commissionAmount: cart.commissionAmount,
             totalAmount: cart.totalAmount,
             totalTax: cart.taxSummary?.totalTax ?? 0,
         };
@@ -907,6 +1036,7 @@ class CartService {
         // Second pass: calculate GST using allocated line discounts.
         const finalTotals = await CartPricingEngine.calculateCartTotals(cart);
         this.applyPricingResults(cart, finalTotals);
+        await this.applyCommissionResults(cart, finalTotals, session);
         if (oldValues.basePrice !== cart.basePrice) {
             changes.push(`Base price changed from ${oldValues.basePrice} to ${cart.basePrice}`);
         }
@@ -918,6 +1048,15 @@ class CartService {
         }
         if (oldValues.discountAmount !== cart.discountAmount) {
             changes.push(`Discount changed from ${oldValues.discountAmount} to ${cart.discountAmount}`);
+        }
+        if (oldValues.commissionPercentage !== cart.commissionPercentage) {
+            changes.push(`Commission percentage changed from ${oldValues.commissionPercentage} to ${cart.commissionPercentage}`);
+        }
+        if (oldValues.commissionBaseAmount !== cart.commissionBaseAmount) {
+            changes.push(`Commission base changed from ${oldValues.commissionBaseAmount} to ${cart.commissionBaseAmount}`);
+        }
+        if (oldValues.commissionAmount !== cart.commissionAmount) {
+            changes.push(`Commission amount changed from ${oldValues.commissionAmount} to ${cart.commissionAmount}`);
         }
         if (oldValues.totalTax !== cart.taxSummary.totalTax) {
             changes.push(`Tax changed from ${oldValues.totalTax} to ${cart.taxSummary.totalTax}`);
@@ -1315,7 +1454,7 @@ class CartService {
             }
             return services.map((service) => {
                 const name = service.name || service.serviceId?.toString() || "";
-                return (`${name}` + ` (₹${service.price ?? 0})`);
+                return (`${name}` + ` (₹${service.price ?? 0}; commission ${service.commissionPercentage ?? 0}% = ₹${service.commissionAmount ?? 0})`);
             })
                 .join("; ");
         };
@@ -1347,6 +1486,9 @@ class CartService {
             "Addon Price",
             "Subtotal",
             "Discount Amount",
+            "Commission Percentage",
+            "Commission Base Amount",
+            "Commission Amount",
             "Taxable Amount",
             "CGST",
             "SGST",
@@ -1392,6 +1534,9 @@ class CartService {
             cart.addonPrice,
             cart.subtotal,
             cart.discountAmount,
+            cart.commissionPercentage ?? 0,
+            cart.commissionBaseAmount ?? 0,
+            cart.commissionAmount ?? 0,
             cart.taxSummary?.taxableAmount ?? 0,
             cart.taxSummary?.cgstAmount ?? 0,
             cart.taxSummary?.sgstAmount ?? 0,

@@ -39,6 +39,8 @@ export interface ISelectedService {
   priceBeforeDiscount: number;
   discountAmount: number;
   price: number;
+  commissionPercentage: number;
+  commissionAmount: number;
   tax?: ILineTax;
 }
 
@@ -103,6 +105,11 @@ export interface ICart extends Document {
   addonPrice: number;
   subtotal: number;
   discountAmount: number;
+  // Commission snapshot
+  commissionPercentage: number;
+  commissionBaseAmount: number;
+  commissionAmount: number;
+  coordinatorPayableAmount: number;
   totalAmount: number;
   taxSummary: ICartTaxSummary;
   status: CartStatus;
@@ -240,6 +247,21 @@ const selectedServiceSchema = new Schema<ISelectedService>(
     price: {
       type: Number,
       required: true,
+      min: 0,
+    },
+
+    commissionPercentage: {
+      type: Number,
+      required: true,
+      default: 0,
+      min: 0,
+      max: 100,
+    },
+
+    commissionAmount: {
+      type: Number,
+      required: true,
+      default: 0,
       min: 0,
     },
 
@@ -385,6 +407,33 @@ const cartSchema = new Schema<ICart>(
     },
     discountAmount: {
       type: Number,
+      default: 0,
+      min: 0,
+    },
+    commissionPercentage: {
+      type: Number,
+      required: true,
+      default: 0,
+      min: 0,
+      max: 100,
+    },
+
+    commissionBaseAmount: {
+      type: Number,
+      required: true,
+      default: 0,
+      min: 0,
+    },
+
+    commissionAmount: {
+      type: Number,
+      required: true,
+      default: 0,
+      min: 0,
+    },
+    coordinatorPayableAmount: {
+      type: Number,
+      required: true,
       default: 0,
       min: 0,
     },

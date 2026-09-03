@@ -32,6 +32,8 @@ export interface ISelectedService {
     priceBeforeDiscount: number;
     discountAmount: number;
     price: number;
+    commissionPercentage: number;
+    commissionAmount: number;
     tax?: ILineTax;
 }
 export interface IAddonService extends ISelectedService {
@@ -72,6 +74,10 @@ export interface ICart extends Document {
     addonPrice: number;
     subtotal: number;
     discountAmount: number;
+    commissionPercentage: number;
+    commissionBaseAmount: number;
+    commissionAmount: number;
+    coordinatorPayableAmount: number;
     totalAmount: number;
     taxSummary: ICartTaxSummary;
     status: CartStatus;

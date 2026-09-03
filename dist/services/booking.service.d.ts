@@ -21,6 +21,8 @@ export interface CoordinatorAvailabilityOptions {
 export declare class BookingService {
     private static getReassignmentManualRequestLimit;
     private static invalidateBookingCache;
+    private static buildCustomerPricing;
+    private static sanitizeBookingEntriesForNonAdmin;
     private static assignReplacementCoordinatorRequest;
     private static handleFailedReassignmentAttempt;
     private static clearAcceptedCoordinator;
@@ -89,6 +91,7 @@ export declare class BookingService {
         bookingReference: string;
         status: BookingStatus;
         bookedBy: import("../models/booking.model.js").BookedBy;
+        bookingFor: import("../models/booking.model.js").BookingFor;
         customerDetails: {
             name?: string;
             email?: string;
@@ -101,27 +104,38 @@ export declare class BookingService {
             baseAmount: number;
             addonAmount: number;
             subtotal: number;
-            couponId?: Types.ObjectId;
-            couponCode?: string;
+            couponId: Types.ObjectId | undefined;
+            couponCode: string | undefined;
             discountAmount: number;
+            commissionPercentage: number;
+            commissionBaseAmount: number;
+            commissionAmount: number;
+            coordinatorPayableAmount: number;
             taxSummary: import("../models/booking.model.js").IBookingTaxSummary;
             grandTotal: number;
-            earnings?: number;
         };
         payment: {
             status: import("../models/booking.model.js").PaymentStatus;
             method: string | undefined;
             gateway: string | undefined;
             amountPaid: number | undefined;
+            refundAmount: number | undefined;
+            refundReservedAmount: number | undefined;
             currency: string | undefined;
             providerOrderId: string | undefined;
             providerPaymentId: string | undefined;
             paymentSessionId: string | undefined;
             paidAt: Date | undefined;
+            refundedAt: Date | undefined;
             failureReason: string | undefined;
+            refunds: import("../models/booking.model.js").IBookingRefund[] | undefined;
         };
         entries: import("../models/booking.model.js").IBookingEntry[];
+        coordinatorSettlement: import("../models/booking.model.js").ICoordinatorSettlement;
+        tierSnapshot: import("../models/booking.model.js").IBookingTierSnapshot;
+        locationSnapshot: import("../models/booking.model.js").IBookingLocationSnapshot;
         scheduledAt: Date | undefined;
+        completedAt: Date | undefined;
         notes: string | undefined;
         assignment: {
             status: import("../models/booking.model.js").AssignmentStatus;
@@ -172,6 +186,7 @@ export declare class BookingService {
             progressPercentage?: number;
             completion?: import("../models/booking.model.js").IBookingCompletion;
         } | undefined;
+        rescheduleHistory: IBookingReschedule[] | undefined;
         createdAt: Date;
         updatedAt: Date;
     }>;
@@ -290,6 +305,89 @@ export declare class BookingService {
         executionStage: import("../models/booking.model.js").BookingExecutionStage | undefined;
     }>;
     static getMyBookingById(bookingId: string, userId: string, role: Role): Promise<{
+        cancellation: {
+            reason?: string;
+            cancelledBy?: Types.ObjectId;
+            cancelledByRole?: "USER" | "ADMIN" | "COORDINATOR" | "SYSTEM";
+            cancelledAt?: Date;
+            refundPercentage?: number;
+            refundAmount?: number;
+        } | undefined;
+        execution: {
+            stage: import("../models/booking.model.js").BookingExecutionStage;
+            startedAt?: Date;
+            finishedAt?: Date;
+            otpVerification?: {
+                status: "PENDING" | "VERIFIED" | "FAILED" | "EXPIRED";
+                otpHash?: string;
+                expiresAt?: Date;
+                generatedAt?: Date;
+                verifiedAt?: Date;
+                verifiedBy?: Types.ObjectId;
+                attempts?: number;
+                resendCount?: number;
+                lastSentAt?: Date;
+            };
+            serviceExecutions: import("../models/booking.model.js").IServiceExecution[];
+            milestones: import("../models/booking.model.js").IBookingMilestone[];
+            progressPercentage?: number;
+            completion?: import("../models/booking.model.js").IBookingCompletion;
+        } | undefined;
+        createdAt: Date;
+        updatedAt: Date;
+        coordinatorSettlement?: {
+            status: import("../models/booking.model.js").CoordinatorSettlementStatus;
+            payableAmount: number;
+            paidAmount: number;
+            payableAt: Date | undefined;
+            paidAt: Date | undefined;
+        };
+        bookingId: Types.ObjectId;
+        bookingReference: string;
+        status: BookingStatus;
+        bookedBy: import("../models/booking.model.js").BookedBy;
+        bookingFor: import("../models/booking.model.js").BookingFor;
+        customerDetails: {
+            name?: string;
+            email?: string;
+            phone?: string;
+            address?: string;
+            caste?: string;
+            gotra?: string;
+        };
+        pricing: {
+            baseAmount: any;
+            addonAmount: any;
+            subtotal: any;
+            couponId: any;
+            couponCode: any;
+            discountAmount: any;
+            taxSummary: any;
+            grandTotal: any;
+        } | {
+            coordinatorPayableAmount: number;
+            baseAmount: any;
+            addonAmount: any;
+            subtotal: any;
+            couponId: any;
+            couponCode: any;
+            discountAmount: any;
+            taxSummary: any;
+            grandTotal: any;
+        };
+        payment: {
+            status: import("../models/booking.model.js").PaymentStatus;
+            method: string | undefined;
+            gateway: string | undefined;
+            amountPaid: number | undefined;
+            currency: string | undefined;
+            paidAt: Date | undefined;
+        };
+        entries: any[];
+        tierSnapshot: import("../models/booking.model.js").IBookingTierSnapshot;
+        locationSnapshot: import("../models/booking.model.js").IBookingLocationSnapshot;
+        scheduledAt: Date | undefined;
+        completedAt: Date | undefined;
         notes: string | null;
         assignment: {
             assignedCoordinatorId: any;
@@ -354,105 +452,6 @@ export declare class BookingService {
             };
             availabilityStatus: any;
         } | null;
-        userId?: Types.ObjectId;
-        cartId: Types.ObjectId;
-        bookingReference: string;
-        bookedBy: import("../models/booking.model.js").BookedBy;
-        entries: import("../models/booking.model.js").IBookingEntry[];
-        bookingFor: import("../models/booking.model.js").BookingFor;
-        tierSnapshot: import("../models/booking.model.js").IBookingTierSnapshot;
-        locationSnapshot: import("../models/booking.model.js").IBookingLocationSnapshot;
-        beneficiaryUserId?: Types.ObjectId;
-        beneficiaryAccess?: {
-            tokenHash: string;
-            expiresAt: Date;
-            createdAt: Date;
-        };
-        customerDetails: {
-            name?: string;
-            email?: string;
-            phone?: string;
-            address?: string;
-            caste?: string;
-            gotra?: string;
-        };
-        pricing: {
-            baseAmount: number;
-            addonAmount: number;
-            subtotal: number;
-            couponId?: Types.ObjectId;
-            couponCode?: string;
-            discountAmount: number;
-            taxSummary: import("../models/booking.model.js").IBookingTaxSummary;
-            grandTotal: number;
-            earnings?: number;
-        };
-        execution?: {
-            stage: import("../models/booking.model.js").BookingExecutionStage;
-            startedAt?: Date;
-            finishedAt?: Date;
-            otpVerification?: {
-                status: "PENDING" | "VERIFIED" | "FAILED" | "EXPIRED";
-                otpHash?: string;
-                expiresAt?: Date;
-                generatedAt?: Date;
-                verifiedAt?: Date;
-                verifiedBy?: Types.ObjectId;
-                attempts?: number;
-                resendCount?: number;
-                lastSentAt?: Date;
-            };
-            serviceExecutions: import("../models/booking.model.js").IServiceExecution[];
-            milestones: import("../models/booking.model.js").IBookingMilestone[];
-            progressPercentage?: number;
-            completion?: import("../models/booking.model.js").IBookingCompletion;
-        };
-        payment: {
-            status: import("../models/booking.model.js").PaymentStatus;
-            paymentMethod?: string;
-            gateway?: string;
-            amountPaid?: number;
-            refundAmount?: number;
-            refundReservedAmount?: number;
-            paidAt?: Date;
-            refundedAt?: Date;
-            currency?: string;
-            providerOrderId?: string;
-            providerPaymentId?: string;
-            paymentSessionId?: string;
-            attempts?: number;
-            lastAttemptAt?: Date;
-            failureReason?: string;
-            refunds?: import("../models/booking.model.js").IBookingRefund[];
-        };
-        status: BookingStatus;
-        cancellation?: {
-            reason?: string;
-            cancelledBy?: Types.ObjectId;
-            cancelledByRole?: "USER" | "ADMIN" | "COORDINATOR" | "SYSTEM";
-            cancelledAt?: Date;
-            refundPercentage?: number;
-            refundAmount?: number;
-        };
-        scheduledAt?: Date;
-        rescheduleHistory?: IBookingReschedule[];
-        completedAt?: Date;
-        cartSnapshot?: Partial<import("../models/cart.model.js").ICart>;
-        isDeleted?: boolean;
-        createdAt: Date;
-        updatedAt: Date;
-        paymentExpiresAt?: Date;
-        _id: Types.ObjectId;
-        $locals: Record<string, unknown>;
-        $op: "save" | "validate" | "remove" | null;
-        $where: Record<string, unknown>;
-        baseModelName?: string;
-        collection: mongoose.Collection;
-        db: mongoose.Connection;
-        errors?: mongoose.Error.ValidationError;
-        isNew: boolean;
-        schema: mongoose.Schema;
-        __v: number;
     }>;
     static getMyBookings(params: {
         userId: string;

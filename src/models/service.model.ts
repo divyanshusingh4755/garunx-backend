@@ -24,6 +24,7 @@ export interface IService {
   tiers: IServiceTier[];
   isComplete: boolean;
   startingPrice: number;
+  commissionPercentage: number;
   subServiceComponents?: unknown[];
   createdAt: Date;
   updatedAt: Date;
@@ -150,6 +151,13 @@ const serviceSchema = new Schema<IService>(
       required: true,
       default: 0,
       min: 0,
+    },
+    commissionPercentage: {
+      type: Number,
+      required: true,
+      default: 0,
+      min: 0,
+      max: 100,
     },
   },
   {

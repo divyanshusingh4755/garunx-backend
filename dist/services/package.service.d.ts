@@ -62,6 +62,7 @@ export declare class PackageService {
     }>;
     static getFullPackage(packageId: string): Promise<{
         package: {
+            commissionPercentage?: any;
             id: any;
             name: any;
             shortDescription: any;
@@ -88,6 +89,7 @@ export declare class PackageService {
     }>;
     static getFullPackageAdmin(packageId: string): Promise<{
         package: {
+            commissionPercentage?: any;
             id: any;
             name: any;
             shortDescription: any;

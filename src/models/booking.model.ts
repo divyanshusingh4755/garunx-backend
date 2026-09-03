@@ -37,6 +37,17 @@ export type BookedBy = "USER" | "ADMIN" | "SUBADMIN";
 export type EntryType = "SERVICE" | "PACKAGE";
 export type ComponentType = "DEFAULT" | "ADDON";
 export type ServiceRole = "PRIMARY" | "INCLUDED" | "ADDON";
+export type CoordinatorSettlementStatus = "NOT_PAYABLE" | "PAYABLE" | "PAID" | "REVERSED"
+
+export interface ICoordinatorSettlement {
+  status: CoordinatorSettlementStatus;
+  coordinatorId?: Types.ObjectId;
+  payableAmount: number;
+  paidAmount: number;
+  payableAt?: Date;
+  paidAt?: Date;
+  paymentReference?: string;
+}
 
 export interface IBookingTierSnapshot {
   tierId: Types.ObjectId;
@@ -504,6 +515,8 @@ export interface IBookingServiceConfiguration {
     priceBeforeDiscount: number;
     discountAmount: number;
     finalAmount: number;
+    commissionPercentage: number;
+    commissionAmount: number;
     tax?: ILineTax;
     taxSummary: IBookingTaxSummary;
   };
@@ -577,6 +590,21 @@ const bookingServiceConfigurationSchema = new Schema<IBookingServiceConfiguratio
         min: 0,
       },
 
+      commissionPercentage: {
+        type: Number,
+        required: true,
+        default: 0,
+        min: 0,
+        max: 100,
+      },
+
+      commissionAmount: {
+        type: Number,
+        required: true,
+        default: 0,
+        min: 0,
+      },
+
       tax: {
         type: lineTaxSchema,
         default: undefined,
@@ -613,6 +641,10 @@ export interface IBookingPackageConfiguration {
     addonAmount: number;
     subtotal: number;
     discountAmount: number;
+    commissionPercentage: number;
+    commissionBaseAmount: number;
+    commissionAmount: number;
+    coordinatorPayableAmount: number;
     taxSummary: IBookingTaxSummary;
     grandTotal: number;
   };
@@ -679,6 +711,35 @@ const bookingPackageConfigurationSchema = new Schema<IBookingPackageConfiguratio
 
       discountAmount: {
         type: Number,
+        default: 0,
+        min: 0,
+      },
+
+      commissionPercentage: {
+        type: Number,
+        required: true,
+        default: 0,
+        min: 0,
+        max: 100,
+      },
+
+      commissionBaseAmount: {
+        type: Number,
+        required: true,
+        default: 0,
+        min: 0,
+      },
+
+      commissionAmount: {
+        type: Number,
+        required: true,
+        default: 0,
+        min: 0,
+      },
+
+      coordinatorPayableAmount: {
+        type: Number,
+        required: true,
         default: 0,
         min: 0,
       },
@@ -904,6 +965,37 @@ const reassignmentSchema = new Schema<IReassignment>(
   },
 );
 
+const coordinatorSettlementSchema = new Schema<ICoordinatorSettlement>({
+  status: {
+    type: String,
+    enum: ["NOT_PAYABLE", "PAYABLE", "PAID", "REVERSED"],
+    default: "NOT_PAYABLE",
+    required: true,
+  },
+  coordinatorId: {
+    type: Schema.Types.ObjectId,
+    ref: "User",
+  },
+  payableAmount: {
+    type: Number,
+    default: 0,
+    min: 0,
+    required: true,
+  },
+  paidAmount: {
+    type: Number,
+    default: 0,
+    min: 0,
+    required: true,
+  },
+  payableAt: Date,
+  paidAt: Date,
+  paymentReference: {
+    type: String,
+    trim: true
+  }
+}, { _id: false });
+
 
 export interface IBooking extends Document {
   userId?: Types.ObjectId;
@@ -935,9 +1027,14 @@ export interface IBooking extends Document {
     couponId?: Types.ObjectId;
     couponCode?: string;
     discountAmount: number;
+    // Admin commission snapshot
+    commissionPercentage: number;
+    commissionBaseAmount: number;
+    commissionAmount: number;
+    // Amount coordinator will receive
+    coordinatorPayableAmount: number;
     taxSummary: IBookingTaxSummary;
     grandTotal: number;
-    earnings?: number;
   };
 
   execution?: {
@@ -1017,6 +1114,7 @@ export interface IBooking extends Document {
   createdAt: Date;
   updatedAt: Date;
   paymentExpiresAt?: Date;
+  coordinatorSettlement: ICoordinatorSettlement;
 }
 
 const bookingSchema = new Schema<IBooking>(
@@ -1128,6 +1226,35 @@ const bookingSchema = new Schema<IBooking>(
         min: 0,
       },
 
+      commissionPercentage: {
+        type: Number,
+        required: true,
+        default: 0,
+        min: 0,
+        max: 100,
+      },
+
+      commissionBaseAmount: {
+        type: Number,
+        required: true,
+        default: 0,
+        min: 0,
+      },
+
+      commissionAmount: {
+        type: Number,
+        required: true,
+        default: 0,
+        min: 0,
+      },
+
+      coordinatorPayableAmount: {
+        type: Number,
+        required: true,
+        default: 0,
+        min: 0,
+      },
+
       taxSummary: {
         type: bookingTaxSummarySchema,
         default: () => ({
@@ -1143,11 +1270,6 @@ const bookingSchema = new Schema<IBooking>(
         type: Number,
         required: true,
         min: 0,
-      },
-
-      earnings: {
-        type: Number,
-        default: 0,
       },
     },
 
@@ -1363,6 +1485,14 @@ const bookingSchema = new Schema<IBooking>(
       type: Date,
       index: true,
     },
+    coordinatorSettlement: {
+      type: coordinatorSettlementSchema,
+      default: () => ({
+        status: "NOT_PAYABLE",
+        payableAmount: 0,
+        paidAmount: 0,
+      })
+    }
   },
   {
     timestamps: true,

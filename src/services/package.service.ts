@@ -198,6 +198,7 @@ export class PackageService {
         isComplete: pkg.isComplete,
         packageReference: pkg.packageReference,
         startingPrice: pkg.startingPrice,
+        ...(!publicView && { commissionPercentage: pkg.commissionPercentage }),
       },
       locations,
       tiers: (pkg.tiers ?? []).map((tier: any) => ({ tierId: tier.tierId, name: tier.name })),
@@ -206,7 +207,7 @@ export class PackageService {
   }
 
   static async createPackage(payload: any) {
-    let { name, shortDescription, fullDescription, categoryId, thumbnailImage, bannerImage } = payload;
+    let { name, shortDescription, fullDescription, categoryId, thumbnailImage, bannerImage, commissionPercentage } = payload;
 
     name = name?.trim();
     shortDescription = shortDescription?.trim();
@@ -224,14 +225,14 @@ export class PackageService {
     const seq = await getNextSequence(`package_${slug}`);
     const packageReference = `${slug}_${String(seq).padStart(4, "0")}`;
 
-    const pkg = await Package.create({ name, shortDescription, fullDescription, categoryId, thumbnailImage, bannerImage, locations: [], tiers: [], packageReference, isActive: false, isComplete: false });
+    const pkg = await Package.create({ name, shortDescription, fullDescription, categoryId, thumbnailImage, bannerImage, commissionPercentage, locations: [], tiers: [], packageReference, isActive: false, isComplete: false });
     await this.invalidatePackageCache();
 
     return pkg;
   }
 
   static async updatePackage(packageId: string, payload: any) {
-    const { name, shortDescription, fullDescription, categoryId, thumbnailImage, bannerImage } = payload;
+    const { name, shortDescription, fullDescription, categoryId, thumbnailImage, bannerImage, commissionPercentage } = payload;
 
     if (!Types.ObjectId.isValid(packageId)) { throw new Error("Invalid packageId"); }
 
@@ -256,6 +257,7 @@ export class PackageService {
 
     if (thumbnailImage !== undefined) { updateData.thumbnailImage = thumbnailImage; }
     if (bannerImage !== undefined) { updateData.bannerImage = bannerImage; }
+    if (commissionPercentage !== undefined) { updateData.commissionPercentage = commissionPercentage; }
 
     if (categoryId !== undefined) {
       if (!Types.ObjectId.isValid(categoryId)) { throw new Error("Invalid categoryId format"); }
@@ -918,7 +920,7 @@ export class PackageService {
       return stringValue;
     };
 
-    const headers = ["Package Reference", "Package Name", "Short Description", "Category", "Category Value", "Active", "Complete", "Starting Price", "Location Count", "Active Location Count", "Locations", "Tier Count", "Tiers", "Created At", "Updated At"];
+    const headers = ["Package Reference", "Package Name", "Short Description", "Category", "Category Value", "Active", "Complete", "Starting Price", "Commission Percentage", "Location Count", "Active Location Count", "Locations", "Tier Count", "Tiers", "Created At", "Updated At"];
 
     const rows = packages.map(
       (pkg: any) => {
@@ -938,6 +940,7 @@ export class PackageService {
           pkg.isActive,
           pkg.isComplete,
           pkg.startingPrice,
+          pkg.commissionPercentage,
           locations.length,
           activeLocations.length,
           locationNames,

@@ -14,7 +14,7 @@ const getStatusCode = (error) => {
 };
 export const createService = async (req, res) => {
     try {
-        const { name, shortDescription, fullDescription, categoryId, thumbnailImage, bannerImage } = req.body;
+        const { name, shortDescription, fullDescription, categoryId, thumbnailImage, bannerImage, commissionPercentage } = req.body;
         const service = await ServiceService.createService({
             name,
             shortDescription,
@@ -22,6 +22,7 @@ export const createService = async (req, res) => {
             categoryId,
             thumbnailImage,
             ...(bannerImage !== undefined && { bannerImage }),
+            ...(commissionPercentage !== undefined && { commissionPercentage }),
         });
         return res.status(201).json({
             success: true,

@@ -18,6 +18,7 @@ const serviceValidation = [
     body("categoryId").notEmpty().withMessage("Category ID is required").isMongoId().withMessage("Invalid category ID"),
     body("thumbnailImage").notEmpty().withMessage("Thumbnail image is required").isURL().withMessage("Thumbnail image must be valid URL"),
     body("bannerImage").optional({ values: "falsy" }).isURL().withMessage("Banner image must be valid URL"),
+    body("commissionPercentage").optional().isFloat({ min: 0, max: 100 }).withMessage("Commission percentage must be between 0 and 100").toFloat(),
     validate,
 ];
 const updateServiceValidation = [
@@ -40,6 +41,7 @@ const updateServiceValidation = [
     body("categoryId").optional().isMongoId().withMessage("Invalid category ID"),
     body("thumbnailImage").optional().isURL().withMessage("Thumbnail image must be valid URL"),
     body("bannerImage").optional({ values: "falsy" }).isURL().withMessage("Banner image must be valid URL"),
+    body("commissionPercentage").optional().isFloat({ min: 0, max: 100 }).withMessage("Commission percentage must be between 0 and 100").toFloat(),
     validate,
 ];
 const serviceStatusValidation = [

@@ -17,6 +17,8 @@ interface PackageCartServiceLine {
   priceBeforeDiscount: number;
   discountAmount: number;
   price: number;
+  commissionPercentage: number;
+  commissionAmount: number;
   tax?: ISelectedComponent["tax"];
 }
 
@@ -29,6 +31,10 @@ interface BookingBuildResult {
     couponId?: Types.ObjectId;
     couponCode?: string;
     discountAmount: number;
+    commissionPercentage: number;
+    commissionBaseAmount: number;
+    commissionAmount: number;
+    coordinatorPayableAmount: number;
     taxSummary: IBookingTaxSummary;
     grandTotal: number;
   };
@@ -73,6 +79,12 @@ export class BookingBuilder {
       subtotal: cart.subtotal,
       ...(cart.couponId && cart.couponCode ? { couponId: cart.couponId, couponCode: cart.couponCode } : {}),
       discountAmount: cart.discountAmount,
+      // Copy finalized ADMIN commission snapshot from cart. Do NOT recalculate here.
+      commissionPercentage: cart.commissionPercentage,
+      commissionBaseAmount: cart.commissionBaseAmount,
+      commissionAmount: cart.commissionAmount,
+      // Final coordinator share
+      coordinatorPayableAmount: cart.coordinatorPayableAmount,
       taxSummary: this.buildTaxSummary(cart.taxSummary),
       grandTotal: cart.totalAmount,
     };
@@ -128,6 +140,8 @@ export class BookingBuilder {
           priceBeforeDiscount: cart.subtotal,
           discountAmount: cart.discountAmount,
           finalAmount: cart.totalAmount,
+          commissionPercentage: cart.commissionPercentage,
+          commissionAmount: cart.commissionAmount,
           taxSummary: this.buildTaxSummary(cart.taxSummary),
         },
       },
@@ -194,6 +208,10 @@ export class BookingBuilder {
           addonAmount: cart.addonPrice,
           subtotal: cart.subtotal,
           discountAmount: cart.discountAmount,
+          commissionPercentage: cart.commissionPercentage,
+          commissionBaseAmount: cart.commissionBaseAmount,
+          commissionAmount: cart.commissionAmount,
+          coordinatorPayableAmount: cart.coordinatorPayableAmount,
           taxSummary: this.buildTaxSummary(cart.taxSummary),
           grandTotal: cart.totalAmount,
         },
@@ -234,6 +252,8 @@ export class BookingBuilder {
         priceBeforeDiscount: selectedService.priceBeforeDiscount,
         discountAmount: selectedService.discountAmount,
         finalAmount: selectedService.price,
+        commissionPercentage: selectedService.commissionPercentage,
+        commissionAmount: selectedService.commissionAmount,
         ...(selectedService.tax ? { tax: selectedService.tax } : {}),
         taxSummary: this.buildTaxSummaryFromLine(selectedService.tax),
       },

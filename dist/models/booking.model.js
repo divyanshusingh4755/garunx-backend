@@ -321,6 +321,19 @@ const bookingServiceConfigurationSchema = new Schema({
             default: 0,
             min: 0,
         },
+        commissionPercentage: {
+            type: Number,
+            required: true,
+            default: 0,
+            min: 0,
+            max: 100,
+        },
+        commissionAmount: {
+            type: Number,
+            required: true,
+            default: 0,
+            min: 0,
+        },
         tax: {
             type: lineTaxSchema,
             default: undefined,
@@ -376,6 +389,31 @@ const bookingPackageConfigurationSchema = new Schema({
         },
         discountAmount: {
             type: Number,
+            default: 0,
+            min: 0,
+        },
+        commissionPercentage: {
+            type: Number,
+            required: true,
+            default: 0,
+            min: 0,
+            max: 100,
+        },
+        commissionBaseAmount: {
+            type: Number,
+            required: true,
+            default: 0,
+            min: 0,
+        },
+        commissionAmount: {
+            type: Number,
+            required: true,
+            default: 0,
+            min: 0,
+        },
+        coordinatorPayableAmount: {
+            type: Number,
+            required: true,
             default: 0,
             min: 0,
         },
@@ -544,6 +582,36 @@ const reassignmentSchema = new Schema({
 }, {
     _id: false,
 });
+const coordinatorSettlementSchema = new Schema({
+    status: {
+        type: String,
+        enum: ["NOT_PAYABLE", "PAYABLE", "PAID", "REVERSED"],
+        default: "NOT_PAYABLE",
+        required: true,
+    },
+    coordinatorId: {
+        type: Schema.Types.ObjectId,
+        ref: "User",
+    },
+    payableAmount: {
+        type: Number,
+        default: 0,
+        min: 0,
+        required: true,
+    },
+    paidAmount: {
+        type: Number,
+        default: 0,
+        min: 0,
+        required: true,
+    },
+    payableAt: Date,
+    paidAt: Date,
+    paymentReference: {
+        type: String,
+        trim: true
+    }
+}, { _id: false });
 const bookingSchema = new Schema({
     userId: { type: Schema.Types.ObjectId, ref: "User", index: true },
     cartId: {
@@ -634,6 +702,31 @@ const bookingSchema = new Schema({
             default: 0,
             min: 0,
         },
+        commissionPercentage: {
+            type: Number,
+            required: true,
+            default: 0,
+            min: 0,
+            max: 100,
+        },
+        commissionBaseAmount: {
+            type: Number,
+            required: true,
+            default: 0,
+            min: 0,
+        },
+        commissionAmount: {
+            type: Number,
+            required: true,
+            default: 0,
+            min: 0,
+        },
+        coordinatorPayableAmount: {
+            type: Number,
+            required: true,
+            default: 0,
+            min: 0,
+        },
         taxSummary: {
             type: bookingTaxSummarySchema,
             default: () => ({
@@ -648,10 +741,6 @@ const bookingSchema = new Schema({
             type: Number,
             required: true,
             min: 0,
-        },
-        earnings: {
-            type: Number,
-            default: 0,
         },
     },
     payment: {
@@ -833,6 +922,14 @@ const bookingSchema = new Schema({
         type: Date,
         index: true,
     },
+    coordinatorSettlement: {
+        type: coordinatorSettlementSchema,
+        default: () => ({
+            status: "NOT_PAYABLE",
+            payableAmount: 0,
+            paidAmount: 0,
+        })
+    }
 }, {
     timestamps: true,
 });

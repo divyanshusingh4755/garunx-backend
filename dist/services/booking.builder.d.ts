@@ -10,6 +10,10 @@ interface BookingBuildResult {
         couponId?: Types.ObjectId;
         couponCode?: string;
         discountAmount: number;
+        commissionPercentage: number;
+        commissionBaseAmount: number;
+        commissionAmount: number;
+        coordinatorPayableAmount: number;
         taxSummary: IBookingTaxSummary;
         grandTotal: number;
     };

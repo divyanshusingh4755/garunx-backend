@@ -21,6 +21,7 @@ export interface IService {
     tiers: IServiceTier[];
     isComplete: boolean;
     startingPrice: number;
+    commissionPercentage: number;
     subServiceComponents?: unknown[];
     createdAt: Date;
     updatedAt: Date;
