@@ -24,7 +24,7 @@ const serviceValidation = [
 const updateServiceValidation = [
     param("serviceId").isMongoId().withMessage("Invalid service ID"),
     body().custom((value) => {
-        const allowedFields = ["name", "shortDescription", "fullDescription", "categoryId", "thumbnailImage", "bannerImage",];
+        const allowedFields = ["name", "shortDescription", "fullDescription", "categoryId", "thumbnailImage", "bannerImage", "commissionPercentage"];
         const suppliedFields = Object.keys(value ?? {});
         if (suppliedFields.length === 0) {
             throw new Error("At least one update field is required");
