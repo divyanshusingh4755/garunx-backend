@@ -1,7 +1,7 @@
 import { model, Schema, type Document, type Model, type Types } from "mongoose";
 import { Role } from "../types/rbac.js";
 
-export type WallerOwnerRole = Role.USER | Role.COORDINATOR;
+export type WalletOwnerRole = Role.USER | Role.COORDINATOR;
 export type WalletTransactionType = "BOOKING_REFUND" | "COORDINATOR_EARNING" | "WITHDRAWAL" | "WITHDRAWAL_REVERSAL" | "ADMIN_CREDIT" | "ADMIN_DEBIT";
 export type WalletTransactionDirection = "CREDIT" | "DEBIT";
 
@@ -9,7 +9,7 @@ export interface IWalletTransaction extends Document {
     _id: Types.ObjectId;
     walletId: Types.ObjectId;
     ownerId: Types.ObjectId;
-    ownerRole: WallerOwnerRole;
+    ownerRole: WalletOwnerRole;
     type: WalletTransactionType;
     direction: WalletTransactionDirection;
     amount: number;
@@ -70,7 +70,7 @@ const walletTransactionSchema = new Schema<IWalletTransaction, IWalletTransactio
         },
         balanceAfter: {
             type: Number,
-            requried: true,
+            required: true,
             min: 0
         },
         bookingId: {

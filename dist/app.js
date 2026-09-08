@@ -32,6 +32,8 @@ import taxRoutes from "./routes/taxprofile.routes.js";
 import chatRoutes from "./routes/chat.routes.js";
 import rbacRoutes from "./routes/rbac.routes.js";
 import notificationRoutes from "./routes/notification.routes.js";
+import walletRoutes from "./routes/wallet.routes.js";
+import walletWithdrawalRoutes from "./routes/withdrawal.routes.js";
 import { paymentWebhooks } from "./controllers/booking.controllers.js";
 import { HttpError } from "./utils/httpError.js";
 import multer from "multer";
@@ -81,6 +83,8 @@ app.use("/api/branding", brandingRoutes);
 app.use("/api/chat", chatRoutes);
 app.use("/api/rbac", rbacRoutes);
 app.use("/api/notification", notificationRoutes);
+app.use("/api/wallet", walletRoutes);
+app.use("/api/withdrawals", walletWithdrawalRoutes);
 app.get("/health", (_req, res) => {
     res.status(200).json({
         status: "ok",

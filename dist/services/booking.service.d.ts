@@ -120,7 +120,6 @@ export declare class BookingService {
             gateway: string | undefined;
             amountPaid: number | undefined;
             refundAmount: number | undefined;
-            refundReservedAmount: number | undefined;
             currency: string | undefined;
             providerOrderId: string | undefined;
             providerPaymentId: string | undefined;
@@ -277,19 +276,18 @@ export declare class BookingService {
         bookingReference: string;
         previousStatus: BookingStatus;
         currentStatus: BookingStatus;
-        paymentStatus: import("../models/booking.model.js").PaymentStatus;
-        assignmentStatus: import("../models/booking.model.js").AssignmentStatus | undefined;
-        executionStage: import("../models/booking.model.js").BookingExecutionStage | undefined;
+        paymentStatus: string;
+        assignmentStatus?: string;
+        executionStage?: string;
     }>;
     static refundBooking(bookingId: string, amount: number, reason: string, refundedBy?: string): Promise<{
         bookingId: Types.ObjectId;
         bookingReference: string;
-        paymentStatus: "PARTIAL_REFUND";
+        paymentStatus: "PARTIAL_REFUND" | "REFUNDED";
         refundedAmount: number;
         totalRefunded: number;
         remainingAmount: number;
         refundId: string;
-        providerRefundStatus: string;
     }>;
     static expirePendingPayments(): Promise<{
         expiredBookings: number;
@@ -300,9 +298,9 @@ export declare class BookingService {
         bookingReference: string;
         previousStatus: BookingStatus;
         currentStatus: BookingStatus;
-        paymentStatus: import("../models/booking.model.js").PaymentStatus;
-        assignmentStatus: import("../models/booking.model.js").AssignmentStatus | undefined;
-        executionStage: import("../models/booking.model.js").BookingExecutionStage | undefined;
+        paymentStatus: string;
+        assignmentStatus?: string;
+        executionStage?: string;
     }>;
     static getMyBookingById(bookingId: string, userId: string, role: Role): Promise<{
         cancellation: {
@@ -338,9 +336,9 @@ export declare class BookingService {
         coordinatorSettlement?: {
             status: import("../models/booking.model.js").CoordinatorSettlementStatus;
             payableAmount: number;
-            paidAmount: number;
-            payableAt: Date | undefined;
-            paidAt: Date | undefined;
+            creditedAt: Date | undefined;
+            reversedAmount: number | undefined;
+            reversedAt: Date | undefined;
         };
         bookingId: Types.ObjectId;
         bookingReference: string;

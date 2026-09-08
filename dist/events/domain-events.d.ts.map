@@ -1,1 +1,1 @@
-{"version":3,"file":"domain-events.d.ts","sourceRoot":"","sources":["../../src/events/domain-events.ts"],"names":[],"mappings":"AAAA,eAAO,MAAM,aAAa;;;;;;;;;;;;;;;;;;;;;;;;CAwBhB,CAAC;AAEX,MAAM,MAAM,eAAe,GAAG,CAAC,OAAO,aAAa,CAAC,CAAC,MAAM,OAAO,aAAa,CAAC,CAAC"}
+{"version":3,"file":"domain-events.d.ts","sourceRoot":"","sources":["../../src/events/domain-events.ts"],"names":[],"mappings":"AAAA,eAAO,MAAM,aAAa;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;CA+BhB,CAAC;AAEX,MAAM,MAAM,eAAe,GAAG,CAAC,OAAO,aAAa,CAAC,CAAC,MAAM,OAAO,aAAa,CAAC,CAAC"}

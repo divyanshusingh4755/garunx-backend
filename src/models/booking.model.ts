@@ -37,16 +37,16 @@ export type BookedBy = "USER" | "ADMIN" | "SUBADMIN";
 export type EntryType = "SERVICE" | "PACKAGE";
 export type ComponentType = "DEFAULT" | "ADDON";
 export type ServiceRole = "PRIMARY" | "INCLUDED" | "ADDON";
-export type CoordinatorSettlementStatus = "NOT_PAYABLE" | "PAYABLE" | "PAID" | "REVERSED"
+export type CoordinatorSettlementStatus = "NOT_CREDITED" | "CREDITED" | "REVERSED";
 
 export interface ICoordinatorSettlement {
   status: CoordinatorSettlementStatus;
   coordinatorId?: Types.ObjectId;
   payableAmount: number;
-  paidAmount: number;
-  payableAt?: Date;
-  paidAt?: Date;
-  paymentReference?: string;
+  walletTransactionId?: Types.ObjectId;
+  creditedAt?: Date;
+  reversedAmount?: number;
+  reversedAt?: Date;
 }
 
 export interface IBookingTierSnapshot {
@@ -91,9 +91,9 @@ export interface IBookingRefund {
   refundId: string;
   amount: number;
   reason: string;
+  destination: "WALLET";
+  walletTransactionId: Types.ObjectId;
   refundedAt: Date;
-  providerRefundId?: string;
-  status?: "PENDING" | "SUCCESS" | "FAILED";
   refundedBy?: Types.ObjectId;
 }
 
@@ -309,6 +309,7 @@ const bookingRefundSchema = new Schema<IBookingRefund>(
     refundId: {
       type: String,
       required: true,
+      trim: true,
     },
 
     amount: {
@@ -323,19 +324,22 @@ const bookingRefundSchema = new Schema<IBookingRefund>(
       trim: true,
     },
 
+    destination: {
+      type: String,
+      enum: ["WALLET"],
+      required: true,
+      default: "WALLET",
+    },
+
+    walletTransactionId: {
+      type: Schema.Types.ObjectId,
+      ref: "WalletTransaction",
+      required: true,
+    },
+
     refundedAt: {
       type: Date,
-      default: Date.now,
-    },
-
-    providerRefundId: {
-      type: String,
-    },
-
-    status: {
-      type: String,
-      enum: ["PENDING", "SUCCESS", "FAILED"],
-      default: "PENDING",
+      required: true,
     },
 
     refundedBy: {
@@ -343,7 +347,9 @@ const bookingRefundSchema = new Schema<IBookingRefund>(
       ref: "User",
     },
   },
-  { _id: false },
+  {
+    _id: false,
+  },
 );
 
 const bookingTaxSummarySchema = new Schema<IBookingTaxSummary>(
@@ -968,8 +974,8 @@ const reassignmentSchema = new Schema<IReassignment>(
 const coordinatorSettlementSchema = new Schema<ICoordinatorSettlement>({
   status: {
     type: String,
-    enum: ["NOT_PAYABLE", "PAYABLE", "PAID", "REVERSED"],
-    default: "NOT_PAYABLE",
+    enum: ["NOT_CREDITED", "CREDITED", "REVERSED"],
+    default: "NOT_CREDITED",
     required: true,
   },
   coordinatorId: {
@@ -982,18 +988,16 @@ const coordinatorSettlementSchema = new Schema<ICoordinatorSettlement>({
     min: 0,
     required: true,
   },
-  paidAmount: {
+  walletTransactionId: {
+    type: Schema.Types.ObjectId,
+    ref: "WalletTransaction",
+  },
+  reversedAmount: {
     type: Number,
     default: 0,
-    min: 0,
-    required: true,
   },
-  payableAt: Date,
-  paidAt: Date,
-  paymentReference: {
-    type: String,
-    trim: true
-  }
+  creditedAt: Date,
+  reversedAt: Date,
 }, { _id: false });
 
 
@@ -1488,7 +1492,7 @@ const bookingSchema = new Schema<IBooking>(
     coordinatorSettlement: {
       type: coordinatorSettlementSchema,
       default: () => ({
-        status: "NOT_PAYABLE",
+        status: "NOT_CREDITED",
         payableAmount: 0,
         paidAmount: 0,
       })

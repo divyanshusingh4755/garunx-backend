@@ -32,15 +32,15 @@ export type BookedBy = "USER" | "ADMIN" | "SUBADMIN";
 export type EntryType = "SERVICE" | "PACKAGE";
 export type ComponentType = "DEFAULT" | "ADDON";
 export type ServiceRole = "PRIMARY" | "INCLUDED" | "ADDON";
-export type CoordinatorSettlementStatus = "NOT_PAYABLE" | "PAYABLE" | "PAID" | "REVERSED";
+export type CoordinatorSettlementStatus = "NOT_CREDITED" | "CREDITED" | "REVERSED";
 export interface ICoordinatorSettlement {
     status: CoordinatorSettlementStatus;
     coordinatorId?: Types.ObjectId;
     payableAmount: number;
-    paidAmount: number;
-    payableAt?: Date;
-    paidAt?: Date;
-    paymentReference?: string;
+    walletTransactionId?: Types.ObjectId;
+    creditedAt?: Date;
+    reversedAmount?: number;
+    reversedAt?: Date;
 }
 export interface IBookingTierSnapshot {
     tierId: Types.ObjectId;
@@ -78,9 +78,9 @@ export interface IBookingRefund {
     refundId: string;
     amount: number;
     reason: string;
+    destination: "WALLET";
+    walletTransactionId: Types.ObjectId;
     refundedAt: Date;
-    providerRefundId?: string;
-    status?: "PENDING" | "SUCCESS" | "FAILED";
     refundedBy?: Types.ObjectId;
 }
 export type ServiceExecutionStatus = "PENDING" | "IN_PROGRESS" | "COMPLETED" | "SKIPPED" | "CANCELLED";

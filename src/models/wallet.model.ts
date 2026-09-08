@@ -1,12 +1,12 @@
-import { model, Schema, type Model, type Types } from "mongoose";
+import { Document, model, Schema, type Model, type Types } from "mongoose";
 import { Role } from "../types/rbac.js";
 
-export type WallerOwnerRole = Role.USER | Role.COORDINATOR;
+export type WalletOwnerRole = Role.USER | Role.COORDINATOR;
 
 export interface IWallet extends Document {
     _id: Types.ObjectId;
     ownerId: Types.ObjectId;
-    ownerRole: WallerOwnerRole;
+    ownerRole: WalletOwnerRole;
     availableBalance: number;
     reservedBalance: number;
     lifetimeCredits: number;
@@ -17,9 +17,9 @@ export interface IWallet extends Document {
     updatedAt: Date;
 }
 
-interface IWallerModel extends Model<IWallet> { }
+interface IWalletModel extends Model<IWallet> { }
 
-const walletSchema = new Schema<IWallet, IWallerModel>({
+const walletSchema = new Schema<IWallet, IWalletModel>({
     ownerId: {
         type: Schema.Types.ObjectId,
         ref: "User",
@@ -81,4 +81,4 @@ walletSchema.index({ ownerId: 1, ownerRole: 1 }, { unique: true });
 // Useful for admin wallet listing,
 walletSchema.index({ ownerRole: 1, isActive: 1, createdAt: -1 });
 
-export const Wallet = model<IWallet, IWallerModel>("Waller", walletSchema);
+export const Wallet = model<IWallet, IWalletModel>("Wallet", walletSchema);

@@ -1,6 +1,6 @@
-import { type Document, type Model, type Types } from "mongoose";
+import { Document, type Model, type Types } from "mongoose";
 import { Role } from "../types/rbac.js";
-export type WallerOwnerRole = Role.USER | Role.COORDINATOR;
+export type WalletOwnerRole = Role.USER | Role.COORDINATOR;
 export type WithdrawalStatus = "PENDING" | "APPROVED" | "PROCESSING" | "PAID" | "REJECTED" | "CANCELLED";
 export type WithdrawalDestinationType = "BANK" | "UPI";
 export type WithdrawalPaymentMethod = "NEFT" | "IMPS" | "RTGS" | "UPI" | "BANK_TRANSFER" | "OTHER";
@@ -16,7 +16,7 @@ export interface IWithdrawalRequest extends Document {
     _id: Types.ObjectId;
     walletId: Types.ObjectId;
     ownerId: Types.ObjectId;
-    ownerRole: WallerOwnerRole;
+    ownerRole: WalletOwnerRole;
     amount: number;
     status: WithdrawalStatus;
     destinationSnapshot: IWithdrawalDestinationSnapshot;

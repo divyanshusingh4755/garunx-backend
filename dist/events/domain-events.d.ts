@@ -22,6 +22,13 @@ export declare const DOMAIN_EVENTS: {
     readonly QUERY_REJECTED: "QUERY.REJECTED";
     readonly QUERY_REOPENED: "QUERY.REOPENED";
     readonly QUERY_DELETED: "QUERY.DELETED";
+    readonly WALLET_CREDITED: "WALLET.CREDITED";
+    readonly WALLET_DEBITED: "WALLET.DEBITED";
+    readonly WITHDRAWAL_REQUESTED: "WITHDRAWAL.REQUESTED";
+    readonly WITHDRAWAL_APPROVED: "WITHDRAWAL.APPROVED";
+    readonly WITHDRAWAL_REJECTED: "WITHDRAWAL.REJECTED";
+    readonly WITHDRAWAL_PAID: "WITHDRAWAL.PAID";
+    readonly WITHDRAWAL_CANCELLED: "WITHDRAWAL.CANCELLED";
 };
 export type DomainEventType = (typeof DOMAIN_EVENTS)[keyof typeof DOMAIN_EVENTS];
 //# sourceMappingURL=domain-events.d.ts.map

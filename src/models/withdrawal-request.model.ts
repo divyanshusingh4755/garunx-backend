@@ -1,7 +1,7 @@
-import { model, Schema, type Document, type Model, type Types } from "mongoose";
+import { model, Schema, Document, type Model, type Types } from "mongoose";
 import { Role } from "../types/rbac.js";
 
-export type WallerOwnerRole = Role.USER | Role.COORDINATOR;
+export type WalletOwnerRole = Role.USER | Role.COORDINATOR;
 export type WithdrawalStatus = "PENDING" | "APPROVED" | "PROCESSING" | "PAID" | "REJECTED" | "CANCELLED";
 export type WithdrawalDestinationType = "BANK" | "UPI";
 export type WithdrawalPaymentMethod = "NEFT" | "IMPS" | "RTGS" | "UPI" | "BANK_TRANSFER" | "OTHER"
@@ -19,7 +19,7 @@ export interface IWithdrawalRequest extends Document {
     _id: Types.ObjectId;
     walletId: Types.ObjectId;
     ownerId: Types.ObjectId;
-    ownerRole: WallerOwnerRole;
+    ownerRole: WalletOwnerRole;
     amount: number;
     status: WithdrawalStatus;
     destinationSnapshot: IWithdrawalDestinationSnapshot;
@@ -83,14 +83,14 @@ const withdrawalRequestSchema = new Schema<IWithdrawalRequest, IWithdrawalReques
     {
         walletId: {
             type: Schema.Types.ObjectId,
-            ref: "User",
+            ref: "Wallet",
             required: true,
             index: true
         },
         ownerId: {
             type: Schema.Types.ObjectId,
             ref: "User",
-            requried: true,
+            required: true,
             index: true,
         },
         ownerRole: {
@@ -188,9 +188,9 @@ const withdrawalRequestSchema = new Schema<IWithdrawalRequest, IWithdrawalReques
 
 withdrawalRequestSchema.index({
     ownerId: 1,
-    owneroRole: 1,
-    createdAt: -1
-})
+    ownerRole: 1,
+    createdAt: -1,
+});
 
 withdrawalRequestSchema.index({
     status: 1,

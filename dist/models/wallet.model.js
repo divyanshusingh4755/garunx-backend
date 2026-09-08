@@ -1,4 +1,4 @@
-import { model, Schema } from "mongoose";
+import { Document, model, Schema } from "mongoose";
 import { Role } from "../types/rbac.js";
 const walletSchema = new Schema({
     ownerId: {
@@ -57,5 +57,5 @@ const walletSchema = new Schema({
 walletSchema.index({ ownerId: 1, ownerRole: 1 }, { unique: true });
 // Useful for admin wallet listing,
 walletSchema.index({ ownerRole: 1, isActive: 1, createdAt: -1 });
-export const Wallet = model("Waller", walletSchema);
+export const Wallet = model("Wallet", walletSchema);
 //# sourceMappingURL=wallet.model.js.map

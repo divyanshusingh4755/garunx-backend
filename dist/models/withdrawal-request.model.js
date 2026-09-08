@@ -1,4 +1,4 @@
-import { model, Schema } from "mongoose";
+import { model, Schema, Document } from "mongoose";
 import { Role } from "../types/rbac.js";
 const withdrawalDestinationSnapshotSchema = new Schema({
     type: {
@@ -34,14 +34,14 @@ const withdrawalDestinationSnapshotSchema = new Schema({
 const withdrawalRequestSchema = new Schema({
     walletId: {
         type: Schema.Types.ObjectId,
-        ref: "User",
+        ref: "Wallet",
         required: true,
         index: true
     },
     ownerId: {
         type: Schema.Types.ObjectId,
         ref: "User",
-        requried: true,
+        required: true,
         index: true,
     },
     ownerRole: {
@@ -136,8 +136,8 @@ const withdrawalRequestSchema = new Schema({
 });
 withdrawalRequestSchema.index({
     ownerId: 1,
-    owneroRole: 1,
-    createdAt: -1
+    ownerRole: 1,
+    createdAt: -1,
 });
 withdrawalRequestSchema.index({
     status: 1,

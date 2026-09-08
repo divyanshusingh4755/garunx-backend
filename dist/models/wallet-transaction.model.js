@@ -43,7 +43,7 @@ const walletTransactionSchema = new Schema({
     },
     balanceAfter: {
         type: Number,
-        requried: true,
+        required: true,
         min: 0
     },
     bookingId: {

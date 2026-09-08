@@ -17,6 +17,7 @@ import { CacheKeys } from "../cache/cache-keys.js";
 import { CACHE_TTL_SECONDS } from "../cache/constants.js";
 import { HttpError } from "../utils/httpError.js";
 import { CoordinatorSelectionConfigService } from "./coordinator-selection-config.service.js";
+import { WalletService } from "./wallet.service.js";
 const COORDINATOR_RESPONSE_TIME_MS = 2 * 60 * 60 * 1000; // for testing only
 // const COORDINATOR_RESPONSE_TIME_MS = 10 * 60 * 1000;
 const ASSIGNMENT_WINDOW_MS = 2 * 60 * 60 * 1000;
@@ -1077,7 +1078,6 @@ export class BookingService {
                         gateway: booking.payment.gateway,
                         amountPaid: booking.payment.amountPaid,
                         refundAmount: booking.payment.refundAmount,
-                        refundReservedAmount: booking.payment.refundReservedAmount,
                         currency: booking.payment.currency,
                         providerOrderId: booking.payment.providerOrderId,
                         providerPaymentId: booking.payment.providerPaymentId,
@@ -1365,143 +1365,167 @@ export class BookingService {
         };
     }
     static async updateBookingStatus(bookingId, status, userId, role, reason) {
-        const booking = await Booking.findOne({ _id: bookingId, isDeleted: false });
-        if (!booking) {
-            throw new Error("Booking not found");
+        if (!Types.ObjectId.isValid(bookingId)) {
+            throw new Error("Invalid booking ID");
         }
-        const allowedTransitions = STATUS_TRANSITIONS[booking.status];
-        if (!allowedTransitions.includes(status)) {
-            throw new Error(`Cannot change booking from ${booking.status} to ${status}`);
-        }
-        if (["CONFIRMED", "ASSIGNMENT_PENDING", "ASSIGNED", "IN_PROGRESS", "COMPLETED"].includes(status) && booking.payment.status !== "PAID") {
-            throw new Error("Booking payment must be PAID before progressing");
-        }
-        const now = new Date();
-        const previousStatus = booking.status;
-        const ensureAssignment = () => {
-            if (!booking.assignment) {
-                booking.assignment = { status: "NOT_STARTED", currentRound: 1, requests: [] };
-            }
-            booking.assignment.requests ??= [];
-            return booking.assignment;
-        };
-        switch (status) {
-            case "PENDING_PAYMENT": {
-                booking.status = "PENDING_PAYMENT";
-                booking.payment.status = "PENDING";
-                const assignment = ensureAssignment();
-                assignment.status = "NOT_STARTED";
-                break;
-            }
-            case "CONFIRMED": {
-                booking.status = "CONFIRMED";
-                const assignment = ensureAssignment();
-                assignment.status = "PENDING_SELECTION";
-                break;
-            }
-            case "ASSIGNMENT_PENDING": {
-                booking.status = "ASSIGNMENT_PENDING";
-                const assignment = ensureAssignment();
-                assignment.status = assignment.assignedCoordinatorId ? "PENDING_RESPONSE" : "PENDING_SELECTION";
-                break;
-            }
-            case "ASSIGNED": {
-                const assignment = ensureAssignment();
-                if (!assignment.assignedCoordinatorId) {
-                    throw new Error("Coordinator must be assigned before booking can be marked as ASSIGNED");
-                }
-                booking.status = "ASSIGNED";
-                assignment.status = "ACCEPTED";
-                assignment.assignedAt ??= now;
-                assignment.coordinatorAcceptedAt ??= now;
-                break;
-            }
-            case "IN_PROGRESS": {
-                const assignment = ensureAssignment();
-                if (assignment.status !== "ACCEPTED" || !assignment.assignedCoordinatorId) {
-                    throw new Error("Booking must have an accepted coordinator before starting");
-                }
-                booking.status = "IN_PROGRESS";
-                if (!booking.execution) {
-                    booking.execution = {
-                        stage: "SERVICE_EXECUTION",
-                        startedAt: now,
-                        serviceExecutions: [],
-                        milestones: [],
-                        progressPercentage: 0,
-                    };
-                }
-                else {
-                    booking.execution.stage = "SERVICE_EXECUTION";
-                    booking.execution.startedAt ??= now;
-                }
-                break;
-            }
-            case "COMPLETED": {
-                const serviceExecutions = booking.execution?.serviceExecutions ?? [];
-                const allServicesCompleted = serviceExecutions.length > 0 && serviceExecutions.every((service) => service.status === "COMPLETED" || service.status === "SKIPPED" || service.status === "CANCELLED");
-                if (!allServicesCompleted) {
-                    throw new Error("All booking services must be resolved before completion");
-                }
-                booking.status = "COMPLETED";
-                booking.completedAt = now;
-                const assignedCoordinatorId = booking.assignment?.assignedCoordinatorId;
-                if (!assignedCoordinatorId) {
-                    throw new Error("Assigned coordinator is required before completing booking");
-                }
-                if (booking.coordinatorSettlement?.status !== "PAID") {
-                    booking.coordinatorSettlement = {
-                        status: "PAYABLE",
-                        coordinatorId: assignedCoordinatorId,
-                        payableAmount: booking.pricing.coordinatorPayableAmount,
-                        paidAmount: booking.coordinatorSettlement?.paidAmount ?? 0,
-                        payableAt: booking.coordinatorSettlement?.payableAt ?? now,
-                    };
-                }
-                if (!booking.execution) {
-                    booking.execution = {
-                        stage: "FINISHED",
-                        startedAt: now,
-                        finishedAt: now,
-                        serviceExecutions,
-                        milestones: [],
-                        progressPercentage: 100,
-                    };
-                }
-                else {
-                    booking.execution.stage = "FINISHED";
-                    booking.execution.startedAt ??= now;
-                    booking.execution.finishedAt = now;
-                    booking.execution.progressPercentage = 100;
-                }
-                break;
-            }
-            case "CANCELLED": {
-                if (!reason?.trim()) {
-                    throw new Error("Cancellation reason required");
-                }
-                booking.status = "CANCELLED";
-                booking.cancellation = {
-                    reason: reason.trim(),
-                    cancelledAt: now,
-                    cancelledBy: new Types.ObjectId(userId),
-                    cancelledByRole: role,
-                    refundPercentage: booking.cancellation?.refundPercentage ?? 0,
-                    refundAmount: booking.cancellation?.refundAmount ?? 0,
-                };
-                break;
-            }
-            case "EXPIRED": {
-                booking.status = "EXPIRED";
-                booking.payment.status = "FAILED";
-                booking.payment.failureReason = "Payment expired";
-                break;
-            }
+        if (!Types.ObjectId.isValid(userId)) {
+            throw new Error("Invalid user ID");
         }
         const session = await mongoose.startSession();
+        let result;
         try {
             await session.withTransaction(async () => {
-                await booking.save({ session });
+                const booking = await Booking.findOne({ _id: bookingId, isDeleted: false, }).session(session);
+                if (!booking) {
+                    throw new Error("Booking not found");
+                }
+                const previousStatus = booking.status;
+                const allowedTransitions = STATUS_TRANSITIONS[booking.status];
+                if (!allowedTransitions.includes(status)) {
+                    throw new Error(`Cannot change booking from ${booking.status} to ${status}`);
+                }
+                // Booking cannot progress unless payment is completed.
+                if (["CONFIRMED", "ASSIGNMENT_PENDING", "ASSIGNED", "IN_PROGRESS", "COMPLETED"].includes(status) && booking.payment.status !== "PAID") {
+                    throw new Error("Booking payment must be PAID before progressing");
+                }
+                const now = new Date();
+                const ensureAssignment = () => {
+                    if (!booking.assignment) {
+                        booking.assignment = { status: "NOT_STARTED", currentRound: 1, requests: [], };
+                    }
+                    booking.assignment.requests ??= [];
+                    return booking.assignment;
+                };
+                switch (status) {
+                    case "PENDING_PAYMENT": {
+                        booking.status = "PENDING_PAYMENT";
+                        booking.payment.status = "PENDING";
+                        const assignment = ensureAssignment();
+                        assignment.status = "NOT_STARTED";
+                        break;
+                    }
+                    case "CONFIRMED": {
+                        booking.status = "CONFIRMED";
+                        const assignment = ensureAssignment();
+                        assignment.status = "PENDING_SELECTION";
+                        break;
+                    }
+                    case "ASSIGNMENT_PENDING": {
+                        booking.status = "ASSIGNMENT_PENDING";
+                        const assignment = ensureAssignment();
+                        assignment.status = assignment.assignedCoordinatorId ? "PENDING_RESPONSE" : "PENDING_SELECTION";
+                        break;
+                    }
+                    case "ASSIGNED": {
+                        const assignment = ensureAssignment();
+                        if (!assignment.assignedCoordinatorId) {
+                            throw new Error("Coordinator must be assigned before booking can be marked as ASSIGNED");
+                        }
+                        booking.status = "ASSIGNED";
+                        assignment.status = "ACCEPTED";
+                        assignment.assignedAt ??= now;
+                        assignment.coordinatorAcceptedAt ??= now;
+                        break;
+                    }
+                    case "IN_PROGRESS": {
+                        const assignment = ensureAssignment();
+                        if (assignment.status !== "ACCEPTED" || !assignment.assignedCoordinatorId) {
+                            throw new Error("Booking must have an accepted coordinator before starting");
+                        }
+                        booking.status = "IN_PROGRESS";
+                        if (!booking.execution) {
+                            booking.execution = { stage: "SERVICE_EXECUTION", startedAt: now, serviceExecutions: [], milestones: [], progressPercentage: 0, };
+                        }
+                        else {
+                            booking.execution.stage = "SERVICE_EXECUTION";
+                            booking.execution.startedAt ??= now;
+                        }
+                        break;
+                    }
+                    case "COMPLETED": {
+                        const assignedCoordinatorId = booking.assignment?.assignedCoordinatorId;
+                        if (!assignedCoordinatorId) {
+                            throw new Error("Assigned coordinator is required before completing booking");
+                        }
+                        if (booking.assignment?.status !== "ACCEPTED") {
+                            throw new Error("Booking must have an accepted coordinator before completion");
+                        }
+                        const serviceExecutions = booking.execution?.serviceExecutions ?? [];
+                        const allServicesCompleted = serviceExecutions.length > 0 && serviceExecutions.every((service) => service.status === "COMPLETED" || service.status === "SKIPPED" || service.status === "CANCELLED");
+                        if (!allServicesCompleted) {
+                            throw new Error("All booking services must be resolved before completion");
+                        }
+                        // First complete all booking-side state.
+                        booking.status = "COMPLETED";
+                        booking.completedAt = now;
+                        if (!booking.execution) {
+                            booking.execution = { stage: "FINISHED", startedAt: now, finishedAt: now, serviceExecutions, milestones: [], progressPercentage: 100, };
+                        }
+                        else {
+                            booking.execution.stage = "FINISHED";
+                            booking.execution.startedAt ??= now;
+                            booking.execution.finishedAt = now;
+                            booking.execution.progressPercentage = 100;
+                        }
+                        // Credit the FINAL assigned coordinator. IMPORTANT: The amount comes from the frozen booking coordinatorPayableAmount. We do NOT recalculate commission here.
+                        const coordinatorPayableAmount = booking.pricing.coordinatorPayableAmount;
+                        if (!Number.isFinite(coordinatorPayableAmount) || coordinatorPayableAmount < 0) {
+                            throw new Error("Invalid coordinator payable amount");
+                        }
+                        if (coordinatorPayableAmount > 0) {
+                            const walletTransaction = await WalletService.creditCoordinatorEarning({
+                                coordinatorId: assignedCoordinatorId,
+                                bookingId: booking._id,
+                                amount: coordinatorPayableAmount,
+                                session,
+                            });
+                            booking.coordinatorSettlement = {
+                                status: "CREDITED",
+                                coordinatorId: assignedCoordinatorId,
+                                payableAmount: coordinatorPayableAmount,
+                                walletTransactionId: walletTransaction._id,
+                                creditedAt: now,
+                            };
+                        }
+                        else {
+                            // Zero-payable edge case. No zero-value wallet transaction is created.
+                            booking.coordinatorSettlement = {
+                                status: "CREDITED",
+                                coordinatorId: assignedCoordinatorId,
+                                payableAmount: 0,
+                                creditedAt: now,
+                            };
+                        }
+                        // Update coordinator statistics in the SAME transaction.
+                        await User.updateOne({ _id: assignedCoordinatorId, }, { $inc: { "coordinatorProfile.totalCompletedBookings": 1, }, }, { session, });
+                        break;
+                    }
+                    case "CANCELLED": {
+                        const normalizedReason = reason?.trim();
+                        if (!normalizedReason) {
+                            throw new Error("Cancellation reason required");
+                        }
+                        booking.status = "CANCELLED";
+                        booking.cancellation = {
+                            reason: normalizedReason,
+                            cancelledAt: now,
+                            cancelledBy: new Types.ObjectId(userId),
+                            cancelledByRole: role,
+                            refundPercentage: booking.cancellation?.refundPercentage ?? 0,
+                            refundAmount: booking.cancellation?.refundAmount ?? 0,
+                        };
+                        break;
+                    }
+                    case "EXPIRED": {
+                        booking.status = "EXPIRED";
+                        booking.payment.status = "FAILED";
+                        booking.payment.failureReason = "Payment expired";
+                        break;
+                    }
+                }
+                // Save booking only once. For COMPLETED this means: Booking completion + wallet credit + coordinator settlement + coordinator statistics are all inside the SAME transaction.
+                await booking.save({ session, });
+                // Domain events
                 if (booking.userId) {
                     if (status === "CONFIRMED") {
                         await OutboxService.createEvent({
@@ -1560,26 +1584,30 @@ export class BookingService {
                                 bookingId: booking._id.toString(),
                                 bookingReference: booking.bookingReference,
                                 userId: booking.userId.toString(),
+                                coordinatorId: booking.assignment?.assignedCoordinatorId?.toString() ?? null,
+                                coordinatorPayableAmount: booking.pricing.coordinatorPayableAmount,
                                 completedAt: booking.completedAt ?? now,
                             },
                             session,
                         });
                     }
                 }
+                result = {
+                    bookingId: booking._id,
+                    bookingReference: booking.bookingReference,
+                    previousStatus,
+                    currentStatus: booking.status,
+                    paymentStatus: booking.payment.status,
+                    ...(booking.assignment?.status ? { assignmentStatus: booking.assignment.status, } : {}),
+                    ...(booking.execution?.stage ? { executionStage: booking.execution.stage, } : {}),
+                };
             });
         }
         finally {
             await session.endSession();
         }
-        return {
-            bookingId: booking._id,
-            bookingReference: booking.bookingReference,
-            previousStatus,
-            currentStatus: booking.status,
-            paymentStatus: booking.payment.status,
-            assignmentStatus: booking.assignment?.status,
-            executionStage: booking.execution?.stage,
-        };
+        await this.invalidateBookingCache(bookingId);
+        return result;
     }
     static async refundBooking(bookingId, amount, reason, refundedBy) {
         if (!Types.ObjectId.isValid(bookingId)) {
@@ -1592,132 +1620,93 @@ export class BookingService {
         if (!normalizedReason) {
             throw new Error("Refund reason is required");
         }
-        // Use a collision-resistant ID instead of Date.now().
         const refundReference = `REF-${crypto.randomUUID().replace(/-/g, "").slice(0, 20).toUpperCase()}`;
-        // STEP 1 Atomically reserve refundable balance. Two requests cannot both reserve the same money.
-        const reservedBooking = await Booking.findOneAndUpdate({
-            _id: bookingId,
-            isDeleted: false,
-            "payment.status": { $in: ["PAID", "PARTIAL_REFUND"] },
-            "payment.providerPaymentId": { $exists: true, $ne: null },
-            "payment.providerOrderId": { $exists: true, $ne: null },
-            // refundAmount + currently reserved + requested amount must remain <= grandTotal.
-            $expr: {
-                $lte: [{ $add: [{ $ifNull: ["$payment.refundAmount", 0] }, { $ifNull: ["$payment.refundReservedAmount", 0] }, amount] }, "$pricing.grandTotal"],
-            },
-        }, {
-            $inc: { "payment.refundReservedAmount": amount },
-        }, { new: true, runValidators: true });
-        if (!reservedBooking) {
-            // Fetch only to give a useful error.
-            const current = await Booking.findOne({ _id: bookingId, isDeleted: false }).select("payment pricing.grandTotal").lean();
-            if (!current) {
-                throw new Error("Booking not found");
-            }
-            if (current.payment.status !== "PAID" && current.payment.status !== "PARTIAL_REFUND") {
-                throw new Error("Only paid bookings can be refunded");
-            }
-            if (!current.payment.providerPaymentId) {
-                throw new Error("Payment transaction not found");
-            }
-            const refunded = current.payment.refundAmount ?? 0;
-            const reserved = current.payment.refundReservedAmount ?? 0;
-            const available = Math.max(0, current.pricing.grandTotal - refunded - reserved);
-            throw new Error(`Maximum currently refundable amount is ₹${available}`);
-        }
-        const orderId = reservedBooking.payment.providerOrderId;
-        let refundResponse;
-        // STEP 2 Call provider only AFTER local reservation.
-        try {
-            refundResponse = await CashfreeService.refundPayment({ orderId, amount, refundId: refundReference, reason: normalizedReason });
-        }
-        catch (error) {
-            // Provider rejected/failed before acceptingrefund. Release our reservation.
-            await Booking.updateOne({ _id: bookingId, "payment.refundReservedAmount": { $gte: amount } }, { $inc: { "payment.refundReservedAmount": -amount } });
-            throw error;
-        }
-        const providerStatus = String(refundResponse?.refund_status ?? "PENDING").toUpperCase();
-        // Cashfree may return refund states that are still being processed. Once Cashfree accepted the refund request, don't make that money refundable again.
-        const providerAccepted = ["SUCCESS", "PENDING", "INITIALIZED"].includes(providerStatus);
-        if (!providerAccepted) {
-            await Booking.updateOne({ _id: bookingId, "payment.refundReservedAmount": { $gte: amount } }, { $inc: { "payment.refundReservedAmount": -amount } });
-            throw new Error(`Refund was not accepted by Cashfree. Status: ${providerStatus}`);
-        }
-        // STEP 3 Convert reservation into committed refund.
         const session = await mongoose.startSession();
-        let finalTotalRefunded = 0;
-        let finalPaymentStatus = "PARTIAL_REFUND";
+        let result;
         try {
             await session.withTransaction(async () => {
-                const booking = await Booking.findOne({ _id: bookingId, isDeleted: false }).session(session);
+                const booking = await Booking.findOne({ _id: bookingId, isDeleted: false, }).session(session);
                 if (!booking) {
                     throw new Error("Booking not found");
                 }
-                const reserved = booking.payment.refundReservedAmount ?? 0;
-                // If this fails, DO NOT release the reservation automatically outside the transaction because Cashfree already accepted the refund.
-                if (reserved < amount) {
-                    throw new Error("Refund reservation is missing");
+                // Only successfully paid bookings can receive a refund.
+                if (booking.payment.status !== "PAID" && booking.payment.status !== "PARTIAL_REFUND") {
+                    throw new Error("Only paid bookings can be refunded");
+                }
+                // Refund always goes to the booking purchaser / payer.
+                if (!booking.userId) {
+                    throw new Error("Booking user not found");
                 }
                 const alreadyRefunded = booking.payment.refundAmount ?? 0;
-                finalTotalRefunded = alreadyRefunded + amount;
-                booking.payment.refundReservedAmount = Math.max(0, reserved - amount);
+                const remainingRefundableAmount = Math.max(0, booking.pricing.grandTotal - alreadyRefunded);
+                if (amount > remainingRefundableAmount) {
+                    throw new Error(`Maximum refundable amount is ₹${remainingRefundableAmount}`);
+                }
+                // Optional admin/user reference. Because exactOptionalPropertyTypes is enabled, don't pass undefined.
+                const createdBy = refundedBy && Types.ObjectId.isValid(refundedBy) ? new Types.ObjectId(refundedBy) : undefined;
+                // Credit refund directly to the USER wallet. WalletService handles: - wallet balance - wallet transaction - idempotency - wallet outbox event using the SAME Mongo session.
+                const walletTransaction = await WalletService.creditBookingRefund({
+                    userId: booking.userId,
+                    bookingId: booking._id,
+                    refundId: refundReference,
+                    amount,
+                    reason: normalizedReason,
+                    ...(createdBy ? { createdBy } : {}),
+                    session,
+                });
+                const now = new Date();
+                const finalTotalRefunded = alreadyRefunded + amount;
                 booking.payment.refundAmount = finalTotalRefunded;
-                booking.payment.refundedAt = new Date();
-                booking.payment.refunds = booking.payment.refunds ?? [];
+                booking.payment.refundedAt = now;
+                booking.payment.refunds ??= [];
                 booking.payment.refunds.push({
                     refundId: refundReference,
                     amount,
                     reason: normalizedReason,
-                    refundedAt: new Date(),
-                    providerRefundId: refundResponse?.cf_refund_id ?? refundResponse?.refund_id,
-                    status: providerStatus === "SUCCESS" ? "SUCCESS" : "PENDING",
-                    ...(refundedBy && Types.ObjectId.isValid(refundedBy) ? { refundedBy: new Types.ObjectId(refundedBy) } : {}),
+                    destination: "WALLET",
+                    walletTransactionId: walletTransaction._id,
+                    refundedAt: now,
+                    ...(createdBy ? { refundedBy: createdBy, } : {}),
                 });
-                if (finalTotalRefunded >= booking.pricing.grandTotal) {
-                    booking.payment.status = "REFUNDED";
-                    finalPaymentStatus = "REFUNDED";
-                }
-                else {
-                    booking.payment.status = "PARTIAL_REFUND";
-                    finalPaymentStatus = "PARTIAL_REFUND";
-                }
-                await booking.save({ session });
-                // Only SUCCESS is announced as completed refund. PENDING/INITIALIZED should wait until your refund-status synchronization confirms success.
-                if (booking.userId && providerStatus === "SUCCESS") {
-                    await OutboxService
-                        .createEvent({
-                        eventId: `PAYMENT.REFUNDED:${booking._id.toString()}:${refundReference}`,
-                        eventType: DOMAIN_EVENTS.PAYMENT_REFUNDED,
-                        aggregateType: "BOOKING",
-                        aggregateId: booking._id.toString(),
-                        payload: {
-                            bookingId: booking._id.toString(),
-                            bookingReference: booking.bookingReference,
-                            userId: booking.userId.toString(),
-                            refundedAmount: amount,
-                            totalRefunded: finalTotalRefunded,
-                            paymentStatus: finalPaymentStatus,
-                            reason: normalizedReason,
-                        },
-                        session,
-                    });
-                }
+                const finalPaymentStatus = finalTotalRefunded >= booking.pricing.grandTotal ? "REFUNDED" : "PARTIAL_REFUND";
+                booking.payment.status = finalPaymentStatus;
+                await booking.save({ session, });
+                // Refund is already completed once the wallet credit succeeds. There is no PENDING gateway refund state anymore.
+                await OutboxService.createEvent({
+                    eventId: `PAYMENT.REFUNDED:${booking._id.toString()}:${refundReference}`,
+                    eventType: DOMAIN_EVENTS.PAYMENT_REFUNDED,
+                    aggregateType: "BOOKING",
+                    aggregateId: booking._id.toString(),
+                    payload: {
+                        bookingId: booking._id.toString(),
+                        bookingReference: booking.bookingReference,
+                        userId: booking.userId.toString(),
+                        refundId: refundReference,
+                        refundedAmount: amount,
+                        totalRefunded: finalTotalRefunded,
+                        remainingAmount: Math.max(0, booking.pricing.grandTotal - finalTotalRefunded),
+                        paymentStatus: finalPaymentStatus,
+                        refundDestination: "WALLET",
+                        reason: normalizedReason,
+                    },
+                    session,
+                });
+                result = {
+                    bookingId: booking._id,
+                    bookingReference: booking.bookingReference,
+                    paymentStatus: finalPaymentStatus,
+                    refundedAmount: amount,
+                    totalRefunded: finalTotalRefunded,
+                    remainingAmount: Math.max(0, booking.pricing.grandTotal - finalTotalRefunded),
+                    refundId: refundReference,
+                };
             });
         }
         finally {
             await session.endSession();
         }
         await this.invalidateBookingCache(bookingId);
-        return {
-            bookingId: reservedBooking._id,
-            bookingReference: reservedBooking.bookingReference,
-            paymentStatus: finalPaymentStatus,
-            refundedAmount: amount,
-            totalRefunded: finalTotalRefunded,
-            remainingAmount: Math.max(0, reservedBooking.pricing.grandTotal - finalTotalRefunded),
-            refundId: refundReference,
-            providerRefundStatus: providerStatus,
-        };
+        return result;
     }
     static async expirePendingPayments() {
         const now = new Date();
@@ -1933,9 +1922,9 @@ export class BookingService {
             ? {
                 status: booking.coordinatorSettlement.status,
                 payableAmount: booking.coordinatorSettlement.payableAmount,
-                paidAmount: booking.coordinatorSettlement.paidAmount,
-                payableAt: booking.coordinatorSettlement.payableAt,
-                paidAt: booking.coordinatorSettlement.paidAt,
+                creditedAt: booking.coordinatorSettlement.creditedAt,
+                reversedAmount: booking.coordinatorSettlement.reversedAmount,
+                reversedAt: booking.coordinatorSettlement.reversedAt,
             }
             : undefined;
         return {
@@ -3512,15 +3501,21 @@ export class BookingService {
         booking.execution.stage = "FINISHED";
         booking.execution.finishedAt = now;
         booking.execution.progressPercentage = 100;
+        const session = await mongoose.startSession();
         // Coordinator earns the payable amount only after successful completion
+        const walletTransaction = await WalletService.creditCoordinatorEarning({
+            coordinatorId: assignedCoordinatorId,
+            bookingId: booking._id,
+            amount: booking.pricing.coordinatorPayableAmount,
+            session,
+        });
         booking.coordinatorSettlement = {
-            status: "PAYABLE",
+            status: "CREDITED",
             coordinatorId: assignedCoordinatorId,
             payableAmount: booking.pricing.coordinatorPayableAmount,
-            paidAmount: 0,
-            payableAt: now,
+            walletTransactionId: walletTransaction._id,
+            creditedAt: now,
         };
-        const session = await mongoose.startSession();
         try {
             await session.withTransaction(async () => {
                 await booking.save({ session });

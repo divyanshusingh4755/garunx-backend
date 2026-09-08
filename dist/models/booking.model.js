@@ -123,6 +123,7 @@ const bookingRefundSchema = new Schema({
     refundId: {
         type: String,
         required: true,
+        trim: true,
     },
     amount: {
         type: Number,
@@ -134,23 +135,28 @@ const bookingRefundSchema = new Schema({
         required: true,
         trim: true,
     },
+    destination: {
+        type: String,
+        enum: ["WALLET"],
+        required: true,
+        default: "WALLET",
+    },
+    walletTransactionId: {
+        type: Schema.Types.ObjectId,
+        ref: "WalletTransaction",
+        required: true,
+    },
     refundedAt: {
         type: Date,
-        default: Date.now,
-    },
-    providerRefundId: {
-        type: String,
-    },
-    status: {
-        type: String,
-        enum: ["PENDING", "SUCCESS", "FAILED"],
-        default: "PENDING",
+        required: true,
     },
     refundedBy: {
         type: Schema.Types.ObjectId,
         ref: "User",
     },
-}, { _id: false });
+}, {
+    _id: false,
+});
 const bookingTaxSummarySchema = new Schema({
     taxableAmount: {
         type: Number,
@@ -585,8 +591,8 @@ const reassignmentSchema = new Schema({
 const coordinatorSettlementSchema = new Schema({
     status: {
         type: String,
-        enum: ["NOT_PAYABLE", "PAYABLE", "PAID", "REVERSED"],
-        default: "NOT_PAYABLE",
+        enum: ["NOT_CREDITED", "CREDITED", "REVERSED"],
+        default: "NOT_CREDITED",
         required: true,
     },
     coordinatorId: {
@@ -599,18 +605,16 @@ const coordinatorSettlementSchema = new Schema({
         min: 0,
         required: true,
     },
-    paidAmount: {
+    walletTransactionId: {
+        type: Schema.Types.ObjectId,
+        ref: "WalletTransaction",
+    },
+    reversedAmount: {
         type: Number,
         default: 0,
-        min: 0,
-        required: true,
     },
-    payableAt: Date,
-    paidAt: Date,
-    paymentReference: {
-        type: String,
-        trim: true
-    }
+    creditedAt: Date,
+    reversedAt: Date,
 }, { _id: false });
 const bookingSchema = new Schema({
     userId: { type: Schema.Types.ObjectId, ref: "User", index: true },
@@ -925,7 +929,7 @@ const bookingSchema = new Schema({
     coordinatorSettlement: {
         type: coordinatorSettlementSchema,
         default: () => ({
-            status: "NOT_PAYABLE",
+            status: "NOT_CREDITED",
             payableAmount: 0,
             paidAmount: 0,
         })
