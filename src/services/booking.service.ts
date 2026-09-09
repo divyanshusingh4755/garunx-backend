@@ -2785,35 +2785,41 @@ export class BookingService {
 
   static async respondToAssignment(params: { bookingId: string; coordinatorId: string; action: AssignmentAction; reason?: string; }) {
     const { bookingId, coordinatorId, action, reason } = params;
+
     if (!Types.ObjectId.isValid(bookingId)) { throw new Error("Invalid booking ID"); }
     if (!Types.ObjectId.isValid(coordinatorId)) { throw new Error("Invalid coordinator ID"); }
     if (!["ACCEPT", "REJECT"].includes(action)) { throw new Error("Invalid assignment action"); }
 
     const session = await mongoose.startSession();
+
     let postCommitError: Error | null = null;
     let shouldInvalidateCache = false;
+    // Chat will be created only after the transaction successfully commits.
+    let shouldCreateConversation = false;
+    let conversationUserId: string | null = null;
+    let conversationCoordinatorId: string | null = null;
+
     let result: Record<string, any> = {};
 
     try {
       await session.withTransaction(async () => {
-        const booking = await Booking.findOne({ _id: bookingId, isDeleted: false }).session(session);
+        const booking = await Booking.findOne({ _id: bookingId, isDeleted: false, }).session(session);
         if (!booking || !booking.assignment) { throw new Error("Booking assignment not found"); }
 
         const now = new Date();
         const currentRound = booking.assignment.currentRound ?? 1;
         const reassignment = booking.assignment.reassignment;
+
         const isReplacementRequest = Boolean(reassignment && reassignment.status === "REPLACEMENT_REQUESTED" && reassignment.assignmentRound === currentRound && (reassignment.mode === "AUTO" || reassignment.replacementCoordinatorId?.toString() === coordinatorId));
 
-        // Normal assignment / reschedule: booking must be ASSIGNMENT_PENDING. Reassignment: booking intentionally remains ASSIGNED.
+        // NORMAL / RESCHEDULE booking must be ASSIGNMENT_PENDING. REASSIGNMENT booking intentionally stays ASSIGNED until replacement coordinator accepts.
         if (!isReplacementRequest && booking.status !== "ASSIGNMENT_PENDING") { throw new Error(`Cannot respond to assignment for ${booking.status} booking`); }
         if (isReplacementRequest && booking.status !== "ASSIGNED") { throw new Error("Booking is no longer available for reassignment"); }
 
-        const currentRequest = booking.assignment.requests?.slice().reverse().find((request: any) =>
-          request.coordinatorId.toString() === coordinatorId && request.status === "PENDING" && (request.assignmentRound ?? 1) === currentRound);
-
+        const currentRequest = booking.assignment.requests?.slice().reverse().find((request: any) => request.coordinatorId.toString() === coordinatorId && request.status === "PENDING" && (request.assignmentRound ?? 1) === currentRound);
         if (!currentRequest) { throw new Error("Pending assignment request not found"); }
 
-        // If original coordinator already started execution, reassignment cannot continue.
+        // REASSIGNMENT CANNOT CONTINUE AFTER EXECUTION STARTED
         if (isReplacementRequest && booking.execution?.startedAt) {
           if (!reassignment) { throw new Error("Active reassignment not found"); }
 
@@ -2825,16 +2831,13 @@ export class BookingService {
           reassignment.failureReason = "Booking execution already started";
 
           await booking.save({ session });
-
           shouldInvalidateCache = true;
           postCommitError = new Error("Booking execution has already started and reassignment is no longer available");
 
           return;
         }
 
-        /*
-         * EXPIRED
-         */
+        // RESPONSE DEADLINE EXPIRED
         if (currentRequest.responseDeadlineAt <= now) {
           currentRequest.status = "EXPIRED";
           currentRequest.respondedAt = now;
@@ -2842,10 +2845,7 @@ export class BookingService {
           if (isReplacementRequest) {
             this.handleFailedReassignmentAttempt(booking, "Replacement coordinator response deadline expired");
           } else {
-            const hasOtherPending = booking.assignment.requests.some((request: any) =>
-              request.status === "PENDING" && (request.assignmentRound ?? 1) === currentRound,
-            );
-
+            const hasOtherPending = booking.assignment.requests.some((request: any) => request.status === "PENDING" && (request.assignmentRound ?? 1) === currentRound);
             booking.assignment.status = hasOtherPending ? "PENDING_RESPONSE" : "PENDING_SELECTION";
             booking.status = "ASSIGNMENT_PENDING";
           }
@@ -2853,6 +2853,7 @@ export class BookingService {
           await booking.save({ session });
           shouldInvalidateCache = true;
           postCommitError = new Error("Coordinator response deadline has expired");
+
           return;
         }
 
@@ -2861,13 +2862,12 @@ export class BookingService {
         // REJECT
         if (action === "REJECT") {
           currentRequest.status = "REJECTED";
-          const trimmedReason = reason?.trim();
 
+          const trimmedReason = reason?.trim();
           if (trimmedReason) { currentRequest.rejectionReason = trimmedReason; }
 
           if (isReplacementRequest) {
-            this.handleFailedReassignmentAttempt(booking, trimmedReason ? `Replacement coordinator rejected: ${trimmedReason}` : "Replacement coordinator rejected the reassignment",
-            );
+            this.handleFailedReassignmentAttempt(booking, trimmedReason ? `Replacement coordinator rejected: ${trimmedReason}` : "Replacement coordinator rejected the reassignment");
           } else {
             const hasOtherPending = booking.assignment.requests.some((request: any) => request.status === "PENDING" && (request.assignmentRound ?? 1) === currentRound);
             booking.assignment.status = hasOtherPending ? "PENDING_RESPONSE" : "PENDING_SELECTION";
@@ -2875,7 +2875,6 @@ export class BookingService {
           }
 
           await booking.save({ session });
-
           shouldInvalidateCache = true;
 
           result = {
@@ -2886,14 +2885,13 @@ export class BookingService {
             assignmentRound: currentRound,
             reassignment: booking.assignment.reassignment ?? null,
           };
+
           return;
         }
 
-        // ACCEPT-TIME COORDINATOR AVAILABILITY REVALIDATION. Coordinator availability may have changed after the assignment request was created
-        const requestScheduledAt = currentRequest.scheduledAt ?? booking.assignment?.pendingReschedule?.requestedScheduledAt ?? booking.scheduledAt
-        if (!requestScheduledAt) {
-          throw new Error("Booking schedule is missing")
-        }
+        // ACCEPT-TIME AVAILABILITY CHECK
+        const requestScheduledAt = currentRequest.scheduledAt ?? booking.assignment?.pendingReschedule?.requestedScheduledAt ?? booking.scheduledAt;
+        if (!requestScheduledAt) { throw new Error("Booking schedule is missing"); }
 
         const acceptingCoordinator = await User.findOne({
           _id: coordinatorId,
@@ -2921,35 +2919,36 @@ export class BookingService {
           await booking.save({ session });
           shouldInvalidateCache = true;
           postCommitError = new Error("You are unavailable for this booking date");
+
           return;
         }
 
-        // ACCEPT TIME DAILY CAPACITY CHECK - Coordinator may have received other bookings after this request was originally created
+        // ACCEPT-TIME DAILY CAPACITY CHECK
         const capacityDate = new Date(requestScheduledAt);
+
         const capacityStartOfDay = new Date(capacityDate);
         capacityStartOfDay.setHours(0, 0, 0, 0);
 
         const capacityEndOfDay = new Date(capacityDate);
         capacityEndOfDay.setHours(23, 59, 59, 999);
 
-        const assignedBookingCount = await Booking.countDocuments({
-          _id: { $ne: booking._id },
-          isDeleted: false,
-          "assignment.assignedCoordinatorId": new Types.ObjectId(coordinatorId),
-          scheduledAt: { $gte: capacityStartOfDay, $lte: capacityEndOfDay },
-          status: { $in: ["ASSIGNED", "IN_PROGRESS"] }
-        }).session(session);
+        const assignedBookingCount =
+          await Booking.countDocuments({
+            _id: { $ne: booking._id },
+            isDeleted: false,
+            "assignment.assignedCoordinatorId": new Types.ObjectId(coordinatorId),
+            scheduledAt: { $gte: capacityStartOfDay, $lte: capacityEndOfDay, },
+            status: { $in: ["ASSIGNED", "IN_PROGRESS"], },
+          }).session(session);
 
         const maxDailyBookings = acceptingCoordinator.coordinatorProfile?.maxDailyBookings ?? 5;
-
-        // Coordinator has reached the limit
         if (assignedBookingCount >= maxDailyBookings) {
           currentRequest.status = "CANCELLED";
           currentRequest.closureReason = "SYSTEM_CANCELLED";
           currentRequest.respondedAt = now;
 
           if (isReplacementRequest) {
-            this.handleFailedReassignmentAttempt(booking, "Replacement coordinator reached the maximum booking limit for the selected date")
+            this.handleFailedReassignmentAttempt(booking, "Replacement coordinator reached the maximum booking limit for the selected date");
           } else {
             const hasOtherPending = booking.assignment.requests.some((request: any) => request._id?.toString() !== currentRequest._id?.toString() && request.status === "PENDING" && (request.assignmentRound ?? 1) === currentRound);
             booking.assignment.status = hasOtherPending ? "PENDING_RESPONSE" : "PENDING_SELECTION";
@@ -2959,15 +2958,18 @@ export class BookingService {
           await booking.save({ session });
           shouldInvalidateCache = true;
           postCommitError = new Error("Maximum booking limit reached for this date");
+
           return;
         }
 
-        // REASSIGNMENT ACCEPTANCE Atomic A -> B transfer. A NEVER becomes null.
+        // REASSIGNMENT ACCEPTANCE Coordinator A remains assigned until coordinator B successfully accepts. Atomic A -> B transfer.
         if (isReplacementRequest) {
           if (!reassignment) { throw new Error("Active reassignment not found"); }
 
           const previousCoordinatorId = reassignment.previousCoordinatorId;
-          if (!previousCoordinatorId) { throw new Error("Previous coordinator not found for reassignment"); }
+          if (!previousCoordinatorId) {
+            throw new Error("Previous coordinator not found for reassignment");
+          }
 
           const claimed = await Booking.updateOne(
             {
@@ -2978,12 +2980,10 @@ export class BookingService {
               "assignment.reassignment.status": "REPLACEMENT_REQUESTED",
               "assignment.reassignment.assignmentRound": currentRound,
               "assignment.requests": {
-                $elemMatch: { coordinatorId: new Types.ObjectId(coordinatorId), status: "PENDING", assignmentRound: currentRound },
+                $elemMatch: { coordinatorId: new Types.ObjectId(coordinatorId), status: "PENDING", assignmentRound: currentRound, },
               },
-
-              ...(reassignment.mode === "NOMINATED" ? { "assignment.reassignment.replacementCoordinatorId": new Types.ObjectId(coordinatorId) } : {}),
+              ...(reassignment.mode === "NOMINATED" ? { "assignment.reassignment.replacementCoordinatorId": new Types.ObjectId(coordinatorId), } : {}),
             },
-
             {
               $set: {
                 "assignment.assignedCoordinatorId": new Types.ObjectId(coordinatorId),
@@ -2995,16 +2995,13 @@ export class BookingService {
                 "assignment.reassignment.replacementCoordinatorId": new Types.ObjectId(coordinatorId),
               },
             },
-            { session },
+            { session }
           );
 
-          if (claimed.modifiedCount === 0) {
-            throw new Error("Reassignment could not be completed because the booking state changed");
-          }
-
+          if (claimed.modifiedCount === 0) { throw new Error("Reassignment could not be completed because the booking state changed"); }
           currentRequest.status = "ACCEPTED";
 
-          // Multiple USER reassignment requests may be pending together. First acceptance wins; every other pending request in the same reassignment round is immediately superseded.
+          // First replacement acceptance wins. Other pending replacement requests become SUPERSEDED.
           for (const request of booking.assignment.requests ?? []) {
             if (request._id?.toString() !== currentRequest._id?.toString() && request.status === "PENDING" && (request.assignmentRound ?? 1) === currentRound) {
               request.status = "SUPERSEDED";
@@ -3013,7 +3010,7 @@ export class BookingService {
             }
           }
 
-          // Close original accepted request only NOW, after replacement accepted.
+          // Close previous coordinator's original accepted request.
           for (const request of booking.assignment.requests ?? []) {
             if (request.coordinatorId?.toString() === previousCoordinatorId.toString() && request.status === "ACCEPTED" && (request.assignmentRound ?? 1) < currentRound) {
               request.status = "SUPERSEDED";
@@ -3030,15 +3027,13 @@ export class BookingService {
           reassignment.completedAt = now;
 
           await booking.save({ session });
-
           await User.updateOne(
             { _id: coordinatorId },
-            { $inc: { "coordinatorProfile.totalAssignedBookings": 1 } },
-            { session },
+            { $inc: { "coordinatorProfile.totalAssignedBookings": 1, }, },
+            { session }
           );
 
-          if (
-            booking.userId) {
+          if (booking.userId) {
             await OutboxService.createEvent({
               eventId: `BOOKING.ASSIGNED:${booking._id.toString()}:${currentRound}`,
               eventType: DOMAIN_EVENTS.BOOKING_ASSIGNED,
@@ -3051,8 +3046,14 @@ export class BookingService {
                 coordinatorId,
                 scheduledAt: booking.scheduledAt ?? null,
               },
+
               session,
             });
+
+            // NEW: Prepare conversation creation. Do NOT actually create the conversation inside MongoDB transaction.
+            shouldCreateConversation = true;
+            conversationUserId = booking.userId.toString();
+            conversationCoordinatorId = coordinatorId;
           }
 
           shouldInvalidateCache = true;
@@ -3068,39 +3069,37 @@ export class BookingService {
             assignmentRound: currentRound,
             acceptedAt: now,
           };
+
           return;
         }
 
-        // EXISTING NORMAL / RESCHEDULE ACCEPTANCE
+        // NORMAL / RESCHEDULE ACCEPTANCE Atomically make this coordinator the winner.
         const claimed = await Booking.updateOne(
           {
             _id: booking._id,
             status: "ASSIGNMENT_PENDING",
-            $or: [
-              { "assignment.assignedCoordinatorId": { $exists: false } },
-              { "assignment.assignedCoordinatorId": null },
-            ],
+            $or: [{ "assignment.assignedCoordinatorId": { $exists: false, }, }, { "assignment.assignedCoordinatorId": null, },],
           },
 
           {
             $set: {
               status: "ASSIGNED",
               "assignment.status": "ACCEPTED",
-              "assignment.assignedCoordinatorId": new Types.ObjectId(coordinatorId,
-              ),
+              "assignment.assignedCoordinatorId": new Types.ObjectId(coordinatorId),
               "assignment.assignedAt": now,
               "assignment.coordinatorAcceptedAt": now,
             },
           },
-          { session },
+          { session }
         );
 
+        // Another coordinator already accepted.
         if (claimed.modifiedCount === 0) {
           throw new Error("This booking has already been accepted by another coordinator");
         }
 
         currentRequest.status = "ACCEPTED";
-
+        // First acceptance wins. Cancel all other pending coordinator requests.
         for (const request of booking.assignment.requests) {
           if (request._id?.toString() !== currentRequest._id?.toString() && request.status === "PENDING" && (request.assignmentRound ?? 1) === currentRound) {
             request.status = "SUPERSEDED";
@@ -3109,14 +3108,14 @@ export class BookingService {
           }
         }
 
-        // Existing reschedule logic.
+        // RESCHEDULE ACCEPTANCE
         const pendingReschedule = booking.assignment.pendingReschedule;
         const isPendingRescheduleForCurrentRound = Boolean(pendingReschedule && pendingReschedule.assignmentRound === currentRound);
 
         if (pendingReschedule && isPendingRescheduleForCurrentRound) {
           booking.rescheduleHistory ??= [];
           booking.rescheduleHistory.push({
-            ...(pendingReschedule.previousScheduledAt ? { previousScheduledAt: pendingReschedule.previousScheduledAt } : {}),
+            ...(pendingReschedule.previousScheduledAt ? { previousScheduledAt: pendingReschedule.previousScheduledAt, } : {}),
             newScheduledAt: pendingReschedule.requestedScheduledAt,
             reason: pendingReschedule.reason,
             rescheduledBy: pendingReschedule.requestedBy,
@@ -3128,20 +3127,21 @@ export class BookingService {
           booking.set("assignment.pendingReschedule", undefined);
         }
 
+        // Persist accepted coordinator in document.
         booking.status = "ASSIGNED";
         booking.assignment.status = "ACCEPTED";
         booking.assignment.assignedCoordinatorId = new Types.ObjectId(coordinatorId);
         booking.assignment.assignedAt = now;
         booking.assignment.coordinatorAcceptedAt = now;
+
         booking.set("assignment.responseDeadlineAt", undefined);
         booking.set("assignment.assignmentExpiresAt", undefined);
 
         await booking.save({ session });
-
         await User.updateOne(
           { _id: coordinatorId },
-          { $inc: { "coordinatorProfile.totalAssignedBookings": 1 } },
-          { session },
+          { $inc: { "coordinatorProfile.totalAssignedBookings": 1, }, },
+          { session }
         );
 
         if (booking.userId) {
@@ -3157,9 +3157,11 @@ export class BookingService {
               coordinatorId,
               scheduledAt: booking.scheduledAt ?? null,
             },
+
             session,
           });
 
+          // RESCHEDULE EVENT
           if (pendingReschedule && isPendingRescheduleForCurrentRound) {
             await OutboxService.createEvent({
               eventId: `BOOKING.RESCHEDULED:${booking._id.toString()}:${pendingReschedule.requestedScheduledAt.getTime()}`,
@@ -3175,9 +3177,15 @@ export class BookingService {
                 scheduledAt: pendingReschedule.requestedScheduledAt,
                 reason: pendingReschedule.reason,
               },
+
               session,
             });
           }
+
+          // NEW: Conversation must start immediately after acceptance.
+          shouldCreateConversation = true;
+          conversationUserId = booking.userId.toString();
+          conversationCoordinatorId = coordinatorId;
         }
 
         shouldInvalidateCache = true;
@@ -3194,13 +3202,18 @@ export class BookingService {
           rescheduled: isPendingRescheduleForCurrentRound,
           reassigned: false,
         };
-      },
-      );
+      });
 
+      // TRANSACTION SUCCESSFULLY COMMITTE
       if (shouldInvalidateCache) { await this.invalidateBookingCache(bookingId); }
 
+      // If transaction resulted in an error condition, don't create a conversation.
       if (postCommitError) { throw postCommitError; }
 
+      // NEW: Create chat only AFTER coordinator has successfully accepted and Mongo transaction has committed.
+      if (shouldCreateConversation && conversationUserId && conversationCoordinatorId) {
+        await ChatConversationService.createForBooking({ bookingId, userId: conversationUserId, coordinatorId: conversationCoordinatorId, });
+      }
       return result;
     } finally {
       await session.endSession();
@@ -3671,7 +3684,6 @@ export class BookingService {
     if (!updatedBooking?.userId) { throw new Error("Booking user not found"); }
     if (!updatedBooking.assignment?.assignedCoordinatorId) { throw new Error("Assigned coordinator not found"); }
 
-    await ChatConversationService.createForBooking({ bookingId: updatedBooking._id.toString(), userId: updatedBooking.userId.toString(), coordinatorId: updatedBooking.assignment.assignedCoordinatorId.toString() });
     await this.invalidateBookingCache(bookingId);
 
     return {
