@@ -422,7 +422,7 @@ class CartService {
     const serviceSubServices = subServiceMap.get(service._id.toString()) ?? [];
 
     // Main service is also represented inside selectedServices for consistent frontend response structure. IMPORTANT: These prices are initially 0 because SERVICE cart pricing comes from selectedComponents, not selectedServices.
-    const selectedServices: ISelectedService[] = [{ serviceId: service._id, name: service.name, subServices: serviceSubServices, priceBeforeDiscount: 0, discountAmount: 0, price: 0, commissionPercentage: this.normalizeCommissionPercentage(service.commissionPercentage), commissionAmount: 0 }];
+    const selectedServices: ISelectedService[] = [{ serviceId: service._id, name: service.name, subServices: serviceSubServices, components: [], priceBeforeDiscount: 0, discountAmount: 0, price: 0, commissionPercentage: this.normalizeCommissionPercentage(service.commissionPercentage), commissionAmount: 0 }];
 
     const cart = await Cart.create({
       ...ownerQuery,
@@ -498,15 +498,38 @@ class CartService {
 
     // Fetch ALL active sub-service steps for ALL required package services. Only one MongoDB query is performed.
     const subServiceMap = await this.getSubServiceSnapshotsByServiceIds(requiredServiceIds);
+
+    const serviceComponents = await ServiceComponent.find({ serviceId: { $in: requiredServiceIds }, tierId }).lean();
+    const serviceComponentMap = new Map<string, typeof serviceComponents>();
+    for (const component of serviceComponents) {
+      const key = component.serviceId.toString();
+      const list = serviceComponentMap.get(key) ?? [];
+      list.push(component);
+      serviceComponentMap.set(key, list);
+    }
+
     // Build package service snapshots. Each service now contains: subServices: [...]
     const selectedServices: ISelectedService[] = requiredServices.map((service) => {
       const serviceId = service.serviceId.toString();
       const pricing = pricingMap.get(serviceId)!;
+      const components = serviceComponentMap.get(serviceId) ?? [];
 
       return {
         serviceId: service.serviceId,
         name: service.name,
         subServices: subServiceMap.get(serviceId) ?? [],
+        components: components.map((component) => ({
+          componentId: component.componentId,
+          name: component.name,
+          items: (component.items ?? []).map((item) => ({
+            itemId: item.itemId,
+            name: item.name
+          })),
+          // package itself is priced on service level
+          priceBeforeDiscount: 0,
+          discountAmount: 0,
+          totalPrice: 0
+        })),
         priceBeforeDiscount: pricing.finalPrice,
         discountAmount: 0,
         price: pricing.finalPrice,
@@ -856,6 +879,16 @@ class CartService {
     const subServiceMap = await this.getSubServiceSnapshotsByServiceIds(requestedServiceObjectIds);
     const selectedServices: ISelectedService[] = [];
 
+    const serviceComponents = await ServiceComponent.find({ serviceId: { $in: requestedServiceObjectIds }, tierId: cart.tierId }).lean();
+    const serviceComponentMap = new Map<string, typeof serviceComponents>();
+
+    for (const component of serviceComponents) {
+      const key = component.serviceId.toString();
+      const list = serviceComponentMap.get(key) ?? [];
+      list.push(component);
+      serviceComponentMap.set(key, list);
+    }
+
     for (const serviceId of serviceIds) {
       const serviceIdString = serviceId.toString();
       const matchedService = allowedServices.find((service) => service.serviceId.toString() === serviceIdString);
@@ -870,6 +903,17 @@ class CartService {
         name: matchedService.name,
         // Backend automatically inserts every active service step.
         subServices: subServiceMap.get(serviceIdString) ?? [],
+        components: (serviceComponentMap.get(serviceIdString) ?? []).map((component) => ({
+          componentId: component.componentId,
+          name: component.name,
+          items: (component.items ?? []).map((item) => ({
+            itemId: item.itemId,
+            name: item.name
+          })),
+          priceBeforeDiscount: 0,
+          discountAmount: 0,
+          totalPrice: 0
+        })),
         priceBeforeDiscount: price,
         discountAmount: 0,
         price,
@@ -918,6 +962,16 @@ class CartService {
     const subServiceMap = await this.getSubServiceSnapshotsByServiceIds(requestedServiceObjectIds);
     const addonServices: IAddonService[] = [];
 
+    const serviceComponents = await ServiceComponent.find({ serviceId: { $in: requestedServiceObjectIds }, tierId: cart.tierId }).lean();
+    const serviceComponentMap = new Map<string, typeof serviceComponents>();
+
+    for (const component of serviceComponents) {
+      const key = component.serviceId.toString();
+      const list = serviceComponentMap.get(key) ?? [];
+      list.push(component);
+      serviceComponentMap.set(key, list);
+    }
+
     for (const serviceId of serviceIds) {
       const serviceIdString = serviceId.toString();
       const matchedService = allowedServices.find((service) => service.serviceId.toString() === serviceIdString);
@@ -935,6 +989,17 @@ class CartService {
 
         // Automatically included.
         subServices: subServiceMap.get(serviceIdString) ?? [],
+        components: (serviceComponentMap.get(serviceIdString) ?? []).map((component) => ({
+          componentId: component.componentId,
+          name: component.name,
+          items: (component.items ?? []).map((item) => ({
+            itemId: item.itemId,
+            name: item.name
+          })),
+          priceBeforeDiscount: 0,
+          discountAmount: 0,
+          totalPrice: 0
+        })),
         priceBeforeDiscount: price,
         discountAmount: 0,
         price,

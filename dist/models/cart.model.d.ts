@@ -28,6 +28,7 @@ export interface ICartSubService {
 export interface ISelectedService {
     serviceId: Types.ObjectId;
     subServices: ICartSubService[];
+    components: ISelectedComponent[];
     name: string;
     priceBeforeDiscount: number;
     discountAmount: number;

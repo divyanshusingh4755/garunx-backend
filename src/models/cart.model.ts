@@ -35,6 +35,7 @@ export interface ICartSubService {
 export interface ISelectedService {
   serviceId: Types.ObjectId;
   subServices: ICartSubService[];
+  components: ISelectedComponent[];
   name: string;
   priceBeforeDiscount: number;
   discountAmount: number;
@@ -225,6 +226,11 @@ const selectedServiceSchema = new Schema<ISelectedService>(
     subServices: {
       type: [cartSubServiceSchema],
       default: [],
+    },
+
+    components: {
+      type: [selectedComponentSchema],
+      default: []
     },
 
     name: {

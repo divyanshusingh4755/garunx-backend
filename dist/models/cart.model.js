@@ -111,6 +111,10 @@ const selectedServiceSchema = new Schema({
         type: [cartSubServiceSchema],
         default: [],
     },
+    components: {
+        type: [selectedComponentSchema],
+        default: []
+    },
     name: {
         type: String,
         required: true,

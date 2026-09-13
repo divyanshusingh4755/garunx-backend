@@ -129,7 +129,7 @@ export class BookingBuilder {
             if (!service) {
                 throw new Error(`Service not found: ${selectedService.serviceId.toString()}`);
             }
-            selectedServices.push(this.buildPackageServiceConfiguration(cart, service, selectedService, "INCLUDED"));
+            selectedServices.push(await this.buildPackageServiceConfiguration(cart, service, selectedService, "INCLUDED"));
         }
         const addonServices = [];
         for (const addonService of addonCartServices) {
@@ -137,7 +137,7 @@ export class BookingBuilder {
             if (!service) {
                 throw new Error(`Addon service not found: ${addonService.serviceId.toString()}`);
             }
-            addonServices.push(this.buildPackageServiceConfiguration(cart, service, addonService, "ADDON"));
+            addonServices.push(await this.buildPackageServiceConfiguration(cart, service, addonService, "ADDON"));
         }
         const entry = {
             entryType: "PACKAGE",
@@ -167,7 +167,12 @@ export class BookingBuilder {
         };
         return { entries: [entry], pricing: this.buildMainPricing(cart) };
     }
-    static buildPackageServiceConfiguration(cart, service, selectedService, serviceRole) {
+    static async buildPackageServiceConfiguration(cart, service, selectedService, serviceRole) {
+        const packageComponents = (selectedService.components ?? []).map((component) => ({
+            ...component,
+            componentType: "DEFAULT"
+        }));
+        const components = await this.buildComponentSnapshots(packageComponents, service._id, cart.tierId);
         return {
             serviceId: service._id,
             serviceSnapshot: {
@@ -186,7 +191,7 @@ export class BookingBuilder {
             })) ?? [],
             tier: { tierId: cart.tierId, name: cart.tierName },
             location: { locationId: cart.locationId, name: cart.locationName },
-            components: [],
+            components,
             pricing: {
                 priceBeforeDiscount: selectedService.priceBeforeDiscount,
                 discountAmount: selectedService.discountAmount,

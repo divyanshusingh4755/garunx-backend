@@ -14,6 +14,7 @@ interface PackageCartServiceLine {
     description: string;
     image?: string;
   }[];
+  components: ISelectedComponent[];
   priceBeforeDiscount: number;
   discountAmount: number;
   price: number;
@@ -178,7 +179,7 @@ export class BookingBuilder {
 
       if (!service) { throw new Error(`Service not found: ${selectedService.serviceId.toString()}`); }
 
-      selectedServices.push(this.buildPackageServiceConfiguration(cart, service, selectedService, "INCLUDED"),
+      selectedServices.push(await this.buildPackageServiceConfiguration(cart, service, selectedService, "INCLUDED"),
       );
     }
     const addonServices: IBookingServiceConfiguration[] = [];
@@ -187,7 +188,7 @@ export class BookingBuilder {
       const service = serviceMap.get(addonService.serviceId.toString());
 
       if (!service) { throw new Error(`Addon service not found: ${addonService.serviceId.toString()}`); }
-      addonServices.push(this.buildPackageServiceConfiguration(cart, service, addonService, "ADDON"),
+      addonServices.push(await this.buildPackageServiceConfiguration(cart, service, addonService, "ADDON"),
       );
     }
 
@@ -221,12 +222,19 @@ export class BookingBuilder {
     return { entries: [entry], pricing: this.buildMainPricing(cart) };
   }
 
-  private static buildPackageServiceConfiguration(
+  private static async buildPackageServiceConfiguration(
     cart: ICart,
     service: { _id: Types.ObjectId; name: string; shortDescription?: string; thumbnailImage?: string; serviceReference?: string; },
     selectedService: PackageCartServiceLine,
     serviceRole: "INCLUDED" | "ADDON",
-  ): IBookingServiceConfiguration {
+  ): Promise<IBookingServiceConfiguration> {
+    const packageComponents = (selectedService.components ?? []).map((component) => ({
+      ...component,
+      componentType: "DEFAULT" as const
+    }))
+
+    const components = await this.buildComponentSnapshots(packageComponents, service._id, cart.tierId)
+
     return {
       serviceId: service._id,
       serviceSnapshot: {
@@ -247,7 +255,7 @@ export class BookingBuilder {
 
       tier: { tierId: cart.tierId, name: cart.tierName },
       location: { locationId: cart.locationId, name: cart.locationName },
-      components: [],
+      components,
       pricing: {
         priceBeforeDiscount: selectedService.priceBeforeDiscount,
         discountAmount: selectedService.discountAmount,
