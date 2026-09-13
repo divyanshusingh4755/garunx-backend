@@ -101,7 +101,7 @@ class CartService {
       cart.commissionPercentage = commissionPercentage;
       cart.commissionBaseAmount = commissionBaseAmount;
       cart.commissionAmount = commissionAmount;
-      cart.coordinatorPayableAmount = this.round(Math.max(0, cart.totalAmount - cart.commissionAmount));
+      cart.coordinatorPayableAmount = this.round(Math.max(0, cart.commissionBaseAmount - cart.commissionAmount));
 
       // Service cart pricing is component-based. SelectedServices contains the main servcie snapshot for display/booking structure, so keep the rate there but leave its line commission to 0 to avoid double counting.
       for (const selectedService of cart.selectedServices ?? []) {
@@ -176,7 +176,7 @@ class CartService {
     cart.commissionPercentage = packageCommissionPercentage;
     cart.commissionBaseAmount = commissionBaseAmount;
     cart.commissionAmount = commissionAmount;
-    cart.coordinatorPayableAmount = this.round(Math.max(0, cart.totalAmount - cart.commissionAmount));
+    cart.coordinatorPayableAmount = this.round(Math.max(0, cart.commissionBaseAmount - cart.commissionAmount));
 
     cart.markModified("selectedServices");
     cart.markModified("addonServices");
