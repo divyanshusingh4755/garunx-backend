@@ -20,8 +20,8 @@ const walletTransactionListValidation = [
 ];
 
 // USER / COORDINATOR
-router.get("/", authenticate, authorizeRoles(Role.USER, Role.COORDINATOR,), requirePermission("wallet.read"), getMyWallet);
-router.get("/transactions", authenticate, authorizeRoles(Role.USER, Role.COORDINATOR), requirePermission("wallet.read"), walletTransactionListValidation, getMyWalletTransactions,
+router.get("/", authenticate, authorizeRoles(Role.USER, Role.COORDINATOR,), getMyWallet);
+router.get("/transactions", authenticate, authorizeRoles(Role.USER, Role.COORDINATOR), walletTransactionListValidation, getMyWalletTransactions,
 );
 
 export default router;

@@ -2932,14 +2932,13 @@ export class BookingService {
         const capacityEndOfDay = new Date(capacityDate);
         capacityEndOfDay.setHours(23, 59, 59, 999);
 
-        const assignedBookingCount =
-          await Booking.countDocuments({
-            _id: { $ne: booking._id },
-            isDeleted: false,
-            "assignment.assignedCoordinatorId": new Types.ObjectId(coordinatorId),
-            scheduledAt: { $gte: capacityStartOfDay, $lte: capacityEndOfDay, },
-            status: { $in: ["ASSIGNED", "IN_PROGRESS"], },
-          }).session(session);
+        const assignedBookingCount = await Booking.countDocuments({
+          _id: { $ne: booking._id },
+          isDeleted: false,
+          "assignment.assignedCoordinatorId": new Types.ObjectId(coordinatorId),
+          scheduledAt: { $gte: capacityStartOfDay, $lte: capacityEndOfDay, },
+          status: { $in: ["ASSIGNED", "IN_PROGRESS"], },
+        }).session(session);
 
         const maxDailyBookings = acceptingCoordinator.coordinatorProfile?.maxDailyBookings ?? 5;
         if (assignedBookingCount >= maxDailyBookings) {
@@ -3027,11 +3026,7 @@ export class BookingService {
           reassignment.completedAt = now;
 
           await booking.save({ session });
-          await User.updateOne(
-            { _id: coordinatorId },
-            { $inc: { "coordinatorProfile.totalAssignedBookings": 1, }, },
-            { session }
-          );
+          await User.updateOne({ _id: coordinatorId }, { $inc: { "coordinatorProfile.totalAssignedBookings": 1, }, }, { session });
 
           if (booking.userId) {
             await OutboxService.createEvent({
@@ -3080,7 +3075,6 @@ export class BookingService {
             status: "ASSIGNMENT_PENDING",
             $or: [{ "assignment.assignedCoordinatorId": { $exists: false, }, }, { "assignment.assignedCoordinatorId": null, },],
           },
-
           {
             $set: {
               status: "ASSIGNED",
@@ -3094,9 +3088,7 @@ export class BookingService {
         );
 
         // Another coordinator already accepted.
-        if (claimed.modifiedCount === 0) {
-          throw new Error("This booking has already been accepted by another coordinator");
-        }
+        if (claimed.modifiedCount === 0) { throw new Error("This booking has already been accepted by another coordinator"); }
 
         currentRequest.status = "ACCEPTED";
         // First acceptance wins. Cancel all other pending coordinator requests.
@@ -3138,11 +3130,7 @@ export class BookingService {
         booking.set("assignment.assignmentExpiresAt", undefined);
 
         await booking.save({ session });
-        await User.updateOne(
-          { _id: coordinatorId },
-          { $inc: { "coordinatorProfile.totalAssignedBookings": 1, }, },
-          { session }
-        );
+        await User.updateOne({ _id: coordinatorId }, { $inc: { "coordinatorProfile.totalAssignedBookings": 1, }, }, { session });
 
         if (booking.userId) {
           await OutboxService.createEvent({

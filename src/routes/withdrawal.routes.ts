@@ -140,8 +140,8 @@ const markPaidValidation = [
 
 // USER / COORDINATOR
 
-router.get("/", authenticate, authorizeRoles(Role.USER, Role.COORDINATOR), requirePermission("wallet.withdraw"), myWithdrawalListValidation, getMyWithdrawals);
-router.post("/", authenticate, authorizeRoles(Role.USER, Role.COORDINATOR), requirePermission("wallet.withdraw"), createWithdrawalValidation, createWithdrawal);
+router.get("/", authenticate, authorizeRoles(Role.USER, Role.COORDINATOR), myWithdrawalListValidation, getMyWithdrawals);
+router.post("/", authenticate, authorizeRoles(Role.USER, Role.COORDINATOR), createWithdrawalValidation, createWithdrawal);
 
 // ADMIN - STATIC ROUTES Keep /admin routes before /:withdrawalRequestId
 router.get("/admin", authenticate, authorizeRoles(Role.ADMIN), requirePermission("wallet.withdrawal.read"), adminWithdrawalListValidation, getAllWithdrawalsAdmin);
@@ -156,9 +156,9 @@ router.patch("/admin/:withdrawalRequestId/paid", authenticate, authorizeRoles(Ro
 router.get("/admin/:withdrawalRequestId", authenticate, authorizeRoles(Role.ADMIN), requirePermission("wallet.withdrawal.read"), withdrawalIdValidation, getWithdrawalByIdAdmin);
 
 // USER / COORDINATOR - SPECIFIC ID ACTIONS
-router.patch("/:withdrawalRequestId/cancel", authenticate, authorizeRoles(Role.USER, Role.COORDINATOR), requirePermission("wallet.withdraw"), cancelWithdrawalValidation, cancelWithdrawal);
+router.patch("/:withdrawalRequestId/cancel", authenticate, authorizeRoles(Role.USER, Role.COORDINATOR), cancelWithdrawalValidation, cancelWithdrawal);
 
 // Keep generic ID route after /:withdrawalRequestId/cancel.
-router.get("/:withdrawalRequestId", authenticate, authorizeRoles(Role.USER, Role.COORDINATOR), requirePermission("wallet.withdraw"), withdrawalIdValidation, getMyWithdrawalById);
+router.get("/:withdrawalRequestId", authenticate, authorizeRoles(Role.USER, Role.COORDINATOR), withdrawalIdValidation, getMyWithdrawalById);
 
 export default router;
