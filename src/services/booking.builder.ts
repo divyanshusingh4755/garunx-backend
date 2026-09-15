@@ -110,7 +110,7 @@ export class BookingBuilder {
       ...(plainCart.addonComponents ?? []).map((component) => ({ ...component, componentType: "ADDON" as const })),
     ];
 
-    const components = await this.buildComponentSnapshots(selectedComponents, service._id, cart.tierId);
+    const components = await this.buildComponentSnapshots(selectedComponents, service._id, cart.tierId, "SERVICE.selectedComponents");
 
     // For direct SERVICE cart, selectedServices[0] represents the main service itself.
     const mainCartService = plainCart.selectedServices?.find((selectedService) => selectedService.serviceId.toString() === service._id.toString());
@@ -248,7 +248,7 @@ export class BookingBuilder {
     }
     );
 
-    const components = await this.buildComponentSnapshots(packageComponents, service._id, cart.tierId);
+    const components = await this.buildComponentSnapshots(packageComponents, service._id, cart.tierId, `PACKAGE.${serviceRole}.${service.name}.components`);
 
     return {
       serviceId: service._id,
@@ -286,36 +286,34 @@ export class BookingBuilder {
     return { taxableAmount: tax.taxableAmount, cgstAmount: tax.cgstAmount, sgstAmount: tax.sgstAmount, igstAmount: tax.igstAmount, totalTax: tax.totalTax };
   }
 
-  private static async buildComponentSnapshots(
-    components: Array<ISelectedComponent & { componentType: ComponentType; }>,
-    serviceId: Types.ObjectId,
-    tierId: Types.ObjectId,
-  ): Promise<IBookingComponent[]> {
-
+  private static async buildComponentSnapshots(components: Array<ISelectedComponent & { componentType: ComponentType; }>, serviceId: Types.ObjectId, tierId: Types.ObjectId, source: string,): Promise<IBookingComponent[]> {
     if (components.length === 0) { return []; }
 
     for (const [index, component] of components.entries()) {
       if (!component?.componentId) {
-        throw new Error(`Invalid booking component at index ${index}: componentId is missing`);
+        throw new Error(`Invalid booking component at ${source}[${index}]: componentId is missing`);
       }
 
       if (!Types.ObjectId.isValid(component.componentId.toString())) {
-        throw new Error(`Invalid componentId at index ${index}: ${String(component.componentId)}`);
+        throw new Error(`Invalid componentId at ${source}[${index}]: ${String(component.componentId)}`
+        );
       }
 
       for (const [itemIndex, item] of (component.items ?? []).entries()) {
         if (!item?.itemId) {
-          throw new Error(`Invalid item at index ${itemIndex} for component ${component.componentId.toString()}: itemId is missing`);
+          throw new Error(`Invalid booking item at ${source}[${index}].items[${itemIndex}]: itemId is missing`);
+        }
+
+        if (!Types.ObjectId.isValid(item.itemId.toString())) {
+          throw new Error(`Invalid itemId at ${source}[${index}].items[${itemIndex}]`);
         }
       }
     }
 
     const componentIds = components.map((component) => component.componentId);
-
     const [componentDocs, serviceComponents] = await Promise.all([
       Component.find({ _id: { $in: componentIds } }).lean(),
-      ServiceComponent.find({ serviceId, tierId, componentId: { $in: componentIds } }).lean(),
-    ]);
+      ServiceComponent.find({ serviceId, tierId, componentId: { $in: componentIds } }).lean(),]);
 
     const componentMap = new Map(componentDocs.map((component: IComponent) => [component._id.toString(), component]));
     const serviceComponentMap = new Map(serviceComponents.map((serviceComponent) => [serviceComponent.componentId.toString(), serviceComponent]));
@@ -324,7 +322,6 @@ export class BookingBuilder {
       const componentId = component.componentId.toString();
       const componentDocument = componentMap.get(componentId);
       const serviceComponent = serviceComponentMap.get(componentId);
-
       const bookingComponent: IBookingComponent = {
         componentType: component.componentType,
         componentId: component.componentId,
@@ -333,7 +330,7 @@ export class BookingBuilder {
         isRemovable: componentDocument?.isRemovable ?? false,
         isBundled: componentDocument?.isBundled ?? false,
         selected: true,
-        selectedItems: (component.items ?? []).map((item) => ({ itemId: item.itemId, name: item.name })),
+        selectedItems: (component.items ?? []).map((item) => ({ itemId: item.itemId, name: item.name, })),
         pricing: {
           priceBeforeDiscount: component.priceBeforeDiscount,
           discountAmount: component.discountAmount,
@@ -355,6 +352,7 @@ export class BookingBuilder {
       }
 
       return bookingComponent;
-    });
+    }
+    );
   }
 }

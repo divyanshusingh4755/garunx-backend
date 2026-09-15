@@ -66,7 +66,7 @@ export class BookingBuilder {
             ...(plainCart.selectedComponents ?? []).map((component) => ({ ...component, componentType: "DEFAULT" })),
             ...(plainCart.addonComponents ?? []).map((component) => ({ ...component, componentType: "ADDON" })),
         ];
-        const components = await this.buildComponentSnapshots(selectedComponents, service._id, cart.tierId);
+        const components = await this.buildComponentSnapshots(selectedComponents, service._id, cart.tierId, "SERVICE.selectedComponents");
         // For direct SERVICE cart, selectedServices[0] represents the main service itself.
         const mainCartService = plainCart.selectedServices?.find((selectedService) => selectedService.serviceId.toString() === service._id.toString());
         const entry = {
@@ -183,7 +183,7 @@ export class BookingBuilder {
             }
             return { ...component, componentType: "DEFAULT" };
         });
-        const components = await this.buildComponentSnapshots(packageComponents, service._id, cart.tierId);
+        const components = await this.buildComponentSnapshots(packageComponents, service._id, cart.tierId, `PACKAGE.${serviceRole}.${service.name}.components`);
         return {
             serviceId: service._id,
             serviceSnapshot: {
@@ -219,20 +219,23 @@ export class BookingBuilder {
         }
         return { taxableAmount: tax.taxableAmount, cgstAmount: tax.cgstAmount, sgstAmount: tax.sgstAmount, igstAmount: tax.igstAmount, totalTax: tax.totalTax };
     }
-    static async buildComponentSnapshots(components, serviceId, tierId) {
+    static async buildComponentSnapshots(components, serviceId, tierId, source) {
         if (components.length === 0) {
             return [];
         }
         for (const [index, component] of components.entries()) {
             if (!component?.componentId) {
-                throw new Error(`Invalid booking component at index ${index}: componentId is missing`);
+                throw new Error(`Invalid booking component at ${source}[${index}]: componentId is missing`);
             }
             if (!Types.ObjectId.isValid(component.componentId.toString())) {
-                throw new Error(`Invalid componentId at index ${index}: ${String(component.componentId)}`);
+                throw new Error(`Invalid componentId at ${source}[${index}]: ${String(component.componentId)}`);
             }
             for (const [itemIndex, item] of (component.items ?? []).entries()) {
                 if (!item?.itemId) {
-                    throw new Error(`Invalid item at index ${itemIndex} for component ${component.componentId.toString()}: itemId is missing`);
+                    throw new Error(`Invalid booking item at ${source}[${index}].items[${itemIndex}]: itemId is missing`);
+                }
+                if (!Types.ObjectId.isValid(item.itemId.toString())) {
+                    throw new Error(`Invalid itemId at ${source}[${index}].items[${itemIndex}]`);
                 }
             }
         }
@@ -255,7 +258,7 @@ export class BookingBuilder {
                 isRemovable: componentDocument?.isRemovable ?? false,
                 isBundled: componentDocument?.isBundled ?? false,
                 selected: true,
-                selectedItems: (component.items ?? []).map((item) => ({ itemId: item.itemId, name: item.name })),
+                selectedItems: (component.items ?? []).map((item) => ({ itemId: item.itemId, name: item.name, })),
                 pricing: {
                     priceBeforeDiscount: component.priceBeforeDiscount,
                     discountAmount: component.discountAmount,
