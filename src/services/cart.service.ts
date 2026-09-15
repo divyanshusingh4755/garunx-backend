@@ -1189,262 +1189,835 @@ class CartService {
     return { cart, changes };
   }
 
-  static async validateCart(owner: CartOwner, cartId: string, persist: boolean, session?: mongoose.ClientSession): Promise<CartValidationResult> {
-    if (!mongoose.Types.ObjectId.isValid(cartId)) { throw new Error("Invalid cartId"); }
+  private static async rebuildPackageServiceComponents(cart: ICart, session?: mongoose.ClientSession): Promise<boolean> {
+    if (!cart.packageId) { return false; }
 
-    // Recalculate first so checkout always validates the latest pricing,
-    // coupon, tax and commission values.
-    const recalculated = await this.recalculateCart(owner, cartId, { persist, ...(session ? { session } : {}), });
-    const cart = recalculated.cart;
-    const changes = recalculated.changes;
+    const selectedServices = cart.selectedServices ?? [];
+    const addonServices = cart.addonServices ?? [];
+    const allServices = [...selectedServices, ...addonServices,];
 
-    if (["EXPIRED", "CANCELLED"].includes(cart.status)) { throw new Error("Cart is not in a valid state"); }
-    const errors: string[] = [];
+    if (allServices.length === 0) { return false; }
 
-    // SERVICE CART VALIDATION
+    // Validate service IDs
+    const serviceIds: Types.ObjectId[] = [];
 
-    if (cart.serviceId) {
-      const service = await Service.findById(cart.serviceId).session(session || null).lean();
-      if (!service) {
-        errors.push("Service no longer exists");
-      } else if (!service.isActive || !service.isComplete) {
-        errors.push("Service is no longer available");
-      } else {
-        // Validate tier
-        const tierExists = service.tiers.some((tier) => tier.tierId.toString() === cart.tierId.toString());
-
-        // Validate location
-        const selectedLocation = service.locations.find((location) => location.locationId.toString() === cart.locationId.toString());
-
-        const locationExists = Boolean(selectedLocation?.isActive);
-
-        if (!tierExists) { errors.push("Selected service tier is no longer available"); }
-        if (!locationExists) { errors.push("Selected service location is no longer available"); }
+    for (const service of allServices) {
+      if (!service?.serviceId) {
+        throw new Error(`Invalid package service "${service?.name ?? "Unknown"}": serviceId is missing`);
       }
 
-      // Validate service components
+      if (!Types.ObjectId.isValid(service.serviceId.toString())) {
+        throw new Error(`Invalid package service "${service.name}": serviceId is invalid`);
+      }
 
-      const serviceComponents = await ServiceComponent.find({ serviceId: cart.serviceId, tierId: cart.tierId, }).session(session || null).lean();
-      const requiredComponents = serviceComponents.filter((component) => component.isRequired);
-      const selectedMap = new Set<string>();
+      serviceIds.push(new Types.ObjectId(service.serviceId.toString()));
+    }
 
-      for (const [index, component] of (cart.selectedComponents ?? []).entries()) {
-        if (!component?.componentId) {
-          errors.push(`Invalid selected component at index ${index}: componentId is missing`); continue;
+    // Remove duplicates
+    const uniqueServiceIds = [...new Map(serviceIds.map((id) => [id.toString(), id,])).values(),];
+
+    // Load current ServiceComponent configuration
+    const query = ServiceComponent.find({ serviceId: { $in: uniqueServiceIds, }, tierId: cart.tierId, });
+
+    if (session) { query.session(session); }
+    const serviceComponents = await query.lean();
+
+    // Group ServiceComponents by serviceId
+    const serviceComponentMap = new Map<string, typeof serviceComponents>();
+
+    for (const component of serviceComponents) {
+      if (!component.serviceId) { continue; }
+      const key = component.serviceId.toString();
+      const list = serviceComponentMap.get(key) ?? [];
+      list.push(component);
+      serviceComponentMap.set(key, list);
+    }
+
+    let changed = false;
+
+    // Build canonical component snapshots
+    const rebuildServices = (
+      services: | ISelectedService[] | IAddonService[]) => {
+      for (const service of services) {
+        const serviceId = service.serviceId.toString();
+        const currentComponents = serviceComponentMap.get(serviceId) ?? [];
+        const rebuiltComponents: ISelectedComponent[] = currentComponents.map((component) => {
+          if (!component.componentId) {
+            throw new Error(`Invalid ServiceComponent "${component.name}" for service "${service.name}": componentId is missing`);
+          }
+
+          if (!Types.ObjectId.isValid(component.componentId.toString())) {
+            throw new Error(`Invalid ServiceComponent "${component.name}" for service "${service.name}": componentId is invalid`);
+          }
+
+          const items: ISelectedComponentItem[] = (component.items ?? []).map((item) => {
+            if (!item.itemId) {
+              throw new Error(`Invalid item in component "${component.name}" for service "${service.name}": itemId is missing`);
+            }
+
+            if (!Types.ObjectId.isValid(item.itemId.toString())) {
+              throw new Error(`Invalid item in component "${component.name}" for service "${service.name}": itemId is invalid`);
+            }
+
+            return {
+              itemId: item.itemId,
+              name: item.name,
+            };
+          }
+          );
+
+          // Preserve existing pricing/tax data
+          // where possible.
+          const existing = (service.components ?? []).find((existingComponent) => existingComponent.componentId && existingComponent.componentId.toString() === component.componentId.toString());
+
+          return {
+            componentId: component.componentId,
+            name: component.name,
+            items,
+            priceBeforeDiscount: existing?.priceBeforeDiscount ?? 0,
+            discountAmount: existing?.discountAmount ?? 0,
+            totalPrice: existing?.totalPrice ?? 0,
+            ...(existing?.tax ? { tax: existing.tax, } : {}),
+          };
+        }
+        );
+
+        // Detect whether repair/update is needed
+        const existingComponents = service.components ?? [];
+        const existingIds = existingComponents.map((component) => component.componentId?.toString() ?? "");
+        const rebuiltIds = rebuiltComponents.map((component) => component.componentId.toString());
+        const needsUpdate = existingIds.length !== rebuiltIds.length || existingIds.some((id, index) => !id || id !== rebuiltIds[index]);
+
+        if (needsUpdate) { changed = true; }
+        service.components = rebuiltComponents;
+      }
+    };
+
+    rebuildServices(selectedServices);
+    rebuildServices(addonServices);
+
+    cart.markModified("selectedServices");
+    cart.markModified("addonServices");
+    return changed;
+  }
+
+  static async validateCart(
+    owner: CartOwner,
+    cartId: string,
+    persist: boolean,
+    session?: mongoose.ClientSession
+  ): Promise<CartValidationResult> {
+    if (
+      !mongoose.Types.ObjectId.isValid(
+        cartId
+      )
+    ) {
+      throw new Error("Invalid cartId");
+    }
+
+    // -------------------------------------------------------
+    // STEP 1: Recalculate current cart
+    // -------------------------------------------------------
+
+    const recalculated =
+      await this.recalculateCart(
+        owner,
+        cartId,
+        {
+          persist,
+          ...(session
+            ? { session }
+            : {}),
+        }
+      );
+
+    const cart = recalculated.cart;
+    const changes =
+      recalculated.changes;
+
+    if (
+      ["EXPIRED", "CANCELLED"].includes(
+        cart.status
+      )
+    ) {
+      throw new Error(
+        "Cart is not in a valid state"
+      );
+    }
+
+    const errors: string[] = [];
+
+    // =======================================================
+    // SERVICE CART
+    // =======================================================
+
+    if (cart.serviceId) {
+      const serviceQuery =
+        Service.findById(
+          cart.serviceId
+        );
+
+      if (session) {
+        serviceQuery.session(session);
+      }
+
+      const service =
+        await serviceQuery.lean();
+
+      if (!service) {
+        errors.push(
+          "Service no longer exists"
+        );
+      } else if (
+        !service.isActive ||
+        !service.isComplete
+      ) {
+        errors.push(
+          "Service is no longer available"
+        );
+      } else {
+        const tierExists =
+          service.tiers.some(
+            (tier) =>
+              tier.tierId.toString() ===
+              cart.tierId.toString()
+          );
+
+        const selectedLocation =
+          service.locations.find(
+            (location) =>
+              location.locationId.toString() ===
+              cart.locationId.toString()
+          );
+
+        if (!tierExists) {
+          errors.push(
+            "Selected service tier is no longer available"
+          );
         }
 
-        if (!Types.ObjectId.isValid(component.componentId.toString())) {
-          errors.push(`Invalid selected componentId at index ${index}: ${String(component.componentId)}`);
+        if (
+          !selectedLocation ||
+          !selectedLocation.isActive
+        ) {
+          errors.push(
+            "Selected service location is no longer available"
+          );
+        }
+      }
+
+      // -----------------------------------------------------
+      // Service components
+      // -----------------------------------------------------
+
+      const componentQuery =
+        ServiceComponent.find({
+          serviceId:
+            cart.serviceId,
+          tierId:
+            cart.tierId,
+        });
+
+      if (session) {
+        componentQuery.session(session);
+      }
+
+      const serviceComponents =
+        await componentQuery.lean();
+
+      const requiredComponents =
+        serviceComponents.filter(
+          (component) =>
+            component.isRequired
+        );
+
+      const selectedMap =
+        new Set<string>();
+
+      for (
+        const [
+          index,
+          component,
+        ] of (
+          cart.selectedComponents ??
+          []
+        ).entries()
+      ) {
+        if (
+          !component?.componentId
+        ) {
+          errors.push(
+            `Invalid selected component at index ${index}: componentId is missing`
+          );
+
           continue;
         }
 
-        selectedMap.add(component.componentId.toString());
+        if (
+          !Types.ObjectId.isValid(
+            component.componentId.toString()
+          )
+        ) {
+          errors.push(
+            `Invalid selected componentId at index ${index}`
+          );
 
-        // Validate selected component items
-        for (const [itemIndex, item] of (component.items ?? []).entries()) {
+          continue;
+        }
+
+        selectedMap.add(
+          component.componentId.toString()
+        );
+
+        for (
+          const [
+            itemIndex,
+            item,
+          ] of (
+            component.items ?? []
+          ).entries()
+        ) {
           if (!item?.itemId) {
-            errors.push(`Invalid item at index ${itemIndex} in component "${component.name}": itemId is missing`);
+            errors.push(
+              `Invalid item at index ${itemIndex} in component "${component.name}": itemId is missing`
+            );
+
             continue;
           }
 
-          if (!Types.ObjectId.isValid(item.itemId.toString())) {
-            errors.push(`Invalid itemId at index ${itemIndex} in component "${component.name}"`
+          if (
+            !Types.ObjectId.isValid(
+              item.itemId.toString()
+            )
+          ) {
+            errors.push(
+              `Invalid itemId at index ${itemIndex} in component "${component.name}"`
             );
           }
         }
       }
 
-      // Required component validation
-      for (const component of requiredComponents) {
+      for (
+        const component of
+        requiredComponents
+      ) {
         if (!component.componentId) {
-          errors.push(`Invalid ServiceComponent "${component.name}": componentId is missing`);
+          errors.push(
+            `Invalid ServiceComponent "${component.name}": componentId is missing`
+          );
+
           continue;
         }
 
-        if (!selectedMap.has(component.componentId.toString())) {
-          errors.push(`Missing required component: ${component.name}`
+        if (
+          !selectedMap.has(
+            component.componentId.toString()
+          )
+        ) {
+          errors.push(
+            `Missing required component: ${component.name}`
           );
         }
       }
 
-      if ((cart.selectedComponents ?? []).length === 0) {
-        errors.push("No components selected for service");
+      if (
+        (
+          cart.selectedComponents ??
+          []
+        ).length === 0
+      ) {
+        errors.push(
+          "No components selected for service"
+        );
       }
 
-      // Validate addon components
+      // -----------------------------------------------------
+      // Service addon components
+      // -----------------------------------------------------
 
-      for (const [index, component] of (cart.addonComponents ?? []).entries()) {
-        if (!component?.componentId) {
-          errors.push(`Invalid addon component at index ${index}: componentId is missing`);
+      for (
+        const [
+          index,
+          component,
+        ] of (
+          cart.addonComponents ??
+          []
+        ).entries()
+      ) {
+        if (
+          !component?.componentId
+        ) {
+          errors.push(
+            `Invalid addon component at index ${index}: componentId is missing`
+          );
+
           continue;
         }
 
-        if (!Types.ObjectId.isValid(component.componentId.toString())) {
-          errors.push(`Invalid addon componentId at index ${index}`);
+        if (
+          !Types.ObjectId.isValid(
+            component.componentId.toString()
+          )
+        ) {
+          errors.push(
+            `Invalid addon componentId at index ${index}`
+          );
+
           continue;
         }
 
-        for (const [itemIndex, item] of (component.items ?? []).entries()) {
+        for (
+          const [
+            itemIndex,
+            item,
+          ] of (
+            component.items ?? []
+          ).entries()
+        ) {
           if (!item?.itemId) {
-            errors.push(`Invalid item at index ${itemIndex} in addon component "${component.name}": itemId is missing`);
+            errors.push(
+              `Invalid item at index ${itemIndex} in addon component "${component.name}": itemId is missing`
+            );
+
             continue;
           }
 
-          if (!Types.ObjectId.isValid(item.itemId.toString())) {
-            errors.push(`Invalid itemId at index ${itemIndex} in addon component "${component.name}"`);
+          if (
+            !Types.ObjectId.isValid(
+              item.itemId.toString()
+            )
+          ) {
+            errors.push(
+              `Invalid itemId at index ${itemIndex} in addon component "${component.name}"`
+            );
           }
         }
       }
     }
 
-    // PACKAGE CART VALIDATION
+    // =======================================================
+    // PACKAGE CART
+    // =======================================================
 
     if (cart.packageId) {
-      const pkg = await Package.findById(cart.packageId).session(session || null).lean();
+      // -----------------------------------------------------
+      // IMPORTANT:
+      // Repair old/stale package component snapshots from
+      // ServiceComponent before BookingBuilder sees them.
+      // -----------------------------------------------------
+
+      try {
+        const repaired =
+          await this.rebuildPackageServiceComponents(
+            cart,
+            session
+          );
+
+        if (repaired) {
+          changes.push(
+            "Package service component snapshots were refreshed"
+          );
+        }
+
+        if (persist) {
+          await cart.save(
+            session
+              ? { session }
+              : undefined
+          );
+        }
+      } catch (error: any) {
+        errors.push(
+          error.message ||
+          "Failed to refresh package components"
+        );
+      }
+
+      // -----------------------------------------------------
+      // Package
+      // -----------------------------------------------------
+
+      const packageQuery =
+        Package.findById(
+          cart.packageId
+        );
+
+      if (session) {
+        packageQuery.session(
+          session
+        );
+      }
+
+      const pkg =
+        await packageQuery.lean();
 
       if (!pkg) {
-        errors.push("Package no longer exists");
+        errors.push(
+          "Package no longer exists"
+        );
       } else if (!pkg.isActive) {
-        errors.push("Package is no longer active");
+        errors.push(
+          "Package is no longer active"
+        );
       } else {
-        // Validate package tier
+        const tierExists =
+          pkg.tiers.some(
+            (tier) =>
+              tier.tierId.toString() ===
+              cart.tierId.toString()
+          );
 
-        const tierExists = pkg.tiers.some((tier) => tier.tierId.toString() === cart.tierId.toString());
-        if (!tierExists) { errors.push("Selected package tier is no longer available"); }
+        if (!tierExists) {
+          errors.push(
+            "Selected package tier is no longer available"
+          );
+        }
 
-        // Validate package location
-        const locationExists = pkg.locations.some((location) => location.locationId.toString() === cart.locationId.toString());
-        if (!locationExists) { errors.push("Selected package location is no longer available"); }
+        const location =
+          pkg.locations.find(
+            (location) =>
+              location.locationId.toString() ===
+              cart.locationId.toString()
+          );
 
+        if (
+          !location ||
+          !location.isActive
+        ) {
+          errors.push(
+            "Selected package location is no longer available"
+          );
+        }
+
+        // ---------------------------------------------------
         // Package tier mapping
-        const packageTierMap = await PackageTierMap.findOne({ packageId: cart.packageId, tierId: cart.tierId, }).session(session || null).lean();
+        // ---------------------------------------------------
+
+        const mappingQuery =
+          PackageTierMap.findOne({
+            packageId:
+              cart.packageId,
+
+            tierId:
+              cart.tierId,
+          });
+
+        if (session) {
+          mappingQuery.session(
+            session
+          );
+        }
+
+        const packageTierMap =
+          await mappingQuery.lean();
+
         if (!packageTierMap) {
-          errors.push("Package tier mapping no longer exists");
+          errors.push(
+            "Package tier mapping no longer exists"
+          );
         } else {
-          const selectedServiceIds = new Set<string>();
+          const selectedServiceIds =
+            new Set<string>();
 
-          // SELECTED PACKAGE SERVICES
-          for (const [serviceIndex, service] of (cart.selectedServices ?? []).entries()) {
-            if (!service?.serviceId) {
-              errors.push(`Invalid package service at index ${serviceIndex}: serviceId is missing`);
-              continue;
-            }
+          // ===============================================
+          // INCLUDED SERVICES
+          // ===============================================
 
-            if (!Types.ObjectId.isValid(service.serviceId.toString())) {
-              errors.push(`Invalid package serviceId at index ${serviceIndex}`);
-              continue;
-            }
-
-            const serviceId = service.serviceId.toString();
-
-            selectedServiceIds.add(serviceId);
-
-            // Check that service still exists in package mapping
-
-            const mappedService = packageTierMap.services?.find((mapped) => mapped.serviceId?.toString() === serviceId);
-            if (!mappedService) {
-              errors.push(`Service "${service.name}" is no longer available in this package`
+          for (
+            const [
+              serviceIndex,
+              service,
+            ] of (
+              cart.selectedServices ??
+              []
+            ).entries()
+          ) {
+            if (
+              !service?.serviceId
+            ) {
+              errors.push(
+                `Invalid package service at index ${serviceIndex}: serviceId is missing`
               );
-            } else if (mappedService.isRelated) {
-              errors.push(`Service "${service.name}" is an addon service and cannot be selected as an included service`);
-            }
 
-            // Validate package service components
-
-            for (const [componentIndex, component] of (service.components ?? []).entries()) {
-              if (!component?.componentId) {
-                errors.push(`Invalid component at index ${componentIndex} for package service "${service.name}": componentId is missing`);
-                continue;
-              }
-
-              if (!Types.ObjectId.isValid(component.componentId.toString())
-              ) {
-                errors.push(`Invalid componentId at index ${componentIndex} for package service "${service.name}"`);
-                continue;
-              }
-
-              // Validate component items
-
-              for (const [itemIndex, item] of (component.items ?? []).entries()) {
-                if (!item?.itemId) {
-                  errors.push(`Invalid item at index ${itemIndex} in component "${component.name}" for package service "${service.name}": itemId is missing`);
-                  continue;
-                }
-
-                if (!Types.ObjectId.isValid(item.itemId.toString())) {
-                  errors.push(`Invalid itemId at index ${itemIndex} in component "${component.name}" for package service "${service.name}"`);
-                }
-              }
-            }
-
-            // Validate subServices
-
-            for (const [subServiceIndex, subService] of (service.subServices ?? []).entries()) {
-              if (!subService?.subServiceId) {
-                errors.push(`Invalid sub-service at index ${subServiceIndex} for package service "${service.name}": subServiceId is missing`);
-                continue;
-              }
-
-              if (!Types.ObjectId.isValid(subService.subServiceId.toString())) {
-                errors.push(`Invalid subServiceId at index ${subServiceIndex} for package service "${service.name}"`);
-              }
-            }
-          }
-
-          // REQUIRED PACKAGE SERVICES
-          for (const mappedService of (packageTierMap.services ?? [])) {
-            if (!mappedService?.serviceId) {
-              errors.push(`Invalid package tier mapping: serviceId is missing for ${mappedService?.name ?? "service"}`);
               continue;
             }
 
-            if (mappedService.isRequired && !mappedService.isRelated && !selectedServiceIds.has(mappedService.serviceId.toString())) {
-              errors.push(`Missing required service: ${mappedService.name}`);
-            }
-          }
+            if (
+              !Types.ObjectId.isValid(
+                service.serviceId.toString()
+              )
+            ) {
+              errors.push(
+                `Invalid package serviceId at index ${serviceIndex}`
+              );
 
-          // ADDON PACKAGE SERVICES
-          for (const [serviceIndex, service] of (cart.addonServices ?? []).entries()) {
-            if (!service?.serviceId) {
-              errors.push(`Invalid addon service at index ${serviceIndex}: serviceId is missing`);
               continue;
             }
 
-            if (!Types.ObjectId.isValid(service.serviceId.toString())) {
-              errors.push(`Invalid addon serviceId at index ${serviceIndex}`);
-              continue;
-            }
+            const serviceId =
+              service.serviceId.toString();
 
-            const serviceId = service.serviceId.toString();
+            selectedServiceIds.add(
+              serviceId
+            );
 
-            // Validate addon against package mapping
-            const mappedService = packageTierMap.services?.find((mapped) => mapped.serviceId?.toString() === serviceId);
+            const mappedService =
+              packageTierMap.services?.find(
+                (mapped) =>
+                  mapped.serviceId
+                    ?.toString() ===
+                  serviceId
+              );
+
             if (!mappedService) {
-              errors.push(`Addon service "${service.name}" is no longer available in this package`);
-            } else if (mappedService.isRequired || !mappedService.isRelated) {
-              errors.push(`Service "${service.name}" is not a valid addon service`);
+              errors.push(
+                `Service "${service.name}" is no longer available in this package`
+              );
+            } else if (
+              mappedService.isRelated
+            ) {
+              errors.push(
+                `Service "${service.name}" is an addon service and cannot be selected as an included service`
+              );
             }
 
-            // Validate addon service components
-            for (const [componentIndex, component] of (service.components ?? []).entries()) {
-              if (!component?.componentId) {
-                errors.push(`Invalid component at index ${componentIndex} for addon service "${service.name}": componentId is missing`);
+            // ---------------------------------------------
+            // Components
+            // ---------------------------------------------
+
+            for (
+              const [
+                componentIndex,
+                component,
+              ] of (
+                service.components ??
+                []
+              ).entries()
+            ) {
+              if (
+                !component?.componentId
+              ) {
+                errors.push(
+                  `Invalid component at index ${componentIndex} for package service "${service.name}": componentId is missing`
+                );
+
                 continue;
               }
 
-              if (!Types.ObjectId.isValid(component.componentId.toString())) {
-                errors.push(`Invalid componentId at index ${componentIndex} for addon service "${service.name}"`);
+              if (
+                !Types.ObjectId.isValid(
+                  component.componentId.toString()
+                )
+              ) {
+                errors.push(
+                  `Invalid componentId at index ${componentIndex} for package service "${service.name}"`
+                );
+
                 continue;
               }
 
-              // Validate addon component items
-              for (const [itemIndex, item] of (component.items ?? []).entries()) {
+              for (
+                const [
+                  itemIndex,
+                  item,
+                ] of (
+                  component.items ??
+                  []
+                ).entries()
+              ) {
                 if (!item?.itemId) {
-                  errors.push(`Invalid item at index ${itemIndex} in component "${component.name}" for addon service "${service.name}": itemId is missing`);
+                  errors.push(
+                    `Invalid item at index ${itemIndex} in component "${component.name}" for package service "${service.name}": itemId is missing`
+                  );
+
                   continue;
                 }
 
-                if (!Types.ObjectId.isValid(item.itemId.toString())) {
+                if (
+                  !Types.ObjectId.isValid(
+                    item.itemId.toString()
+                  )
+                ) {
+                  errors.push(
+                    `Invalid itemId at index ${itemIndex} in component "${component.name}" for package service "${service.name}"`
+                  );
+                }
+              }
+            }
+
+            // ---------------------------------------------
+            // Sub-services
+            // ---------------------------------------------
+
+            for (
+              const [
+                subServiceIndex,
+                subService,
+              ] of (
+                service.subServices ??
+                []
+              ).entries()
+            ) {
+              if (
+                !subService?.subServiceId
+              ) {
+                errors.push(
+                  `Invalid sub-service at index ${subServiceIndex} for package service "${service.name}": subServiceId is missing`
+                );
+
+                continue;
+              }
+
+              if (
+                !Types.ObjectId.isValid(
+                  subService.subServiceId.toString()
+                )
+              ) {
+                errors.push(
+                  `Invalid subServiceId at index ${subServiceIndex} for package service "${service.name}"`
+                );
+              }
+            }
+          }
+
+          // ===============================================
+          // REQUIRED PACKAGE SERVICES
+          // ===============================================
+
+          for (
+            const mappedService of
+            packageTierMap.services ??
+            []
+          ) {
+            if (
+              mappedService.isRequired &&
+              !mappedService.isRelated &&
+              !selectedServiceIds.has(
+                mappedService.serviceId.toString()
+              )
+            ) {
+              errors.push(
+                `Missing required package service: ${mappedService.name}`
+              );
+            }
+          }
+
+          // ===============================================
+          // ADDON SERVICES
+          // ===============================================
+
+          for (
+            const [
+              serviceIndex,
+              service,
+            ] of (
+              cart.addonServices ??
+              []
+            ).entries()
+          ) {
+            if (
+              !service?.serviceId
+            ) {
+              errors.push(
+                `Invalid addon service at index ${serviceIndex}: serviceId is missing`
+              );
+
+              continue;
+            }
+
+            if (
+              !Types.ObjectId.isValid(
+                service.serviceId.toString()
+              )
+            ) {
+              errors.push(
+                `Invalid addon serviceId at index ${serviceIndex}`
+              );
+
+              continue;
+            }
+
+            const serviceId =
+              service.serviceId.toString();
+
+            const mappedService =
+              packageTierMap.services?.find(
+                (mapped) =>
+                  mapped.serviceId
+                    ?.toString() ===
+                  serviceId
+              );
+
+            if (!mappedService) {
+              errors.push(
+                `Addon service "${service.name}" is no longer available in this package`
+              );
+            } else if (
+              mappedService.isRequired ||
+              !mappedService.isRelated
+            ) {
+              errors.push(
+                `Service "${service.name}" is not a valid addon service`
+              );
+            }
+
+            // ---------------------------------------------
+            // Addon components
+            // ---------------------------------------------
+
+            for (
+              const [
+                componentIndex,
+                component,
+              ] of (
+                service.components ??
+                []
+              ).entries()
+            ) {
+              if (
+                !component?.componentId
+              ) {
+                errors.push(
+                  `Invalid component at index ${componentIndex} for addon service "${service.name}": componentId is missing`
+                );
+
+                continue;
+              }
+
+              if (
+                !Types.ObjectId.isValid(
+                  component.componentId.toString()
+                )
+              ) {
+                errors.push(
+                  `Invalid componentId at index ${componentIndex} for addon service "${service.name}"`
+                );
+
+                continue;
+              }
+
+              for (
+                const [
+                  itemIndex,
+                  item,
+                ] of (
+                  component.items ??
+                  []
+                ).entries()
+              ) {
+                if (!item?.itemId) {
+                  errors.push(
+                    `Invalid item at index ${itemIndex} in component "${component.name}" for addon service "${service.name}": itemId is missing`
+                  );
+
+                  continue;
+                }
+
+                if (
+                  !Types.ObjectId.isValid(
+                    item.itemId.toString()
+                  )
+                ) {
                   errors.push(
                     `Invalid itemId at index ${itemIndex} in component "${component.name}" for addon service "${service.name}"`
                   );
@@ -1452,39 +2025,85 @@ class CartService {
               }
             }
 
-            // Validate addon subServices
-            for (const [subServiceIndex, subService] of (service.subServices ?? []).entries()) {
-              if (!subService?.subServiceId) {
-                errors.push(`Invalid sub-service at index ${subServiceIndex} for addon service "${service.name}": subServiceId is missing`);
+            // ---------------------------------------------
+            // Addon sub-services
+            // ---------------------------------------------
+
+            for (
+              const [
+                subServiceIndex,
+                subService,
+              ] of (
+                service.subServices ??
+                []
+              ).entries()
+            ) {
+              if (
+                !subService?.subServiceId
+              ) {
+                errors.push(
+                  `Invalid sub-service at index ${subServiceIndex} for addon service "${service.name}": subServiceId is missing`
+                );
+
                 continue;
               }
 
-              if (!Types.ObjectId.isValid(subService.subServiceId.toString())) {
-                errors.push(`Invalid subServiceId at index ${subServiceIndex} for addon service "${service.name}"`);
+              if (
+                !Types.ObjectId.isValid(
+                  subService.subServiceId.toString()
+                )
+              ) {
+                errors.push(
+                  `Invalid subServiceId at index ${subServiceIndex} for addon service "${service.name}"`
+                );
               }
             }
           }
         }
       }
 
-      // Package must contain at least one selected service.
-      if ((cart.selectedServices ?? []).length === 0) {
-        errors.push("No services selected for package");
+      if (
+        (
+          cart.selectedServices ??
+          []
+        ).length === 0
+      ) {
+        errors.push(
+          "No services selected for package"
+        );
       }
     }
 
+    // =======================================================
     // CART TYPE SAFETY
-    if (cart.serviceId && cart.packageId) {
-      errors.push("Cart cannot contain both serviceId and packageId");
+    // =======================================================
+
+    if (
+      cart.serviceId &&
+      cart.packageId
+    ) {
+      errors.push(
+        "Cart cannot contain both serviceId and packageId"
+      );
     }
 
-    if (!cart.serviceId && !cart.packageId) {
-      errors.push("Cart must contain either serviceId or packageId");
+    if (
+      !cart.serviceId &&
+      !cart.packageId
+    ) {
+      errors.push(
+        "Cart must contain either serviceId or packageId"
+      );
     }
 
-    // FINAL RESULT
+    // =======================================================
+    // RESULT
+    // =======================================================
+
     return {
-      isValid: errors.length === 0,
+      isValid:
+        errors.length === 0,
+
       errors,
       changes,
       cart,
