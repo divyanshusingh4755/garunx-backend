@@ -2,7 +2,7 @@ import { Package } from "../models/package.model.js";
 import { Service } from "../models/service.model.js";
 import type { IBookingEntry, IBookingComponent, IBookingServiceConfiguration, IBookingTaxSummary, ComponentType } from "../models/booking.model.js";
 import type { ICart, ISelectedComponent } from "../models/cart.model.js";
-import type { Types } from "mongoose";
+import { Types } from "mongoose";
 import { Component, type IComponent } from "../models/component.model.js";
 import { ServiceComponent } from "../models/servicecomponent.model.js";
 
@@ -228,12 +228,27 @@ export class BookingBuilder {
     selectedService: PackageCartServiceLine,
     serviceRole: "INCLUDED" | "ADDON",
   ): Promise<IBookingServiceConfiguration> {
-    const packageComponents = (selectedService.components ?? []).map((component) => ({
-      ...component,
-      componentType: "DEFAULT" as const
-    }))
 
-    const components = await this.buildComponentSnapshots(packageComponents, service._id, cart.tierId)
+    if (!selectedService?.serviceId) {
+      throw new Error(`Invalid ${serviceRole.toLowerCase()} package service: serviceId is missing`);
+    }
+
+    const packageComponents = (selectedService.components ?? []).map((component, index) => {
+      if (!component?.componentId) {
+        throw new Error(`Invalid component at index ${index} for service "${service.name}": componentId is missing`);
+      }
+
+      for (const [itemIndex, item] of (component.items ?? []).entries()) {
+        if (!item?.itemId) {
+          throw new Error(`Invalid item at index ${itemIndex} in component "${component.name}" for service "${service.name}": itemId is missing`);
+        }
+      }
+
+      return { ...component, componentType: "DEFAULT" as const };
+    }
+    );
+
+    const components = await this.buildComponentSnapshots(packageComponents, service._id, cart.tierId);
 
     return {
       serviceId: service._id,
@@ -244,8 +259,6 @@ export class BookingBuilder {
         ...(service.serviceReference ? { serviceReference: service.serviceReference } : {}),
       },
       serviceRole,
-
-      // Copy all service steps directly from cart snapshot.
       subServices: selectedService.subServices?.map((subService) => ({
         subServiceId: subService.subServiceId,
         name: subService.name,
@@ -278,21 +291,40 @@ export class BookingBuilder {
     serviceId: Types.ObjectId,
     tierId: Types.ObjectId,
   ): Promise<IBookingComponent[]> {
+
     if (components.length === 0) { return []; }
 
+    for (const [index, component] of components.entries()) {
+      if (!component?.componentId) {
+        throw new Error(`Invalid booking component at index ${index}: componentId is missing`);
+      }
+
+      if (!Types.ObjectId.isValid(component.componentId.toString())) {
+        throw new Error(`Invalid componentId at index ${index}: ${String(component.componentId)}`);
+      }
+
+      for (const [itemIndex, item] of (component.items ?? []).entries()) {
+        if (!item?.itemId) {
+          throw new Error(`Invalid item at index ${itemIndex} for component ${component.componentId.toString()}: itemId is missing`);
+        }
+      }
+    }
+
     const componentIds = components.map((component) => component.componentId);
-    const [componentDocs, serviceComponents] = await Promise.all([Component.find({ _id: { $in: componentIds } }).lean(),
-    ServiceComponent.find({ serviceId, tierId, componentId: { $in: componentIds } }).lean(),
+
+    const [componentDocs, serviceComponents] = await Promise.all([
+      Component.find({ _id: { $in: componentIds } }).lean(),
+      ServiceComponent.find({ serviceId, tierId, componentId: { $in: componentIds } }).lean(),
     ]);
 
     const componentMap = new Map(componentDocs.map((component: IComponent) => [component._id.toString(), component]));
-    const serviceComponentMap = new Map(serviceComponents.map((serviceComponent) => [serviceComponent.componentId.toString(), serviceComponent]),
-    );
+    const serviceComponentMap = new Map(serviceComponents.map((serviceComponent) => [serviceComponent.componentId.toString(), serviceComponent]));
 
     return components.map((component): IBookingComponent => {
       const componentId = component.componentId.toString();
       const componentDocument = componentMap.get(componentId);
       const serviceComponent = serviceComponentMap.get(componentId);
+
       const bookingComponent: IBookingComponent = {
         componentType: component.componentType,
         componentId: component.componentId,
@@ -310,9 +342,17 @@ export class BookingBuilder {
         },
       };
 
-      if (serviceComponent?._id) { bookingComponent.serviceComponentId = serviceComponent._id; }
-      if (componentDocument?.description) { bookingComponent.description = componentDocument.description; }
-      if (componentDocument?.imageUrl) { bookingComponent.imageUrl = componentDocument.imageUrl; }
+      if (serviceComponent?._id) {
+        bookingComponent.serviceComponentId = serviceComponent._id;
+      }
+
+      if (componentDocument?.description) {
+        bookingComponent.description = componentDocument.description;
+      }
+
+      if (componentDocument?.imageUrl) {
+        bookingComponent.imageUrl = componentDocument.imageUrl;
+      }
 
       return bookingComponent;
     });

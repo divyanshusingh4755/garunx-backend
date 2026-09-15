@@ -93,6 +93,32 @@ export declare class ReviewService {
         limit: number;
         totalPages: number;
     }>;
+    static getMyReceivedReviews(params: {
+        userId: string;
+        rating?: number;
+        limit?: number;
+        page?: number;
+        sortBy?: string;
+        sortOrder?: "asc" | "desc";
+    }): Promise<{
+        user: {
+            _id: Types.ObjectId;
+            fullName: string | undefined;
+            profileImage: string | null | undefined;
+            userReference: string;
+            averageRating: number;
+            totalRatings: number;
+        };
+        data: (import("../models/review.model.js").IReview & Required<{
+            _id: Types.ObjectId;
+        }> & {
+            __v: number;
+        })[];
+        total: number;
+        page: number;
+        limit: number;
+        totalPages: number;
+    }>;
     static getCoordinatorReviews(params: {
         coordinatorId: string;
         rating?: number;

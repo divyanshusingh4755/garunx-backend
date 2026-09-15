@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { body, param, query } from "express-validator";
-import { createReview, editReview, moderateReview, getAllReviews, getMyBookingReview, getMyReviews, getCoordinatorReviews, exportReviewsCsv } from "../controllers/review.controllers.js";
+import { createReview, editReview, moderateReview, getAllReviews, getMyBookingReview, getMyReviews, getCoordinatorReviews, exportReviewsCsv, getMyReceivedReviews } from "../controllers/review.controllers.js";
 import { authenticate } from "../middleware/authenticate.js";
 import { authorizeRoles } from "../middleware/authorizeRoles.js";
 import { Role } from "../types/rbac.js";
@@ -76,6 +76,11 @@ export const getMyReviewsValidation = [
   validate,
 ];
 
+export const getMyReceivedReviewsValidation = [
+  ...commonListValidation,
+  validate,
+];
+
 export const getCoordinatorReviewsValidation = [
   param("coordinatorId").isMongoId().withMessage("Invalid coordinator id"),
   ...commonListValidation,
@@ -123,6 +128,8 @@ router.get("/my-reviews", authenticate, authorizeRoles(Role.USER, Role.COORDINAT
 
 // ADMIN - REVIEW LIST / EXPORT
 router.get("/get-all-reviews", authenticate, authorizeRoles(Role.ADMIN), requirePermission("review.read_all"), getAllReviewsValidation, getAllReviews);
+// AUTHENTICATED USER - REVIEWS RECEIVED FROM COORDINATORS
+router.get("/my-received-reviews", authenticate, authorizeRoles(Role.USER), getMyReceivedReviewsValidation, getMyReceivedReviews);
 router.post("/export", authenticate, authorizeRoles(Role.ADMIN), requirePermission("review.read_all"), exportReviewsValidation, exportReviewsCsv);
 
 // USER / COORDINATOR - CREATE REVIEW

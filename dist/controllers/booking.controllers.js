@@ -125,7 +125,15 @@ export const getBookingById = async (req, res) => {
 };
 export const getBookingStats = async (req, res) => {
     try {
-        const result = await BookingService.getBookingStats();
+        const userId = req.user?.userId;
+        const role = req.user?.role;
+        if (!userId || !role) {
+            return res.status(401).json({
+                success: false,
+                message: "Unauthorized",
+            });
+        }
+        const result = await BookingService.getBookingStats({ userId, role });
         return res.status(200).json({
             success: true,
             data: result,

@@ -11,6 +11,13 @@ export const startBookingCronJobs = () => {
         }
 
         try {
+            const result = await BookingService.expirePastDueBookings();
+            console.log("[CRON] Past due booking expiry:", result);
+        } catch (error) {
+            console.error("[CRON] Past due booking expiry failed")
+        }
+
+        try {
             const result = await BookingService.processAssignmentTimeouts();
             console.log("[CRON] Assignment timeout:", result);
         } catch (error) {

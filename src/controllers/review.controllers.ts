@@ -231,6 +231,48 @@ export const getMyReviews = async (req: Request, res: Response) => {
   }
 };
 
+export const getMyReceivedReviews = async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?.userId;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized",
+      });
+    }
+
+    const params: Parameters<typeof ReviewService.getMyReceivedReviews>[0] = {
+      userId: userId.toString(),
+      limit: parsePositiveInteger(req.query.limit, 20, 100),
+      page: parsePositiveInteger(req.query.page, 1),
+      sortBy: typeof req.query.sortBy === "string" ? req.query.sortBy : "createdAt",
+      sortOrder: req.query.sortOrder === "asc" ? "asc" : "desc",
+    };
+
+    if (req.query.rating !== undefined) {
+      params.rating = Number(req.query.rating);
+    }
+
+    const result = await ReviewService.getMyReceivedReviews(params);
+
+    return res.status(200).json({
+      success: true,
+      user: result.user,
+      data: result.data,
+      total: result.total,
+      currentPage: result.page,
+      limit: result.limit,
+      totalPages: result.totalPages,
+    });
+  } catch (error: unknown) {
+    return res.status(getErrorStatus(error)).json({
+      success: false,
+      message: getErrorMessage(error, "Failed to fetch received reviews"),
+    });
+  }
+};
+
 export const getCoordinatorReviews = async (req: Request, res: Response) => {
   try {
     const params: Parameters<typeof ReviewService.getCoordinatorReviews>[0] = {

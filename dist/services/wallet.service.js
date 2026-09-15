@@ -5,6 +5,7 @@ import { User } from "../models/user.model.js";
 import { WalletTransaction } from "../models/wallet-transaction.model.js";
 import { OutboxService } from "./outbox.service.js";
 import { DOMAIN_EVENTS } from "../events/domain-events.js";
+import { Booking } from "../models/booking.model.js";
 export class WalletService {
     static round(value) {
         return Math.round((value + Number.EPSILON) * 100) / 100;
@@ -388,33 +389,84 @@ export class WalletService {
         const ownerObjectId = this.normalizedObjectId(ownerId, "owner ID");
         const page = Number.isInteger(options.page) && Number(options.page) > 0 ? Number(options.page) : 1;
         const limit = Number.isInteger(options.limit) && Number(options.limit) > 0 ? Math.min(Number(options.limit), 100) : 20;
-        const allowedTypes = ["BOOKING_REFUND", "COORDINATOR_EARNING", "WITHDRAWAL", "WITHDRAWAL_REVERSAL", "ADMIN_CREDIT", "ADMIN_DEBIT"];
-        const allowedDirections = ["CREDIT", "DEBIT"];
-        const filter = { ownerId: ownerObjectId, ownerRole };
-        // Transaction type filter
+        const allowedTypes = ["BOOKING_REFUND", "COORDINATOR_EARNING", "WITHDRAWAL", "WITHDRAWAL_REVERSAL", "ADMIN_CREDIT", "ADMIN_DEBIT",];
+        const allowedDirections = ["CREDIT", "DEBIT",];
+        const filter = { ownerId: ownerObjectId, ownerRole, };
         if (options.type) {
             if (!allowedTypes.includes(options.type)) {
                 throw new Error("Invalid wallet transaction type");
             }
             filter.type = options.type;
         }
-        // CREDIT / DEBIT filter
         if (options.direction) {
             if (!allowedDirections.includes(options.direction)) {
-                throw new Error("Inavlid wallet transaction direction");
+                throw new Error("Invalid wallet transaction direction");
             }
             filter.direction = options.direction;
         }
         const sortOrder = options.sortOrder === "asc" ? 1 : -1;
         const [transactions, total] = await Promise.all([
             WalletTransaction.find(filter).select("-idempotencyKey").sort({ createdAt: sortOrder }).skip((page - 1) * limit).limit(limit).lean(),
-            WalletTransaction.countDocuments(filter)
+            WalletTransaction.countDocuments(filter),
         ]);
+        // Collect booking IDs only from transactions that actually belong to a booking.
+        const bookingIds = [...new Set(transactions.map((transaction) => transaction.bookingId?.toString()).filter((bookingId) => Boolean(bookingId))),];
+        // Batch query bookings. We only need entries because serviceSnapshot/packageSnapshot are stored inside booking entries.
+        const bookings = bookingIds.length > 0 ? await Booking.find({ _id: { $in: bookingIds.map((bookingId) => new Types.ObjectId(bookingId)), }, isDeleted: false, }).select(["_id", "bookingReference", "entries",].join(" ")).lean() : [];
+        const bookingMap = new Map(bookings.map((booking) => [booking._id.toString(), booking,]));
+        // Create lightweight booking information for wallet UI.
+        const data = transactions.map((transaction) => {
+            const booking = transaction.bookingId ? bookingMap.get(transaction.bookingId.toString()) : undefined;
+            if (!booking) {
+                return { ...transaction, bookingSnapshot: null, };
+            }
+            const entry = booking.entries?.[0];
+            // Direct service booking
+            if (entry?.entryType === "SERVICE" && entry.serviceConfiguration) {
+                return {
+                    ...transaction,
+                    bookingSnapshot: {
+                        bookingId: booking._id,
+                        bookingReference: booking.bookingReference,
+                        entryType: "SERVICE",
+                        serviceId: entry.serviceConfiguration.serviceId,
+                        serviceSnapshot: entry.serviceConfiguration.serviceSnapshot ?? null,
+                        packageId: null,
+                        packageSnapshot: null,
+                    },
+                };
+            }
+            // Package booking
+            if (entry?.entryType === "PACKAGE" && entry.packageConfiguration) {
+                return {
+                    ...transaction,
+                    bookingSnapshot: {
+                        bookingId: booking._id,
+                        bookingReference: booking.bookingReference,
+                        entryType: "PACKAGE",
+                        packageId: entry.packageConfiguration.packageId,
+                        packageSnapshot: entry.packageConfiguration.packageSnapshot ?? null,
+                        serviceId: null,
+                        serviceSnapshot: null,
+                    },
+                };
+            }
+            // Legacy / malformed booking
+            return {
+                ...transaction,
+                bookingSnapshot: {
+                    bookingId: booking._id,
+                    bookingReference: booking.bookingReference,
+                    entryType: null,
+                    serviceId: null,
+                    serviceSnapshot: null,
+                    packageId: null,
+                    packageSnapshot: null,
+                },
+            };
+        });
         return {
-            data: transactions,
-            total,
-            page,
-            totalPages: Math.ceil(total / limit)
+            data, total, page, limit, totalPages: Math.ceil(total / limit),
         };
     }
 }

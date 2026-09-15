@@ -518,18 +518,22 @@ class CartService {
         serviceId: service.serviceId,
         name: service.name,
         subServices: subServiceMap.get(serviceId) ?? [],
-        components: components.map((component) => ({
-          componentId: component.componentId,
-          name: component.name,
-          items: (component.items ?? []).map((item) => ({
-            itemId: item.itemId,
-            name: item.name
-          })),
-          // package itself is priced on service level
-          priceBeforeDiscount: 0,
-          discountAmount: 0,
-          totalPrice: 0
-        })),
+        components: components.map((component) => {
+          if (!component.componentId) { throw new Error(`Invalid ServiceComponent for service "${service.name}": componentId is missing`); }
+          const items = (component.items ?? []).map((item) => {
+            if (!item.itemId) { throw new Error(`Invalid item in component "${component.name}" for service "${service.name}": itemId is missing`); }
+            return { itemId: item.itemId, name: item.name, };
+          });
+
+          return {
+            componentId: component.componentId,
+            name: component.name,
+            items,
+            priceBeforeDiscount: 0,
+            discountAmount: 0,
+            totalPrice: 0,
+          };
+        }),
         priceBeforeDiscount: pricing.finalPrice,
         discountAmount: 0,
         price: pricing.finalPrice,
@@ -1209,9 +1213,22 @@ class CartService {
         const packageTierMap = await PackageTierMap.findOne({ packageId: cart.packageId, tierId: cart.tierId }).session(session || null).lean();
         if (!packageTierMap) { errors.push("Package tier mapping no longer exists"); }
         else {
-          const selectedServiceIds = new Set((cart.selectedServices || []).map((service) => service.serviceId.toString()));
+          const selectedServiceIds = new Set<string>();
 
-          for (const mappedService of packageTierMap.services || []) {
+          for (const service of cart.selectedServices ?? []) {
+            if (!service?.serviceId) {
+              errors.push("Invalid package service: serviceId is missing");
+              continue;
+            }
+            selectedServiceIds.add(service.serviceId.toString());
+          }
+
+          for (const mappedService of packageTierMap.services ?? []) {
+            if (!mappedService?.serviceId) {
+              errors.push(`Invalid package tier mapping: serviceId is missing for ${mappedService?.name ?? "service"}`);
+              continue;
+            }
+
             if (mappedService.isRequired && !mappedService.isRelated && !selectedServiceIds.has(mappedService.serviceId.toString())) {
               errors.push(`Missing required service: ${mappedService.name}`);
             }

@@ -543,6 +543,54 @@ export class ReviewService {
             },
         });
     }
+    static async getMyReceivedReviews(params) {
+        const { userId, rating, limit = 20, page = 1, sortBy = "createdAt", sortOrder = "desc", } = params;
+        if (!Types.ObjectId.isValid(userId)) {
+            throw new Error("Invalid user id");
+        }
+        const { safePage, safeLimit, skip } = this.safePagination(page, limit, 20);
+        const allowedSortFields = new Set(["createdAt", "updatedAt", "rating", "editedAt",]);
+        const safeSortBy = allowedSortFields.has(sortBy) ? sortBy : "createdAt";
+        const userObjectId = new Types.ObjectId(userId);
+        const query = { revieweeId: userObjectId, direction: "COORDINATOR_TO_CUSTOMER", visibility: "PUBLISHED", isDeleted: false, };
+        if (rating !== undefined) {
+            query.rating = rating;
+        }
+        const sortCriteria = this.getSortCriteria(safeSortBy, sortOrder);
+        try {
+            const [data, total, user] = await Promise.all([Review.find(query)
+                    .populate("reviewerId", "fullName profileImage role userReference")
+                    .populate("bookingId", "bookingReference status completedAt scheduledAt")
+                    .sort(sortCriteria)
+                    .skip(skip)
+                    .limit(safeLimit)
+                    .lean(),
+                Review.countDocuments(query),
+                User.findById(userObjectId).select("fullName profileImage userReference ratingSummary").lean(),]);
+            if (!user) {
+                throw new Error("User not found");
+            }
+            return {
+                user: {
+                    _id: user._id,
+                    fullName: user.fullName,
+                    profileImage: user.profileImage,
+                    userReference: user.userReference,
+                    averageRating: user.ratingSummary?.averageRating ?? 0,
+                    totalRatings: user.ratingSummary?.totalRatings ?? 0,
+                },
+                data,
+                total,
+                page: safePage,
+                limit: safeLimit,
+                totalPages: Math.ceil(total / safeLimit),
+            };
+        }
+        catch (error) {
+            const message = error instanceof Error ? error.message : "Unknown error";
+            throw new Error(`Received reviews fetch failed: ${message}`);
+        }
+    }
     static async getCoordinatorReviews(params) {
         const { coordinatorId, rating, limit = 20, page = 1, sortBy = "createdAt", sortOrder = "desc" } = params;
         if (!Types.ObjectId.isValid(coordinatorId)) {

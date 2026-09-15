@@ -1,6 +1,6 @@
 import type { IBookingEntry, IBookingTaxSummary } from "../models/booking.model.js";
 import type { ICart } from "../models/cart.model.js";
-import type { Types } from "mongoose";
+import { Types } from "mongoose";
 interface BookingBuildResult {
     entries: IBookingEntry[];
     pricing: {

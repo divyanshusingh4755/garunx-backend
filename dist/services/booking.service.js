@@ -1104,26 +1104,35 @@ export class BookingService {
             },
         });
     }
-    static async getBookingStats() {
+    static async getBookingStats(params) {
         try {
+            const { userId, role } = params;
             const today = new Date();
             today.setHours(0, 0, 0, 0);
             const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
-            const [bookingStats, paymentStats, revenueStats, todayBookings, thisMonthBookings] = await Promise.all([
+            const match = { isDeleted: false, };
+            // Coordinator sees only their assigned bookings
+            if (role === Role.COORDINATOR) {
+                if (!Types.ObjectId.isValid(userId)) {
+                    throw new Error("Invalid coordinator ID");
+                }
+                match["assignment.assignedCoordinatorId"] =
+                    new Types.ObjectId(userId);
+            }
+            const [bookingStats, paymentStats, revenueStats, todayBookings, thisMonthBookings,] = await Promise.all([
+                Booking.aggregate([{ $match: match }, { $group: { _id: "$status", count: { $sum: 1 }, }, },]),
+                Booking.aggregate([{ $match: match }, { $group: { _id: "$payment.status", count: { $sum: 1 }, }, },]),
                 Booking.aggregate([
-                    { $match: { isDeleted: false } },
-                    { $group: { _id: "$status", count: { $sum: 1 } } },
+                    { $match: match }, {
+                        $group: {
+                            _id: null,
+                            totalRevenue: { $sum: { $cond: [{ $eq: ["$payment.status", "PAID"] }, "$pricing.grandTotal", 0,], }, },
+                            refundedAmount: { $sum: "$payment.refundAmount", },
+                        },
+                    },
                 ]),
-                Booking.aggregate([
-                    { $match: { isDeleted: false } },
-                    { $group: { _id: "$payment.status", count: { $sum: 1 } } },
-                ]),
-                Booking.aggregate([
-                    { $match: { isDeleted: false } },
-                    { $group: { _id: null, totalRevenue: { $sum: { $cond: [{ $eq: ["$payment.status", "PAID"] }, "$pricing.grandTotal", 0] } }, refundedAmount: { $sum: "$payment.refundAmount" } } },
-                ]),
-                Booking.countDocuments({ isDeleted: false, createdAt: { $gte: today } }),
-                Booking.countDocuments({ isDeleted: false, createdAt: { $gte: monthStart } }),
+                Booking.countDocuments({ ...match, createdAt: { $gte: today }, }),
+                Booking.countDocuments({ ...match, createdAt: { $gte: monthStart }, }),
             ]);
             const bookingMap = Object.fromEntries(bookingStats.map((item) => [item._id, item.count]));
             const paymentMap = Object.fromEntries(paymentStats.map((item) => [item._id, item.count]));
@@ -2542,6 +2551,9 @@ export class BookingService {
                 if (!requestScheduledAt) {
                     throw new Error("Booking schedule is missing");
                 }
+                if (new Date(requestScheduledAt) <= now) {
+                    throw new Error("Cannot response because the booking scheduled time has already passed");
+                }
                 const acceptingCoordinator = await User.findOne({
                     _id: coordinatorId,
                     role: "COORDINATOR",
@@ -3911,6 +3923,11 @@ export class BookingService {
                     result.skipped += 1;
                     continue;
                 }
+                //  expirePastDueBookings() owns the expiration. Auto-assignment must never assign a past booking.
+                if (targetScheduledAt <= now) {
+                    result.skipped += 1;
+                    continue;
+                }
                 const currentRoundRequests = (booking.assignment.requests ?? []).filter((request) => (request.assignmentRound ?? 1) === currentRound);
                 // RESCHEDULE manual-selection phase. Let the user send up to 3 manual requests in parallel before automatic fallback starts. If they send fewer, fallback starts after the same selection window.
                 if (pendingReschedule && pendingReschedule.assignmentRound === currentRound) {
@@ -3934,6 +3951,63 @@ export class BookingService {
             }
             catch (error) {
                 console.error(`[AUTO ASSIGN] Booking ${booking._id} failed:`, error);
+            }
+        }
+        return result;
+    }
+    static async expirePastDueBookings() {
+        const now = new Date();
+        const bookings = await Booking.find({
+            isDeleted: false,
+            "payment.status": "PAID",
+            // Only bookings that still don't have a successful assignment
+            status: { $in: ["CONFIRMED", "ASSIGNMENT_PENDING"] },
+            $or: [
+                {
+                    scheduledAt: { $lte: now },
+                    "assignment.pendingReschedule": { $exists: false }
+                },
+                {
+                    "assignment.pendingReschedule.requestedScheduledAt": { $lte: now }
+                }
+            ]
+        });
+        const result = { processed: 0, expiredBookings: 0, expiredRequests: 0 };
+        for (const booking of bookings) {
+            try {
+                if (!booking.assignment) {
+                    continue;
+                }
+                const currentRound = booking.assignment.currentRound ?? 1;
+                const pendingReschedule = booking.assignment.pendingReschedule;
+                const targetScheduledAt = pendingReschedule?.requestedAt ?? booking.scheduledAt;
+                if (!targetScheduledAt) {
+                    continue;
+                }
+                ;
+                // Defensive check
+                if (targetScheduledAt > now) {
+                    continue;
+                }
+                // Expire every still pending coordinator request belonging to the active assignment round.
+                for (const request of booking.assignment.requests ?? []) {
+                    if (request.status === "PENDING" && (request.assignmentRound ?? 1) === currentRound) {
+                        request.status = "EXPIRED";
+                        request.respondedAt = now;
+                        result.expiredRequests += 1;
+                    }
+                }
+                // Booking never obtained a coordinator before its scheduled service time
+                booking.status = "EXPIRED";
+                // Important
+                // Don't set booking.assignment.status = "EXPIRED" unless EXPIRED actually exists in your assignment status schema/type
+                await booking.save();
+                await this.invalidateBookingCache(booking._id.toString());
+                result.processed += 1;
+                result.expiredBookings += 1;
+            }
+            catch (error) {
+                console.error(`[PAST DUE BOOKING] Booking ${booking._id} failed`, error);
             }
         }
         return result;

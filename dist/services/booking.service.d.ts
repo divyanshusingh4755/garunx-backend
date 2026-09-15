@@ -189,7 +189,10 @@ export declare class BookingService {
         createdAt: Date;
         updatedAt: Date;
     }>;
-    static getBookingStats(): Promise<{
+    static getBookingStats(params: {
+        userId: string;
+        role: Role;
+    }): Promise<{
         totalBookings: number;
         pendingPaymentBookings: any;
         confirmedBookings: any;
@@ -824,6 +827,11 @@ export declare class BookingService {
         waitingForUserSelection: number;
         noCoordinatorAvailable: number;
         skipped: number;
+    }>;
+    static expirePastDueBookings(): Promise<{
+        processed: number;
+        expiredBookings: number;
+        expiredRequests: number;
     }>;
     static exportBookingsToCsv(bookingIds: string[]): Promise<{
         csv: string;

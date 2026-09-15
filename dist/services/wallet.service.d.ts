@@ -1,6 +1,7 @@
 import { Types, type ClientSession } from "mongoose";
 import { Role } from "../types/rbac.js";
 import { type IWallet } from "../models/wallet.model.js";
+import { type WalletTransactionDirection, type WalletTransactionType } from "../models/wallet-transaction.model.js";
 type WalletOwnerRole = Role.USER | Role.COORDINATOR;
 interface WalletCreditParams {
     ownerId: string | Types.ObjectId;
@@ -128,13 +129,156 @@ export declare class WalletService {
         direction?: string;
         sortOrder?: "asc" | "desc";
     }): Promise<{
-        data: (import("../models/wallet-transaction.model.js").IWalletTransaction & Required<{
+        data: ({
+            bookingSnapshot: null;
             _id: Types.ObjectId;
-        }> & {
+            walletId: Types.ObjectId;
+            ownerId: Types.ObjectId;
+            ownerRole: import("../models/wallet-transaction.model.js").WalletOwnerRole;
+            type: WalletTransactionType;
+            direction: WalletTransactionDirection;
+            amount: number;
+            balanceBefore: number;
+            balanceAfter: number;
+            bookingId?: Types.ObjectId;
+            withdrawalRequestId?: Types.ObjectId;
+            idempotencyKey: string;
+            reference?: string;
+            description?: string;
+            createdBy?: Types.ObjectId;
+            createdAt: Date;
+            $locals: Record<string, unknown>;
+            $op: "save" | "validate" | "remove" | null;
+            $where: Record<string, unknown>;
+            baseModelName?: string;
+            collection: import("mongoose").Collection;
+            db: import("mongoose").Connection;
+            errors?: import("mongoose").Error.ValidationError;
+            isNew: boolean;
+            schema: import("mongoose").Schema;
+            __v: number;
+        } | {
+            bookingSnapshot: {
+                bookingId: Types.ObjectId;
+                bookingReference: string;
+                entryType: "SERVICE";
+                serviceId: Types.ObjectId;
+                serviceSnapshot: {
+                    name: string;
+                    shortDescription?: string;
+                    thumbnailImage?: string;
+                    serviceReference?: string;
+                };
+                packageId: null;
+                packageSnapshot: null;
+            };
+            _id: Types.ObjectId;
+            walletId: Types.ObjectId;
+            ownerId: Types.ObjectId;
+            ownerRole: import("../models/wallet-transaction.model.js").WalletOwnerRole;
+            type: WalletTransactionType;
+            direction: WalletTransactionDirection;
+            amount: number;
+            balanceBefore: number;
+            balanceAfter: number;
+            bookingId?: Types.ObjectId;
+            withdrawalRequestId?: Types.ObjectId;
+            idempotencyKey: string;
+            reference?: string;
+            description?: string;
+            createdBy?: Types.ObjectId;
+            createdAt: Date;
+            $locals: Record<string, unknown>;
+            $op: "save" | "validate" | "remove" | null;
+            $where: Record<string, unknown>;
+            baseModelName?: string;
+            collection: import("mongoose").Collection;
+            db: import("mongoose").Connection;
+            errors?: import("mongoose").Error.ValidationError;
+            isNew: boolean;
+            schema: import("mongoose").Schema;
+            __v: number;
+        } | {
+            bookingSnapshot: {
+                bookingId: Types.ObjectId;
+                bookingReference: string;
+                entryType: "PACKAGE";
+                packageId: Types.ObjectId;
+                packageSnapshot: {
+                    name: string;
+                    shortDescription?: string;
+                    thumbnailImage?: string;
+                    packageReference?: string;
+                };
+                serviceId: null;
+                serviceSnapshot: null;
+            };
+            _id: Types.ObjectId;
+            walletId: Types.ObjectId;
+            ownerId: Types.ObjectId;
+            ownerRole: import("../models/wallet-transaction.model.js").WalletOwnerRole;
+            type: WalletTransactionType;
+            direction: WalletTransactionDirection;
+            amount: number;
+            balanceBefore: number;
+            balanceAfter: number;
+            bookingId?: Types.ObjectId;
+            withdrawalRequestId?: Types.ObjectId;
+            idempotencyKey: string;
+            reference?: string;
+            description?: string;
+            createdBy?: Types.ObjectId;
+            createdAt: Date;
+            $locals: Record<string, unknown>;
+            $op: "save" | "validate" | "remove" | null;
+            $where: Record<string, unknown>;
+            baseModelName?: string;
+            collection: import("mongoose").Collection;
+            db: import("mongoose").Connection;
+            errors?: import("mongoose").Error.ValidationError;
+            isNew: boolean;
+            schema: import("mongoose").Schema;
+            __v: number;
+        } | {
+            bookingSnapshot: {
+                bookingId: Types.ObjectId;
+                bookingReference: string;
+                entryType: null;
+                serviceId: null;
+                serviceSnapshot: null;
+                packageId: null;
+                packageSnapshot: null;
+            };
+            _id: Types.ObjectId;
+            walletId: Types.ObjectId;
+            ownerId: Types.ObjectId;
+            ownerRole: import("../models/wallet-transaction.model.js").WalletOwnerRole;
+            type: WalletTransactionType;
+            direction: WalletTransactionDirection;
+            amount: number;
+            balanceBefore: number;
+            balanceAfter: number;
+            bookingId?: Types.ObjectId;
+            withdrawalRequestId?: Types.ObjectId;
+            idempotencyKey: string;
+            reference?: string;
+            description?: string;
+            createdBy?: Types.ObjectId;
+            createdAt: Date;
+            $locals: Record<string, unknown>;
+            $op: "save" | "validate" | "remove" | null;
+            $where: Record<string, unknown>;
+            baseModelName?: string;
+            collection: import("mongoose").Collection;
+            db: import("mongoose").Connection;
+            errors?: import("mongoose").Error.ValidationError;
+            isNew: boolean;
+            schema: import("mongoose").Schema;
             __v: number;
         })[];
         total: number;
         page: number;
+        limit: number;
         totalPages: number;
     }>;
 }
