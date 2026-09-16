@@ -405,6 +405,7 @@ declare class CartService {
         };
         changes: string[];
     }>;
+    private static rebuildPackageServiceComponents;
     static validateCart(owner: CartOwner, cartId: string, persist: boolean, session?: mongoose.ClientSession): Promise<CartValidationResult>;
     static checkoutCart(userId: string, cartId: string): Promise<{
         bookingId: Types.ObjectId;

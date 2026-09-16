@@ -1301,155 +1301,57 @@ class CartService {
     return changed;
   }
 
-  static async validateCart(
-    owner: CartOwner,
-    cartId: string,
-    persist: boolean,
-    session?: mongoose.ClientSession
-  ): Promise<CartValidationResult> {
-    if (
-      !mongoose.Types.ObjectId.isValid(
-        cartId
-      )
-    ) {
-      throw new Error("Invalid cartId");
-    }
-
-    // -------------------------------------------------------
+  static async validateCart(owner: CartOwner, cartId: string, persist: boolean, session?: mongoose.ClientSession): Promise<CartValidationResult> {
+    if (!mongoose.Types.ObjectId.isValid(cartId)) { throw new Error("Invalid cartId"); }
     // STEP 1: Recalculate current cart
-    // -------------------------------------------------------
 
-    const recalculated =
-      await this.recalculateCart(
-        owner,
-        cartId,
-        {
-          persist,
-          ...(session
-            ? { session }
-            : {}),
-        }
-      );
+    const recalculated = await this.recalculateCart(owner, cartId, { persist, ...(session ? { session } : {}), });
 
     const cart = recalculated.cart;
-    const changes =
-      recalculated.changes;
-
-    if (
-      ["EXPIRED", "CANCELLED"].includes(
-        cart.status
-      )
-    ) {
-      throw new Error(
-        "Cart is not in a valid state"
-      );
+    const changes = recalculated.changes;
+    if (["EXPIRED", "CANCELLED"].includes(cart.status)) {
+      throw new Error("Cart is not in a valid state");
     }
 
     const errors: string[] = [];
 
-    // =======================================================
     // SERVICE CART
-    // =======================================================
-
     if (cart.serviceId) {
-      const serviceQuery =
-        Service.findById(
-          cart.serviceId
-        );
+      const serviceQuery = Service.findById(cart.serviceId);
+      if (session) { serviceQuery.session(session); }
 
-      if (session) {
-        serviceQuery.session(session);
-      }
-
-      const service =
-        await serviceQuery.lean();
-
+      const service = await serviceQuery.lean();
       if (!service) {
-        errors.push(
-          "Service no longer exists"
-        );
+        errors.push("Service no longer exists");
       } else if (
-        !service.isActive ||
-        !service.isComplete
+        !service.isActive || !service.isComplete
       ) {
-        errors.push(
-          "Service is no longer available"
-        );
+        errors.push("Service is no longer available");
       } else {
-        const tierExists =
-          service.tiers.some(
-            (tier) =>
-              tier.tierId.toString() ===
-              cart.tierId.toString()
-          );
-
-        const selectedLocation =
-          service.locations.find(
-            (location) =>
-              location.locationId.toString() ===
-              cart.locationId.toString()
-          );
-
+        const tierExists = service.tiers.some((tier) => tier.tierId.toString() === cart.tierId.toString());
+        const selectedLocation = service.locations.find((location) => location.locationId.toString() === cart.locationId.toString());
         if (!tierExists) {
-          errors.push(
-            "Selected service tier is no longer available"
-          );
+          errors.push("Selected service tier is no longer available");
         }
 
-        if (
-          !selectedLocation ||
-          !selectedLocation.isActive
-        ) {
-          errors.push(
-            "Selected service location is no longer available"
+        if (!selectedLocation || !selectedLocation.isActive) {
+          errors.push("Selected service location is no longer available"
           );
         }
       }
 
-      // -----------------------------------------------------
       // Service components
-      // -----------------------------------------------------
+      const componentQuery = ServiceComponent.find({ serviceId: cart.serviceId, tierId: cart.tierId, });
+      if (session) { componentQuery.session(session); }
 
-      const componentQuery =
-        ServiceComponent.find({
-          serviceId:
-            cart.serviceId,
-          tierId:
-            cart.tierId,
-        });
+      const serviceComponents = await componentQuery.lean();
+      const requiredComponents = serviceComponents.filter((component) => component.isRequired);
+      const selectedMap = new Set<string>();
 
-      if (session) {
-        componentQuery.session(session);
-      }
-
-      const serviceComponents =
-        await componentQuery.lean();
-
-      const requiredComponents =
-        serviceComponents.filter(
-          (component) =>
-            component.isRequired
-        );
-
-      const selectedMap =
-        new Set<string>();
-
-      for (
-        const [
-          index,
-          component,
-        ] of (
-          cart.selectedComponents ??
-          []
-        ).entries()
-      ) {
-        if (
-          !component?.componentId
-        ) {
-          errors.push(
-            `Invalid selected component at index ${index}: componentId is missing`
+      for (const [index, component,] of (cart.selectedComponents ?? []).entries()) {
+        if (!component?.componentId) {
+          errors.push(`Invalid selected component at index ${index}: componentId is missing`
           );
-
           continue;
         }
 
@@ -1531,9 +1433,7 @@ class CartService {
         );
       }
 
-      // -----------------------------------------------------
       // Service addon components
-      // -----------------------------------------------------
 
       for (
         const [
@@ -1595,16 +1495,12 @@ class CartService {
       }
     }
 
-    // =======================================================
     // PACKAGE CART
-    // =======================================================
 
     if (cart.packageId) {
-      // -----------------------------------------------------
       // IMPORTANT:
       // Repair old/stale package component snapshots from
       // ServiceComponent before BookingBuilder sees them.
-      // -----------------------------------------------------
 
       try {
         const repaired =
@@ -1633,9 +1529,7 @@ class CartService {
         );
       }
 
-      // -----------------------------------------------------
       // Package
-      // -----------------------------------------------------
 
       const packageQuery =
         Package.findById(
@@ -2074,9 +1968,7 @@ class CartService {
       }
     }
 
-    // =======================================================
     // CART TYPE SAFETY
-    // =======================================================
 
     if (
       cart.serviceId &&
@@ -2096,9 +1988,7 @@ class CartService {
       );
     }
 
-    // =======================================================
     // RESULT
-    // =======================================================
 
     return {
       isValid:

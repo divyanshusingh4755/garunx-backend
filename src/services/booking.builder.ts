@@ -92,8 +92,9 @@ export class BookingBuilder {
   }
 
   static async buildFromCart(cart: ICart): Promise<BookingBuildResult> {
-    const cartType = this.validateCartType(cart);
-    return cartType === "SERVICE" ? this.buildServiceBooking(cart) : this.buildPackageBooking(cart);
+    const plainCart = this.toPlainCart(cart);
+    const cartType = this.validateCartType(plainCart);
+    return cartType === "SERVICE" ? this.buildServiceBooking(plainCart) : this.buildPackageBooking(plainCart);
   }
 
   static async buildServiceBooking(cart: ICart): Promise<BookingBuildResult> {
@@ -155,71 +156,68 @@ export class BookingBuilder {
   }
 
   static async buildPackageBooking(cart: ICart): Promise<BookingBuildResult> {
-    if (!cart.packageId) { throw new Error("Package ID is required for package booking"); }
-    if (cart.serviceId) { throw new Error("Package booking cart cannot contain serviceId"); }
+    const plainCart = this.toPlainCart(cart);
+    if (!plainCart.packageId) { throw new Error("Package ID is required for package booking"); }
+    if (plainCart.serviceId) { throw new Error("Package booking cart cannot contain serviceId"); }
 
-    const packageDocument = await Package.findById(cart.packageId).lean();
+    const packageDocument = await Package.findById(plainCart.packageId).lean();
     if (!packageDocument) { throw new Error("Package not found"); }
 
-    const selectedCartServices = cart.selectedServices ?? [];
-    const addonCartServices = cart.addonServices ?? [];
+    const selectedCartServices = plainCart.selectedServices ?? [];
+    const addonCartServices = plainCart.addonServices ?? [];
+    const allServiceIds = [...selectedCartServices.map((service) => service.serviceId), ...addonCartServices.map((service) => service.serviceId),];
 
-    const allServiceIds = [
-      ...selectedCartServices.map((service) => service.serviceId),
-      ...addonCartServices.map((service) => service.serviceId),
-    ];
+    const services = allServiceIds.length > 0 ? await Service.find({ _id: { $in: allServiceIds, }, }).lean() : [];
+    const serviceMap = new Map(services.map((service) => [service._id.toString(), service,]));
 
-    const services = allServiceIds.length > 0 ? await Service.find({ _id: { $in: allServiceIds } }).lean() : [];
-
-    const serviceMap = new Map(services.map((service) => [service._id.toString(), service]));
     const selectedServices: IBookingServiceConfiguration[] = [];
-
     for (const selectedService of selectedCartServices) {
-      const service = serviceMap.get(selectedService.serviceId.toString());
+      if (!selectedService.serviceId) { throw new Error("Invalid selected package service: serviceId is missing"); }
 
+      const service = serviceMap.get(selectedService.serviceId.toString());
       if (!service) { throw new Error(`Service not found: ${selectedService.serviceId.toString()}`); }
 
-      selectedServices.push(await this.buildPackageServiceConfiguration(cart, service, selectedService, "INCLUDED"),
-      );
+      selectedServices.push(await this.buildPackageServiceConfiguration(plainCart, service, selectedService, "INCLUDED"));
     }
+
     const addonServices: IBookingServiceConfiguration[] = [];
-
     for (const addonService of addonCartServices) {
-      const service = serviceMap.get(addonService.serviceId.toString());
+      if (!addonService.serviceId) { throw new Error("Invalid addon package service: serviceId is missing"); }
 
+      const service = serviceMap.get(addonService.serviceId.toString());
       if (!service) { throw new Error(`Addon service not found: ${addonService.serviceId.toString()}`); }
-      addonServices.push(await this.buildPackageServiceConfiguration(cart, service, addonService, "ADDON"),
-      );
+      addonServices.push(await this.buildPackageServiceConfiguration(plainCart, service, addonService, "ADDON"));
     }
 
     const entry: IBookingEntry = {
       entryType: "PACKAGE",
+
       packageConfiguration: {
         packageId: packageDocument._id,
         packageSnapshot: {
           name: packageDocument.name,
-          ...(packageDocument.shortDescription ? { shortDescription: packageDocument.shortDescription } : {}),
-          ...(packageDocument.thumbnailImage ? { thumbnailImage: packageDocument.thumbnailImage } : {}),
-          ...(packageDocument.packageReference ? { packageReference: packageDocument.packageReference } : {}),
+          ...(packageDocument.shortDescription ? { shortDescription: packageDocument.shortDescription, } : {}),
+          ...(packageDocument.thumbnailImage ? { thumbnailImage: packageDocument.thumbnailImage, } : {}),
+          ...(packageDocument.packageReference ? { packageReference: packageDocument.packageReference, } : {}),
         },
         selectedServices,
         addonServices,
         pricing: {
-          baseAmount: cart.basePrice,
-          addonAmount: cart.addonPrice,
-          subtotal: cart.subtotal,
-          discountAmount: cart.discountAmount,
-          commissionPercentage: cart.commissionPercentage,
-          commissionBaseAmount: cart.commissionBaseAmount,
-          commissionAmount: cart.commissionAmount,
-          coordinatorPayableAmount: cart.coordinatorPayableAmount,
-          taxSummary: this.buildTaxSummary(cart.taxSummary),
-          grandTotal: cart.totalAmount,
+          baseAmount: plainCart.basePrice,
+          addonAmount: plainCart.addonPrice,
+          subtotal: plainCart.subtotal,
+          discountAmount: plainCart.discountAmount,
+          commissionPercentage: plainCart.commissionPercentage,
+          commissionBaseAmount: plainCart.commissionBaseAmount,
+          commissionAmount: plainCart.commissionAmount,
+          coordinatorPayableAmount: plainCart.coordinatorPayableAmount,
+          taxSummary: this.buildTaxSummary(plainCart.taxSummary),
+          grandTotal: plainCart.totalAmount,
         },
       },
     };
 
-    return { entries: [entry], pricing: this.buildMainPricing(cart) };
+    return { entries: [entry], pricing: this.buildMainPricing(plainCart), };
   }
 
   private static async buildPackageServiceConfiguration(
