@@ -86,6 +86,7 @@ export declare class NotificationService {
         referenceId?: string;
     }): Promise<{
         totalRecipients: number;
+        pushQueued: number;
     }>;
     static createFromTemplate(params: {
         recipientId: string | Types.ObjectId;

@@ -179,7 +179,8 @@ export class NotificationService {
         if (referenceId && !Types.ObjectId.isValid(referenceId)) {
             throw new Error("Invalid reference ID");
         }
-        const userQuery = { isActive: true };
+        // 1. Find active users for selected audience
+        const userQuery = { isActive: true, };
         if (audience !== "ALL") {
             userQuery.role = audience;
         }
@@ -187,22 +188,63 @@ export class NotificationService {
         if (!users.length) {
             throw new Error("No users found for selected audience");
         }
-        const notifications = users.map((user) => ({
-            recipientId: user._id,
-            recipientRole: user.role,
-            title,
-            message,
-            type,
-            ...(referenceId && { referenceId: new Types.ObjectId(referenceId) }),
+        // 2. Load notification preferences for all recipients
+        const userPreferences = await Promise.all(users.map(async (user) => {
+            const preferences = await NotificationPreferenceService.getOrCreatePreferences(user._id.toString());
+            return { user, preferences, };
         }));
+        // 3. Prepare notifications
+        const notifications = userPreferences.filter(({ preferences }) => {
+            return (preferences.channels.inApp || preferences.channels.push);
+        }).map(({ user, preferences }) => {
+            const pushEnabled = preferences.channels.push === true;
+            const showInApp = preferences.channels.inApp === true;
+            return {
+                recipientId: user._id,
+                recipientRole: user.role,
+                title,
+                message,
+                type,
+                showInApp,
+                pushDelivery: {
+                    status: pushEnabled ? "PENDING" : "NOT_REQUESTED",
+                    ...(pushEnabled && { title, message, }),
+                },
+                ...(referenceId && { referenceId: new Types.ObjectId(referenceId), }),
+            };
+        });
+        if (!notifications.length) {
+            return { totalRecipients: 0, pushQueued: 0, };
+        }
+        // 4. Bulk insert notifications
         const result = await Notification.insertMany(notifications);
         const io = getSocketServer();
-        if (io) {
-            for (const notification of result) {
+        let pushQueued = 0;
+        // 5. Send realtime notifications + queue device push
+        for (const notification of result) {
+            // In-app realtime notification
+            if (io && notification.showInApp) {
                 io.to(getUserRoom(notification.recipientId.toString())).emit("notification:new", toNotificationSocketDto(notification));
             }
+            // Firebase device push through BullMQ
+            if (notification.pushDelivery.status === "PENDING") {
+                try {
+                    await NotificationQueueService.enqueuePush(notification._id.toString());
+                    pushQueued++;
+                }
+                catch (error) {
+                    console.error(`Failed to queue admin push notification ${notification._id}:`, error);
+                    await Notification.updateOne({ _id: notification._id }, {
+                        $set: {
+                            "pushDelivery.status": "FAILED",
+                            "pushDelivery.failedAt": new Date(),
+                            "pushDelivery.error": error instanceof Error ? error.message : "Failed to queue push notification",
+                        },
+                    });
+                }
+            }
         }
-        return { totalRecipients: result.length };
+        return { totalRecipients: result.length, pushQueued, };
     }
     static async createFromTemplate(params) {
         const { recipientId, recipientRole, templateCode, variables = {}, referenceId, dedupeKey, channels = {} } = params;

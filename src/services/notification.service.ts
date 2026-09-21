@@ -211,32 +211,78 @@ export class NotificationService {
 
         if (referenceId && !Types.ObjectId.isValid(referenceId)) { throw new Error("Invalid reference ID"); }
 
-        const userQuery: Record<string, any> = { isActive: true };
+        // 1. Find active users for selected audience
+        const userQuery: Record<string, any> = { isActive: true, };
 
         if (audience !== "ALL") { userQuery.role = audience; }
 
         const users = await User.find(userQuery).select("_id role");
         if (!users.length) { throw new Error("No users found for selected audience"); }
 
-        const notifications = users.map((user) => ({
-            recipientId: user._id,
-            recipientRole: user.role,
-            title,
-            message,
-            type,
-            ...(referenceId && { referenceId: new Types.ObjectId(referenceId) }),
-        }));
+        // 2. Load notification preferences for all recipients
+        const userPreferences = await Promise.all(users.map(async (user) => {
+            const preferences = await NotificationPreferenceService.getOrCreatePreferences(user._id.toString(),);
+            return { user, preferences, };
+        }),
+        );
 
+        // 3. Prepare notifications
+        const notifications = userPreferences.filter(({ preferences }) => {
+            return (preferences.channels.inApp || preferences.channels.push);
+        }).map(({ user, preferences }) => {
+            const pushEnabled = preferences.channels.push === true;
+            const showInApp = preferences.channels.inApp === true;
+
+            return {
+                recipientId: user._id,
+                recipientRole: user.role,
+                title,
+                message,
+                type,
+                showInApp,
+                pushDelivery: {
+                    status: pushEnabled ? ("PENDING" as const) : ("NOT_REQUESTED" as const),
+                    ...(pushEnabled && { title, message, }),
+                },
+                ...(referenceId && { referenceId: new Types.ObjectId(referenceId), }),
+            };
+        });
+
+        if (!notifications.length) { return { totalRecipients: 0, pushQueued: 0, }; }
+
+        // 4. Bulk insert notifications
         const result = await Notification.insertMany(notifications);
-        const io = getSocketServer();
 
-        if (io) {
-            for (const notification of result) {
-                io.to(getUserRoom(notification.recipientId.toString())).emit("notification:new", toNotificationSocketDto(notification));
+        const io = getSocketServer();
+        let pushQueued = 0;
+
+        // 5. Send realtime notifications + queue device push
+        for (const notification of result) {
+            // In-app realtime notification
+            if (io && notification.showInApp) { io.to(getUserRoom(notification.recipientId.toString()),).emit("notification:new", toNotificationSocketDto(notification),); }
+
+            // Firebase device push through BullMQ
+            if (notification.pushDelivery.status === "PENDING") {
+                try {
+                    await NotificationQueueService.enqueuePush(notification._id.toString(),);
+                    pushQueued++;
+                } catch (error) {
+                    console.error(`Failed to queue admin push notification ${notification._id}:`, error,);
+                    await Notification.updateOne(
+                        { _id: notification._id },
+                        {
+                            $set: {
+                                "pushDelivery.status": "FAILED",
+                                "pushDelivery.failedAt": new Date(),
+                                "pushDelivery.error": error instanceof Error ? error.message : "Failed to queue push notification",
+                            },
+                        },
+                    );
+                }
             }
         }
 
-        return { totalRecipients: result.length };
+        return { totalRecipients: result.length, pushQueued, };
     }
 
     static async createFromTemplate(params: { recipientId: string | Types.ObjectId; recipientRole: Role; templateCode: string; variables?: Record<string, string | number | boolean | Date | null | undefined>; referenceId?: string | Types.ObjectId; dedupeKey?: string; channels?: NotificationChannels; }) {
