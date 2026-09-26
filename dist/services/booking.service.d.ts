@@ -192,6 +192,8 @@ export declare class BookingService {
     static getBookingStats(params: {
         userId: string;
         role: Role;
+        startDate?: string | undefined;
+        endDate?: string | undefined;
     }): Promise<{
         totalBookings: number;
         pendingPaymentBookings: any;
@@ -210,8 +212,6 @@ export declare class BookingService {
         partialRefundPayments: any;
         totalRevenue: any;
         refundedAmount: any;
-        todayBookings: number;
-        thisMonthBookings: number;
     }>;
     static searchBookings(searchQuery: string): Promise<(mongoose.Document<unknown, {}, import("../models/booking.model.js").IBooking, {}, mongoose.DefaultSchemaOptions> & import("../models/booking.model.js").IBooking & Required<{
         _id: Types.ObjectId;

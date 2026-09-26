@@ -41,6 +41,11 @@ export const coordinatorSelectionConfigValidation = [
     body("isActive").isBoolean().withMessage("isActive must be boolean"),
     validate,
 ];
+export const bookingStatsValidation = [
+    query("startDate").optional().isISO8601().withMessage("startDate must be a valid date in YYYY-MM-DD format"),
+    query("endDate").optional().isISO8601().withMessage("startDate must be a valid date in YYYY-MM-DD format"),
+    validate
+];
 // PUBLIC ROUTES
 router.get("/view/:token", param("token").isString().isLength({ min: 64, max: 64 }).withMessage("Invalid booking access token"), validate, getBeneficiaryBooking);
 // USER - MY BOOKINGS
@@ -55,7 +60,7 @@ router.put("/admin/coordinator-selection-config", authenticate, authorizeRoles(R
 router.post("/system/expire-payments", authenticate, authorizeRoles(Role.ADMIN), requirePermission("booking.expire_payments"), expirePayments);
 // ADMIN - EXPORT / STATS / SEARCH / LIST
 router.post("/export", authenticate, authorizeRoles(Role.ADMIN), requirePermission("booking.export"), exportBookingsValidation, exportBookingsCsv);
-router.get("/stats", authenticate, authorizeRoles(Role.ADMIN, Role.COORDINATOR), getBookingStats);
+router.get("/stats", authenticate, authorizeRoles(Role.ADMIN, Role.COORDINATOR), bookingStatsValidation, getBookingStats);
 router.get("/search", authenticate, authorizeRoles(Role.ADMIN), requirePermission("booking.search"), query("query").isString().trim().notEmpty().withMessage("Search query is required"), validate, searchBookings);
 router.get("/", authenticate, authorizeRoles(Role.ADMIN), requirePermission("booking.read"), query("page").optional().isInt({ min: 1 }).withMessage("page must be a positive integer"), query("limit").optional().isInt({ min: 1, max: 100, }).withMessage("limit must be between 1 and 100"), query("sortOrder").optional().isIn(["asc", "desc",]).withMessage("sortOrder must be asc or desc"), validate, getAllBookings);
 // ADMIN - BOOKING-SPECIFIC PREFIXED ROUTES

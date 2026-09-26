@@ -150,7 +150,14 @@ export const getBookingStats = async (req: Request, res: Response) => {
       });
     }
 
-    const result = await BookingService.getBookingStats({ userId, role });
+    const { startDate, endDate } = req.query;
+
+    const result = await BookingService.getBookingStats({
+      userId,
+      role,
+      startDate: startDate as string | undefined,
+      endDate: endDate as string | undefined,
+    });
 
     return res.status(200).json({
       success: true,

@@ -1292,42 +1292,81 @@ export class BookingService {
     });
   }
 
-  static async getBookingStats(params: { userId: string; role: Role; }) {
+  static async getBookingStats(params: { userId: string; role: Role; startDate?: string | undefined; endDate?: string | undefined; }) {
     try {
-      const { userId, role } = params;
-
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-
-      const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+      const { userId, role, startDate, endDate } = params;
       const match: Record<string, any> = { isDeleted: false, };
 
       // Coordinator sees only their assigned bookings
       if (role === Role.COORDINATOR) {
-        if (!Types.ObjectId.isValid(userId)) {
-          throw new Error("Invalid coordinator ID");
-        }
+        if (!Types.ObjectId.isValid(userId)) { throw new Error("Invalid coordinator ID"); }
 
-        match["assignment.assignedCoordinatorId"] =
-          new Types.ObjectId(userId);
+        match["assignment.assignedCoordinatorId"] = new Types.ObjectId(userId);
       }
 
+      // Date filtering
+      if (startDate || endDate) {
+        match.createdAt = {};
 
-      const [bookingStats, paymentStats, revenueStats, todayBookings, thisMonthBookings,] = await Promise.all([
-        Booking.aggregate([{ $match: match }, { $group: { _id: "$status", count: { $sum: 1 }, }, },]),
-        Booking.aggregate([{ $match: match }, { $group: { _id: "$payment.status", count: { $sum: 1 }, }, },]),
+        if (startDate) {
+          const start = new Date(startDate);
+          start.setHours(0, 0, 0, 0);
+          match.createdAt.$gte = start;
+        }
+
+        if (endDate) {
+          const end = new Date(endDate);
+          end.setHours(23, 59, 59, 999);
+          match.createdAt.$lte = end;
+        }
+      }
+
+      if (
+        match.createdAt?.$gte &&
+        match.createdAt?.$lte &&
+        match.createdAt.$gte > match.createdAt.$lte
+      ) {
+        throw new Error("startDate cannot be greater than endDate");
+      }
+
+      const [bookingStats, paymentStats, revenueStats] = await Promise.all([
         Booking.aggregate([
-          { $match: match }, {
+          { $match: match },
+          {
             $group: {
-              _id: null,
-              totalRevenue: { $sum: { $cond: [{ $eq: ["$payment.status", "PAID"] }, "$pricing.grandTotal", 0,], }, },
-              refundedAmount: { $sum: "$payment.refundAmount", },
+              _id: "$status",
+              count: { $sum: 1 },
             },
           },
         ]),
 
-        Booking.countDocuments({ ...match, createdAt: { $gte: today }, }),
-        Booking.countDocuments({ ...match, createdAt: { $gte: monthStart }, }),
+        Booking.aggregate([
+          { $match: match },
+          {
+            $group: {
+              _id: "$payment.status",
+              count: { $sum: 1 },
+            },
+          },
+        ]),
+
+        Booking.aggregate([
+          { $match: match },
+          {
+            $group: {
+              _id: null,
+              totalRevenue: {
+                $sum: {
+                  $cond: [{ $eq: ["$payment.status", "PAID"] }, "$pricing.grandTotal", 0],
+                },
+              },
+
+              refundedAmount: {
+                $sum: { $ifNull: ["$payment.refundAmount", 0] },
+              },
+            },
+          },
+        ]),
       ]);
 
       const bookingMap = Object.fromEntries(bookingStats.map((item) => [item._id, item.count]));
@@ -1351,8 +1390,6 @@ export class BookingService {
         partialRefundPayments: paymentMap.PARTIAL_REFUND || 0,
         totalRevenue: revenueStats[0]?.totalRevenue || 0,
         refundedAmount: revenueStats[0]?.refundedAmount || 0,
-        todayBookings,
-        thisMonthBookings,
       };
     } catch (error: any) {
       throw new Error(`Booking stats fetch failed: ${error.message}`);

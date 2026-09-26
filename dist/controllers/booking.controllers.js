@@ -133,7 +133,13 @@ export const getBookingStats = async (req, res) => {
                 message: "Unauthorized",
             });
         }
-        const result = await BookingService.getBookingStats({ userId, role });
+        const { startDate, endDate } = req.query;
+        const result = await BookingService.getBookingStats({
+            userId,
+            role,
+            startDate: startDate,
+            endDate: endDate,
+        });
         return res.status(200).json({
             success: true,
             data: result,
