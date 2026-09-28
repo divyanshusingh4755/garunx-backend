@@ -1,5 +1,5 @@
 import { Schema, Types, model } from "mongoose";
-import { Caste, FamilyRelation, Gender, Gotra, MemberLifeStatus, } from "../types/enums.js";
+import { Caste, FamilyMemberSource, FamilyRelation, Gender, Gotra, MemberLifeStatus, } from "../types/enums.js";
 const familyMemberSchema = new Schema({
     ownerId: {
         type: Schema.Types.ObjectId,
@@ -19,7 +19,7 @@ const familyMemberSchema = new Schema({
     },
     source: {
         type: String,
-        enum: ["CUSTOMER_SELF", "COORDINATOR_BOOKING", "ADMIN_MANUAL", "SYSTEM_IMPORT",],
+        enum: Object.values(FamilyMemberSource),
         required: true,
     },
     sourceBookingId: {
@@ -158,11 +158,11 @@ const familyMemberSchema = new Schema({
     timestamps: true,
 });
 familyMemberSchema.pre("validate", function () {
-    if (this.source === "COORDINATOR_BOOKING" && !this.sourceBookingId) {
+    if (this.source === FamilyMemberSource.COORDINATOR_BOOKING && !this.sourceBookingId) {
         throw new Error("Booking ID is required when a family member is added by a coordinator");
     }
-    if (this.source !== "COORDINATOR_BOOKING" && this.sourceBookingId) {
-        throw new Error("Booking ID can only be provided for coordinator booking source");
+    if (this.source !== FamilyMemberSource.COORDINATOR_BOOKING && (this.sourceBookingId || this.sourceBookingReference)) {
+        throw new Error("Booking information can only be provided for coordinator booking source");
     }
     if (this.lifeStatus === MemberLifeStatus.ALIVE && this.dateOfDeath) {
         throw new Error("Date of death cannot be provided for an alive family member");
@@ -172,6 +172,9 @@ familyMemberSchema.pre("validate", function () {
     }
     if (this.dob && this.dateOfDeath && this.dateOfDeath < this.dob) {
         throw new Error("Date of death cannot be earlier than date of birth");
+    }
+    if (this.dob && this.dob.getTime() > Date.now()) {
+        throw new Error("Date of birth cannot be in the future");
     }
     if (this.fatherId && this.motherId && this.fatherId.equals(this.motherId)) {
         throw new Error("Father and mother cannot be the same family member");
@@ -198,5 +201,6 @@ familyMemberSchema.index({ ownerId: 1, isDeleted: 1, spouseIds: 1 });
 familyMemberSchema.index({ ownerId: 1, isDeleted: 1, fullName: 1 });
 familyMemberSchema.index({ ownerId: 1, isDeleted: 1, createdAt: -1 });
 familyMemberSchema.index({ sourceBookingId: 1, isDeleted: 1 });
+familyMemberSchema.index({ ownerId: 1, relation: 1 }, { unique: true, partialFilterExpression: { relation: FamilyRelation.SELF, isDeleted: false }, name: "unique_active_self_per_owner" });
 export const FamilyMember = model("FamilyMember", familyMemberSchema);
 //# sourceMappingURL=family-member.model.js.map

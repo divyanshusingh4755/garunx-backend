@@ -2,13 +2,12 @@ import { Schema, Types, model, type Document } from "mongoose";
 
 import {
   Caste,
+  FamilyMemberSource,
   FamilyRelation,
   Gender,
   Gotra,
   MemberLifeStatus,
 } from "../types/enums.js";
-
-export type FamilyMemberSource = "CUSTOMER_SELF" | "COORDINATOR_BOOKING" | "ADMIN_MANUAL" | "SYSTEM_IMPORT";
 
 export interface IFamilyMember extends Document {
   ownerId: Types.ObjectId;
@@ -66,7 +65,7 @@ const familyMemberSchema = new Schema<IFamilyMember>(
 
     source: {
       type: String,
-      enum: ["CUSTOMER_SELF", "COORDINATOR_BOOKING", "ADMIN_MANUAL", "SYSTEM_IMPORT",] satisfies FamilyMemberSource[],
+      enum: Object.values(FamilyMemberSource),
       required: true,
     },
 
@@ -232,12 +231,12 @@ const familyMemberSchema = new Schema<IFamilyMember>(
 );
 
 familyMemberSchema.pre("validate", function (): void {
-  if (this.source === "COORDINATOR_BOOKING" && !this.sourceBookingId) {
-    throw new Error("Booking ID is required when a family member is added by a coordinator",);
+  if (this.source === FamilyMemberSource.COORDINATOR_BOOKING && !this.sourceBookingId) {
+    throw new Error("Booking ID is required when a family member is added by a coordinator");
   }
 
-  if (this.source !== "COORDINATOR_BOOKING" && this.sourceBookingId) {
-    throw new Error("Booking ID can only be provided for coordinator booking source");
+  if (this.source !== FamilyMemberSource.COORDINATOR_BOOKING && (this.sourceBookingId || this.sourceBookingReference)) {
+    throw new Error("Booking information can only be provided for coordinator booking source");
   }
 
   if (this.lifeStatus === MemberLifeStatus.ALIVE && this.dateOfDeath) {
@@ -250,6 +249,10 @@ familyMemberSchema.pre("validate", function (): void {
 
   if (this.dob && this.dateOfDeath && this.dateOfDeath < this.dob) {
     throw new Error("Date of death cannot be earlier than date of birth");
+  }
+
+  if (this.dob && this.dob.getTime() > Date.now()) {
+    throw new Error("Date of birth cannot be in the future");
   }
 
   if (this.fatherId && this.motherId && this.fatherId.equals(this.motherId)) {
@@ -283,5 +286,7 @@ familyMemberSchema.index({ ownerId: 1, isDeleted: 1, spouseIds: 1 });
 familyMemberSchema.index({ ownerId: 1, isDeleted: 1, fullName: 1 });
 familyMemberSchema.index({ ownerId: 1, isDeleted: 1, createdAt: -1 });
 familyMemberSchema.index({ sourceBookingId: 1, isDeleted: 1 });
+familyMemberSchema.index({ ownerId: 1, relation: 1 }, { unique: true, partialFilterExpression: { relation: FamilyRelation.SELF, isDeleted: false }, name: "unique_active_self_per_owner" },
+);
 
 export const FamilyMember = model<IFamilyMember>("FamilyMember", familyMemberSchema,);

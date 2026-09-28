@@ -1,7 +1,7 @@
 import mongoose, { Types } from "mongoose";
 import { type IFamilyMember } from "../models/family-member.model.js";
 import { type FamilyTreeActivitySource } from "../models/family-tree-activity.model.js";
-import { FamilyEdgeType, FamilyRelation, Gender, MemberLifeStatus } from "../types/enums.js";
+import { FamilyEdgeType, FamilyLinkRelation, FamilyRelation, Gender, MemberLifeStatus } from "../types/enums.js";
 export interface GetFamilyTreeActivitiesQuery {
     action?: string;
     familyMemberId?: string;
@@ -33,13 +33,12 @@ export interface FamilyTreeActorContext {
 interface AddFamilyMemberPayload {
     fullName: string;
     relation: FamilyRelation;
+    relatedToMemberId?: string;
+    relationshipToMember?: FamilyLinkRelation;
     gender?: Gender;
     dob?: Date;
     lifeStatus?: MemberLifeStatus;
     dateOfDeath?: Date;
-    fatherId?: string | null;
-    motherId?: string | null;
-    spouseIds?: string[];
     nativeVillage?: string;
     state?: string;
     district?: string;
@@ -52,14 +51,10 @@ interface AddFamilyMemberPayload {
 }
 interface UpdateFamilyMemberPayload {
     fullName?: string;
-    relation?: FamilyRelation;
     gender?: Gender;
     dob?: Date | null;
     lifeStatus?: MemberLifeStatus;
     dateOfDeath?: Date | null;
-    fatherId?: string | null;
-    motherId?: string | null;
-    spouseIds?: string[];
     nativeVillage?: string;
     state?: string;
     district?: string;
@@ -80,20 +75,39 @@ interface FamilyTreeEdge {
     targetRelation?: FamilyRelation;
     label?: string;
 }
+interface LinkFamilyRelationshipPayload {
+    relatedToMemberId: string;
+    relationshipToMember: FamilyLinkRelation;
+}
+interface UnlinkFamilyRelationshipPayload {
+    relationshipToMember: FamilyLinkRelation;
+}
 declare class FamilyTreeService {
+    private static wouldCreateAncestorCycle;
+    private static createRelationshipLinkedActivity;
+    private static validateRelationshipLink;
+    private static linkFamilyRelationship;
+    private static unlinkFamilyRelationship;
     private static invalidateFamilyTreeCache;
     private static validateContext;
     private static shouldNotifyOwner;
-    private static getUniqueIds;
     private static escapeRegex;
     private static normalizeAuditValue;
     private static valuesAreEqual;
     private static buildChanges;
     private static createActivity;
-    private static verifyFamilyMemberIds;
-    private static validateParentRelationships;
     private static validateLifeStatus;
     private static populateMember;
+    static linkRelationship(context: FamilyTreeActorContext, familyMemberId: string, payload: LinkFamilyRelationshipPayload): Promise<(IFamilyMember & Required<{
+        _id: Types.ObjectId;
+    }> & {
+        __v: number;
+    }) | null>;
+    static unlinkRelationship(context: FamilyTreeActorContext, familyMemberId: string, relatedMemberId: string, payload: UnlinkFamilyRelationshipPayload): Promise<(IFamilyMember & Required<{
+        _id: Types.ObjectId;
+    }> & {
+        __v: number;
+    }) | null>;
     static addFamilyMember(context: FamilyTreeActorContext, payload: AddFamilyMemberPayload): Promise<(IFamilyMember & Required<{
         _id: Types.ObjectId;
     }> & {
@@ -126,13 +140,18 @@ declare class FamilyTreeService {
                     createdBy: Types.ObjectId;
                     updatedAt: Date;
                     updatedBy: Types.ObjectId | null | undefined;
-                    source: import("../models/family-member.model.js").FamilyMemberSource;
+                    source: import("../types/enums.js").FamilyMemberSource;
                     bookingId: Types.ObjectId | null | undefined;
                     bookingReference: string | null | undefined;
                 };
             };
         }[];
         edges: FamilyTreeEdge[];
+        selfMember: {
+            id: string;
+            fullName: string;
+            relation: FamilyRelation;
+        } | null;
         rootMembers: {
             id: string;
             fullName: string;
@@ -166,14 +185,14 @@ declare class FamilyTreeService {
             createdBy: Types.ObjectId;
             updatedAt: Date;
             updatedBy: Types.ObjectId | null | undefined;
-            source: import("../models/family-member.model.js").FamilyMemberSource;
+            source: import("../types/enums.js").FamilyMemberSource;
             bookingId: Types.ObjectId | null | undefined;
             bookingReference: string | null | undefined;
         };
         ownerId: Types.ObjectId;
         createdBy: Types.ObjectId;
         updatedBy?: Types.ObjectId | null;
-        source: import("../models/family-member.model.js").FamilyMemberSource;
+        source: import("../types/enums.js").FamilyMemberSource;
         sourceBookingId?: Types.ObjectId | null;
         sourceBookingReference?: string | null;
         isDeleted: boolean;

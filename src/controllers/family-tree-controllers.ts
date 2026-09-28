@@ -315,3 +315,55 @@ export const exportFamilyMembersCsv = async (req: Request, res: Response) => {
     });
   }
 };
+
+export const linkFamilyRelationship = async (req: Request, res: Response) => {
+  try {
+    const { authenticatedUser, access } = await resolveTreeAccess(req);
+    const context = buildActorContext(authenticatedUser, access);
+    const familyMemberId = req.params.id;
+    if (!familyMemberId || Array.isArray(familyMemberId)) {
+      throw new Error("Family member ID is required");
+    }
+
+    const familyMember = await FamilyTreeService.linkRelationship(context, familyMemberId, req.body);
+
+    return res.status(200).json({
+      success: true,
+      message: "Family relationship linked successfully",
+      familyMember
+    })
+  } catch (error: unknown) {
+    return res.status(getErrorStatusCode(error, 400)).json({
+      success: false,
+      message: getErrorMessage(error, "Failed to link family relationship")
+    })
+  }
+}
+
+export const unlinkFamilyRelationship = async (req: Request, res: Response) => {
+  try {
+    const { authenticatedUser, access } = await resolveTreeAccess(req);
+    const context = buildActorContext(authenticatedUser, access);
+    const familyMemberId = req.params.id;
+    const relatedMemberId = req.params.relatedMemberId;
+
+    if (!familyMemberId || !relatedMemberId || Array.isArray(familyMemberId) || Array.isArray(relatedMemberId)) {
+      throw new Error(
+        "Family member IDs are required"
+      );
+    }
+
+    const familyMember = await FamilyTreeService.unlinkRelationship(context, familyMemberId, relatedMemberId, req.body);
+
+    return res.status(200).json({
+      success: true,
+      message: "Family relationship unlinked successfully",
+      familyMember
+    })
+  } catch (error: unknown) {
+    return res.status(getErrorStatusCode(error, 400)).json({
+      success: false,
+      message: getErrorMessage(error, "Failed to unlink family relationship")
+    })
+  }
+}

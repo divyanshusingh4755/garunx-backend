@@ -63,6 +63,16 @@ export declare enum FamilyRelation {
     GUARDIAN = "GUARDIAN",
     OTHER = "OTHER"
 }
+export declare enum FamilyLinkRelation {
+    FATHER = "FATHER",
+    MOTHER = "MOTHER",
+    HUSBAND = "HUSBAND",
+    WIFE = "WIFE",
+    SON = "SON",
+    DAUGHTER = "DAUGHTER",
+    BROTHER = "BROTHER",
+    SISTER = "SISTER"
+}
 export declare enum FamilyEdgeType {
     PARENT = "PARENT",
     MARRIAGE = "MARRIAGE"

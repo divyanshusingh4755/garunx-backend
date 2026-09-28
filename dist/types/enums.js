@@ -70,6 +70,17 @@ export var FamilyRelation;
     FamilyRelation["GUARDIAN"] = "GUARDIAN";
     FamilyRelation["OTHER"] = "OTHER";
 })(FamilyRelation || (FamilyRelation = {}));
+export var FamilyLinkRelation;
+(function (FamilyLinkRelation) {
+    FamilyLinkRelation["FATHER"] = "FATHER";
+    FamilyLinkRelation["MOTHER"] = "MOTHER";
+    FamilyLinkRelation["HUSBAND"] = "HUSBAND";
+    FamilyLinkRelation["WIFE"] = "WIFE";
+    FamilyLinkRelation["SON"] = "SON";
+    FamilyLinkRelation["DAUGHTER"] = "DAUGHTER";
+    FamilyLinkRelation["BROTHER"] = "BROTHER";
+    FamilyLinkRelation["SISTER"] = "SISTER";
+})(FamilyLinkRelation || (FamilyLinkRelation = {}));
 export var FamilyEdgeType;
 (function (FamilyEdgeType) {
     FamilyEdgeType["PARENT"] = "PARENT";

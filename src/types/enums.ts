@@ -70,6 +70,17 @@ export enum FamilyRelation {
   OTHER = "OTHER",
 }
 
+export enum FamilyLinkRelation {
+  FATHER = "FATHER",
+  MOTHER = "MOTHER",
+  HUSBAND = "HUSBAND",
+  WIFE = "WIFE",
+  SON = "SON",
+  DAUGHTER = "DAUGHTER",
+  BROTHER = "BROTHER",
+  SISTER = "SISTER",
+}
+
 export enum FamilyEdgeType {
   PARENT = "PARENT",
   MARRIAGE = "MARRIAGE",

@@ -1,15 +1,323 @@
 import mongoose, { Types } from "mongoose";
 import { FamilyMember } from "../models/family-member.model.js";
 import { FamilyTreeActivity } from "../models/family-tree-activity.model.js";
-import { FamilyEdgeType, FamilyRelation, Gender, MemberLifeStatus } from "../types/enums.js";
+import { FamilyEdgeType, FamilyLinkRelation, FamilyRelation, Gender, MemberLifeStatus } from "../types/enums.js";
 import { OutboxService } from "./outbox.service.js";
 import { DOMAIN_EVENTS } from "../events/domain-events.js";
 import { RedisCacheService } from "./redis-cache.service.js";
 import { CacheKeys } from "../cache/cache-keys.js";
 import { CACHE_TTL_SECONDS } from "../cache/constants.js";
 const FAMILY_MEMBER_POPULATE_SELECT = "fullName relation gender dob lifeStatus dateOfDeath profileImage";
-const AUDITABLE_FIELDS = ["fullName", "relation", "gender", "dob", "lifeStatus", "dateOfDeath", "fatherId", "motherId", "spouseIds", "nativeVillage", "state", "district", "caste", "gotra", "designatedPandit", "visitors", "profileImage", "notes",];
+const AUDITABLE_FIELDS = ["fullName", "gender", "dob", "lifeStatus", "dateOfDeath", "nativeVillage", "state", "district", "caste", "gotra", "designatedPandit", "visitors", "profileImage", "notes",];
 class FamilyTreeService {
+    static async wouldCreateAncestorCycle(ownerId, childId, proposedParentId, session) {
+        const childIdString = childId.toString();
+        const visited = new Set();
+        const queue = [proposedParentId];
+        while (queue.length > 0) {
+            const currentId = queue.shift();
+            if (!currentId) {
+                continue;
+            }
+            const currentIdString = currentId.toString();
+            if (currentIdString === childIdString) {
+                return true;
+            }
+            if (visited.has(currentIdString)) {
+                continue;
+            }
+            visited.add(currentIdString);
+            const member = await FamilyMember.findOne({
+                _id: currentId,
+                ownerId: new Types.ObjectId(ownerId),
+            }).select("fatherId motherId").session(session);
+            if (!member) {
+                continue;
+            }
+            if (member.fatherId) {
+                queue.push(member.fatherId);
+            }
+            if (member.motherId) {
+                queue.push(member.motherId);
+            }
+        }
+        return false;
+    }
+    static async createRelationshipLinkedActivity(context, newMember, relatedMember, relationship, session) {
+        let graphField;
+        switch (relationship) {
+            case FamilyLinkRelation.FATHER:
+                graphField = "fatherId";
+                break;
+            case FamilyLinkRelation.MOTHER:
+                graphField = "motherId";
+                break;
+            case FamilyLinkRelation.SON:
+            case FamilyLinkRelation.DAUGHTER:
+                graphField = relatedMember.gender === Gender.MALE ? "fatherId" : "motherId";
+                break;
+            case FamilyLinkRelation.HUSBAND:
+            case FamilyLinkRelation.WIFE:
+                graphField = "spouseIds";
+                break;
+            case FamilyLinkRelation.BROTHER:
+            case FamilyLinkRelation.SISTER:
+                graphField = "parents";
+                break;
+            default:
+                throw new Error(`Unsupported family relationship: ${relationship}`);
+        }
+        await FamilyTreeService.createActivity(context, newMember._id, "RELATIONSHIP_LINKED", [
+            {
+                field: graphField,
+                oldValue: null,
+                newValue: {
+                    relatedMemberId: relatedMember._id.toString(),
+                    relatedMemberName: relatedMember.fullName,
+                    relationshipToMember: relationship,
+                },
+            },
+        ], session);
+    }
+    static validateRelationshipLink(newMember, relatedMember, relationship) {
+        if (newMember._id.toString() === relatedMember._id.toString()) {
+            throw new Error("A family member cannot be related to themselves");
+        }
+        switch (relationship) {
+            case FamilyLinkRelation.FATHER: {
+                if (newMember.gender !== undefined && newMember.gender !== Gender.MALE) {
+                    throw new Error("A father must have MALE gender");
+                }
+                break;
+            }
+            case FamilyLinkRelation.MOTHER: {
+                if (newMember.gender !== undefined && newMember.gender !== Gender.FEMALE) {
+                    throw new Error("A mother must have FEMALE gender");
+                }
+                break;
+            }
+            case FamilyLinkRelation.SON: {
+                if (newMember.gender !== undefined && newMember.gender !== Gender.MALE) {
+                    throw new Error("A son must have MALE gender");
+                }
+                if (relatedMember.gender !== Gender.MALE && relatedMember.gender !== Gender.FEMALE) {
+                    throw new Error(`${relatedMember.fullName} must have a gender before adding a son`);
+                }
+                break;
+            }
+            case FamilyLinkRelation.DAUGHTER: {
+                if (newMember.gender !== undefined && newMember.gender !== Gender.FEMALE) {
+                    throw new Error("A daughter must have FEMALE gender");
+                }
+                if (relatedMember.gender !== Gender.MALE && relatedMember.gender !== Gender.FEMALE) {
+                    throw new Error(`${relatedMember.fullName} must have a gender before adding a daughter`);
+                }
+                break;
+            }
+            case FamilyLinkRelation.HUSBAND: {
+                if (newMember.gender !== undefined && newMember.gender !== Gender.MALE) {
+                    throw new Error("A husband must have MALE gender");
+                }
+                break;
+            }
+            case FamilyLinkRelation.WIFE: {
+                if (newMember.gender !== undefined && newMember.gender !== Gender.FEMALE) {
+                    throw new Error("A wife must have FEMALE gender");
+                }
+                break;
+            }
+            case FamilyLinkRelation.BROTHER: {
+                if (newMember.gender !== undefined && newMember.gender !== Gender.MALE) {
+                    throw new Error("A brother must have MALE gender");
+                }
+                break;
+            }
+            case FamilyLinkRelation.SISTER: {
+                if (newMember.gender !== undefined && newMember.gender !== Gender.FEMALE) {
+                    throw new Error("A sister must have FEMALE gender");
+                }
+                break;
+            }
+            default:
+                throw new Error(`Unsupported family relationship: ${relationship}`);
+        }
+    }
+    static async linkFamilyRelationship(context, newMember, relatedMember, relationship, session) {
+        FamilyTreeService.validateRelationshipLink(newMember, relatedMember, relationship);
+        const actorId = new Types.ObjectId(context.actorId);
+        switch (relationship) {
+            case FamilyLinkRelation.FATHER: {
+                if (relatedMember.fatherId) {
+                    throw new Error(`${relatedMember.fullName} already has father linked`);
+                }
+                const createsCycle = await FamilyTreeService.wouldCreateAncestorCycle(context.ownerId, relatedMember._id, newMember._id, session);
+                if (createsCycle) {
+                    throw new Error("This father relationship would create a cycle in the family tree");
+                }
+                relatedMember.fatherId = newMember._id;
+                relatedMember.updatedBy = actorId;
+                await relatedMember.save({ session });
+                break;
+            }
+            case FamilyLinkRelation.MOTHER: {
+                if (relatedMember.motherId) {
+                    throw new Error(`${relatedMember.fullName} already has a mother linked`);
+                }
+                const createsCycle = await FamilyTreeService.wouldCreateAncestorCycle(context.ownerId, relatedMember._id, newMember._id, session);
+                if (createsCycle) {
+                    throw new Error("This mother relationship would create a cycle in the family tree");
+                }
+                relatedMember.motherId = newMember._id;
+                relatedMember.updatedBy = actorId;
+                await relatedMember.save({ session });
+                break;
+            }
+            case FamilyLinkRelation.SON:
+            case FamilyLinkRelation.DAUGHTER: {
+                if (relatedMember.gender === Gender.MALE && newMember.fatherId) {
+                    if (newMember.fatherId.toString() === relatedMember._id.toString()) {
+                        throw new Error(`${newMember.fullName} is already linked to ${relatedMember.fullName} as father`);
+                    }
+                    throw new Error(`${newMember.fullName} already has a different father linked`);
+                }
+                if (relatedMember.gender === Gender.FEMALE && newMember.motherId) {
+                    if (newMember.motherId.toString() === relatedMember._id.toString()) {
+                        throw new Error(`${newMember.fullName} is already linked to ${relatedMember.fullName} as mother`);
+                    }
+                    throw new Error(`${newMember.fullName} already has a different mother linked`);
+                }
+                const createsCycle = await FamilyTreeService.wouldCreateAncestorCycle(context.ownerId, newMember._id, relatedMember._id, session);
+                if (createsCycle) {
+                    throw new Error("This parent-child relationship would create a cycle in the family tree");
+                }
+                if (relatedMember.gender === Gender.MALE) {
+                    newMember.fatherId = relatedMember._id;
+                }
+                else if (relatedMember.gender === Gender.FEMALE) {
+                    newMember.motherId = relatedMember._id;
+                }
+                else {
+                    throw new Error(`Gender must be specified for ${relatedMember.fullName} before adding a son or daughter`);
+                }
+                newMember.updatedBy = actorId;
+                await newMember.save({ session });
+                break;
+            }
+            case FamilyLinkRelation.HUSBAND:
+            case FamilyLinkRelation.WIFE: {
+                const newMemberId = newMember._id.toString();
+                const relatedMemberId = relatedMember._id.toString();
+                const alreadyLinked = newMember.spouseIds.some((id) => id.toString() === relatedMemberId) || relatedMember.spouseIds.some((id) => id.toString() === newMemberId);
+                if (alreadyLinked) {
+                    throw new Error("These family members are already linked as spouses");
+                }
+                newMember.spouseIds.push(relatedMember._id);
+                relatedMember.spouseIds.push(newMember._id);
+                newMember.updatedBy = actorId;
+                relatedMember.updatedBy = actorId;
+                await newMember.save({ session });
+                await relatedMember.save({ session });
+                break;
+            }
+            case FamilyLinkRelation.BROTHER:
+            case FamilyLinkRelation.SISTER: {
+                if (!relatedMember.fatherId && !relatedMember.motherId) {
+                    throw new Error(`Cannot link sibling because ${relatedMember.fullName} has no parents linked`);
+                }
+                if (newMember.fatherId && relatedMember.fatherId && !newMember.fatherId.equals(relatedMember.fatherId)) {
+                    throw new Error(`${newMember.fullName} already has a different father linked`);
+                }
+                if (newMember.motherId && relatedMember.motherId && !newMember.motherId.equals(relatedMember.motherId)) {
+                    throw new Error(`${newMember.fullName} already has a different mother linked`);
+                }
+                if (relatedMember.fatherId) {
+                    const fatherCreatesCycle = await FamilyTreeService.wouldCreateAncestorCycle(context.ownerId, newMember._id, relatedMember.fatherId, session);
+                    if (fatherCreatesCycle) {
+                        throw new Error("Sibling relationship would create a cycle through the father");
+                    }
+                }
+                if (relatedMember.motherId) {
+                    const motherCreatesCycle = await FamilyTreeService.wouldCreateAncestorCycle(context.ownerId, newMember._id, relatedMember.motherId, session);
+                    if (motherCreatesCycle) {
+                        throw new Error("Sibling relationship would create a cycle through the mother");
+                    }
+                }
+                newMember.fatherId = relatedMember.fatherId ?? null;
+                newMember.motherId = relatedMember.motherId ?? null;
+                newMember.updatedBy = actorId;
+                await newMember.save({ session });
+                break;
+            }
+            default: {
+                throw new Error(`Unsupported family relationship: ${relationship}`);
+            }
+        }
+    }
+    static async unlinkFamilyRelationship(context, familyMember, relatedMember, relationship, session) {
+        const actorId = new Types.ObjectId(context.actorId);
+        switch (relationship) {
+            case FamilyLinkRelation.FATHER: {
+                if (!relatedMember.fatherId || relatedMember.fatherId.toString() !== familyMember._id.toString()) {
+                    throw new Error("The specified father relationship does not exist");
+                }
+                relatedMember.fatherId = null;
+                relatedMember.updatedBy = actorId;
+                await relatedMember.save({ session });
+                break;
+            }
+            case FamilyLinkRelation.MOTHER: {
+                if (!relatedMember.motherId || relatedMember.motherId.toString() !== familyMember._id.toString()) {
+                    throw new Error("The specified mother relationship does not exist");
+                }
+                relatedMember.motherId = null;
+                relatedMember.updatedBy = actorId;
+                await relatedMember.save({ session });
+                break;
+            }
+            case FamilyLinkRelation.SON:
+            case FamilyLinkRelation.DAUGHTER: {
+                const relatedMemberId = relatedMember._id.toString();
+                let relationshipRemoved = false;
+                if (familyMember.fatherId?.toString() === relatedMemberId) {
+                    familyMember.fatherId = null;
+                    relationshipRemoved = true;
+                }
+                else if (familyMember.motherId?.toString() === relatedMemberId) {
+                    familyMember.motherId = null;
+                    relationshipRemoved = true;
+                }
+                if (!relationshipRemoved) {
+                    throw new Error("The specified parent-child relationship does not exist");
+                }
+                familyMember.updatedBy = actorId;
+                await familyMember.save({ session });
+                break;
+            }
+            case FamilyLinkRelation.HUSBAND:
+            case FamilyLinkRelation.WIFE: {
+                const familyMemberId = familyMember._id.toString();
+                const relatedMemberId = relatedMember._id.toString();
+                const familyMemberHasSpouse = familyMember.spouseIds.some((id) => id.toString() === relatedMemberId);
+                const relatedMemberHasSpouse = relatedMember.spouseIds.some((id) => id.toString() === familyMemberId);
+                if (!familyMemberHasSpouse && !relatedMemberHasSpouse) {
+                    throw new Error("The specified spouse relationship does not exist");
+                }
+                familyMember.spouseIds = familyMember.spouseIds.filter((id) => id.toString() !== relatedMemberId);
+                relatedMember.spouseIds = relatedMember.spouseIds.filter((id) => id.toString() !== familyMemberId);
+                familyMember.updatedBy = actorId;
+                relatedMember.updatedBy = actorId;
+                await familyMember.save({ session });
+                await relatedMember.save({ session });
+                break;
+            }
+            case FamilyLinkRelation.BROTHER:
+            case FamilyLinkRelation.SISTER: {
+                throw new Error("Sibling relationships cannot be directly unlinked. Update the underlying parent relationship instead");
+            }
+            default:
+                throw new Error(`Unsupported family relationship: ${relationship}`);
+        }
+    }
     static async invalidateFamilyTreeCache(ownerId) {
         await Promise.all([
             RedisCacheService.delete(CacheKeys.familyTree(ownerId)),
@@ -30,9 +338,6 @@ class FamilyTreeService {
     }
     static shouldNotifyOwner(context) {
         return (context.actorId !== context.ownerId && (context.source === "COORDINATOR_BOOKING" || context.source === "ADMIN_MANUAL"));
-    }
-    static getUniqueIds(ids) {
-        return [...new Set(ids.filter((id) => Boolean(id)).map((id) => id.toString())),];
     }
     static escapeRegex(value) { return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); }
     static normalizeAuditValue(value) {
@@ -90,39 +395,6 @@ class FamilyTreeService {
             },
         ], { session });
     }
-    static async verifyFamilyMemberIds(ownerId, memberIds, session) {
-        const uniqueIds = FamilyTreeService.getUniqueIds(memberIds);
-        if (uniqueIds.length === 0) {
-            return;
-        }
-        const hasInvalidId = uniqueIds.some((id) => !Types.ObjectId.isValid(id));
-        if (hasInvalidId) {
-            throw new Error("One or more family member IDs are invalid");
-        }
-        const query = FamilyMember.countDocuments({
-            _id: { $in: uniqueIds.map((id) => new Types.ObjectId(id)) },
-            ownerId: new Types.ObjectId(ownerId),
-            isDeleted: false,
-        });
-        if (session) {
-            query.session(session);
-        }
-        const membersCount = await query;
-        if (membersCount !== uniqueIds.length) {
-            throw new Error("One or more selected family members do not belong to this family tree");
-        }
-    }
-    static validateParentRelationships(memberId, fatherId, motherId) {
-        if (fatherId && motherId && fatherId === motherId) {
-            throw new Error("Father and mother cannot be the same member");
-        }
-        if (memberId && fatherId === memberId) {
-            throw new Error("A family member cannot be their own father");
-        }
-        if (memberId && motherId === memberId) {
-            throw new Error("A family member cannot be their own mother");
-        }
-    }
     static validateLifeStatus(lifeStatus, dateOfDeath, dob) {
         if (lifeStatus === MemberLifeStatus.ALIVE && dateOfDeath) {
             throw new Error("Date of death cannot be provided for an alive member");
@@ -146,24 +418,152 @@ class FamilyTreeService {
             .populate("updatedBy", "fullName role userReference")
             .lean();
     }
+    static async linkRelationship(context, familyMemberId, payload) {
+        FamilyTreeService.validateContext(context);
+        if (!Types.ObjectId.isValid(familyMemberId)) {
+            throw new Error("Invalid family member ID");
+        }
+        if (!Types.ObjectId.isValid(payload.relatedToMemberId)) {
+            throw new Error("Invalid related family member ID");
+        }
+        if (familyMemberId === payload.relatedToMemberId) {
+            throw new Error("A family member cannot be related to themselves");
+        }
+        const session = await mongoose.startSession();
+        session.startTransaction();
+        try {
+            const ownerId = new Types.ObjectId(context.ownerId);
+            const familyMember = await FamilyMember.findOne({
+                _id: new Types.ObjectId(familyMemberId),
+                ownerId,
+                isDeleted: false
+            }).session(session);
+            if (!familyMember) {
+                throw new Error("Family member not found");
+            }
+            const relatedMember = await FamilyMember.findOne({
+                _id: new Types.ObjectId(payload.relatedToMemberId),
+                ownerId,
+                isDeleted: false
+            }).session(session);
+            if (!relatedMember) {
+                throw new Error("Related family member not found");
+            }
+            await FamilyTreeService.linkFamilyRelationship(context, familyMember, relatedMember, payload.relationshipToMember, session);
+            await FamilyTreeService.createRelationshipLinkedActivity(context, familyMember, relatedMember, payload.relationshipToMember, session);
+            await session.commitTransaction();
+            await FamilyTreeService.invalidateFamilyTreeCache(context.ownerId);
+            return FamilyTreeService.populateMember(context.ownerId, familyMember._id);
+        }
+        catch (error) {
+            await session.abortTransaction();
+            throw error;
+        }
+        finally {
+            await session.endSession();
+        }
+    }
+    static async unlinkRelationship(context, familyMemberId, relatedMemberId, payload) {
+        FamilyTreeService.validateContext(context);
+        if (!Types.ObjectId.isValid(familyMemberId)) {
+            throw new Error("Invalid family member ID");
+        }
+        if (!Types.ObjectId.isValid(relatedMemberId)) {
+            throw new Error("Invalid related member ID");
+        }
+        if (familyMemberId === relatedMemberId) {
+            throw new Error("A family cannot be related to themselves");
+        }
+        const session = await mongoose.startSession();
+        session.startTransaction();
+        try {
+            const ownerId = new Types.ObjectId(context.ownerId);
+            const familyMember = await FamilyMember.findOne({
+                _id: new Types.ObjectId(familyMemberId),
+                ownerId,
+                isDeleted: false,
+            }).session(session);
+            if (!familyMember) {
+                throw new Error("Family member not found");
+            }
+            const relatedMember = await FamilyMember.findOne({
+                _id: new Types.ObjectId(relatedMemberId),
+                ownerId,
+                isDeleted: false
+            }).session(session);
+            if (!relatedMember) {
+                throw new Error("Related family member not found");
+            }
+            await FamilyTreeService.unlinkFamilyRelationship(context, familyMember, relatedMember, payload.relationshipToMember, session);
+            await FamilyTreeService.createActivity(context, familyMember._id, "RELATIONSHIP_UNLINKED", [
+                {
+                    field: "relationship",
+                    oldValue: {
+                        relatedMemberId: relatedMember._id.toString(),
+                        relatedMemberName: relatedMember.fullName,
+                        relationshipToMember: payload.relationshipToMember,
+                    },
+                    newValue: null,
+                }
+            ], session);
+            await session.commitTransaction();
+            await FamilyTreeService.invalidateFamilyTreeCache(context.ownerId);
+            return FamilyTreeService.populateMember(context.ownerId, familyMember._id);
+        }
+        catch (error) {
+            await session.abortTransaction();
+            throw error;
+        }
+        finally {
+            await session.endSession();
+        }
+    }
     static async addFamilyMember(context, payload) {
         FamilyTreeService.validateContext(context);
         const session = await mongoose.startSession();
         session.startTransaction();
         try {
-            const { fullName, relation, gender, dob, lifeStatus = MemberLifeStatus.ALIVE, dateOfDeath, fatherId, motherId, spouseIds = [], nativeVillage, state, district, caste, gotra, designatedPandit, visitors = [], profileImage, notes } = payload;
-            FamilyTreeService.validateParentRelationships(null, fatherId, motherId);
+            const { fullName, relation, relatedToMemberId, relationshipToMember, gender, dob, lifeStatus = MemberLifeStatus.ALIVE, dateOfDeath, nativeVillage, state, district, caste, gotra, designatedPandit, visitors = [], profileImage, notes } = payload;
+            if (relation === FamilyRelation.SELF) {
+                if (relatedToMemberId || relationshipToMember) {
+                    throw new Error("SELF member cannot have a related family member");
+                }
+            }
+            else {
+                if (!relatedToMemberId || !relationshipToMember) {
+                    throw new Error("relatedToMemberId and relationshipToMember are required");
+                }
+            }
             FamilyTreeService.validateLifeStatus(lifeStatus, dateOfDeath, dob);
-            const uniqueSpouseIds = FamilyTreeService.getUniqueIds(spouseIds);
-            await FamilyTreeService.verifyFamilyMemberIds(context.ownerId, [fatherId, motherId, ...uniqueSpouseIds], session);
+            let relatedMember = null;
+            if (relatedToMemberId) {
+                relatedMember = await FamilyMember.findOne({
+                    _id: new Types.ObjectId(relatedToMemberId),
+                    ownerId: new Types.ObjectId(context.ownerId),
+                    isDeleted: false,
+                }).session(session);
+                if (!relatedMember) {
+                    throw new Error("Related family member not found or does not belong to this family tree");
+                }
+            }
+            if (relation === FamilyRelation.SELF) {
+                const existingSelf = await FamilyMember.exists({
+                    ownerId: new Types.ObjectId(context.ownerId),
+                    relation: FamilyRelation.SELF,
+                    isDeleted: false,
+                }).session(session);
+                if (existingSelf) {
+                    throw new Error("This family tree already has a SELF member");
+                }
+            }
             const memberData = {
                 ownerId: new Types.ObjectId(context.ownerId),
                 fullName,
                 relation,
                 lifeStatus,
-                fatherId: fatherId ? new Types.ObjectId(fatherId) : null,
-                motherId: motherId ? new Types.ObjectId(motherId) : null,
-                spouseIds: uniqueSpouseIds.map((id) => new Types.ObjectId(id)),
+                fatherId: null,
+                motherId: null,
+                spouseIds: [],
                 visitors,
                 createdBy: new Types.ObjectId(context.actorId),
                 updatedBy: new Types.ObjectId(context.actorId),
@@ -188,15 +588,9 @@ class FamilyTreeService {
             if (!familyMember) {
                 throw new Error("Failed to create family member");
             }
-            if (uniqueSpouseIds.length > 0) {
-                await FamilyMember.updateMany({
-                    _id: { $in: uniqueSpouseIds.map((id) => new Types.ObjectId(id)) },
-                    ownerId: new Types.ObjectId(context.ownerId),
-                    isDeleted: false,
-                }, {
-                    $addToSet: { spouseIds: familyMember._id },
-                    $set: { updatedBy: new Types.ObjectId(context.actorId) },
-                }, { session });
+            if (relatedMember && relationshipToMember) {
+                await FamilyTreeService.linkFamilyRelationship(context, familyMember, relatedMember, relationshipToMember, session);
+                await FamilyTreeService.createRelationshipLinkedActivity(context, familyMember, relatedMember, relationshipToMember, session);
             }
             await FamilyTreeService.createActivity(context, familyMember._id, "MEMBER_ADDED", [
                 {
@@ -204,10 +598,7 @@ class FamilyTreeService {
                     newValue: {
                         fullName,
                         relation,
-                        lifeStatus,
-                        fatherId: fatherId ?? null,
-                        motherId: motherId ?? null,
-                        spouseIds: uniqueSpouseIds,
+                        lifeStatus
                     },
                 },
             ], session);
@@ -317,9 +708,9 @@ class FamilyTreeService {
                         dob: member.dob,
                         lifeStatus: member.lifeStatus,
                         dateOfDeath: member.dateOfDeath,
-                        fatherId: member.fatherId?.toString() ?? null,
-                        motherId: member.motherId?.toString() ?? null,
-                        spouseIds: (member.spouseIds ?? []).map((spouseId) => spouseId.toString()),
+                        fatherId: member.fatherId && memberIdSet.has(member.fatherId.toString()) ? member.fatherId.toString() : null,
+                        motherId: member.motherId && memberIdSet.has(member.motherId.toString()) ? member.motherId.toString() : null,
+                        spouseIds: (member.spouseIds ?? []).map((spouseId) => spouseId.toString()).filter((spouseId) => memberIdSet.has(spouseId)),
                         nativeVillage: member.nativeVillage,
                         state: member.state,
                         district: member.district,
@@ -340,12 +731,28 @@ class FamilyTreeService {
                         },
                     },
                 }));
+                const selfMember = members.find((member) => member.relation === FamilyRelation.SELF);
                 const rootMembers = members.filter((member) => {
                     const hasValidFather = Boolean(member.fatherId && memberIdSet.has(member.fatherId.toString()));
                     const hasValidMother = Boolean(member.motherId && memberIdSet.has(member.motherId.toString()));
-                    return (!hasValidFather && !hasValidMother);
-                }).map((member) => ({ id: member._id.toString(), fullName: member.fullName, relation: member.relation }));
-                return { nodes, edges, rootMembers, totalMembers: nodes.length };
+                    return !hasValidFather && !hasValidMother;
+                }).map((member) => ({
+                    id: member._id.toString(),
+                    fullName: member.fullName,
+                    relation: member.relation,
+                }));
+                return {
+                    nodes,
+                    edges,
+                    selfMember: selfMember
+                        ? {
+                            id: selfMember._id.toString(),
+                            fullName: selfMember.fullName,
+                            relation: selfMember.relation,
+                        } : null,
+                    rootMembers,
+                    totalMembers: nodes.length,
+                };
             },
         });
     }
@@ -408,19 +815,32 @@ class FamilyTreeService {
         if (!Types.ObjectId.isValid(familyMemberId)) {
             throw new Error("Invalid family member ID");
         }
-        const familyMember = await FamilyMember.findOne({ _id: new Types.ObjectId(familyMemberId), ownerId: new Types.ObjectId(ownerId), isDeleted: false })
-            .populate({ path: "fatherId", select: FAMILY_MEMBER_POPULATE_SELECT, match: { isDeleted: false } })
-            .populate({ path: "motherId", select: FAMILY_MEMBER_POPULATE_SELECT, match: { isDeleted: false } })
-            .populate({ path: "spouseIds", select: FAMILY_MEMBER_POPULATE_SELECT, match: { isDeleted: false } })
-            .lean();
-        if (!familyMember) {
-            throw new Error("Family member not found");
-        }
         return RedisCacheService.getOrSet({
             key: CacheKeys.familyMemberDetail(ownerId, familyMemberId),
             ttlSeconds: CACHE_TTL_SECONDS.FAMILY_MEMBER_DETAIL,
             loader: async () => {
-                const children = await FamilyMember.find({ ownerId: new Types.ObjectId(ownerId), isDeleted: false, $or: [{ fatherId: familyMember._id }, { motherId: familyMember._id },] })
+                const familyMember = await FamilyMember.findOne({
+                    _id: new Types.ObjectId(familyMemberId),
+                    ownerId: new Types.ObjectId(ownerId),
+                    isDeleted: false,
+                })
+                    .populate({ path: "fatherId", select: FAMILY_MEMBER_POPULATE_SELECT, match: { isDeleted: false } })
+                    .populate({ path: "motherId", select: FAMILY_MEMBER_POPULATE_SELECT, match: { isDeleted: false } })
+                    .populate({ path: "spouseIds", select: FAMILY_MEMBER_POPULATE_SELECT, match: { isDeleted: false } })
+                    .populate("createdBy", "fullName role userReference")
+                    .populate("updatedBy", "fullName role userReference")
+                    .lean();
+                if (!familyMember) {
+                    throw new Error("Family member not found");
+                }
+                const children = await FamilyMember.find({
+                    ownerId: new Types.ObjectId(ownerId),
+                    isDeleted: false,
+                    $or: [
+                        { fatherId: familyMember._id },
+                        { motherId: familyMember._id },
+                    ],
+                })
                     .select("fullName relation gender dob lifeStatus dateOfDeath profileImage fatherId motherId")
                     .sort({ dob: 1, createdAt: 1 })
                     .lean();
@@ -452,17 +872,6 @@ class FamilyTreeService {
             if (!existingMember) {
                 throw new Error("Family member not found");
             }
-            const finalFatherId = payload.fatherId !== undefined ? payload.fatherId : (existingMember.fatherId?.toString() ?? null);
-            const finalMotherId = payload.motherId !== undefined ? payload.motherId : (existingMember.motherId?.toString() ?? null);
-            FamilyTreeService.validateParentRelationships(familyMemberId, finalFatherId, finalMotherId);
-            let uniqueSpouseIds;
-            if (payload.spouseIds !== undefined) {
-                uniqueSpouseIds = FamilyTreeService.getUniqueIds(payload.spouseIds);
-                if (uniqueSpouseIds.includes(familyMemberId)) {
-                    throw new Error("A family member cannot be their own spouse");
-                }
-            }
-            await FamilyTreeService.verifyFamilyMemberIds(context.ownerId, [finalFatherId, finalMotherId, ...(uniqueSpouseIds ?? [])], session);
             const finalLifeStatus = payload.lifeStatus ?? existingMember.lifeStatus;
             let finalDateOfDeath;
             if (payload.lifeStatus === MemberLifeStatus.ALIVE) {
@@ -477,7 +886,7 @@ class FamilyTreeService {
             const finalDob = payload.dob !== undefined ? payload.dob : existingMember.dob;
             FamilyTreeService.validateLifeStatus(finalLifeStatus, finalDateOfDeath, finalDob);
             const updateData = {};
-            const normalFields = ["fullName", "relation", "gender", "nativeVillage", "state", "district", "designatedPandit", "visitors", "profileImage", "notes",];
+            const normalFields = ["fullName", "gender", "nativeVillage", "state", "district", "designatedPandit", "visitors", "profileImage", "notes",];
             for (const field of normalFields) {
                 if (payload[field] !== undefined) {
                     updateData[field] = payload[field];
@@ -495,43 +904,11 @@ class FamilyTreeService {
             else if (payload.dateOfDeath !== undefined) {
                 updateData.dateOfDeath = payload.dateOfDeath ?? null;
             }
-            if (payload.fatherId !== undefined) {
-                updateData.fatherId = payload.fatherId ? new Types.ObjectId(payload.fatherId) : null;
-            }
-            if (payload.motherId !== undefined) {
-                updateData.motherId = payload.motherId ? new Types.ObjectId(payload.motherId) : null;
-            }
             if (payload.caste !== undefined) {
                 updateData.caste = payload.caste ?? null;
             }
             if (payload.gotra !== undefined) {
                 updateData.gotra = payload.gotra ?? null;
-            }
-            const previousSpouseIds = existingMember.spouseIds.map((spouseId) => spouseId.toString());
-            if (uniqueSpouseIds !== undefined) {
-                updateData.spouseIds = uniqueSpouseIds.map((id) => new Types.ObjectId(id));
-                const removedSpouseIds = previousSpouseIds.filter((spouseId) => !uniqueSpouseIds.includes(spouseId));
-                const addedSpouseIds = uniqueSpouseIds.filter((spouseId) => !previousSpouseIds.includes(spouseId));
-                if (removedSpouseIds.length > 0) {
-                    await FamilyMember.updateMany({
-                        _id: { $in: removedSpouseIds.map((id) => new Types.ObjectId(id)) },
-                        ownerId: new Types.ObjectId(context.ownerId),
-                        isDeleted: false,
-                    }, {
-                        $pull: { spouseIds: existingMember._id },
-                        $set: { updatedBy: new Types.ObjectId(context.actorId) },
-                    }, { session });
-                }
-                if (addedSpouseIds.length > 0) {
-                    await FamilyMember.updateMany({
-                        _id: { $in: addedSpouseIds.map((id) => new Types.ObjectId(id)) },
-                        ownerId: new Types.ObjectId(context.ownerId),
-                        isDeleted: false,
-                    }, {
-                        $addToSet: { spouseIds: existingMember._id },
-                        $set: { updatedBy: new Types.ObjectId(context.actorId) },
-                    }, { session });
-                }
             }
             const changes = FamilyTreeService.buildChanges(existingMember, updateData);
             if (changes.length === 0) {
@@ -584,6 +961,9 @@ class FamilyTreeService {
             const familyMember = await FamilyMember.findOne({ _id: new Types.ObjectId(familyMemberId), ownerId: new Types.ObjectId(context.ownerId), isDeleted: false }).session(session);
             if (!familyMember) {
                 throw new Error("Family member not found");
+            }
+            if (familyMember.relation === FamilyRelation.SELF) {
+                throw new Error("The SELF family member cannot be deleted");
             }
             // This is a soft delete. Keep relationship references intact so restoration can fully recover the tree. Read queries hide deleted related members.
             familyMember.isDeleted = true;
@@ -727,18 +1107,10 @@ class FamilyTreeService {
         };
     }
     static async restoreFamilyMember(context, familyMemberId, reason) {
-        const { ownerId, actorId, actorRole, source, bookingId, bookingReference } = context;
-        if (!Types.ObjectId.isValid(ownerId)) {
-            throw new Error("Invalid family tree owner ID");
-        }
-        if (!Types.ObjectId.isValid(actorId)) {
-            throw new Error("Invalid actor ID");
-        }
+        const { ownerId, actorId } = context;
+        FamilyTreeService.validateContext(context);
         if (!Types.ObjectId.isValid(familyMemberId)) {
             throw new Error("Invalid family member ID");
-        }
-        if (bookingId && !Types.ObjectId.isValid(bookingId)) {
-            throw new Error("Invalid booking ID");
         }
         const session = await mongoose.startSession();
         try {
@@ -830,9 +1202,10 @@ class FamilyTreeService {
         // IMPORTANT: ownerId is included in the query. Therefore even if a caller somehow provides another user's valid family-member ObjectId, that member cannot be exported.
         const members = await FamilyMember.find({ _id: { $in: memberObjectIds }, ownerId: ownerObjectId, isDeleted: false })
             .select(["fullName", "relation", "gender", "dob", "lifeStatus", "dateOfDeath", "fatherId", "motherId", "spouseIds", "nativeVillage", "state", "district", "caste", "gotra", "designatedPandit", "visitors", "profileImage", "notes", "source", "sourceBookingId", "sourceBookingReference", "createdBy", "updatedBy", "createdAt", "updatedAt",]
-            .join(" ")).populate({ path: "fatherId", select: "fullName relation" })
-            .populate({ path: "motherId", select: "fullName relation" })
-            .populate({ path: "spouseIds", select: "fullName relation" })
+            .join(" "))
+            .populate({ path: "fatherId", select: "fullName relation", match: { isDeleted: false } })
+            .populate({ path: "motherId", select: "fullName relation", match: { isDeleted: false } })
+            .populate({ path: "spouseIds", select: "fullName relation", match: { isDeleted: false } })
             .populate({ path: "createdBy", select: "fullName role userReference" })
             .populate({ path: "updatedBy", select: "fullName role userReference" })
             .lean();

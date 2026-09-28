@@ -9,4 +9,6 @@ export declare const getFamilyTreeActivities: (req: Request, res: Response) => P
 export declare const getFamilyMemberActivities: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
 export declare const restoreFamilyMember: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
 export declare const exportFamilyMembersCsv: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
+export declare const linkFamilyRelationship: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
+export declare const unlinkFamilyRelationship: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
 //# sourceMappingURL=family-tree-controllers.d.ts.map

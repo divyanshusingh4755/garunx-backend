@@ -1,6 +1,5 @@
 import { Types, type Document } from "mongoose";
-import { Caste, FamilyRelation, Gender, Gotra, MemberLifeStatus } from "../types/enums.js";
-export type FamilyMemberSource = "CUSTOMER_SELF" | "COORDINATOR_BOOKING" | "ADMIN_MANUAL" | "SYSTEM_IMPORT";
+import { Caste, FamilyMemberSource, FamilyRelation, Gender, Gotra, MemberLifeStatus } from "../types/enums.js";
 export interface IFamilyMember extends Document {
     ownerId: Types.ObjectId;
     createdBy: Types.ObjectId;

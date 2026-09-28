@@ -1,10 +1,10 @@
 import { Router } from "express";
 import { body, param, query } from "express-validator";
-import { addFamilyMember, deleteFamilyMember, exportFamilyMembersCsv, getFamilyMemberActivities, getFamilyMemberById, getFamilyMembers, getFamilyTree, getFamilyTreeActivities, restoreFamilyMember, updateFamilyMember } from "../controllers/family-tree-controllers.js";
+import { addFamilyMember, deleteFamilyMember, exportFamilyMembersCsv, getFamilyMemberActivities, getFamilyMemberById, getFamilyMembers, getFamilyTree, getFamilyTreeActivities, linkFamilyRelationship, restoreFamilyMember, unlinkFamilyRelationship, updateFamilyMember } from "../controllers/family-tree-controllers.js";
 import { authenticate } from "../middleware/authenticate.js";
 import { authorizeRoles } from "../middleware/authorizeRoles.js";
 import { validate } from "../utils/validate.js";
-import { Caste, FamilyRelation, Gender, Gotra, MemberLifeStatus } from "../types/enums.js";
+import { Caste, FamilyLinkRelation, FamilyRelation, Gender, Gotra, MemberLifeStatus } from "../types/enums.js";
 import { Role } from "../types/rbac.js";
 import { requireAdminPermission } from "../middleware/requireAdminPermission.js";
 import { requirePermission } from "../middleware/rbac.js";
@@ -20,10 +20,8 @@ const addFamilyMemberValidation = [
   body("dob").optional({ checkFalsy: true, }).isISO8601().withMessage("DOB must be a valid date").toDate(),
   body("lifeStatus").optional().isIn(Object.values(MemberLifeStatus)).withMessage("Invalid life status"),
   body("dateOfDeath").optional({ checkFalsy: true, }).isISO8601().withMessage("Date of death must be a valid date").toDate(),
-  body("fatherId").optional({ nullable: true, checkFalsy: true, }).isMongoId().withMessage("Invalid father ID"),
-  body("motherId").optional({ nullable: true, checkFalsy: true, }).isMongoId().withMessage("Invalid mother ID"),
-  body("spouseIds").optional().isArray().withMessage("Spouse IDs must be an array"),
-  body("spouseIds.*").optional().isMongoId().withMessage("Invalid spouse ID"),
+  body("relatedToMemberId").optional({ nullable: true, checkFalsy: true }).isMongoId().withMessage("Invalid related family member ID"),
+  body("relationshipToMember").optional({ nullable: true, checkFalsy: true }).isIn(Object.values(FamilyLinkRelation)).withMessage("Invalid relationship to family member"),
   body("nativeVillage").optional().isString().withMessage("Native village must be a string").trim().isLength({ max: 120, }).withMessage("Native village cannot exceed 120 characters"),
   body("state").optional().isString().withMessage("State must be a string").trim().isLength({ max: 120, }).withMessage("State cannot exceed 120 characters"),
   body("district").optional().isString().withMessage("District must be a string").trim().isLength({ max: 120, }).withMessage("District cannot exceed 120 characters"),
@@ -44,12 +42,27 @@ const addFamilyMemberValidation = [
   }),
 
   body().custom((value) => {
-    if (value.fatherId && value.motherId && value.fatherId === value.motherId) { throw new Error("Father and mother cannot be the same member"); }
-    if (value.lifeStatus === MemberLifeStatus.ALIVE && value.dateOfDeath) { throw new Error("Date of death cannot be provided for an alive member"); }
-    if (Array.isArray(value.spouseIds)) {
-      const uniqueSpouseIds = new Set(value.spouseIds);
-      if (uniqueSpouseIds.size !== value.spouseIds.length) { throw new Error("Duplicate spouse IDs are not allowed"); }
+    const isSelf = value.relation === FamilyRelation.SELF;
+    if (isSelf) {
+      if (value.relatedToMemberId) {
+        throw new Error("relatedToMemberId cannot be provided when adding SELF")
+      }
+
+      if (value.relationshipToMember) {
+        throw new Error("relationshipToMember cannot be provided when adding SELF")
+      }
+
+      return
     }
+
+    if (!value.relatedToMemberId) {
+      throw new Error("relatedToMemberId is required when adding a family member")
+    }
+
+    if (!value.relationshipToMember) {
+      throw new Error("relationshipToMember is required when adding a family member")
+    }
+
     return true;
   }),
   validate,
@@ -62,7 +75,7 @@ const updateFamilyMemberValidation = [
       throw new Error("Request body must be an object");
     }
 
-    const allowedFields = ["fullName", "relation", "gender", "dob", "lifeStatus", "dateOfDeath", "fatherId", "motherId", "spouseIds", "nativeVillage", "state", "district", "caste", "gotra", "designatedPandit", "visitors", "profileImage", "notes"];
+    const allowedFields = ["fullName", "gender", "dob", "lifeStatus", "dateOfDeath", "nativeVillage", "state", "district", "caste", "gotra", "designatedPandit", "visitors", "profileImage", "notes"];
     const suppliedFields = Object.keys(value);
 
     if (suppliedFields.length === 0) {
@@ -77,15 +90,10 @@ const updateFamilyMemberValidation = [
   }),
 
   body("fullName").optional().isString().withMessage("Full name must be a string").trim().isLength({ min: 2, max: 120 }).withMessage("Full name must be between 2 and 120 characters"),
-  body("relation").optional().isIn(Object.values(FamilyRelation)).withMessage("Invalid family relation"),
   body("gender").optional().isIn(Object.values(Gender)).withMessage("Invalid gender"),
   body("dob").optional({ nullable: true, checkFalsy: true, }).isISO8601().withMessage("DOB must be a valid date").toDate(),
   body("lifeStatus").optional().isIn(Object.values(MemberLifeStatus)).withMessage("Invalid life status"),
   body("dateOfDeath").optional({ nullable: true, checkFalsy: true, }).isISO8601().withMessage("Date of death must be a valid date").toDate(),
-  body("fatherId").optional({ nullable: true, checkFalsy: true, }).isMongoId().withMessage("Invalid father ID"),
-  body("motherId").optional({ nullable: true, checkFalsy: true, }).isMongoId().withMessage("Invalid mother ID"),
-  body("spouseIds").optional().isArray().withMessage("Spouse IDs must be an array"),
-  body("spouseIds.*").optional().isMongoId().withMessage("Invalid spouse ID"),
   body("nativeVillage").optional().isString().withMessage("Native village must be a string").trim().isLength({ max: 120 }).withMessage("Native village cannot exceed 120 characters"),
   body("state").optional().isString().withMessage("State must be a string").trim().isLength({ max: 120 }).withMessage("State cannot exceed 120 characters"),
   body("district").optional().isString().withMessage("District must be a string").trim().isLength({ max: 120 }).withMessage("District cannot exceed 120 characters"),
@@ -107,20 +115,8 @@ const updateFamilyMemberValidation = [
   }),
 
   body().custom((value) => {
-    if (value.fatherId && value.motherId && value.fatherId === value.motherId) {
-      throw new Error("Father and mother cannot be the same member");
-    }
-
     if (value.lifeStatus === MemberLifeStatus.ALIVE && value.dateOfDeath) {
       throw new Error("Date of death cannot be provided for an alive member");
-    }
-
-    if (Array.isArray(value.spouseIds)) {
-      const uniqueSpouseIds = new Set(value.spouseIds);
-
-      if (uniqueSpouseIds.size !== value.spouseIds.length) {
-        throw new Error("Duplicate spouse IDs are not allowed");
-      }
     }
 
     return true;
@@ -194,6 +190,20 @@ const exportFamilyMembersValidation = [
   validate,
 ];
 
+const linkFamilyRelationshipValidation = [
+  param("id").notEmpty().withMessage("Family member ID is required").isMongoId().withMessage("Invalid family member ID"),
+  body("relatedToMemberId").notEmpty().withMessage("Related family member ID is required").isMongoId().withMessage("Invalid related family member ID"),
+  body("relationshipToMember").notEmpty().withMessage("Relationship is required").isIn(Object.values(FamilyLinkRelation)).withMessage("Invalid relationship"),
+  validate
+]
+
+const unlinkFamilyRelationshipValidation = [
+  param("id").notEmpty().withMessage("Family member ID is required").isMongoId().withMessage("Invalid family member ID"),
+  param("relatedMemberId").notEmpty().withMessage("Related family member ID is required").isMongoId().withMessage("Invalid related family member ID"),
+  body("relationshipToMember").notEmpty().withMessage("Relationship is required").isIn(Object.values(FamilyLinkRelation)).withMessage("Invalid relationship"),
+  validate,
+];
+
 router.use(authenticate);
 
 // AUTHENTICATED USER - OWN FAMILY TREE
@@ -207,13 +217,16 @@ router.post("/export", authorizeRoles(Role.USER), exportFamilyMembersValidation,
 // More specific member activity route first.
 router.get("/get-member/:id/activities", authorizeRoles(Role.USER), getFamilyMemberActivitiesValidation, getFamilyMemberActivities);
 router.get("/get-member/:id", authorizeRoles(Role.USER), familyMemberIdValidation, getFamilyMemberById);
+router.post("/family-members/:id/relationships", authenticate, authorizeRoles(Role.USER), linkFamilyRelationshipValidation, linkFamilyRelationship);
 router.patch("/update-member/:id", authorizeRoles(Role.USER), updateFamilyMemberValidation, updateFamilyMember);
 router.patch("/restore-member/:id", authorizeRoles(Role.USER), restoreFamilyMemberValidation, restoreFamilyMember);
 router.delete("/delete-member/:id", authorizeRoles(Role.USER), deleteFamilyMemberValidation, deleteFamilyMember);
+router.delete("/family-members/:id/relationships/:relatedMemberId", authenticate, authorizeRoles(Role.USER), unlinkFamilyRelationshipValidation, unlinkFamilyRelationship);
 
 // ADMIN / COORDINATOR - USER FAMILY TREE
 router.post("/users/:ownerId/add-member", authorizeRoles(Role.ADMIN, Role.COORDINATOR), requireAdminPermission("family_tree.create_any"), familyTreeOwnerIdValidation, addFamilyMemberValidation, addFamilyMember);
 router.post("/users/:ownerId/export", authorizeRoles(Role.ADMIN, Role.COORDINATOR), requireAdminPermission("family_tree.read_any"), familyTreeOwnerIdValidation, exportFamilyMembersValidation, exportFamilyMembersCsv);
+router.post("/users/:ownerId/family-members/:id/relationships", authenticate, authorizeRoles(Role.ADMIN, Role.COORDINATOR), linkFamilyRelationshipValidation, linkFamilyRelationship,);
 router.get("/users/:ownerId/get-family-tree", authorizeRoles(Role.ADMIN, Role.COORDINATOR), requireAdminPermission("family_tree.read_any"), familyTreeOwnerIdValidation, getFamilyTree);
 router.get("/users/:ownerId/get-members", authorizeRoles(Role.ADMIN, Role.COORDINATOR), requireAdminPermission("family_tree.read_any"), familyTreeOwnerIdValidation, getFamilyMembersValidation, getFamilyMembers);
 router.get("/users/:ownerId/activities", authorizeRoles(Role.ADMIN, Role.COORDINATOR), requireAdminPermission("family_tree.read_any"), familyTreeOwnerIdValidation, getFamilyTreeActivitiesValidation, getFamilyTreeActivities);
@@ -225,5 +238,6 @@ router.get("/users/:ownerId/get-member/:id", authorizeRoles(Role.ADMIN, Role.COO
 router.patch("/users/:ownerId/update-member/:id", authorizeRoles(Role.ADMIN, Role.COORDINATOR), requireAdminPermission("family_tree.update_any"), familyTreeOwnerIdValidation, updateFamilyMemberValidation, updateFamilyMember);
 router.patch("/users/:ownerId/restore-member/:id", authorizeRoles(Role.ADMIN), requirePermission("family_tree.restore_any"), familyTreeOwnerIdValidation, restoreFamilyMemberValidation, restoreFamilyMember);
 router.delete("/users/:ownerId/delete-member/:id", authorizeRoles(Role.ADMIN, Role.COORDINATOR), requireAdminPermission("family_tree.delete_any"), familyTreeOwnerIdValidation, deleteFamilyMemberValidation, deleteFamilyMember);
+router.delete("/users/:ownerId/family-members/:id/relationships/:relatedMemberId", authenticate, authorizeRoles(Role.ADMIN, Role.COORDINATOR), unlinkFamilyRelationshipValidation, unlinkFamilyRelationship,);
 
 export default router;
