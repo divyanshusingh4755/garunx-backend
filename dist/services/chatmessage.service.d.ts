@@ -25,6 +25,14 @@ export declare class ChatMessageService {
         nextCursor: string | null;
         hasMore: boolean;
     }>;
+    static getUnreadCountByBookingId(params: {
+        bookingId: string;
+        userId: string;
+    }): Promise<{
+        bookingId: string;
+        conversationId: string;
+        unreadCount: number;
+    }>;
     static getUnreadCount(params: {
         conversationId: string;
         userId: string;

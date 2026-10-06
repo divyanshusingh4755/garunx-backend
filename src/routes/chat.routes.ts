@@ -3,7 +3,7 @@ import { body, param, query } from "express-validator";
 import { validate } from "../utils/validate.js";
 import { authenticate } from "../middleware/authenticate.js";
 import { getByBookingId, getById, markAsRead } from "../controllers/chatconversation.controllers.js";
-import { getMessages, getUnreadCount, sendMessage, uploadChatImages } from "../controllers/chatmessage.controller.js";
+import { getMessages, getUnreadCount, sendMessage, uploadChatImages, getUnreadCountByBookingId } from "../controllers/chatmessage.controller.js";
 import { ChatMessageType } from "../models/chatmessage.model.js";
 import { chatImageUpload } from "../middleware/chatImageUpload.js";
 import { requireActiveChatParticipant } from "../middleware/chatParticipant.js";
@@ -77,6 +77,7 @@ router.post("/conversation/:conversationId/images", authenticate, conversationId
 // CONVERSATION - READ / UNREAD
 router.patch("/conversation/:conversationId/read", authenticate, markAsReadValidation, markAsRead);
 router.get("/conversation/:conversationId/unread-count", authenticate, conversationIdValidation, getUnreadCount);
+router.get("/booking/:bookingId/unread-count", authenticate, bookingIdValidation, getUnreadCountByBookingId);
 
 // GENERIC CONVERSATION DETAIL
 // Keep this after the more specific /conversation/:conversationId/... routes.

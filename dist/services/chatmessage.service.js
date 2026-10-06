@@ -23,6 +23,7 @@ export class ChatMessageService {
                 conversationId: params.conversationId,
                 messageId: params.messageId,
                 senderId: params.senderId,
+                bookingId: params.bookingId,
                 title: "New message",
                 message: this.buildPushPreview({ type: params.type, ...(params.text && { text: params.text, }), imageCount: params.imageCount, }),
             });
@@ -165,6 +166,7 @@ export class ChatMessageService {
                 conversationId: conversation._id.toString(),
                 messageId: message._id.toString(),
                 senderId,
+                bookingId: conversation.bookingId.toString(),
                 type,
                 ...(normalizedText && { text: normalizedText, }),
                 imageCount: normalizedImages.length,
@@ -223,6 +225,22 @@ export class ChatMessageService {
             return toChatMessageSocketDto(message, { replyMessage, });
         });
         return { messages: formattedMessages, nextCursor, hasMore, };
+    }
+    static async getUnreadCountByBookingId(params) {
+        const { bookingId, userId } = params;
+        if (!Types.ObjectId.isValid(bookingId)) {
+            throw new Error("Invalid booking ID");
+        }
+        if (!Types.ObjectId.isValid(userId)) {
+            throw new Error("Invalid user ID");
+        }
+        const conversation = await ChatConversationService.getByBookingId({ bookingId, requestedBy: userId });
+        const unreadCount = await this.getUnreadCount({ conversationId: conversation._id.toString(), userId });
+        return {
+            bookingId: conversation.bookingId.toString(),
+            conversationId: conversation._id.toString(),
+            unreadCount,
+        };
     }
     static async getUnreadCount(params) {
         const { conversationId, userId, } = params;

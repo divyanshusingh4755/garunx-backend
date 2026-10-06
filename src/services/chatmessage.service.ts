@@ -27,13 +27,14 @@ export class ChatMessageService {
     return "You received a new message";
   }
 
-  private static async enqueuePushSafely(params: { recipientId: string; conversationId: string; messageId: string; senderId: string; type: ChatMessageType; text?: string; imageCount: number; }): Promise<void> {
+  private static async enqueuePushSafely(params: { recipientId: string; conversationId: string; messageId: string; senderId: string; bookingId: string; type: ChatMessageType; text?: string; imageCount: number; }): Promise<void> {
     try {
       await ChatPushQueueService.enqueue({
         recipientId: params.recipientId,
         conversationId: params.conversationId,
         messageId: params.messageId,
         senderId: params.senderId,
+        bookingId: params.bookingId,
         title: "New message",
         message: this.buildPushPreview({ type: params.type, ...(params.text && { text: params.text, }), imageCount: params.imageCount, }),
       });
@@ -160,6 +161,7 @@ export class ChatMessageService {
         conversationId: conversation._id.toString(),
         messageId: message._id.toString(),
         senderId,
+        bookingId: conversation.bookingId.toString(),
         type,
         ...(normalizedText && { text: normalizedText, }),
         imageCount: normalizedImages.length,
@@ -223,6 +225,23 @@ export class ChatMessageService {
     );
 
     return { messages: formattedMessages, nextCursor, hasMore, };
+  }
+
+  static async getUnreadCountByBookingId(params: { bookingId: string; userId: string; }) {
+    const { bookingId, userId } = params;
+
+    if (!Types.ObjectId.isValid(bookingId)) { throw new Error("Invalid booking ID"); }
+
+    if (!Types.ObjectId.isValid(userId)) { throw new Error("Invalid user ID"); }
+
+    const conversation = await ChatConversationService.getByBookingId({ bookingId, requestedBy: userId });
+    const unreadCount = await this.getUnreadCount({ conversationId: conversation._id.toString(), userId });
+
+    return {
+      bookingId: conversation.bookingId.toString(),
+      conversationId: conversation._id.toString(),
+      unreadCount,
+    };
   }
 
   static async getUnreadCount(params: { conversationId: string; userId: string; }) {

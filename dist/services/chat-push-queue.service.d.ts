@@ -6,6 +6,7 @@ export declare class ChatPushQueueService {
         senderId: string;
         title: string;
         message: string;
+        bookingId: string;
     }): Promise<import("bullmq").Job<import("../queues/notification-chat-push.queue.js").ChatPushJobData, any, string>>;
 }
 //# sourceMappingURL=chat-push-queue.service.d.ts.map

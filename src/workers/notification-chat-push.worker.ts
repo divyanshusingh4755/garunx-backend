@@ -6,14 +6,14 @@ import { NotificationDeviceService } from "../services/notification-device.servi
 
 export const notificationChatPushWorker = new Worker<ChatPushJobData>(
     NOTIFICATION_QUEUE_NAMES.CHAT_PUSH, async (job) => {
-        const { recipientId, conversationId, messageId, senderId, title, message } = job.data;
+        const { recipientId, conversationId, messageId, senderId, title, message, bookingId } = job.data;
 
         // Chat push intentionally bypasses the persistent Notification collection. ChatMessage + ChatConversation already own the canonical unread/read/delivery state.
         return NotificationDeviceService.sendToUser({
             userId: recipientId,
             title,
             message,
-            data: { type: "CHAT_MESSAGE", conversationId, messageId, senderId },
+            data: { type: "CHAT_MESSAGE", conversationId, messageId, senderId, bookingId },
         });
     }, { connection: redisWorkerConnection, concurrency: 20 },
 );

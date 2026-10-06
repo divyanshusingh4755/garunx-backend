@@ -9,6 +9,7 @@ export interface ChatPushJobData {
     senderId: string;
     title: string;
     message: string;
+    bookingId: string;
 }
 
 export const notificationChatPushQueue = new Queue<ChatPushJobData>(

@@ -1,4 +1,4 @@
-import { model, Schema, } from "mongoose";
+import { model, Schema } from "mongoose";
 export var ChatMessageType;
 (function (ChatMessageType) {
     ChatMessageType["TEXT"] = "TEXT";

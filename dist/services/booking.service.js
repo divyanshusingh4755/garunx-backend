@@ -3994,54 +3994,140 @@ export class BookingService {
         const bookings = await Booking.find({
             isDeleted: false,
             "payment.status": "PAID",
-            // Only bookings that still don't have a successful assignment
+            // Only paid bookings that never obtained a successful coordinator
             status: { $in: ["CONFIRMED", "ASSIGNMENT_PENDING"] },
             $or: [
                 {
                     scheduledAt: { $lte: now },
-                    "assignment.pendingReschedule": { $exists: false }
+                    "assignment.pendingReschedule": { $exists: false },
                 },
                 {
-                    "assignment.pendingReschedule.requestedScheduledAt": { $lte: now }
-                }
-            ]
-        });
-        const result = { processed: 0, expiredBookings: 0, expiredRequests: 0 };
-        for (const booking of bookings) {
+                    "assignment.pendingReschedule.requestedScheduledAt": { $lte: now },
+                },
+            ],
+        }).select("_id");
+        const result = {
+            processed: 0,
+            expiredBookings: 0,
+            expiredRequests: 0,
+            refundedBookings: 0,
+            refundedAmount: 0,
+            failed: 0,
+        };
+        for (const candidate of bookings) {
+            const session = await mongoose.startSession();
             try {
-                if (!booking.assignment) {
-                    continue;
-                }
-                const currentRound = booking.assignment.currentRound ?? 1;
-                const pendingReschedule = booking.assignment.pendingReschedule;
-                const targetScheduledAt = pendingReschedule?.requestedAt ?? booking.scheduledAt;
-                if (!targetScheduledAt) {
-                    continue;
-                }
-                ;
-                // Defensive check
-                if (targetScheduledAt > now) {
-                    continue;
-                }
-                // Expire every still pending coordinator request belonging to the active assignment round.
-                for (const request of booking.assignment.requests ?? []) {
-                    if (request.status === "PENDING" && (request.assignmentRound ?? 1) === currentRound) {
-                        request.status = "EXPIRED";
-                        request.respondedAt = now;
-                        result.expiredRequests += 1;
+                let expiredRequests = 0;
+                let refundedAmount = 0;
+                let didExpire = false;
+                await session.withTransaction(async () => {
+                    // Reload inside transaction. This is important because the booking may have changed between the initial query and this transaction.
+                    const booking = await Booking.findOne({
+                        _id: candidate._id,
+                        isDeleted: false,
+                        "payment.status": "PAID",
+                        status: { $in: ["CONFIRMED", "ASSIGNMENT_PENDING"] },
+                    }).session(session);
+                    if (!booking || !booking.assignment) {
+                        return;
                     }
+                    const currentNow = new Date();
+                    const currentRound = booking.assignment.currentRound ?? 1;
+                    const pendingReschedule = booking.assignment.pendingReschedule;
+                    const targetScheduledAt = pendingReschedule?.requestedScheduledAt ?? booking.scheduledAt;
+                    if (!targetScheduledAt) {
+                        return;
+                    }
+                    // Another cron/request may have changed the schedule. Never expire a future booking.
+                    if (targetScheduledAt > currentNow) {
+                        return;
+                    }
+                    // Extra defensive protection: this flow is only for bookings that NEVER successfully obtained a coordinator.
+                    if (booking.assignment.assignedCoordinatorId) {
+                        return;
+                    }
+                    // Expire outstanding coordinator requests.
+                    for (const request of booking.assignment.requests ?? []) {
+                        if (request.status === "PENDING" && (request.assignmentRound ?? 1) === currentRound) {
+                            request.status = "EXPIRED";
+                            request.respondedAt = currentNow;
+                            expiredRequests += 1;
+                        }
+                    }
+                    if (!booking.userId) {
+                        throw new Error("Booking user not found for automatic refund");
+                    }
+                    const alreadyRefunded = booking.payment.refundAmount ?? 0;
+                    const refundableAmount = Math.max(0, booking.pricing.grandTotal - alreadyRefunded);
+                    // The refund ID is also used by WalletService for refund idempotency.
+                    const refundReference = `AUTO-EXP-${booking._id.toString()}`;
+                    if (refundableAmount > 0) {
+                        const walletTransaction = await WalletService.creditBookingRefund({
+                            userId: booking.userId,
+                            bookingId: booking._id,
+                            refundId: refundReference,
+                            amount: refundableAmount,
+                            reason: "Automatic refund: no coordinator was available before the scheduled service time",
+                            session,
+                        });
+                        booking.payment.refundAmount = alreadyRefunded + refundableAmount;
+                        booking.payment.refundedAt = currentNow;
+                        booking.payment.refunds ??= [];
+                        booking.payment.refunds.push({
+                            refundId: refundReference,
+                            amount: refundableAmount,
+                            reason: "Automatic refund: no coordinator was available before the scheduled service time",
+                            destination: "WALLET",
+                            walletTransactionId: walletTransaction._id,
+                            refundedAt: currentNow,
+                        });
+                        refundedAmount = refundableAmount;
+                    }
+                    // Full remaining amount has been refunded.
+                    booking.payment.status = "REFUNDED";
+                    // Booking itself is expired.
+                    booking.status = "EXPIRED";
+                    await booking.save({ session });
+                    // Emit the same refund domain event used by the normal refund flow.
+                    await OutboxService.createEvent({
+                        eventId: `PAYMENT.REFUNDED:${booking._id.toString()}:${refundReference}`,
+                        eventType: DOMAIN_EVENTS.PAYMENT_REFUNDED,
+                        aggregateType: "BOOKING",
+                        aggregateId: booking._id.toString(),
+                        payload: {
+                            bookingId: booking._id.toString(),
+                            bookingReference: booking.bookingReference,
+                            userId: booking.userId.toString(),
+                            refundId: refundReference,
+                            refundedAmount: refundableAmount,
+                            totalRefunded: booking.payment.refundAmount ?? 0,
+                            remainingAmount: 0,
+                            paymentStatus: "REFUNDED",
+                            refundDestination: "WALLET",
+                            reason: "Automatic refund: no coordinator was available before the scheduled service time",
+                        },
+                        session,
+                    });
+                    didExpire = true;
+                });
+                if (!didExpire) {
+                    continue;
                 }
-                // Booking never obtained a coordinator before its scheduled service time
-                booking.status = "EXPIRED";
-                // Important
-                // Don't set booking.assignment.status = "EXPIRED" unless EXPIRED actually exists in your assignment status schema/type
-                await booking.save();
-                await this.invalidateBookingCache(booking._id.toString());
+                await this.invalidateBookingCache(candidate._id.toString());
                 result.processed += 1;
                 result.expiredBookings += 1;
+                result.expiredRequests += expiredRequests;
+                if (refundedAmount > 0) {
+                    result.refundedBookings += 1;
+                    result.refundedAmount += refundedAmount;
+                }
             }
             catch (error) {
-                console.error(`[PAST DUE BOOKING] Booking ${booking._id} failed`, error);
+                result.failed += 1;
+                console.error(`[PAST DUE BOOKING] Booking ${candidate._id} failed`, error);
+            }
+            finally {
+                await session.endSession();
             }
         }
         return result;
@@ -4060,6 +4146,7 @@ export class BookingService {
         const bookings = await Booking.find({
             _id: { $in: uniqueBookingIds.map((bookingId) => new Types.ObjectId(bookingId)) }, isDelted: false,
         }).select([
+            "_id",
             "bookingReference",
             "bookedBy",
             "bookingFor",
@@ -4152,6 +4239,7 @@ export class BookingService {
             };
         };
         const headers = [
+            "Booking ID",
             "Booking Reference",
             "Booking Status",
             "Booked By",
@@ -4211,6 +4299,7 @@ export class BookingService {
             const coordinator = booking.assignment?.assignedCoordinatorId && typeof booking.assignment.assignedCoordinatorId === "object" ? booking.assignment.assignedCoordinatorId : null;
             const taxSummary = booking.pricing?.taxSummary ?? {};
             return [
+                booking._id,
                 booking.bookingReference,
                 booking.status,
                 booking.bookedBy,

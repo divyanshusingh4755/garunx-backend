@@ -147,3 +147,36 @@ export const uploadChatImages = async (req: Request, res: Response) => {
     })
   }
 }
+
+export const getUnreadCountByBookingId = async (req: Request, res: Response) => {
+  try {
+    const { bookingId } = req.params;
+    const userId = req.user?.userId;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized",
+      });
+    }
+
+    if (!bookingId || Array.isArray(bookingId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Valid booking ID is required",
+      });
+    }
+
+    const result = await ChatMessageService.getUnreadCountByBookingId({ bookingId, userId });
+    return res.status(200).json({
+      success: true,
+      message: "Unread count fetched successfully",
+      data: result,
+    });
+  } catch (error: any) {
+    return res.status(400).json({
+      success: false,
+      message: error.message || "Failed to fetch unread count",
+    });
+  }
+};

@@ -832,6 +832,9 @@ export declare class BookingService {
         processed: number;
         expiredBookings: number;
         expiredRequests: number;
+        refundedBookings: number;
+        refundedAmount: number;
+        failed: number;
     }>;
     static exportBookingsToCsv(bookingIds: string[]): Promise<{
         csv: string;

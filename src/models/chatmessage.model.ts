@@ -1,9 +1,4 @@
-import {
-  model,
-  Schema,
-  type Document,
-  type Types,
-} from "mongoose";
+import { model, Schema, type Document, type Types } from "mongoose";
 
 export enum ChatMessageType {
   TEXT = "TEXT",
