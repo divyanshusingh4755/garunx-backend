@@ -4144,7 +4144,7 @@ export class BookingService {
             }
         }
         const bookings = await Booking.find({
-            _id: { $in: uniqueBookingIds.map((bookingId) => new Types.ObjectId(bookingId)) }, isDelted: false,
+            _id: { $in: uniqueBookingIds.map((bookingId) => new Types.ObjectId(bookingId)) }, isDeleted: false,
         }).select([
             "_id",
             "bookingReference",
