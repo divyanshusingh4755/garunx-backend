@@ -52,7 +52,7 @@ const addFamilyMemberValidation = [
         throw new Error("relationshipToMember cannot be provided when adding SELF")
       }
 
-      return
+      return true
     }
 
     if (!value.relatedToMemberId) {
