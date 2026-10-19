@@ -8,6 +8,7 @@ export interface ChatReplyPreviewDto {
 }
 export interface ChatMessageSocketDto {
     id: string;
+    bookingId: string;
     conversationId: string;
     senderId: string;
     type: string;

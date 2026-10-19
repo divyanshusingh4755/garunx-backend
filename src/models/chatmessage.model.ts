@@ -7,6 +7,7 @@ export enum ChatMessageType {
 }
 
 export interface IChatMessage extends Document {
+  bookingId: Types.ObjectId;
   conversationId: Types.ObjectId;
   senderId: Types.ObjectId;
   type: ChatMessageType;
@@ -27,6 +28,12 @@ const isHttpUrl = (value: string): boolean => {
 
 const chatMessageSchema = new Schema<IChatMessage>(
   {
+    bookingId: {
+      type: Schema.Types.ObjectId,
+      ref: "Booking",
+      required: true,
+      index: true,
+    },
     conversationId: {
       type: Schema.Types.ObjectId,
       ref: "ChatConversation",
@@ -107,5 +114,6 @@ chatMessageSchema.pre("validate", function () {
 
 chatMessageSchema.index({ conversationId: 1, createdAt: -1, _id: -1 });
 chatMessageSchema.index({ conversationId: 1, senderId: 1, clientMessageId: 1 }, { unique: true, });
+chatMessageSchema.index({ bookingId: 1, createdAt: -1, _id: -1 });
 
 export const ChatMessage = model<IChatMessage>("ChatMessage", chatMessageSchema);

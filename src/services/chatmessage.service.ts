@@ -102,7 +102,7 @@ export class ChatMessageService {
       if (!replyMessage) { throw new Error("Reply message not found in this conversation",); }
     }
 
-    const messageData: Record<string, any> = { conversationId: conversation._id, senderId: new Types.ObjectId(senderId,), type, clientMessageId: normalizedClientMessageId, };
+    const messageData: Record<string, any> = { bookingId: conversation.bookingId, conversationId: conversation._id, senderId: new Types.ObjectId(senderId,), type, clientMessageId: normalizedClientMessageId, };
 
     if (normalizedText) { messageData.text = normalizedText; }
     if (normalizedImages.length > 0) { messageData.images = normalizedImages; }

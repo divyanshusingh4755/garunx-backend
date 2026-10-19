@@ -1,6 +1,7 @@
 export const toChatMessageSocketDto = (message, options) => {
     const dto = {
         id: message._id.toString(),
+        bookingId: message.bookingId.toString(),
         conversationId: message.conversationId.toString(),
         senderId: message.senderId.toString(),
         type: message.type,

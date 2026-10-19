@@ -1,7 +1,7 @@
 import { Server } from "socket.io";
 import { allowedOrigins } from "../config/cors.js";
 import { verifyAccessToken } from "../utils/accessToken.js";
-import { registerConversationHandlers, registerDeliveryHandlers, registerMessageHandlers, registerPresenceHandlers, registerReadHandlers, registerTypingHandlers } from "./handlers/conversation.handler.js";
+import { registerBookingUnreadCountHandlers, registerConversationHandlers, registerDeliveryHandlers, registerMessageHandlers, registerPresenceHandlers, registerReadHandlers, registerTypingHandlers } from "./handlers/conversation.handler.js";
 import { getUserRoom } from "./socket.rooms.js";
 import { addUserSocket, removeUserSocket } from "./socket.presence.js";
 import { ChatConversationService } from "../services/chatconversation.service.js";
@@ -58,6 +58,7 @@ export const initializeSocket = (httpServer) => {
         catch (error) {
             console.log(`Failed to broadcast online presence for user ${userId}`, error);
         }
+        registerBookingUnreadCountHandlers(io, socket);
         registerConversationHandlers(io, socket);
         registerMessageHandlers(io, socket);
         registerReadHandlers(io, socket);

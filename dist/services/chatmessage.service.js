@@ -112,7 +112,7 @@ export class ChatMessageService {
                 throw new Error("Reply message not found in this conversation");
             }
         }
-        const messageData = { conversationId: conversation._id, senderId: new Types.ObjectId(senderId), type, clientMessageId: normalizedClientMessageId, };
+        const messageData = { bookingId: conversation.bookingId, conversationId: conversation._id, senderId: new Types.ObjectId(senderId), type, clientMessageId: normalizedClientMessageId, };
         if (normalizedText) {
             messageData.text = normalizedText;
         }

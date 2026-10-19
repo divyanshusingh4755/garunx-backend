@@ -5,4 +5,5 @@ export declare const registerConversationHandlers: (_io: ChatSocketServer, socke
 export declare const registerPresenceHandlers: (_io: ChatSocketServer, socket: ChatSocket) => void;
 export declare const registerDeliveryHandlers: (io: ChatSocketServer, socket: ChatSocket) => void;
 export declare const registerTypingHandlers: (_io: ChatSocketServer, socket: ChatSocket) => void;
+export declare const registerBookingUnreadCountHandlers: (_io: ChatSocketServer, socket: ChatSocket) => void;
 //# sourceMappingURL=conversation.handler.d.ts.map

@@ -94,6 +94,17 @@ export interface NotificationUnreadCountEvent {
   unreadCount: number;
 }
 
+export interface BookingUnreadCountPayload {
+  bookingId: string;
+}
+
+export interface BookingUnreadCountEvent {
+  bookingId: string;
+  conversationId: string;
+  unreadCount: number;
+}
+
+export type BookingUnreadCountAck = { success: true; data: BookingUnreadCountEvent; } | { success: false; message: string; };
 export type SendMessageAck = { success: true, data: ChatMessageSocketDto } | { success: false, message: string }
 export type ConversationReadAck = { success: true, data: ConversationReadEvent } | { success: false, message: string }
 export type MessageDeliveredAck = { success: true, data: MessageDeliveredEvent } | { success: false, message: string }
@@ -112,6 +123,7 @@ export interface ClientToServerEvents {
   "message:delivered": (payload: MessageDeliveredPayload, callback: (response: MessageDeliveredAck) => void) => void
   "typing:start": (payload: TypingPayload) => void;
   "typing:stop": (payload: TypingPayload) => void;
+  "booking:unread-count:get": (payload: BookingUnreadCountPayload, callback: (response: BookingUnreadCountAck) => void) => void;
 }
 
 export interface ServerToClientEvents {
@@ -129,6 +141,7 @@ export interface ServerToClientEvents {
   "notification:read-all": (payload: NotificationReadAllEvent) => void;
   "notification:deleted": (payload: NotificationDeletedEvent) => void;
   "notification:unread-count": (payload: NotificationUnreadCountEvent) => void;
+  "booking:unread-count:updated": (payload: BookingUnreadCountEvent) => void;
 }
 
 export interface InterServerEvents { }

@@ -43,14 +43,26 @@ export const registerReadHandlers = (io: ChatSocketServer, socket: ChatSocket): 
       // ACK caller
       callback({ success: true, data: readEvent })
 
-      // Tell other sockets in the room that this user has read the chat
-      const conversation = await ChatConversationService.getById({ conversationId, requestedBy: userId });
+      try {
+        // Tell other sockets in the room that this user has read the chat
+        const conversation = await ChatConversationService.getById({ conversationId, requestedBy: userId });
 
-      const otherParticipant = conversation.participants.find((participant) => participant.userId.toString() !== userId)
-      if (otherParticipant) { io.to(getUserRoom(otherParticipant.userId.toString())).emit("conversation:read", readEvent) }
+        const otherParticipant = conversation.participants.find((participant) => participant.userId.toString() !== userId)
+        if (otherParticipant) { io.to(getUserRoom(otherParticipant.userId.toString())).emit("conversation:read", readEvent) }
 
-      socket.to(getUserRoom(userId)).emit("conversation:read", readEvent);
+        socket.to(getUserRoom(userId)).emit("conversation:read", readEvent);
 
+        // Get updated unread count using Booking ID
+        const unread = await ChatMessageService.getUnreadCountByBookingId({
+          bookingId: conversation.bookingId.toString(),
+          userId
+        })
+
+        // Send updated unread count to all user's devices
+        io.to(getUserRoom(userId)).emit("booking:unread-count:updated", unread);
+      } catch (error) {
+        console.error("[CHAT] Failed to publish read/unread updates:", error);
+      }
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "Failed to mark conversation as read";
       callback({ success: false, message })
@@ -112,6 +124,22 @@ export const registerMessageHandlers = (io: ChatSocketServer, socket: ChatSocket
         for (const participant of conversation.participants) {
           const participantId = participant.userId.toString();
           socket.to(getUserRoom(participantId)).emit("message:created", messageDto)
+
+          // Update unread count for the recipient.
+          if (participantId !== senderId) {
+            try {
+              const unread = await ChatMessageService.getUnreadCountByBookingId({
+                bookingId: conversation.bookingId.toString(),
+                userId: participantId
+              })
+
+              io.to(getUserRoom(participantId)).emit(
+                "booking:unread-count:updated", unread
+              )
+            } catch (error) {
+              console.error("[CHAT] Failed to publish unread count:", error)
+            }
+          }
         }
       }
     } catch (error: unknown) {
@@ -289,3 +317,20 @@ export const registerTypingHandlers = (_io: ChatSocketServer, socket: ChatSocket
     }
   })
 }
+
+export const registerBookingUnreadCountHandlers = (_io: ChatSocketServer, socket: ChatSocket): void => {
+  socket.on("booking:unread-count:get", async (payload, callback) => {
+    try {
+      if (!payload || typeof payload !== "object") { throw new Error("Invalid payload"); }
+      const { bookingId } = payload;
+
+      if (!bookingId || !Types.ObjectId.isValid(bookingId)) { throw new Error("Invalid booking ID"); }
+      const userId = socket.data.userId;
+      const result = await ChatMessageService.getUnreadCountByBookingId({ bookingId, userId, });
+      callback({ success: true, data: result, });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Failed to get unread count";
+      callback({ success: false, message, });
+    }
+  });
+};

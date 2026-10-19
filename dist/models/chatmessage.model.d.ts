@@ -5,6 +5,7 @@ export declare enum ChatMessageType {
     SYSTEM = "SYSTEM"
 }
 export interface IChatMessage extends Document {
+    bookingId: Types.ObjectId;
     conversationId: Types.ObjectId;
     senderId: Types.ObjectId;
     type: ChatMessageType;

@@ -10,6 +10,7 @@ export interface ChatReplyPreviewDto {
 
 export interface ChatMessageSocketDto {
   id: string;
+  bookingId: string;
   conversationId: string;
   senderId: string;
   type: string;
@@ -34,6 +35,7 @@ export const toChatMessageSocketDto = (
 
   const dto: ChatMessageSocketDto = {
     id: message._id.toString(),
+    bookingId: message.bookingId.toString(),
     conversationId: message.conversationId.toString(),
     senderId: message.senderId.toString(),
     type: message.type,
