@@ -7,6 +7,8 @@ import { DOMAIN_EVENTS } from "../events/domain-events.js";
 import { RedisCacheService } from "./redis-cache.service.js";
 import { CacheKeys } from "../cache/cache-keys.js";
 import { CACHE_TTL_SECONDS } from "../cache/constants.js";
+import { deriveRelationships } from "../utils/family-relationships.js";
+import { checkFamilyTreeIntegrity } from "../utils/family-tree-integrity.js";
 
 export interface GetFamilyTreeActivitiesQuery {
   action?: string;
@@ -717,14 +719,15 @@ class FamilyTreeService {
     try {
       const { fullName, relation, relatedToMemberId, relationshipToMember, gender, dob, lifeStatus = MemberLifeStatus.ALIVE, dateOfDeath, nativeVillage, state, district, caste, gotra, designatedPandit, visitors = [], profileImage, notes } = payload;
 
+      const hasRelatedMember = Boolean(relatedToMemberId);
+      const hasRelationship = Boolean(relationshipToMember);
+
       if (relation === FamilyRelation.SELF) {
-        if (relatedToMemberId || relationshipToMember) {
-          throw new Error("SELF member cannot have a related family member")
+        if (hasRelatedMember || hasRelationship) {
+          throw new Error("SELF member cannot have a relationship link during creation")
         }
-      } else {
-        if (!relatedToMemberId || !relationshipToMember) {
-          throw new Error("relatedToMemberId and relationshipToMember are required")
-        }
+      } else if (hasRelatedMember !== hasRelationship) {
+        throw new Error("relatedToMemberId and relationshipToMember must be provided together")
       }
 
       FamilyTreeService.validateLifeStatus(lifeStatus, dateOfDeath, dob);
@@ -948,6 +951,37 @@ class FamilyTreeService {
         );
 
         const selfMember = members.find((member) => member.relation === FamilyRelation.SELF);
+
+        const derivedRelationships = selfMember ? deriveRelationships(
+          members.map((member) => ({
+            id: member._id.toString(),
+            fatherId: member.fatherId?.toString() ?? null,
+            motherId: member.motherId?.toString() ?? null,
+            gender: member.gender ?? null
+          })),
+          selfMember._id.toString()
+        ) : [];
+
+
+        const integrityIssues = checkFamilyTreeIntegrity(
+          members.map((member) => ({
+            id: member._id.toString(),
+            relation: member.relation,
+            gender: member.gender ?? null,
+            fatherId: member.fatherId?.toString() ?? null,
+            motherId: member.motherId?.toString() ?? null,
+            spouseIds: (member.spouseIds ?? []).map((id) => id.toString(),
+            ),
+          })),
+        );
+
+        const integrity = {
+          isValid: !integrityIssues.some((issue) => issue.severity === "ERROR",),
+          errorCount: integrityIssues.filter((issue) => issue.severity === "ERROR",).length,
+          warningCount: integrityIssues.filter((issue) => issue.severity === "WARNING",).length,
+          issues: integrityIssues,
+        };
+
         const rootMembers = members.filter((member) => {
           const hasValidFather = Boolean(member.fatherId && memberIdSet.has(member.fatherId.toString()));
           const hasValidMother = Boolean(member.motherId && memberIdSet.has(member.motherId.toString()));
@@ -969,6 +1003,8 @@ class FamilyTreeService {
             } : null,
           rootMembers,
           totalMembers: nodes.length,
+          derivedRelationships,
+          integrity
         };
       },
     });

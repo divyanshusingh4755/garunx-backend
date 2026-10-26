@@ -158,6 +158,13 @@ declare class FamilyTreeService {
             relation: FamilyRelation;
         }[];
         totalMembers: number;
+        derivedRelationships: import("../utils/family-relationships.js").DerivedRelationship[];
+        integrity: {
+            isValid: boolean;
+            errorCount: number;
+            warningCount: number;
+            issues: import("../utils/family-tree-integrity.js").IntegrityIssue[];
+        };
     }>;
     static getFamilyMembers(ownerId: string, query: GetFamilyMembersQuery): Promise<{
         familyMembers: (IFamilyMember & Required<{

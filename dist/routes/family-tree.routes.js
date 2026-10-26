@@ -42,20 +42,16 @@ const addFamilyMemberValidation = [
     }),
     body().custom((value) => {
         const isSelf = value.relation === FamilyRelation.SELF;
+        const hasRelatedMember = value.relatedToMemberId != null && value.relatedToMemberId !== "";
+        const hasRelationship = value.relationshipToMember != null && value.relationshipToMember !== "";
         if (isSelf) {
-            if (value.relatedToMemberId) {
-                throw new Error("relatedToMemberId cannot be provided when adding SELF");
-            }
-            if (value.relationshipToMember) {
-                throw new Error("relationshipToMember cannot be provided when adding SELF");
+            if (hasRelatedMember || hasRelationship) {
+                throw new Error("SELF cannot have a relationship link during creation");
             }
             return true;
         }
-        if (!value.relatedToMemberId) {
-            throw new Error("relatedToMemberId is required when adding a family member");
-        }
-        if (!value.relationshipToMember) {
-            throw new Error("relationshipToMember is required when adding a family member");
+        if (hasRelatedMember !== hasRelationship) {
+            throw new Error("relatedToMemberId and relationshipToMember must be provided together");
         }
         return true;
     }),
