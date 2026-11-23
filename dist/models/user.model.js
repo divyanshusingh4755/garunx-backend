@@ -247,6 +247,17 @@ const userSchema = new Schema({
         default: false,
         required: true,
     },
+    verifiedEmail: {
+        type: String,
+        lowercase: true,
+        trim: true,
+        default: null,
+    },
+    verifiedPhoneNumber: {
+        type: String,
+        trim: true,
+        default: null,
+    },
     isActive: {
         type: Boolean,
         default: true,

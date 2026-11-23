@@ -2,6 +2,7 @@ import { Types, type Document } from "mongoose";
 import { Caste, FamilyMemberSource, FamilyRelation, Gender, Gotra, MemberLifeStatus } from "../types/enums.js";
 export interface IFamilyMember extends Document {
     ownerId: Types.ObjectId;
+    linkedUserId?: Types.ObjectId | null;
     createdBy: Types.ObjectId;
     updatedBy?: Types.ObjectId | null;
     source: FamilyMemberSource;
@@ -20,6 +21,7 @@ export interface IFamilyMember extends Document {
     fatherId?: Types.ObjectId | null;
     motherId?: Types.ObjectId | null;
     spouseIds: Types.ObjectId[];
+    treeOwnerIds?: Types.ObjectId[];
     nativeVillage?: string;
     state?: string;
     district?: string;

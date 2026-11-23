@@ -83,12 +83,14 @@ interface UnlinkFamilyRelationshipPayload {
     relationshipToMember: FamilyLinkRelation;
 }
 declare class FamilyTreeService {
+    private static treeMemberFilter;
     private static wouldCreateAncestorCycle;
     private static createRelationshipLinkedActivity;
     private static validateRelationshipLink;
     private static linkFamilyRelationship;
     private static unlinkFamilyRelationship;
     private static invalidateFamilyTreeCache;
+    private static assertFullSiblingParentProtection;
     private static validateContext;
     private static shouldNotifyOwner;
     private static escapeRegex;
@@ -114,8 +116,34 @@ declare class FamilyTreeService {
         __v: number;
     }) | null>;
     static getFamilyTree(ownerId: string): Promise<{
-        nodes: {
+        nodes: ({
             id: string;
+            hidden: boolean;
+            data: {
+                hidden: boolean;
+                fullName?: never;
+                relation?: never;
+                gender?: never;
+                dob?: never;
+                lifeStatus?: never;
+                dateOfDeath?: never;
+                fatherId?: never;
+                motherId?: never;
+                spouseIds?: never;
+                nativeVillage?: never;
+                state?: never;
+                district?: never;
+                caste?: never;
+                gotra?: never;
+                designatedPandit?: never;
+                visitors?: never;
+                profileImage?: never;
+                notes?: never;
+                audit?: never;
+            };
+        } | {
+            id: string;
+            hidden: boolean;
             data: {
                 fullName: string;
                 relation: FamilyRelation;
@@ -144,8 +172,9 @@ declare class FamilyTreeService {
                     bookingId: Types.ObjectId | null | undefined;
                     bookingReference: string | null | undefined;
                 };
+                hidden?: never;
             };
-        }[];
+        })[];
         edges: FamilyTreeEdge[];
         selfMember: {
             id: string;
@@ -165,6 +194,42 @@ declare class FamilyTreeService {
             warningCount: number;
             issues: import("../utils/family-tree-integrity.js").IntegrityIssue[];
         };
+    }>;
+    static getSharedFamilyTree(actorId: string): Promise<{
+        nodes: ({
+            id: string;
+            hidden: boolean;
+            data: {
+                hidden: boolean;
+                fullName?: never;
+                relation?: never;
+                gender?: never;
+                lifeStatus?: never;
+                fatherId?: never;
+                motherId?: never;
+                spouseIds?: never;
+            };
+        } | {
+            id: string;
+            hidden: boolean;
+            data: {
+                fullName: string;
+                relation: FamilyRelation;
+                gender: Gender | undefined;
+                lifeStatus: MemberLifeStatus;
+                fatherId: string | null;
+                motherId: string | null;
+                spouseIds: string[];
+                hidden?: never;
+            };
+        })[];
+        edges: FamilyTreeEdge[];
+        selfMember: {
+            id: string;
+            fullName: string;
+            relation: FamilyRelation;
+        };
+        totalMembers: number;
     }>;
     static getFamilyMembers(ownerId: string, query: GetFamilyMembersQuery): Promise<{
         familyMembers: (IFamilyMember & Required<{
@@ -197,6 +262,7 @@ declare class FamilyTreeService {
             bookingReference: string | null | undefined;
         };
         ownerId: Types.ObjectId;
+        linkedUserId?: Types.ObjectId | null;
         createdBy: Types.ObjectId;
         updatedBy?: Types.ObjectId | null;
         source: import("../types/enums.js").FamilyMemberSource;
@@ -215,6 +281,7 @@ declare class FamilyTreeService {
         fatherId?: Types.ObjectId | null;
         motherId?: Types.ObjectId | null;
         spouseIds: Types.ObjectId[];
+        treeOwnerIds?: Types.ObjectId[];
         nativeVillage?: string;
         state?: string;
         district?: string;

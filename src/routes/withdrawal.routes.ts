@@ -139,7 +139,6 @@ const markPaidValidation = [
 ];
 
 // USER / COORDINATOR
-
 router.get("/", authenticate, authorizeRoles(Role.USER, Role.COORDINATOR), myWithdrawalListValidation, getMyWithdrawals);
 router.post("/", authenticate, authorizeRoles(Role.USER, Role.COORDINATOR), createWithdrawalValidation, createWithdrawal);
 

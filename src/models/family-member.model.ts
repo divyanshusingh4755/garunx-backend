@@ -11,6 +11,7 @@ import {
 
 export interface IFamilyMember extends Document {
   ownerId: Types.ObjectId;
+  linkedUserId?: Types.ObjectId | null;
   createdBy: Types.ObjectId;
   updatedBy?: Types.ObjectId | null;
   source: FamilyMemberSource;
@@ -29,6 +30,7 @@ export interface IFamilyMember extends Document {
   fatherId?: Types.ObjectId | null;
   motherId?: Types.ObjectId | null;
   spouseIds: Types.ObjectId[];
+  treeOwnerIds?: Types.ObjectId[];
   nativeVillage?: string;
   state?: string;
   district?: string;
@@ -49,6 +51,12 @@ const familyMemberSchema = new Schema<IFamilyMember>(
       ref: "User",
       required: true,
       index: true,
+    },
+
+    linkedUserId: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
     },
 
     createdBy: {
@@ -169,6 +177,16 @@ const familyMemberSchema = new Schema<IFamilyMember>(
       },
     },
 
+    treeOwnerIds: {
+      type: [
+        {
+          type: Schema.Types.ObjectId,
+          ref: "User",
+        },
+      ],
+      default: [],
+    },
+
     nativeVillage: {
       type: String,
       trim: true,
@@ -280,13 +298,21 @@ familyMemberSchema.pre("validate", function (): void {
   }
 });
 
+familyMemberSchema.index({ treeOwnerIds: 1, isDeleted: 1 });
 familyMemberSchema.index({ ownerId: 1, isDeleted: 1, fatherId: 1 });
 familyMemberSchema.index({ ownerId: 1, isDeleted: 1, motherId: 1 });
 familyMemberSchema.index({ ownerId: 1, isDeleted: 1, spouseIds: 1 });
 familyMemberSchema.index({ ownerId: 1, isDeleted: 1, fullName: 1 });
 familyMemberSchema.index({ ownerId: 1, isDeleted: 1, createdAt: -1 });
 familyMemberSchema.index({ sourceBookingId: 1, isDeleted: 1 });
-familyMemberSchema.index({ ownerId: 1, relation: 1 }, { unique: true, partialFilterExpression: { relation: FamilyRelation.SELF, isDeleted: false }, name: "unique_active_self_per_owner" },
+familyMemberSchema.index({ ownerId: 1, relation: 1 }, { unique: true, partialFilterExpression: { relation: FamilyRelation.SELF, isDeleted: false }, name: "unique_active_self_per_owner" });
+familyMemberSchema.index(
+  { linkedUserId: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { linkedUserId: { $type: "objectId" } },
+    name: "unique_linked_user_per_family_member",
+  },
 );
 
 export const FamilyMember = model<IFamilyMember>("FamilyMember", familyMemberSchema,);

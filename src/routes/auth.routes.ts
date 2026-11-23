@@ -9,6 +9,7 @@ import { ApprovalStatus, AvailabilityStatus, Caste, Gender, Gotra, VerificationS
 import { validate } from "../utils/validate.js";
 import { authorizeRoles } from "../middleware/authorizeRoles.js";
 import { requirePermission } from "../middleware/rbac.js";
+import { decideAdminApplication, listAdminApplications, submitAdminApplication } from "../controllers/admin-application.controller.js";
 
 const router = Router();
 
@@ -237,6 +238,22 @@ const coordinatorUnavailableDatesValidation = [
   validate
 ]
 
+const publicAdminApplicationValidation = [
+  body("fullName").isString().trim().isLength({ min: 2, max: 100 }),
+  body("email").isEmail().normalizeEmail(),
+  body("phoneNumber").optional().isMobilePhone("en-IN"),
+  body("password").isStrongPassword({ minLength: 8, minLowercase: 1, minUppercase: 1, minNumbers: 1, minSymbols: 0, }),
+
+  validate,
+];
+
+const adminApplicationDecisionValidation = [
+  param("id").isMongoId(),
+  body("decision").isIn(["APPROVED", "REJECTED"]),
+  validate,
+];
+
+
 // PUBLIC AUTH
 router.post("/register", registerValidation, register);
 router.post("/verify-otp", otpRateLimiter, verifyOtpValidation, verifyOtp);
@@ -245,6 +262,11 @@ router.post("/login", authRateLimiter, loginValidation, login);
 router.post("/social", authRateLimiter, socialRegisterValidation, socialAuth);
 router.post("/refresh-token", refreshToken);
 router.post("/logout", logout);
+
+// Admin Application
+router.post("/admin/applications", authRateLimiter, publicAdminApplicationValidation, submitAdminApplication);
+router.get("/admin/applications", authenticate, authorizeRoles(Role.ADMIN), requirePermission("admin.create"), listAdminApplications);
+router.patch("/admin/applications/:id/decision", authenticate, authorizeRoles(Role.ADMIN), requirePermission("admin.create"), adminApplicationDecisionValidation, decideAdminApplication);
 
 // PASSWORD RECOVERY
 router.post("/forgot-password", passwordResetRateLimiter, forgotPasswordValidation, forgotPassword);

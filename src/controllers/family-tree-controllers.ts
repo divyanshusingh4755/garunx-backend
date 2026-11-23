@@ -3,6 +3,10 @@ import FamilyTreeService, { type FamilyTreeActorContext, type GetFamilyMembersQu
 import { FamilyRelation, Gender, MemberLifeStatus } from "../types/enums.js";
 import { resolveFamilyTreeOwnerId, type ResolvedFamilyTreeAccess } from "../services/access.service.js";
 import { Role } from "../types/rbac.js";
+import { Types } from "mongoose";
+import { User } from "../models/user.model.js";
+import { FamilyMember } from "../models/family-member.model.js";
+import { FamilyTreeDiscoveryService } from "../services/family-tree-discovery.service.js";
 
 interface AuthenticatedUser { userId: string; role: string; }
 
@@ -367,3 +371,498 @@ export const unlinkFamilyRelationship = async (req: Request, res: Response) => {
     })
   }
 }
+
+export const getSharedFamilyTreeAccess = async (req: Request, res: Response) => {
+  try {
+    const actorId = req.user?.userId;
+
+    if (!actorId || !Types.ObjectId.isValid(actorId)) {
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized",
+      });
+    }
+
+    const actor = await User.findOne({
+      _id: new Types.ObjectId(actorId),
+      isActive: true,
+      isOtpVerified: true,
+    })
+      .select("_id")
+      .lean();
+
+    if (!actor) {
+      return res.status(403).json({
+        success: false,
+        message: "Verified active account required",
+      });
+    }
+
+    const member = await FamilyMember.findOne({
+      linkedUserId: actor._id,
+      isDeleted: false,
+    })
+      .select("_id ownerId")
+      .lean();
+
+    if (!member) {
+      return res.status(404).json({
+        success: false,
+        message: "No linked family member found",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      access: {
+        ownerId: member.ownerId.toString(),
+        linkedMemberId: member._id.toString(),
+      },
+    });
+  } catch {
+    return res.status(500).json({
+      success: false,
+      message: "Failed to resolve shared family tree access",
+    });
+  }
+};
+
+export const getSharedFamilyTree = async (req: Request, res: Response) => {
+  try {
+    const actorId = req.user?.userId;
+    if (!actorId || !Types.ObjectId.isValid(actorId)) {
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized",
+      });
+    }
+
+    const actor = await User.findOne({
+      _id: new Types.ObjectId(actorId),
+      isActive: true,
+      isOtpVerified: true,
+    })
+      .select("_id")
+      .lean();
+
+    if (!actor) {
+      return res.status(403).json({
+        success: false,
+        message: "Verified active account required",
+      });
+    }
+
+    const familyTree = await FamilyTreeService.getSharedFamilyTree(actorId);
+
+    return res.status(200).json({
+      success: true,
+      message: "Shared family tree fetched successfully",
+      familyTree,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Failed to fetch shared family tree";
+    const status = message === "No linked family member found" ? 404
+      : message === "Linked member is not in the family tree"
+        ? 403 : message === "Invalid authenticated user ID"
+          ? 401 : 500;
+
+    return res.status(status).json({
+      success: false,
+      message,
+    });
+  }
+};
+
+export const updateSharedSelfMember = async (req: Request, res: Response) => {
+  try {
+    const actorId = req.user?.userId;
+    const actorRole = req.user?.role;
+
+    if (!actorId || !Types.ObjectId.isValid(actorId)) {
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized",
+      });
+    }
+
+    if (actorRole !== Role.USER) {
+      return res.status(403).json({
+        success: false,
+        message: "Access denied",
+      });
+    }
+
+    const actor = await User.findOne({
+      _id: new Types.ObjectId(actorId),
+      isActive: true,
+      isOtpVerified: true,
+    })
+      .select("_id")
+      .lean();
+
+    if (!actor) {
+      return res.status(403).json({
+        success: false,
+        message: "Verified active account required",
+      });
+    }
+
+    const member = await FamilyMember.findOne({
+      linkedUserId: actor._id,
+      isDeleted: false,
+    })
+      .select("_id ownerId")
+      .lean();
+
+    if (!member) {
+      return res.status(404).json({
+        success: false,
+        message: "Linked family member not found",
+      });
+    }
+
+    // Original owner continues using existing APIs.
+    if (member.ownerId.toString() === actorId) {
+      return res.status(403).json({
+        success: false,
+        message: "Use the existing family member update API",
+      });
+    }
+
+    const context: FamilyTreeActorContext = {
+      ownerId: member.ownerId.toString(),
+      actorId,
+      actorRole,
+      source: "CUSTOMER_SELF",
+    };
+
+    const familyMember = await FamilyTreeService.updateFamilyMember(context, member._id.toString(), req.body);
+
+    return res.status(200).json({
+      success: true,
+      message: "Family member updated successfully",
+      familyMember,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Failed to update family member";
+    const forbidden = message.includes("only update") || message.includes("not authorized");
+
+    return res.status(forbidden ? 403 : 400).json({
+      success: false,
+      message,
+    });
+  }
+};
+
+export const addSharedFamilyMember = async (req: Request, res: Response) => {
+  try {
+    const actorId = req.user?.userId;
+    const actorRole = req.user?.role;
+
+    if (!actorId || !Types.ObjectId.isValid(actorId)) {
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized",
+      });
+    }
+
+    if (actorRole !== Role.USER) {
+      return res.status(403).json({
+        success: false,
+        message: "Access denied",
+      });
+    }
+
+    const actor = await User.findOne({
+      _id: new Types.ObjectId(actorId),
+      isActive: true,
+      isOtpVerified: true,
+    })
+      .select("_id")
+      .lean();
+
+    if (!actor) {
+      return res.status(403).json({
+        success: false,
+        message: "Verified active account required",
+      });
+    }
+
+    const linkedMember = await FamilyMember.findOne({
+      linkedUserId: actor._id,
+      isDeleted: false,
+    })
+      .select("_id ownerId")
+      .lean();
+
+    if (!linkedMember) {
+      return res.status(404).json({
+        success: false,
+        message: "Linked family member not found",
+      });
+    }
+
+    if (linkedMember.ownerId.toString() === actorId) {
+      return res.status(403).json({
+        success: false,
+        message: "Use the existing add-member API",
+      });
+    }
+
+    const context: FamilyTreeActorContext = { ownerId: linkedMember.ownerId.toString(), actorId, actorRole, source: "CUSTOMER_SELF" };
+
+    // Do not accept a client-selected parent/related member.
+    const payload = { ...req.body, relatedToMemberId: linkedMember._id.toString() };
+    const familyMember = await FamilyTreeService.addFamilyMember(context, payload);
+
+    return res.status(201).json({
+      success: true,
+      message: "Family member added successfully",
+      familyMember,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Failed to add shared family member";
+    return res.status(
+      message.includes("only add") || message.includes("Joined members") || message.includes("not linked") ? 403 : 400)
+      .json({
+        success: false,
+        message,
+      });
+  }
+};
+
+export const updateSharedBranchMember = async (req: Request, res: Response) => {
+  try {
+    const actorId = req.user?.userId;
+    const actorRole = req.user?.role;
+    const memberId = req.params.id;
+
+    if (!actorId || !Types.ObjectId.isValid(actorId)) {
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized",
+      });
+    }
+
+    if (actorRole !== Role.USER) {
+      return res.status(403).json({
+        success: false,
+        message: "Access denied",
+      });
+    }
+
+    if (typeof memberId !== "string" || !Types.ObjectId.isValid(memberId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid family member ID",
+      });
+    }
+
+    const actor = await User.findOne({
+      _id: new Types.ObjectId(actorId),
+      isActive: true,
+      isOtpVerified: true,
+    })
+      .select("_id")
+      .lean();
+
+    if (!actor) {
+      return res.status(403).json({
+        success: false,
+        message: "Verified active account required",
+      });
+    }
+
+    const self = await FamilyMember.findOne({
+      linkedUserId: actor._id,
+      isDeleted: false,
+    })
+      .select("_id ownerId")
+      .lean();
+
+    if (!self) {
+      return res.status(403).json({
+        success: false,
+        message: "No linked family tree access",
+      });
+    }
+
+    if (self.ownerId.toString() === actorId) {
+      return res.status(403).json({
+        success: false,
+        message: "Use the existing family tree API",
+      });
+    }
+
+    const context: FamilyTreeActorContext = {
+      ownerId: self.ownerId.toString(),
+      actorId,
+      actorRole,
+      source: "CUSTOMER_SELF",
+    };
+
+    const familyMember = await FamilyTreeService.updateFamilyMember(context, memberId, req.body);
+
+    return res.status(200).json({
+      success: true,
+      message: "Family member updated successfully",
+      familyMember,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Failed to update family member";
+    const forbidden = message.toLowerCase().includes("not authorized");
+    return res.status(forbidden ? 403 : 400).json({
+      success: false,
+      message,
+    });
+  }
+};
+
+export const deleteSharedChildMember = async (req: Request, res: Response) => {
+  try {
+    const actorId = req.user?.userId;
+    const actorRole = req.user?.role;
+    const memberId = req.params.id;
+    const reason = req.body?.reason;
+
+    if (!actorId || !Types.ObjectId.isValid(actorId)) {
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized",
+      });
+    }
+
+    if (actorRole !== Role.USER) {
+      return res.status(403).json({
+        success: false,
+        message: "Access denied",
+      });
+    }
+
+    if (typeof memberId !== "string" || !Types.ObjectId.isValid(memberId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid family member ID",
+      });
+    }
+
+    if (typeof reason !== "string" || reason.trim().length < 3) {
+      return res.status(400).json({
+        success: false,
+        message: "Deletion reason is required",
+      });
+    }
+
+    const actor = await User.findOne({
+      _id: new Types.ObjectId(actorId),
+      isActive: true,
+      isOtpVerified: true,
+    })
+      .select("_id")
+      .lean();
+
+    if (!actor) {
+      return res.status(403).json({
+        success: false,
+        message: "Verified active account required",
+      });
+    }
+
+    const self = await FamilyMember.findOne({
+      linkedUserId: actor._id,
+      isDeleted: false,
+    })
+      .select("_id ownerId")
+      .lean();
+
+    if (!self || self.ownerId.toString() === actorId) {
+      return res.status(403).json({
+        success: false,
+        message: "No joined family tree access",
+      });
+    }
+
+    const context: FamilyTreeActorContext = {
+      ownerId: self.ownerId.toString(),
+      actorId,
+      actorRole,
+      source: "CUSTOMER_SELF",
+    };
+
+    const deletedMember = await FamilyTreeService.deleteFamilyMember(context, memberId, reason.trim());
+
+    return res.status(200).json({
+      success: true,
+      message: "Family member deleted successfully",
+      deletedMember,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Failed to delete family member";
+    const status = message.includes("Not authorized") ? 403 : message === "Family member not found" ? 404 : 400;
+    return res.status(status).json({
+      success: false,
+      message,
+    });
+  }
+};
+
+
+export const discoverExistingFamilyTrees = async (req: Request, res: Response) => {
+  try {
+    const actorId = req.user?.userId;
+    const actorRole = req.user?.role;
+
+    if (!actorId || !Types.ObjectId.isValid(actorId)) {
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized",
+      });
+    }
+
+    if (actorRole !== Role.USER) {
+      return res.status(403).json({
+        success: false,
+        message: "Access denied",
+      });
+    }
+
+    const actor = await User.findOne({
+      _id: new Types.ObjectId(actorId),
+      isActive: true,
+      isOtpVerified: true,
+    })
+      .select("_id")
+      .lean();
+
+    if (!actor) {
+      return res.status(403).json({
+        success: false,
+        message: "Verified active account required",
+      });
+    }
+
+    const result = await FamilyTreeDiscoveryService.discover(
+      actorId,
+      {
+        fatherName: req.body.fatherName,
+        grandfatherName: req.body.grandfatherName,
+        nativeVillage: req.body.nativeVillage,
+      },
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: result.possibleMatchFound
+        ? "Possible existing family trees found"
+        : "No matching family trees found",
+      ...result,
+    });
+  } catch (error: unknown) {
+    const message = getErrorMessage(error, "Failed to discover existing family trees");
+    const status = message.includes("only available before") ? 409 : getErrorStatusCode(error, 500);
+    return res.status(status).json({
+      success: false,
+      message,
+    });
+  }
+};

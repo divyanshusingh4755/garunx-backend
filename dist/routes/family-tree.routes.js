@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { body, param, query } from "express-validator";
-import { addFamilyMember, deleteFamilyMember, exportFamilyMembersCsv, getFamilyMemberActivities, getFamilyMemberById, getFamilyMembers, getFamilyTree, getFamilyTreeActivities, linkFamilyRelationship, restoreFamilyMember, unlinkFamilyRelationship, updateFamilyMember } from "../controllers/family-tree-controllers.js";
+import { addFamilyMember, addSharedFamilyMember, deleteFamilyMember, deleteSharedChildMember, discoverExistingFamilyTrees, exportFamilyMembersCsv, getFamilyMemberActivities, getFamilyMemberById, getFamilyMembers, getFamilyTree, getFamilyTreeActivities, getSharedFamilyTree, getSharedFamilyTreeAccess, linkFamilyRelationship, restoreFamilyMember, unlinkFamilyRelationship, updateFamilyMember, updateSharedBranchMember, updateSharedSelfMember } from "../controllers/family-tree-controllers.js";
 import { authenticate } from "../middleware/authenticate.js";
 import { authorizeRoles } from "../middleware/authorizeRoles.js";
 import { validate } from "../utils/validate.js";
@@ -8,6 +8,7 @@ import { Caste, FamilyLinkRelation, FamilyRelation, Gender, Gotra, MemberLifeSta
 import { Role } from "../types/rbac.js";
 import { requireAdminPermission } from "../middleware/requireAdminPermission.js";
 import { requirePermission } from "../middleware/rbac.js";
+import { acceptFamilyTreeInvitation, activateFamilyTreeJoinRequest, createFamilyTreeInvitation, decideFamilyTreeJoinRequest, getPendingFamilyTreeJoinRequests, requestDiscoveredFamilyTreeJoin, requestFamilyTreeJoin, validateFamilyTreeInvitation } from "../controllers/family-tree-access-request.controller.js";
 const router = Router();
 const FAMILY_TREE_ACTIVITY_ACTIONS = ["MEMBER_ADDED", "MEMBER_UPDATED", "MEMBER_DELETED", "MEMBER_RESTORED", "RELATIONSHIP_LINKED", "RELATIONSHIP_UNLINKED"];
 const addFamilyMemberValidation = [
@@ -57,23 +58,7 @@ const addFamilyMemberValidation = [
     }),
     validate,
 ];
-const updateFamilyMemberValidation = [
-    param("id").notEmpty().withMessage("Family member ID is required").isMongoId().withMessage("Invalid family member ID"),
-    body().custom((value) => {
-        if (!value || typeof value !== "object" || Array.isArray(value)) {
-            throw new Error("Request body must be an object");
-        }
-        const allowedFields = ["fullName", "gender", "dob", "lifeStatus", "dateOfDeath", "nativeVillage", "state", "district", "caste", "gotra", "designatedPandit", "visitors", "profileImage", "notes"];
-        const suppliedFields = Object.keys(value);
-        if (suppliedFields.length === 0) {
-            throw new Error("At least one field is required for update");
-        }
-        const invalidFields = suppliedFields.filter((field) => !allowedFields.includes(field));
-        if (invalidFields.length > 0) {
-            throw new Error(`Invalid update fields: ${invalidFields.join(", ")}`);
-        }
-        return true;
-    }),
+const updateFamilyMemberBodyValidation = [
     body("fullName").optional().isString().withMessage("Full name must be a string").trim().isLength({ min: 2, max: 120 }).withMessage("Full name must be between 2 and 120 characters"),
     body("gender").optional().isIn(Object.values(Gender)).withMessage("Invalid gender"),
     body("dob").optional({ nullable: true, checkFalsy: true, }).isISO8601().withMessage("DOB must be a valid date").toDate(),
@@ -106,8 +91,13 @@ const updateFamilyMemberValidation = [
         }
         return true;
     }),
+];
+const updateFamilyMemberValidation = [
+    param("id").notEmpty().withMessage("Family member ID is required").isMongoId().withMessage("Invalid family member ID"),
+    ...updateFamilyMemberBodyValidation,
     validate,
 ];
+const updateSharedSelfValidation = [...updateFamilyMemberBodyValidation, validate];
 const familyMemberIdValidation = [
     param("id").notEmpty().withMessage("Family member ID is required").isMongoId().withMessage("Invalid family member ID"),
     validate,
@@ -177,8 +167,70 @@ const unlinkFamilyRelationshipValidation = [
     body("relationshipToMember").notEmpty().withMessage("Relationship is required").isIn(Object.values(FamilyLinkRelation)).withMessage("Invalid relationship"),
     validate,
 ];
+const createInvitationValidation = [
+    body("familyMemberId").isMongoId(),
+    body("email").optional().isEmail().trim().toLowerCase(),
+    body("phoneNumber").optional().isString().trim().notEmpty(),
+    body().custom((value) => {
+        if (!value.email && !value.phoneNumber) {
+            throw new Error("Email or phone number is required");
+        }
+        return true;
+    }),
+    validate,
+];
+const invitationTokenParamValidation = [
+    param("token").matches(/^[a-f0-9]{64}$/),
+    validate,
+];
+const acceptInvitationValidation = [
+    body("invitationToken").matches(/^[a-f0-9]{64}$/),
+    validate,
+];
+const requestJoinValidation = [
+    body("treeOwnerId").isMongoId(),
+    body("familyMemberId").isMongoId(),
+    validate,
+];
+const joinRequestIdValidation = [
+    param("requestId").isMongoId(),
+    validate,
+];
+const decideJoinValidation = [
+    param("requestId").isMongoId(),
+    body("familyMemberId").optional().isMongoId().withMessage("Invalid familyMemberId"),
+    body("decision").isIn(["APPROVED", "REJECTED"]),
+    validate,
+];
+const discoverFamilyTreeValidation = [
+    body("fatherName").isString().withMessage("Father name must be a string").trim().isLength({ min: 2, max: 120 }).withMessage("Father name must contain 2 to 120 characters"),
+    body("grandfatherName").isString().withMessage("Grandfather name must be a string").trim().isLength({ min: 2, max: 120 }).withMessage("Grandfather name must contain 2 to 120 characters"),
+    body("nativeVillage").optional().isString().withMessage("Native village must be a string").trim().isLength({ min: 2, max: 120 }).withMessage("Native village must contain 2 to 120 characters"),
+    validate,
+];
+const discoveredJoinRequestValidation = [
+    body("discoveryToken").isString().matches(/^[a-f0-9]{64}$/).withMessage("Invalid discovery token"),
+    validate,
+];
 router.use(authenticate);
+router.post("/discover", authorizeRoles(Role.USER), discoverFamilyTreeValidation, discoverExistingFamilyTrees);
+router.post("/join-requests/discovered", authorizeRoles(Role.USER), discoveredJoinRequestValidation, requestDiscoveredFamilyTreeJoin);
+// FAMILY TREE INVITATIONS
+router.post("/invitations", authorizeRoles(Role.USER), createInvitationValidation, createFamilyTreeInvitation);
+router.get("/invitations/validate/:token", authorizeRoles(Role.USER), invitationTokenParamValidation, validateFamilyTreeInvitation);
+router.post("/invitations/accept", authorizeRoles(Role.USER), acceptInvitationValidation, acceptFamilyTreeInvitation);
+// FAMILY TREE JOIN REQUESTS
+router.post("/join-requests", authorizeRoles(Role.USER), requestJoinValidation, requestFamilyTreeJoin);
+router.get("/join-requests/pending", authorizeRoles(Role.USER), getPendingFamilyTreeJoinRequests);
+router.patch("/join-requests/:requestId/decision", authorizeRoles(Role.USER), decideJoinValidation, decideFamilyTreeJoinRequest);
+router.post("/join-requests/:requestId/activate", authorizeRoles(Role.USER), joinRequestIdValidation, activateFamilyTreeJoinRequest);
 // AUTHENTICATED USER - OWN FAMILY TREE
+router.get("/shared/access", authorizeRoles(Role.USER), getSharedFamilyTreeAccess);
+router.get("/shared/get-family-tree", authorizeRoles(Role.USER), getSharedFamilyTree);
+router.patch("/shared/update-self", authorizeRoles(Role.USER), updateSharedSelfValidation, updateSharedSelfMember);
+router.post("/shared/add-member", authorizeRoles(Role.USER), addFamilyMemberValidation, addSharedFamilyMember);
+router.patch("/shared/update-member/:id", authorizeRoles(Role.USER), updateFamilyMemberValidation, updateSharedBranchMember);
+router.delete("/shared/delete-child/:id", authorizeRoles(Role.USER), deleteFamilyMemberValidation, deleteSharedChildMember);
 router.post("/add-member", authorizeRoles(Role.USER), addFamilyMemberValidation, addFamilyMember);
 router.get("/get-family-tree", authorizeRoles(Role.USER), getFamilyTree);
 router.get("/get-members", authorizeRoles(Role.USER), getFamilyMembersValidation, getFamilyMembers);
@@ -188,15 +240,15 @@ router.post("/export", authorizeRoles(Role.USER), exportFamilyMembersValidation,
 // More specific member activity route first.
 router.get("/get-member/:id/activities", authorizeRoles(Role.USER), getFamilyMemberActivitiesValidation, getFamilyMemberActivities);
 router.get("/get-member/:id", authorizeRoles(Role.USER), familyMemberIdValidation, getFamilyMemberById);
-router.post("/family-members/:id/relationships", authenticate, authorizeRoles(Role.USER), linkFamilyRelationshipValidation, linkFamilyRelationship);
+router.post("/family-members/:id/relationships", authorizeRoles(Role.USER), linkFamilyRelationshipValidation, linkFamilyRelationship);
 router.patch("/update-member/:id", authorizeRoles(Role.USER), updateFamilyMemberValidation, updateFamilyMember);
 router.patch("/restore-member/:id", authorizeRoles(Role.USER), restoreFamilyMemberValidation, restoreFamilyMember);
 router.delete("/delete-member/:id", authorizeRoles(Role.USER), deleteFamilyMemberValidation, deleteFamilyMember);
-router.delete("/family-members/:id/relationships/:relatedMemberId", authenticate, authorizeRoles(Role.USER), unlinkFamilyRelationshipValidation, unlinkFamilyRelationship);
+router.delete("/family-members/:id/relationships/:relatedMemberId", authorizeRoles(Role.USER), unlinkFamilyRelationshipValidation, unlinkFamilyRelationship);
 // ADMIN / COORDINATOR - USER FAMILY TREE
 router.post("/users/:ownerId/add-member", authorizeRoles(Role.ADMIN, Role.COORDINATOR), requireAdminPermission("family_tree.create_any"), familyTreeOwnerIdValidation, addFamilyMemberValidation, addFamilyMember);
 router.post("/users/:ownerId/export", authorizeRoles(Role.ADMIN, Role.COORDINATOR), requireAdminPermission("family_tree.read_any"), familyTreeOwnerIdValidation, exportFamilyMembersValidation, exportFamilyMembersCsv);
-router.post("/users/:ownerId/family-members/:id/relationships", authenticate, authorizeRoles(Role.ADMIN, Role.COORDINATOR), linkFamilyRelationshipValidation, linkFamilyRelationship);
+router.post("/users/:ownerId/family-members/:id/relationships", authorizeRoles(Role.ADMIN, Role.COORDINATOR), requireAdminPermission("family_tree.update_any"), linkFamilyRelationshipValidation, linkFamilyRelationship);
 router.get("/users/:ownerId/get-family-tree", authorizeRoles(Role.ADMIN, Role.COORDINATOR), requireAdminPermission("family_tree.read_any"), familyTreeOwnerIdValidation, getFamilyTree);
 router.get("/users/:ownerId/get-members", authorizeRoles(Role.ADMIN, Role.COORDINATOR), requireAdminPermission("family_tree.read_any"), familyTreeOwnerIdValidation, getFamilyMembersValidation, getFamilyMembers);
 router.get("/users/:ownerId/activities", authorizeRoles(Role.ADMIN, Role.COORDINATOR), requireAdminPermission("family_tree.read_any"), familyTreeOwnerIdValidation, getFamilyTreeActivitiesValidation, getFamilyTreeActivities);
@@ -207,6 +259,6 @@ router.get("/users/:ownerId/get-member/:id", authorizeRoles(Role.ADMIN, Role.COO
 router.patch("/users/:ownerId/update-member/:id", authorizeRoles(Role.ADMIN, Role.COORDINATOR), requireAdminPermission("family_tree.update_any"), familyTreeOwnerIdValidation, updateFamilyMemberValidation, updateFamilyMember);
 router.patch("/users/:ownerId/restore-member/:id", authorizeRoles(Role.ADMIN), requirePermission("family_tree.restore_any"), familyTreeOwnerIdValidation, restoreFamilyMemberValidation, restoreFamilyMember);
 router.delete("/users/:ownerId/delete-member/:id", authorizeRoles(Role.ADMIN, Role.COORDINATOR), requireAdminPermission("family_tree.delete_any"), familyTreeOwnerIdValidation, deleteFamilyMemberValidation, deleteFamilyMember);
-router.delete("/users/:ownerId/family-members/:id/relationships/:relatedMemberId", authenticate, authorizeRoles(Role.ADMIN, Role.COORDINATOR), unlinkFamilyRelationshipValidation, unlinkFamilyRelationship);
+router.delete("/users/:ownerId/family-members/:id/relationships/:relatedMemberId", authorizeRoles(Role.ADMIN, Role.COORDINATOR), requireAdminPermission("family_tree.update_any"), unlinkFamilyRelationshipValidation, unlinkFamilyRelationship);
 export default router;
 //# sourceMappingURL=family-tree.routes.js.map

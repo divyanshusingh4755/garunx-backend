@@ -72,6 +72,8 @@ export interface IUser extends Document {
     userReference: string;
     ratingSummary?: IRatingSummary;
     coordinatorProfile?: ICoordinatorProfile;
+    verifiedEmail?: string | null;
+    verifiedPhoneNumber?: string | null;
     createdAt: Date;
     updatedAt: Date;
 }

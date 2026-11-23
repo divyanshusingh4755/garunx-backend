@@ -229,6 +229,7 @@ class AuthService {
       if (user.otp !== otp) { throw new Error("Invalid OTP."); }
 
       user.isOtpVerified = true;
+      user.verifiedPhoneNumber = user.phoneNumber ?? null;
       user.otp = null;
       user.otpExpiresAt = null;
 

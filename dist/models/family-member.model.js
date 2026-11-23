@@ -7,6 +7,11 @@ const familyMemberSchema = new Schema({
         required: true,
         index: true,
     },
+    linkedUserId: {
+        type: Schema.Types.ObjectId,
+        ref: "User",
+        default: null,
+    },
     createdBy: {
         type: Schema.Types.ObjectId,
         ref: "User",
@@ -107,6 +112,15 @@ const familyMemberSchema = new Schema({
             message: "Duplicate spouse IDs are not allowed",
         },
     },
+    treeOwnerIds: {
+        type: [
+            {
+                type: Schema.Types.ObjectId,
+                ref: "User",
+            },
+        ],
+        default: [],
+    },
     nativeVillage: {
         type: String,
         trim: true,
@@ -195,6 +209,7 @@ familyMemberSchema.pre("validate", function () {
         throw new Error("Deletion fields cannot be set when family member is not deleted");
     }
 });
+familyMemberSchema.index({ treeOwnerIds: 1, isDeleted: 1 });
 familyMemberSchema.index({ ownerId: 1, isDeleted: 1, fatherId: 1 });
 familyMemberSchema.index({ ownerId: 1, isDeleted: 1, motherId: 1 });
 familyMemberSchema.index({ ownerId: 1, isDeleted: 1, spouseIds: 1 });
@@ -202,5 +217,10 @@ familyMemberSchema.index({ ownerId: 1, isDeleted: 1, fullName: 1 });
 familyMemberSchema.index({ ownerId: 1, isDeleted: 1, createdAt: -1 });
 familyMemberSchema.index({ sourceBookingId: 1, isDeleted: 1 });
 familyMemberSchema.index({ ownerId: 1, relation: 1 }, { unique: true, partialFilterExpression: { relation: FamilyRelation.SELF, isDeleted: false }, name: "unique_active_self_per_owner" });
+familyMemberSchema.index({ linkedUserId: 1 }, {
+    unique: true,
+    partialFilterExpression: { linkedUserId: { $type: "objectId" } },
+    name: "unique_linked_user_per_family_member",
+});
 export const FamilyMember = model("FamilyMember", familyMemberSchema);
 //# sourceMappingURL=family-member.model.js.map
