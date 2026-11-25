@@ -87,6 +87,7 @@ declare class FamilyTreeService {
     private static wouldCreateAncestorCycle;
     private static createRelationshipLinkedActivity;
     private static validateRelationshipLink;
+    private static assertCanReplaceDeletedParent;
     private static linkFamilyRelationship;
     private static unlinkFamilyRelationship;
     private static invalidateFamilyTreeCache;
@@ -246,6 +247,21 @@ declare class FamilyTreeService {
             hasPreviousPage: boolean;
         };
     }>;
+    static getDeletedFamilyMembers(ownerId: string, query: GetFamilyMembersQuery): Promise<{
+        familyMembers: (IFamilyMember & Required<{
+            _id: Types.ObjectId;
+        }> & {
+            __v: number;
+        })[];
+        pagination: {
+            currentPage: number;
+            totalPages: number;
+            totalMembers: number;
+            limit: number;
+            hasNextPage: boolean;
+            hasPreviousPage: boolean;
+        };
+    }>;
     static getFamilyMemberById(ownerId: string, familyMemberId: string): Promise<{
         children: (IFamilyMember & Required<{
             _id: Types.ObjectId;
@@ -352,6 +368,8 @@ declare class FamilyTreeService {
             hasPreviousPage: boolean;
         };
     }>;
+    private static assertParentWasNotReplaced;
+    private static assertCanRestoreFamilyMember;
     static restoreFamilyMember(context: FamilyTreeActorContext, familyMemberId: string, reason?: string): Promise<never>;
     static exportFamilyMembersToCsv(ownerId: string, memberIds: string[]): Promise<{
         csv: string;

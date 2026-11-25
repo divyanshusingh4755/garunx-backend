@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { body, param, query } from "express-validator";
-import { addFamilyMember, addSharedFamilyMember, deleteFamilyMember, deleteSharedChildMember, discoverExistingFamilyTrees, exportFamilyMembersCsv, getFamilyMemberActivities, getFamilyMemberById, getFamilyMembers, getFamilyTree, getFamilyTreeActivities, getSharedFamilyTree, getSharedFamilyTreeAccess, linkFamilyRelationship, restoreFamilyMember, unlinkFamilyRelationship, updateFamilyMember, updateSharedBranchMember, updateSharedSelfMember } from "../controllers/family-tree-controllers.js";
+import { addFamilyMember, addSharedFamilyMember, deleteFamilyMember, deleteSharedChildMember, discoverExistingFamilyTrees, exportFamilyMembersCsv, getDeletedFamilyMembers, getFamilyMemberActivities, getFamilyMemberById, getFamilyMembers, getFamilyTree, getFamilyTreeActivities, getSharedFamilyTree, getSharedFamilyTreeAccess, linkFamilyRelationship, restoreFamilyMember, unlinkFamilyRelationship, updateFamilyMember, updateSharedBranchMember, updateSharedSelfMember } from "../controllers/family-tree-controllers.js";
 import { authenticate } from "../middleware/authenticate.js";
 import { authorizeRoles } from "../middleware/authorizeRoles.js";
 import { validate } from "../utils/validate.js";
@@ -15,52 +15,64 @@ const router = Router();
 const FAMILY_TREE_ACTIVITY_ACTIONS = ["MEMBER_ADDED", "MEMBER_UPDATED", "MEMBER_DELETED", "MEMBER_RESTORED", "RELATIONSHIP_LINKED", "RELATIONSHIP_UNLINKED"] as const;
 
 const addFamilyMemberValidation = [
-  body("fullName").notEmpty().withMessage("Full name is required").isString().withMessage("Full name must be a string").trim().isLength({ min: 2, max: 120 }).withMessage("Full name must be between 2 and 120 characters"),
-  body("relation").notEmpty().withMessage("Family relation is required").isIn(Object.values(FamilyRelation)).withMessage("Invalid family relation"),
-  body("gender").optional().isIn(Object.values(Gender)).withMessage("Invalid gender"),
-  body("dob").optional({ checkFalsy: true, }).isISO8601().withMessage("DOB must be a valid date").toDate(),
-  body("lifeStatus").optional().isIn(Object.values(MemberLifeStatus)).withMessage("Invalid life status"),
-  body("dateOfDeath").optional({ checkFalsy: true, }).isISO8601().withMessage("Date of death must be a valid date").toDate(),
-  body("relatedToMemberId").optional({ nullable: true, checkFalsy: true }).isMongoId().withMessage("Invalid related family member ID"),
-  body("relationshipToMember").optional({ nullable: true, checkFalsy: true }).isIn(Object.values(FamilyLinkRelation)).withMessage("Invalid relationship to family member"),
-  body("nativeVillage").optional().isString().withMessage("Native village must be a string").trim().isLength({ max: 120, }).withMessage("Native village cannot exceed 120 characters"),
-  body("state").optional().isString().withMessage("State must be a string").trim().isLength({ max: 120, }).withMessage("State cannot exceed 120 characters"),
-  body("district").optional().isString().withMessage("District must be a string").trim().isLength({ max: 120, }).withMessage("District cannot exceed 120 characters"),
-  body("caste").optional({ nullable: true, checkFalsy: true, }).isIn(Object.values(Caste)).withMessage("Invalid caste"),
-  body("gotra").optional({ nullable: true, checkFalsy: true, }).isIn(Object.values(Gotra)).withMessage("Invalid gotra"),
-  body("designatedPandit").optional().isString().withMessage("Designated pandit must be a string").trim().isLength({ max: 120, }).withMessage("Designated pandit cannot exceed 120 characters"),
-  body("visitors").optional().isArray().withMessage("Visitors must be an array"),
-  body("visitors.*").optional().isString().withMessage("Visitor must be a string").trim().isLength({ min: 1, max: 120, }).withMessage("Visitor must be between 1 and 120 characters"),
-  body("profileImage").optional({ nullable: true, checkFalsy: true, }).isString().withMessage("Profile image must be a string"),
-  body("notes").optional().isString().withMessage("Notes must be a string").trim().isLength({ max: 1000, }).withMessage("Notes cannot exceed 1000 characters"),
-  body().custom((value) => {
+  body("fullName").if((_value, { req }) => req.body.restoreMemberId === undefined).notEmpty().withMessage("Full name is required").isString().withMessage("Full name must be a string").trim().isLength({ min: 2, max: 120 }).withMessage("Full name must be between 2 and 120 characters"),
+  body("relation").if((_value, { req }) => req.body.restoreMemberId === undefined).notEmpty().withMessage("Family relation is required").isIn(Object.values(FamilyRelation)).withMessage("Invalid family relation"),
+  body("gender").if((_value, { req }) => req.body.restoreMemberId === undefined).optional().isIn(Object.values(Gender)).withMessage("Invalid gender"),
+  body("dob").if((_value, { req }) => req.body.restoreMemberId === undefined).optional({ checkFalsy: true }).isISO8601().withMessage("DOB must be a valid date").toDate(),
+  body("lifeStatus").if((_value, { req }) => req.body.restoreMemberId === undefined).optional().isIn(Object.values(MemberLifeStatus)).withMessage("Invalid life status"),
+  body("dateOfDeath").if((_value, { req }) => req.body.restoreMemberId === undefined).optional({ checkFalsy: true }).isISO8601().withMessage("Date of death must be a valid date").toDate(),
+  body("relatedToMemberId").if((_value, { req }) => req.body.restoreMemberId === undefined).optional({ nullable: true, checkFalsy: true }).isMongoId().withMessage("Invalid related family member ID"),
+  body("relationshipToMember").if((_value, { req }) => req.body.restoreMemberId === undefined).optional({ nullable: true, checkFalsy: true }).isIn(Object.values(FamilyLinkRelation)).withMessage("Invalid relationship to family member"),
+  body("nativeVillage").if((_value, { req }) => req.body.restoreMemberId === undefined).optional().isString().withMessage("Native village must be a string").trim().isLength({ max: 120 }).withMessage("Native village cannot exceed 120 characters"),
+  body("state").if((_value, { req }) => req.body.restoreMemberId === undefined).optional().isString().withMessage("State must be a string").trim().isLength({ max: 120 }).withMessage("State cannot exceed 120 characters"),
+  body("district").if((_value, { req }) => req.body.restoreMemberId === undefined).optional().isString().withMessage("District must be a string").trim().isLength({ max: 120 }).withMessage("District cannot exceed 120 characters"),
+  body("caste").if((_value, { req }) => req.body.restoreMemberId === undefined).optional({ nullable: true, checkFalsy: true }).isIn(Object.values(Caste)).withMessage("Invalid caste"),
+  body("gotra").if((_value, { req }) => req.body.restoreMemberId === undefined).optional({ nullable: true, checkFalsy: true }).isIn(Object.values(Gotra)).withMessage("Invalid gotra"),
+  body("designatedPandit").if((_value, { req }) => req.body.restoreMemberId === undefined).optional().isString().withMessage("Designated pandit must be a string").trim().isLength({ max: 120 }).withMessage("Designated pandit cannot exceed 120 characters"),
+  body("visitors").if((_value, { req }) => req.body.restoreMemberId === undefined).optional().isArray().withMessage("Visitors must be an array"),
+  body("visitors.*").if((_value, { req }) => req.body.restoreMemberId === undefined).optional().isString().withMessage("Visitor must be a string").trim().isLength({ min: 1, max: 120 }).withMessage("Visitor must be between 1 and 120 characters"),
+  body("profileImage").if((_value, { req }) => req.body.restoreMemberId === undefined).optional({ nullable: true, checkFalsy: true }).isString().withMessage("Profile image must be a string"),
+  body("notes").if((_value, { req }) => req.body.restoreMemberId === undefined).optional().isString().withMessage("Notes must be a string").trim().isLength({ max: 1000 }).withMessage("Notes cannot exceed 1000 characters"),
+  body("restoreMemberId").optional().isString().withMessage("Restore member ID must be a string").bail().isMongoId().withMessage("Invalid restore member ID"),
+  body().custom((value, { req }) => {
+    if (req.body.restoreMemberId !== undefined) return true;
+
     const dob = value.dob ? new Date(value.dob) : null;
     const dateOfDeath = value.dateOfDeath ? new Date(value.dateOfDeath) : null;
 
-    if (dob && dob.getTime() > Date.now()) { throw new Error("DOB cannot be in the future"); }
-    if (dob && dateOfDeath && dateOfDeath < dob) { throw new Error("Date of death cannot be before DOB"); }
+    if (dob && dob.getTime() > Date.now()) {
+      throw new Error("DOB cannot be in the future");
+    }
+
+    if (dob && dateOfDeath && dateOfDeath < dob) {
+      throw new Error("Date of death cannot be before DOB");
+    }
+
     return true;
   }),
 
-  body().custom((value) => {
+  body().custom((value, { req }) => {
+    if (req.body.restoreMemberId !== undefined) return true;
+
     const isSelf = value.relation === FamilyRelation.SELF;
-    const hasRelatedMember = value.relatedToMemberId != null && value.relatedToMemberId !== "";
-    const hasRelationship = value.relationshipToMember != null && value.relationshipToMember !== "";
+    const hasRelatedMember =
+      value.relatedToMemberId != null && value.relatedToMemberId !== "";
+    const hasRelationship =
+      value.relationshipToMember != null && value.relationshipToMember !== "";
 
-    if (isSelf) {
-      if (hasRelatedMember || hasRelationship) {
-        throw new Error("SELF cannot have a relationship link during creation");
-      }
-
-      return true;
+    if (isSelf && (hasRelatedMember || hasRelationship)) {
+      throw new Error("SELF cannot have a relationship link during creation");
     }
 
     if (hasRelatedMember !== hasRelationship) {
-      throw new Error("relatedToMemberId and relationshipToMember must be provided together");
+      throw new Error(
+        "relatedToMemberId and relationshipToMember must be provided together"
+      );
     }
 
     return true;
   }),
+
   validate,
 ];
 
@@ -268,6 +280,7 @@ router.delete("/shared/delete-child/:id", authorizeRoles(Role.USER), deleteFamil
 router.post("/add-member", authorizeRoles(Role.USER), addFamilyMemberValidation, addFamilyMember);
 router.get("/get-family-tree", authorizeRoles(Role.USER), getFamilyTree);
 router.get("/get-members", authorizeRoles(Role.USER), getFamilyMembersValidation, getFamilyMembers);
+router.get("/get-deleted-members", authorizeRoles(Role.USER), getFamilyMembersValidation, getDeletedFamilyMembers);
 router.get("/activities", authorizeRoles(Role.USER), getFamilyTreeActivitiesValidation, getFamilyTreeActivities);
 router.post("/export", authorizeRoles(Role.USER), exportFamilyMembersValidation, exportFamilyMembersCsv);
 
@@ -287,6 +300,7 @@ router.post("/users/:ownerId/export", authorizeRoles(Role.ADMIN, Role.COORDINATO
 router.post("/users/:ownerId/family-members/:id/relationships", authorizeRoles(Role.ADMIN, Role.COORDINATOR), requireAdminPermission("family_tree.update_any"), linkFamilyRelationshipValidation, linkFamilyRelationship);
 router.get("/users/:ownerId/get-family-tree", authorizeRoles(Role.ADMIN, Role.COORDINATOR), requireAdminPermission("family_tree.read_any"), familyTreeOwnerIdValidation, getFamilyTree);
 router.get("/users/:ownerId/get-members", authorizeRoles(Role.ADMIN, Role.COORDINATOR), requireAdminPermission("family_tree.read_any"), familyTreeOwnerIdValidation, getFamilyMembersValidation, getFamilyMembers);
+router.get("/users/:ownerId/get-deleted-members", authorizeRoles(Role.ADMIN, Role.COORDINATOR), requireAdminPermission("family_tree.read_any"), familyTreeOwnerIdValidation, getFamilyMembersValidation, getDeletedFamilyMembers);
 router.get("/users/:ownerId/activities", authorizeRoles(Role.ADMIN, Role.COORDINATOR), requireAdminPermission("family_tree.read_any"), familyTreeOwnerIdValidation, getFamilyTreeActivitiesValidation, getFamilyTreeActivities);
 
 // ADMIN / COORDINATOR - MEMBER-SPECIFIC ROUTES

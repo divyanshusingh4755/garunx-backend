@@ -106,15 +106,28 @@ export class FamilyTreeAccessRequestService {
             status: request.status,
         };
     }
-    static async getPendingRequests(treeOwnerId) {
-        return FamilyTreeAccessRequest.find({
-            treeOwnerId: objectId(treeOwnerId, "tree owner ID"),
+    static async getPendingRequests(actorId) {
+        const userId = objectId(actorId, "authenticated user ID");
+        const requests = await FamilyTreeAccessRequest.find({
             type: "JOIN_REQUEST",
             status: "PENDING",
+            $or: [
+                { treeOwnerId: userId },
+                { requesterId: userId },
+            ],
         })
             .select("-invitationTokenHash")
             .sort({ createdAt: -1 })
             .lean();
+        return requests.map((request) => {
+            const isIncoming = request.treeOwnerId.toString() === userId.toString();
+            return {
+                ...request,
+                direction: isIncoming ? "INCOMING" : "OUTGOING",
+                canApprove: isIncoming,
+                canReject: isIncoming,
+            };
+        });
     }
     static async decideJoinRequest(ownerId, requestId, decision, confirmedFamilyMemberId) {
         if (decision !== "APPROVED" && decision !== "REJECTED") {

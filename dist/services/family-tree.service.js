@@ -24,33 +24,35 @@ class FamilyTreeService {
     }
     static async wouldCreateAncestorCycle(ownerId, childId, proposedParentId, session) {
         const childIdString = childId.toString();
+        const pending = [proposedParentId.toString()];
         const visited = new Set();
-        const queue = [proposedParentId];
-        while (queue.length > 0) {
-            const currentId = queue.shift();
+        while (pending.length > 0) {
+            const currentId = pending.pop();
             if (!currentId) {
                 continue;
             }
-            const currentIdString = currentId.toString();
-            if (currentIdString === childIdString) {
+            if (currentId === childIdString) {
                 return true;
             }
-            if (visited.has(currentIdString)) {
+            if (visited.has(currentId)) {
                 continue;
             }
-            visited.add(currentIdString);
-            const member = await FamilyMember.findOne({
-                _id: currentId,
+            visited.add(currentId);
+            const currentMember = await FamilyMember.findOne({
+                _id: new Types.ObjectId(currentId),
                 ownerId: new Types.ObjectId(ownerId),
-            }).select("fatherId motherId").session(session);
-            if (!member) {
-                continue;
+            })
+                .select("fatherId motherId")
+                .session(session)
+                .lean();
+            if (!currentMember) {
+                throw new Error("Invalid ancestor reference in family tree");
             }
-            if (member.fatherId) {
-                queue.push(member.fatherId);
+            if (currentMember.fatherId) {
+                pending.push(currentMember.fatherId.toString());
             }
-            if (member.motherId) {
-                queue.push(member.motherId);
+            if (currentMember.motherId) {
+                pending.push(currentMember.motherId.toString());
             }
         }
         return false;
@@ -154,14 +156,36 @@ class FamilyTreeService {
                 throw new Error(`Unsupported family relationship: ${relationship}`);
         }
     }
+    static async assertCanReplaceDeletedParent(context, child, parentField, session) {
+        const existingParentId = child[parentField];
+        // No existing parent. Normal linking is allowed.
+        if (!existingParentId) {
+            return null;
+        }
+        const parentLabel = parentField === "fatherId" ? "father" : "mother";
+        const existingParent = await FamilyMember.findOne({ _id: existingParentId, ownerId: new Types.ObjectId(context.ownerId) })
+            .select("_id isDeleted")
+            .session(session);
+        // Do not silently overwrite invalid references.
+        if (!existingParent) {
+            throw new Error(`Invalid existing ${parentLabel} relationship`);
+        }
+        // Never overwrite an active parent.
+        if (!existingParent.isDeleted) {
+            throw new Error(`${child.fullName} already has ${parentLabel} linked`);
+        }
+        // Replacement is restricted to authorized owners.
+        await FamilyTreeMemberAccessService.assertOwnerOnly(context);
+        // Preserve existing full-sibling protection.
+        await FamilyTreeService.assertFullSiblingParentProtection(context.ownerId, child, session);
+        return existingParentId;
+    }
     static async linkFamilyRelationship(context, newMember, relatedMember, relationship, session) {
         FamilyTreeService.validateRelationshipLink(newMember, relatedMember, relationship);
         const actorId = new Types.ObjectId(context.actorId);
         switch (relationship) {
             case FamilyLinkRelation.FATHER: {
-                if (relatedMember.fatherId) {
-                    throw new Error(`${relatedMember.fullName} already has father linked`);
-                }
+                const previousFatherId = await FamilyTreeService.assertCanReplaceDeletedParent(context, relatedMember, "fatherId", session);
                 const createsCycle = await FamilyTreeService.wouldCreateAncestorCycle(context.ownerId, relatedMember._id, newMember._id, session);
                 if (createsCycle) {
                     throw new Error("This father relationship would create a cycle in the family tree");
@@ -169,12 +193,27 @@ class FamilyTreeService {
                 relatedMember.fatherId = newMember._id;
                 relatedMember.updatedBy = actorId;
                 await relatedMember.save({ session });
+                if (previousFatherId) {
+                    await FamilyTreeService.createActivity(context, relatedMember._id, "RELATIONSHIP_LINKED", [
+                        {
+                            field: "fatherId",
+                            oldValue: previousFatherId.toString(),
+                            newValue: newMember._id.toString(),
+                        },
+                    ], session, {
+                        reason: "Deleted father relationship replaced",
+                        metadata: {
+                            operation: "PARENT_REPLACEMENT",
+                            relationship: "FATHER",
+                            previousParentId: previousFatherId.toString(),
+                            replacementParentId: newMember._id.toString(),
+                        },
+                    });
+                }
                 break;
             }
             case FamilyLinkRelation.MOTHER: {
-                if (relatedMember.motherId) {
-                    throw new Error(`${relatedMember.fullName} already has a mother linked`);
-                }
+                const previousMotherId = await FamilyTreeService.assertCanReplaceDeletedParent(context, relatedMember, "motherId", session);
                 const createsCycle = await FamilyTreeService.wouldCreateAncestorCycle(context.ownerId, relatedMember._id, newMember._id, session);
                 if (createsCycle) {
                     throw new Error("This mother relationship would create a cycle in the family tree");
@@ -182,6 +221,23 @@ class FamilyTreeService {
                 relatedMember.motherId = newMember._id;
                 relatedMember.updatedBy = actorId;
                 await relatedMember.save({ session });
+                if (previousMotherId) {
+                    await FamilyTreeService.createActivity(context, relatedMember._id, "RELATIONSHIP_LINKED", [
+                        {
+                            field: "motherId",
+                            oldValue: previousMotherId.toString(),
+                            newValue: newMember._id.toString(),
+                        },
+                    ], session, {
+                        reason: "Deleted mother relationship replaced",
+                        metadata: {
+                            operation: "PARENT_REPLACEMENT",
+                            relationship: "MOTHER",
+                            previousParentId: previousMotherId.toString(),
+                            replacementParentId: newMember._id.toString(),
+                        },
+                    });
+                }
                 break;
             }
             case FamilyLinkRelation.SON:
@@ -1090,6 +1146,70 @@ class FamilyTreeService {
             },
         });
     }
+    static async getDeletedFamilyMembers(ownerId, query) {
+        if (!Types.ObjectId.isValid(ownerId)) {
+            throw new Error("Invalid family tree owner ID");
+        }
+        const { search, relation, gender, lifeStatus, page = 1, limit = 20 } = query;
+        const pageNumber = Number.isInteger(page) && page > 0 ? page : 1;
+        const limitNumber = Number.isInteger(limit) && limit > 0 ? Math.min(100, limit) : 20;
+        const skip = (pageNumber - 1) * limitNumber;
+        const filter = { ownerId: new Types.ObjectId(ownerId), isDeleted: true };
+        if (search?.trim()) {
+            filter.fullName = { $regex: FamilyTreeService.escapeRegex(search.trim()), $options: "i" };
+        }
+        if (relation) {
+            filter.relation = relation;
+        }
+        if (gender) {
+            filter.gender = gender;
+        }
+        if (lifeStatus) {
+            filter.lifeStatus = lifeStatus;
+        }
+        const [familyMembers, totalMembers] = await Promise.all([
+            FamilyMember.find(filter)
+                .select([
+                "fullName",
+                "relation",
+                "gender",
+                "dob",
+                "lifeStatus",
+                "dateOfDeath",
+                "fatherId",
+                "motherId",
+                "spouseIds",
+                "nativeVillage",
+                "state",
+                "district",
+                "profileImage",
+                "source",
+                "isDeleted",
+                "deletedAt",
+                "deletedBy",
+                "deletionReason",
+                "createdAt",
+                "updatedAt",
+            ].join(" "))
+                .sort({ deletedAt: -1, _id: -1 })
+                .skip(skip)
+                .limit(limitNumber)
+                .lean(),
+            FamilyMember.countDocuments(filter),
+        ]);
+        const totalPages = Math.ceil(totalMembers / limitNumber);
+        return {
+            familyMembers,
+            pagination: {
+                currentPage: pageNumber,
+                totalPages,
+                totalMembers,
+                limit: limitNumber,
+                hasNextPage: pageNumber < totalPages,
+                hasPreviousPage: pageNumber > 1,
+            },
+        };
+    }
     static async getFamilyMemberById(ownerId, familyMemberId) {
         if (!Types.ObjectId.isValid(ownerId)) {
             throw new Error("Invalid family tree owner ID");
@@ -1417,6 +1537,162 @@ class FamilyTreeService {
             },
         };
     }
+    static async assertParentWasNotReplaced(context, member, session) {
+        const ownerId = new Types.ObjectId(context.ownerId);
+        const memberId = member._id.toString();
+        const replacements = await FamilyTreeActivity.find({
+            ownerId,
+            action: "RELATIONSHIP_LINKED",
+            "metadata.operation": "PARENT_REPLACEMENT",
+            "metadata.previousParentId": memberId,
+            ...(member.deletedAt && { createdAt: { $gte: member.deletedAt } }),
+        })
+            .select("familyMemberId metadata")
+            .session(session)
+            .lean();
+        for (const replacement of replacements) {
+            const metadata = replacement.metadata;
+            const relationship = metadata?.relationship;
+            if (relationship !== "FATHER" && relationship !== "MOTHER") {
+                continue;
+            }
+            const child = await FamilyMember.findOne({ _id: replacement.familyMemberId, ownerId })
+                .select("fatherId motherId")
+                .session(session)
+                .lean();
+            if (!child) {
+                continue;
+            }
+            const currentParentId = relationship === "FATHER" ? child.fatherId : child.motherId;
+            if (currentParentId?.toString() !== memberId) {
+                throw new Error(`Cannot restore ${member.fullName} because the original parent relationship has been replaced`);
+            }
+        }
+    }
+    static async assertCanRestoreFamilyMember(context, member, session) {
+        if (!member.isDeleted) {
+            throw new Error("Family member is not deleted");
+        }
+        await FamilyTreeService.assertParentWasNotReplaced(context, member, session);
+        const ownerId = new Types.ObjectId(context.ownerId);
+        const memberId = member._id.toString();
+        // Include deleted members because they may still represent structural connections in the tree.
+        const members = await FamilyMember.find({ ownerId })
+            .select("_id relation gender fatherId motherId spouseIds isDeleted")
+            .session(session)
+            .lean();
+        const memberMap = new Map(members.map((item) => [item._id.toString(), item]));
+        // Prevent multiple active SELF members.
+        if (member.relation === FamilyRelation.SELF) {
+            const existingSelf = members.some((item) => item._id.toString() !== memberId &&
+                item.relation === FamilyRelation.SELF &&
+                !item.isDeleted);
+            if (existingSelf) {
+                throw new Error("Cannot restore member because an active SELF member already exists");
+            }
+        }
+        // Validate outgoing parent relationships.
+        const parentReferences = [
+            {
+                id: member.fatherId,
+                gender: Gender.MALE,
+                label: "father",
+            },
+            {
+                id: member.motherId,
+                gender: Gender.FEMALE,
+                label: "mother",
+            },
+        ];
+        if (member.fatherId && member.motherId && member.fatherId.equals(member.motherId)) {
+            throw new Error("Cannot restore member with identical father and mother references");
+        }
+        for (const reference of parentReferences) {
+            if (!reference.id) {
+                continue;
+            }
+            const parentId = reference.id.toString();
+            if (parentId === memberId) {
+                throw new Error("Cannot restore a member linked as their own parent");
+            }
+            const parent = memberMap.get(parentId);
+            if (!parent) {
+                throw new Error(`Cannot restore member because the ${reference.label} reference is invalid`);
+            }
+            if (parent.gender && parent.gender !== reference.gender) {
+                throw new Error(`Cannot restore member because the ${reference.label} gender is invalid`);
+            }
+        }
+        // Validate incoming parent relationships.
+        for (const child of members) {
+            const childId = child._id.toString();
+            if (childId === memberId) {
+                continue;
+            }
+            const isFather = child.fatherId?.toString() === memberId;
+            const isMother = child.motherId?.toString() === memberId;
+            if (isFather && isMother) {
+                throw new Error("Cannot restore member linked as both father and mother");
+            }
+            if (isFather && member.gender && member.gender !== Gender.MALE) {
+                throw new Error("Cannot restore member because an incoming father relationship is invalid");
+            }
+            if (isMother && member.gender && member.gender !== Gender.FEMALE) {
+                throw new Error("Cannot restore member because an incoming mother relationship is invalid");
+            }
+        }
+        // Validate outgoing spouse relationships.
+        const spouseIds = new Set(member.spouseIds.map((id) => id.toString()));
+        for (const spouseId of spouseIds) {
+            if (spouseId === memberId) {
+                throw new Error("Cannot restore a member linked as their own spouse");
+            }
+            const spouse = memberMap.get(spouseId);
+            if (!spouse) {
+                throw new Error("Cannot restore member because a spouse reference is invalid");
+            }
+            const hasReverseLink = spouse.spouseIds.some((id) => id.toString() === memberId);
+            if (!hasReverseLink) {
+                throw new Error("Cannot restore member because a spouse relationship is inconsistent");
+            }
+        }
+        // Validate incoming spouse relationships.
+        for (const relatedMember of members) {
+            const relatedMemberId = relatedMember._id.toString();
+            if (relatedMemberId === memberId) {
+                continue;
+            }
+            const hasIncomingSpouseLink = relatedMember.spouseIds.some((id) => id.toString() === memberId);
+            if (hasIncomingSpouseLink && !spouseIds.has(relatedMemberId)) {
+                throw new Error("Cannot restore member because an incoming spouse relationship is inconsistent");
+            }
+        }
+        // Validate ancestry, including deleted ancestors.
+        const visiting = new Set();
+        const visited = new Set();
+        const visitAncestor = (id) => {
+            if (visiting.has(id)) {
+                throw new Error("Cannot restore member because an ancestry cycle exists");
+            }
+            if (visited.has(id)) {
+                return;
+            }
+            const currentMember = memberMap.get(id);
+            if (!currentMember) {
+                throw new Error("Cannot restore member because an ancestor reference is invalid");
+            }
+            visiting.add(id);
+            if (currentMember.fatherId) {
+                visitAncestor(currentMember.fatherId.toString());
+            }
+            if (currentMember.motherId) {
+                visitAncestor(currentMember.motherId.toString());
+            }
+            visiting.delete(id);
+            visited.add(id);
+        };
+        visitAncestor(memberId);
+    }
     static async restoreFamilyMember(context, familyMemberId, reason) {
         const { ownerId, actorId } = context;
         FamilyTreeService.validateContext(context);
@@ -1435,9 +1711,7 @@ class FamilyTreeService {
                 if (!member) {
                     throw new Error("Family member not found");
                 }
-                if (!member.isDeleted) {
-                    throw new Error("Family member is not deleted");
-                }
+                await FamilyTreeService.assertCanRestoreFamilyMember(context, member, session);
                 const previousDeletionState = { isDeleted: member.isDeleted, deletedAt: member.deletedAt ?? null, deletedBy: member.deletedBy ?? null, deletionReason: member.deletionReason ?? null };
                 member.isDeleted = false;
                 member.deletedAt = null;

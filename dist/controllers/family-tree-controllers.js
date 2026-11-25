@@ -6,6 +6,7 @@ import { Types } from "mongoose";
 import { User } from "../models/user.model.js";
 import { FamilyMember } from "../models/family-member.model.js";
 import { FamilyTreeDiscoveryService } from "../services/family-tree-discovery.service.js";
+import { FamilyTreeMemberAccessService } from "../services/family-tree-member-access.service.js";
 const getAuthenticatedUser = (req) => {
     const userId = req.user?.userId;
     const role = req.user?.role;
@@ -86,15 +87,39 @@ export const addFamilyMember = async (req, res) => {
     try {
         const { authenticatedUser, access } = await resolveTreeAccess(req);
         const context = buildActorContext(authenticatedUser, access);
+        const { restoreMemberId } = req.body;
+        // Restore an existing deleted member.
+        if (restoreMemberId !== undefined) {
+            if (typeof restoreMemberId !== "string" || !restoreMemberId.trim()) {
+                throw new Error("Invalid restore member ID");
+            }
+            if (authenticatedUser.role !== Role.USER || context.actorId !== context.ownerId || context.source !== "CUSTOMER_SELF") {
+                throw new Error("Not authorized to restore members through add-member API");
+            }
+            const unsupportedFields = Object.keys(req.body).filter((key) => key !== "restoreMemberId");
+            if (unsupportedFields.length > 0) {
+                throw new Error("Cannot combine member restoration with member creation fields");
+            }
+            const familyMember = await FamilyTreeService.restoreFamilyMember(context, restoreMemberId.trim(), "Restored through add-member API");
+            return res.status(200).json({
+                success: true,
+                message: "Family member restored successfully",
+                operation: "RESTORED",
+                familyMember,
+            });
+        }
+        // Existing member creation flow.
         const familyMember = await FamilyTreeService.addFamilyMember(context, req.body);
         return res.status(201).json({
             success: true,
             message: "Family member added successfully",
+            operation: "CREATED",
             familyMember,
         });
     }
     catch (error) {
-        return res.status(getErrorStatusCode(error, 400)).json({
+        return res.status(getErrorStatusCode(error, 400))
+            .json({
             success: false,
             message: getErrorMessage(error, "Failed to add family member"),
         });
@@ -770,6 +795,43 @@ export const discoverExistingFamilyTrees = async (req, res) => {
         return res.status(status).json({
             success: false,
             message,
+        });
+    }
+};
+export const getDeletedFamilyMembers = async (req, res) => {
+    try {
+        const { authenticatedUser, access } = await resolveTreeAccess(req);
+        const context = buildActorContext(authenticatedUser, access);
+        await FamilyTreeMemberAccessService.assertOwnerOnly(context);
+        const { search, relation, gender, lifeStatus, page, limit } = req.query;
+        const filters = {
+            page: typeof page === "number" ? page : typeof page === "string" ? Number(page) : 1,
+            limit: typeof limit === "number" ? limit : typeof limit === "string" ? Number(limit) : 20,
+        };
+        if (typeof search === "string") {
+            filters.search = search.trim();
+        }
+        if (typeof relation === "string") {
+            filters.relation = relation;
+        }
+        if (typeof gender === "string") {
+            filters.gender = gender;
+        }
+        if (typeof lifeStatus === "string") {
+            filters.lifeStatus = lifeStatus;
+        }
+        const result = await FamilyTreeService.getDeletedFamilyMembers(access.ownerId, filters);
+        return res.status(200).json({
+            success: true,
+            message: "Deleted family members fetched successfully",
+            ...result,
+        });
+    }
+    catch (error) {
+        return res.status(getErrorStatusCode(error, 500))
+            .json({
+            success: false,
+            message: getErrorMessage(error, "Failed to fetch deleted family members"),
         });
     }
 };

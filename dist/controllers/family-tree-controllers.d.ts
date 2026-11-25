@@ -18,4 +18,5 @@ export declare const addSharedFamilyMember: (req: Request, res: Response) => Pro
 export declare const updateSharedBranchMember: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
 export declare const deleteSharedChildMember: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
 export declare const discoverExistingFamilyTrees: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
+export declare const getDeletedFamilyMembers: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
 //# sourceMappingURL=family-tree-controllers.d.ts.map
