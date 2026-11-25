@@ -8,7 +8,7 @@ import { Caste, FamilyLinkRelation, FamilyRelation, Gender, Gotra, MemberLifeSta
 import { Role } from "../types/rbac.js";
 import { requireAdminPermission } from "../middleware/requireAdminPermission.js";
 import { requirePermission } from "../middleware/rbac.js";
-import { acceptFamilyTreeInvitation, activateFamilyTreeJoinRequest, createFamilyTreeInvitation, decideFamilyTreeJoinRequest, getPendingFamilyTreeJoinRequests, requestDiscoveredFamilyTreeJoin, requestFamilyTreeJoin, validateFamilyTreeInvitation } from "../controllers/family-tree-access-request.controller.js";
+import { acceptFamilyTreeInvitation, activateFamilyTreeJoinRequest, createFamilyTreeInvitation, decideFamilyTreeJoinRequest, getPendingFamilyTreeInvitations, getPendingFamilyTreeJoinRequests, requestDiscoveredFamilyTreeJoin, requestFamilyTreeJoin, validateFamilyTreeInvitation } from "../controllers/family-tree-access-request.controller.js";
 const router = Router();
 const FAMILY_TREE_ACTIVITY_ACTIONS = ["MEMBER_ADDED", "MEMBER_UPDATED", "MEMBER_DELETED", "MEMBER_RESTORED", "RELATIONSHIP_LINKED", "RELATIONSHIP_UNLINKED"];
 const addFamilyMemberValidation = [
@@ -186,7 +186,16 @@ const invitationTokenParamValidation = [
     validate,
 ];
 const acceptInvitationValidation = [
-    body("invitationToken").matches(/^[a-f0-9]{64}$/),
+    body("invitationToken").optional().isString().withMessage("Invitation token must be a string").bail().matches(/^[a-f0-9]{64}$/).withMessage("Invalid invitation token"),
+    body("requestId").optional().isString().withMessage("Request ID must be a string").bail().isMongoId().withMessage("Invalid invitation request ID"),
+    body().custom((value) => {
+        const hasToken = value?.invitationToken !== undefined;
+        const hasRequestId = value?.requestId !== undefined;
+        if (hasToken === hasRequestId) {
+            throw new Error("Provide either invitationToken or requestId");
+        }
+        return true;
+    }),
     validate,
 ];
 const requestJoinValidation = [
@@ -219,6 +228,7 @@ router.post("/discover", authorizeRoles(Role.USER), discoverFamilyTreeValidation
 router.post("/join-requests/discovered", authorizeRoles(Role.USER), discoveredJoinRequestValidation, requestDiscoveredFamilyTreeJoin);
 // FAMILY TREE INVITATIONS
 router.post("/invitations", authorizeRoles(Role.USER), createInvitationValidation, createFamilyTreeInvitation);
+router.get("/invitations/pending", authorizeRoles(Role.USER), getPendingFamilyTreeInvitations);
 router.get("/invitations/validate/:token", authorizeRoles(Role.USER), invitationTokenParamValidation, validateFamilyTreeInvitation);
 router.post("/invitations/accept", authorizeRoles(Role.USER), acceptInvitationValidation, acceptFamilyTreeInvitation);
 // FAMILY TREE JOIN REQUESTS

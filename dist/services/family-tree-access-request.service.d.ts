@@ -1,6 +1,7 @@
 import { Types } from "mongoose";
 import mongoose from "mongoose";
 export declare class FamilyTreeAccessRequestService {
+    private static getVerifiedInvitationContacts;
     private static requireMember;
     static createInvitation(actorId: string, familyMemberId: string, recipient: {
         email?: string;
@@ -10,6 +11,26 @@ export declare class FamilyTreeAccessRequestService {
         invitationToken: string;
         expiresAt: Date | null | undefined;
     }>;
+    static getPendingInvitations(actorId: string): Promise<{
+        _id: Types.ObjectId;
+        treeOwnerId: Types.ObjectId;
+        familyMemberId: Types.ObjectId | null;
+        requesterId: Types.ObjectId | null;
+        type: import("../models/family-tree-access-request.model.js").FamilyTreeAccessRequestType;
+        status: import("../models/family-tree-access-request.model.js").FamilyTreeAccessRequestStatus;
+        direction: string;
+        familyMember: {
+            _id: Types.ObjectId;
+            fullName: string;
+            relation: import("../types/enums.js").FamilyRelation;
+        } | null;
+        invitedEmail: string | null;
+        invitedPhoneNumber: string | null;
+        canAccept: boolean;
+        expiresAt: Date | null | undefined;
+        createdAt: Date;
+        updatedAt: Date;
+    }[]>;
     static requestToJoin(requesterId: string, treeOwnerId: string, familyMemberId: string): Promise<{
         requestId: string;
         status: import("../models/family-tree-access-request.model.js").FamilyTreeAccessRequestStatus;
@@ -51,8 +72,12 @@ export declare class FamilyTreeAccessRequestService {
         accessEnabled: boolean;
     }>;
     private static claimMember;
-    static acceptInvitation(actorId: string, invitationToken: string): Promise<{
+    static acceptInvitation(actorId: string, input: string | {
+        invitationToken?: string;
+        requestId?: string;
+    }): Promise<{
         success: boolean;
+        requestId: string;
         familyMemberId: string;
         linkedUserId: string;
         accessEnabled: boolean;

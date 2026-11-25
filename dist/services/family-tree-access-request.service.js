@@ -14,6 +14,16 @@ const objectId = (value, field) => {
 };
 const hashToken = (token) => createHash("sha256").update(token).digest("hex");
 export class FamilyTreeAccessRequestService {
+    static getVerifiedInvitationContacts(user) {
+        const email = user.email?.trim().toLowerCase();
+        const verifiedEmail = user.verifiedEmail?.trim().toLowerCase();
+        const phoneNumber = user.phoneNumber?.trim();
+        const verifiedPhoneNumber = user.verifiedPhoneNumber?.trim();
+        return {
+            email: email && verifiedEmail && email === verifiedEmail ? email : null,
+            phoneNumber: phoneNumber && verifiedPhoneNumber && phoneNumber === verifiedPhoneNumber ? phoneNumber : null,
+        };
+    }
     static async requireMember(treeOwnerId, familyMemberId) {
         const member = await FamilyMember.findOne({
             _id: objectId(familyMemberId, "family member ID"),
@@ -70,6 +80,87 @@ export class FamilyTreeAccessRequestService {
             invitationToken,
             expiresAt: request.invitationExpiresAt,
         };
+    }
+    static async getPendingInvitations(actorId) {
+        const userId = objectId(actorId, "authenticated user ID");
+        const user = await User.findOne({
+            _id: userId,
+            isActive: true,
+            isOtpVerified: true,
+        })
+            .select("_id email phoneNumber verifiedEmail verifiedPhoneNumber")
+            .lean();
+        if (!user) {
+            throw new Error("Verified active account required");
+        }
+        const contacts = this.getVerifiedInvitationContacts(user);
+        const recipientConditions = [];
+        if (contacts.email) {
+            recipientConditions.push({ invitedEmail: contacts.email });
+        }
+        if (contacts.phoneNumber) {
+            recipientConditions.push({ invitedPhoneNumber: contacts.phoneNumber });
+        }
+        const conditions = [{ treeOwnerId: userId }, ...recipientConditions,];
+        const invitations = await FamilyTreeAccessRequest.find({
+            type: "INVITATION",
+            status: "PENDING",
+            invitationExpiresAt: { $gt: new Date() },
+            $or: conditions,
+        })
+            .select("_id treeOwnerId familyMemberId requesterId type status invitedEmail invitedPhoneNumber invitationExpiresAt createdAt updatedAt")
+            .sort({ createdAt: -1 })
+            .lean();
+        const existingTree = await FamilyMember.exists({ ownerId: userId, isDeleted: false });
+        const existingLink = await FamilyMember.exists({ linkedUserId: userId });
+        const memberIds = invitations.flatMap((invitation) => invitation.familyMemberId ? [invitation.familyMemberId] : []);
+        const members = await FamilyMember.find({
+            _id: { $in: memberIds },
+            isDeleted: false,
+            linkedUserId: null,
+        })
+            .select("_id ownerId fullName relation")
+            .lean();
+        const memberMap = new Map(members.map((member) => [member._id.toString(), member]));
+        return invitations.flatMap((invitation) => {
+            const isOutgoing = invitation.treeOwnerId.toString() === userId.toString();
+            const member = invitation.familyMemberId ? memberMap.get(invitation.familyMemberId.toString()) : undefined;
+            const memberAvailable = Boolean(member && member.ownerId.toString() === invitation.treeOwnerId.toString());
+            const emailMatches = Boolean(contacts.email && invitation.invitedEmail === contacts.email);
+            const phoneMatches = Boolean(contacts.phoneNumber && invitation.invitedPhoneNumber === contacts.phoneNumber);
+            const isIncoming = !isOutgoing && (emailMatches || phoneMatches);
+            if (!isOutgoing && !isIncoming) {
+                return [];
+            }
+            // Do not show unavailable invitations to recipients.
+            if (isIncoming && !memberAvailable) {
+                return [];
+            }
+            return [
+                {
+                    _id: invitation._id,
+                    treeOwnerId: invitation.treeOwnerId,
+                    familyMemberId: invitation.familyMemberId ?? null,
+                    requesterId: invitation.requesterId ?? null,
+                    type: invitation.type,
+                    status: invitation.status,
+                    direction: isOutgoing ? "OUTGOING" : "INCOMING",
+                    familyMember: memberAvailable && member
+                        ? {
+                            _id: member._id,
+                            fullName: member.fullName,
+                            relation: member.relation,
+                        }
+                        : null,
+                    invitedEmail: isOutgoing || emailMatches ? invitation.invitedEmail ?? null : null,
+                    invitedPhoneNumber: isOutgoing || phoneMatches ? invitation.invitedPhoneNumber ?? null : null,
+                    canAccept: Boolean(isIncoming && memberAvailable && !existingTree && !existingLink),
+                    expiresAt: invitation.invitationExpiresAt,
+                    createdAt: invitation.createdAt,
+                    updatedAt: invitation.updatedAt,
+                },
+            ];
+        });
     }
     static async requestToJoin(requesterId, treeOwnerId, familyMemberId) {
         if (requesterId === treeOwnerId) {
@@ -230,27 +321,28 @@ export class FamilyTreeAccessRequestService {
             throw new Error("Family member has already been claimed or is unavailable");
         }
     }
-    static async acceptInvitation(actorId, invitationToken) {
-        if (!/^[a-f0-9]{64}$/.test(invitationToken)) {
+    static async acceptInvitation(actorId, input) {
+        // Preserve compatibility with existing service callers.
+        const payload = typeof input === "string" ? { invitationToken: input } : input;
+        const invitationToken = payload?.invitationToken;
+        const requestId = payload?.requestId;
+        const hasToken = invitationToken !== undefined;
+        const hasRequestId = requestId !== undefined;
+        if (hasToken === hasRequestId) {
+            throw new Error("Provide either invitationToken or requestId");
+        }
+        if (hasToken && (typeof invitationToken !== "string" || !/^[a-f0-9]{64}$/.test(invitationToken))) {
             throw new Error("Invalid invitation token");
         }
-        const tokenHash = hashToken(invitationToken);
+        if (hasRequestId && (typeof requestId !== "string" || !/^[a-fA-F0-9]{24}$/.test(requestId))) {
+            throw new Error("Invalid invitation request ID");
+        }
+        const userId = objectId(actorId, "authenticated user ID");
         const session = await mongoose.startSession();
         try {
             session.startTransaction();
-            const request = await FamilyTreeAccessRequest.findOne({
-                invitationTokenHash: tokenHash,
-                type: "INVITATION",
-                status: "PENDING",
-                invitationExpiresAt: { $gt: new Date() },
-            })
-                .select("+invitationTokenHash")
-                .session(session);
-            if (!request) {
-                throw new Error("Invitation invalid or expired");
-            }
             const user = await User.findOne({
-                _id: objectId(actorId, "authenticated user ID"),
+                _id: userId,
                 isActive: true,
                 isOtpVerified: true,
             })
@@ -259,43 +351,58 @@ export class FamilyTreeAccessRequestService {
             if (!user) {
                 throw new Error("Verified active account required");
             }
-            const emailMatches = Boolean(request.invitedEmail &&
-                user.verifiedEmail &&
-                user.email?.toLowerCase() === request.invitedEmail &&
-                user.verifiedEmail.toLowerCase() === request.invitedEmail);
-            const phoneMatches = Boolean(request.invitedPhoneNumber &&
-                user.verifiedPhoneNumber &&
-                user.phoneNumber === request.invitedPhoneNumber &&
-                user.verifiedPhoneNumber === request.invitedPhoneNumber);
-            if (!emailMatches && !phoneMatches) {
-                throw new Error("Invitation recipient contact has not been verified");
+            const contacts = this.getVerifiedInvitationContacts(user);
+            const recipientConditions = [];
+            if (contacts.email) {
+                recipientConditions.push({ invitedEmail: contacts.email });
             }
-            if (user._id.equals(request.treeOwnerId)) {
-                throw new Error("Cannot claim your own invitation");
+            if (contacts.phoneNumber) {
+                recipientConditions.push({ invitedPhoneNumber: contacts.phoneNumber });
+            }
+            if (recipientConditions.length === 0) {
+                throw new Error("Verified email or phone number required");
+            }
+            const invitationIdentifier = typeof invitationToken === "string"
+                ? { invitationTokenHash: hashToken(invitationToken) }
+                : { _id: objectId(requestId, "invitation request ID") };
+            const request = await FamilyTreeAccessRequest.findOne({
+                ...invitationIdentifier,
+                type: "INVITATION",
+                status: "PENDING",
+                invitationExpiresAt: { $gt: new Date() },
+                treeOwnerId: { $ne: userId },
+                $or: recipientConditions,
+            }).session(session);
+            if (!request) {
+                throw new Error("Invitation invalid, expired or unavailable");
             }
             const familyMemberId = request.familyMemberId;
             if (!familyMemberId) {
                 throw new Error("Invitation has no family member");
             }
+            // Reuse existing account-linking logic.
             await this.claimMember(actorId, familyMemberId, request.treeOwnerId, session);
             const result = await FamilyTreeAccessRequest.updateOne({
                 _id: request._id,
+                type: "INVITATION",
                 status: "PENDING",
+                invitationExpiresAt: { $gt: new Date() },
             }, {
                 $set: {
                     status: "APPROVED",
-                    requesterId: user._id,
-                    decidedBy: user._id,
+                    requesterId: userId,
+                    decidedBy: userId,
                     decidedAt: new Date(),
                     invitationTokenHash: null,
                 },
             }, { session });
             if (result.modifiedCount !== 1) {
-                throw new Error("Invitation already processed");
+                throw new Error("Invitation already processed or expired");
             }
             await session.commitTransaction();
             return {
                 success: true,
+                requestId: request._id.toString(),
                 familyMemberId: familyMemberId.toString(),
                 linkedUserId: actorId,
                 accessEnabled: true,

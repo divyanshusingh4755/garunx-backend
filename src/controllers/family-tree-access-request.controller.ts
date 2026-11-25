@@ -60,13 +60,21 @@ export const validateFamilyTreeInvitation = async (req: Request, res: Response) 
 
 export const acceptFamilyTreeInvitation = async (req: Request, res: Response) => {
     try {
-        const result = await FamilyTreeAccessRequestService.acceptInvitation(authenticatedId(req), requiredParam(req.body.invitationToken, "invitationToken"));
+        const { invitationToken, requestId } = req.body ?? {};
+
+        const data = await FamilyTreeAccessRequestService.acceptInvitation(
+            authenticatedId(req),
+            {
+                invitationToken,
+                requestId,
+            },
+        );
 
         return res.status(200).json({
             success: true,
-            data: result,
+            data,
         });
-    } catch (error) {
+    } catch (error: unknown) {
         return sendError(res, error);
     }
 };
@@ -149,3 +157,16 @@ export const requestDiscoveredFamilyTreeJoin = async (req: Request, res: Respons
     }
 };
 
+export const getPendingFamilyTreeInvitations = async (req: Request, res: Response) => {
+    try {
+        const data = await FamilyTreeAccessRequestService
+            .getPendingInvitations(authenticatedId(req));
+
+        return res.status(200).json({
+            success: true,
+            data,
+        });
+    } catch (error: unknown) {
+        return sendError(res, error);
+    }
+};
