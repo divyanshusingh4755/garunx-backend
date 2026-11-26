@@ -8,7 +8,7 @@ import { Caste, FamilyLinkRelation, FamilyRelation, Gender, Gotra, MemberLifeSta
 import { Role } from "../types/rbac.js";
 import { requireAdminPermission } from "../middleware/requireAdminPermission.js";
 import { requirePermission } from "../middleware/rbac.js";
-import { acceptFamilyTreeInvitation, activateFamilyTreeJoinRequest, createFamilyTreeInvitation, decideFamilyTreeJoinRequest, getPendingFamilyTreeInvitations, getPendingFamilyTreeJoinRequests, requestDiscoveredFamilyTreeJoin, requestFamilyTreeJoin, validateFamilyTreeInvitation } from "../controllers/family-tree-access-request.controller.js";
+import { acceptFamilyTreeInvitation, activateFamilyTreeJoinRequest, createFamilyTreeInvitation, decideFamilyTreeJoinRequest, getFamilyTreeInvitationHistory, getPendingFamilyTreeInvitations, getPendingFamilyTreeJoinRequests, rejectFamilyTreeInvitation, requestDiscoveredFamilyTreeJoin, requestFamilyTreeJoin, validateFamilyTreeInvitation } from "../controllers/family-tree-access-request.controller.js";
 
 const router = Router();
 
@@ -234,6 +234,19 @@ const acceptInvitationValidation = [
   validate,
 ];
 
+const rejectInvitationValidation = [
+  body("requestId").notEmpty().withMessage("Invitation request ID is required").bail().isMongoId().withMessage("Invalid invitation request ID"),
+  validate,
+];
+
+const invitationHistoryValidation = [
+  query("direction").optional().isIn(["ALL", "INCOMING", "OUTGOING"]).withMessage("Invalid invitation direction"),
+  query("status").optional().isIn(["ALL", "PENDING", "APPROVED", "REJECTED", "EXPIRED"]).withMessage("Invalid invitation status"),
+  query("page").optional().isInt({ min: 1 }).withMessage("Invalid page number"),
+  query("limit").optional().isInt({ min: 1, max: 100 }).withMessage("Invalid limit"),
+  validate,
+];
+
 const requestJoinValidation = [
   body("treeOwnerId").isMongoId(),
   body("familyMemberId").isMongoId(),
@@ -275,6 +288,8 @@ router.post("/invitations", authorizeRoles(Role.USER), createInvitationValidatio
 router.get("/invitations/pending", authorizeRoles(Role.USER), getPendingFamilyTreeInvitations);
 router.get("/invitations/validate/:token", authorizeRoles(Role.USER), invitationTokenParamValidation, validateFamilyTreeInvitation);
 router.post("/invitations/accept", authorizeRoles(Role.USER), acceptInvitationValidation, acceptFamilyTreeInvitation);
+router.post("/invitations/reject", authorizeRoles(Role.USER), rejectInvitationValidation, rejectFamilyTreeInvitation);
+router.get("/invitations/history", authorizeRoles(Role.USER), invitationHistoryValidation, getFamilyTreeInvitationHistory);
 
 // FAMILY TREE JOIN REQUESTS
 router.post("/join-requests", authorizeRoles(Role.USER), requestJoinValidation, requestFamilyTreeJoin);

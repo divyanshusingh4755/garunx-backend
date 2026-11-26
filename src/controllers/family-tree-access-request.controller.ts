@@ -79,6 +79,21 @@ export const acceptFamilyTreeInvitation = async (req: Request, res: Response) =>
     }
 };
 
+export const rejectFamilyTreeInvitation = async (req: Request, res: Response) => {
+    try {
+        const { requestId } = req.body;
+
+        const data = await FamilyTreeAccessRequestService.rejectInvitation(authenticatedId(req), requestId);
+
+        return res.status(200).json({
+            success: true,
+            data,
+        });
+    } catch (error: unknown) {
+        return sendError(res, error);
+    }
+};
+
 export const requestFamilyTreeJoin = async (req: Request, res: Response) => {
     try {
         const result = await FamilyTreeAccessRequestService.requestToJoin(
@@ -165,6 +180,28 @@ export const getPendingFamilyTreeInvitations = async (req: Request, res: Respons
         return res.status(200).json({
             success: true,
             data,
+        });
+    } catch (error: unknown) {
+        return sendError(res, error);
+    }
+};
+
+export const getFamilyTreeInvitationHistory = async (req: Request, res: Response) => {
+    try {
+        const { direction, status, page, limit } = req.query;
+        const result = await FamilyTreeAccessRequestService.getInvitationHistory(
+            authenticatedId(req),
+            {
+                direction: typeof direction === "string" ? direction : "ALL",
+                status: typeof status === "string" ? status : "ALL",
+                page: page !== undefined ? Number(page) : 1,
+                limit: limit !== undefined ? Number(limit) : 20,
+            },
+        );
+
+        return res.status(200).json({
+            success: true,
+            ...result,
         });
     } catch (error: unknown) {
         return sendError(res, error);
