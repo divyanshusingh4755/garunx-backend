@@ -79,7 +79,6 @@ export interface IUser extends Document {
   userReference: string;
   ratingSummary?: IRatingSummary;
   coordinatorProfile?: ICoordinatorProfile;
-  verifiedEmail?: string | null;
   verifiedPhoneNumber?: string | null;
   createdAt: Date;
   updatedAt: Date;
@@ -387,13 +386,6 @@ const userSchema = new Schema<IUser>(
       type: Boolean,
       default: false,
       required: true,
-    },
-
-    verifiedEmail: {
-      type: String,
-      lowercase: true,
-      trim: true,
-      default: null,
     },
 
     verifiedPhoneNumber: {
