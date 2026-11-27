@@ -23,14 +23,13 @@ const objectId = (value: string, field: string): Types.ObjectId => {
 const hashToken = (token: string): string => createHash("sha256").update(token).digest("hex");
 
 export class FamilyTreeAccessRequestService {
-    private static getVerifiedInvitationContacts(user: { email?: string | null; phoneNumber?: string | null; verifiedEmail?: string | null; verifiedPhoneNumber?: string | null; }) {
+    private static getVerifiedInvitationContacts(user: { email?: string | null; phoneNumber?: string | null; verifiedPhoneNumber?: string | null; }) {
         const email = user.email?.trim().toLowerCase();
-        const verifiedEmail = user.verifiedEmail?.trim().toLowerCase();
         const phoneNumber = user.phoneNumber?.trim();
         const verifiedPhoneNumber = user.verifiedPhoneNumber?.trim();
 
         return {
-            email: email && verifiedEmail && email === verifiedEmail ? email : null,
+            email: email ? email : null,
             phoneNumber: phoneNumber && verifiedPhoneNumber && phoneNumber === verifiedPhoneNumber ? phoneNumber : null,
         };
     }

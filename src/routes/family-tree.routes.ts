@@ -214,7 +214,7 @@ const createInvitationValidation = [
 ];
 
 const invitationTokenParamValidation = [
-  param("token").matches(/^[a-f0-9]{64}$/),
+  param("token").trim().isString().matches(/^[a-f0-9]{64}$/i).withMessage("Invalid invitation token"),
   validate,
 ];
 
